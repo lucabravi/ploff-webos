@@ -1,0 +1,8 @@
+.git
+.github
+.worktrees
+.DS_Store
+.env
+dist
+*.ipk
+app/config.local.js

@@ -1,0 +1,7 @@
+{
+  "id": "io.github.rhapsodos.ploff.discovery",
+  "description": "Ploff local Plex GDM discovery",
+  "services": [
+    { "name": "io.github.rhapsodos.ploff.discovery" }
+  ]
+}

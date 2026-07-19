@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ploff</title>
+  <link rel="stylesheet" href="styles.css?v=dev">
+</head>
+<body class="is-booting">
+  <div class="backdrop" aria-hidden="true">
+    <img id="backdrop-a" class="backdrop-image is-active" alt="">
+    <img id="backdrop-b" class="backdrop-image" alt="">
+    <div class="backdrop-shade"></div>
+  </div>
+  <header class="topbar">
+    <div class="brand"><img class="brand-logo" src="ploff-logo.svg" alt="Ploff"></div>
+    <nav id="navigation" class="navigation" aria-label="Main navigation"></nav>
+    <div class="topbar-status">
+      <button id="server-activity" class="server-activity is-idle" type="button" data-activity-shortcut="true" aria-expanded="false">
+        <span class="server-activity-spinner" aria-hidden="true"></span>
+        <span id="server-activity-title" class="server-activity-title"></span>
+      </button>
+      <div id="server-activity-panel" class="server-activity-panel" aria-live="polite"></div>
+      <button id="active-profile" class="active-profile is-hidden" type="button" data-profile-shortcut="true">
+        <span class="active-profile-avatar-frame"><img id="active-profile-avatar" class="active-profile-avatar" alt=""><span id="active-profile-initial" class="active-profile-initial"></span></span>
+        <span id="active-profile-name" class="active-profile-name"></span>
+      </button>
+      <time id="clock" class="clock"></time>
+    </div>
+  </header>
+  <section id="setup-view" class="setup-view is-hidden" aria-live="polite">
+    <div class="setup-panel">
+      <div class="setup-heading">
+        <img class="setup-brand" src="ploff-logo.svg" alt="Ploff">
+        <span id="setup-step" class="setup-step"></span>
+      </div>
+      <h1 id="setup-title" class="setup-title"></h1>
+      <p id="setup-message" class="setup-message"></p>
+      <div id="setup-server-list" class="setup-list"></div>
+      <div id="setup-profile-list" class="setup-list is-hidden"></div>
+      <div id="setup-login" class="setup-login is-hidden">
+        <div class="setup-login-content">
+          <img id="setup-link-qr" class="setup-link-qr" src="plex-link-qr.png" alt="Plex.tv/link QR code">
+          <div class="setup-link-details">
+            <a id="setup-link-url" class="setup-link-url" href="https://plex.tv/link" target="_blank">https://plex.tv/link</a>
+            <div id="setup-code" class="setup-code"></div>
+          </div>
+        </div>
+        <p id="setup-login-status" class="setup-login-status"></p>
+      </div>
+      <div id="setup-manual" class="setup-manual is-hidden">
+        <input id="setup-address" class="setup-address" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="192.168.1.10">
+      </div>
+      <div id="setup-actions" class="setup-actions"></div>
+    </div>
+  </section>
+  <main id="content" class="content"></main>
+
+  <section id="library-view" class="library-view is-hidden">
+    <nav id="library-subnav" class="library-subnav">
+      <div id="library-tabs" class="library-tabs"></div>
+      <div class="library-actions">
+        <button id="library-refresh" class="library-action library-refresh" type="button" title="Refresh" aria-label="Refresh"><svg class="icon-refresh-cw" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 12a9 9 0 0 0-15.17-6.55L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 15.17 6.55L21 16"></path><path d="M16 16h5v5"></path></svg></button>
+        <button id="library-refresh-metadata" class="library-action" type="button">Refresh metadata</button>
+      </div>
+    </nav>
+    <div id="library-controls" class="library-controls is-hidden">
+      <div id="library-sort" class="library-control-group"></div>
+      <div id="library-filter" class="library-control-group"></div>
+    </div>
+    <div id="library-status" class="library-status"></div>
+    <div id="library-grid" class="library-grid"><div id="library-grid-content" class="library-grid-content"></div></div>
+  </section>
+  <section id="watchlist-view" class="watchlist-view is-hidden" aria-live="polite">
+    <h1 id="watchlist-title" class="watchlist-title">Watchlist</h1>
+    <div id="watchlist-status" class="watchlist-status"></div>
+    <div id="watchlist-grid" class="watchlist-grid"><div id="watchlist-grid-content" class="watchlist-grid-content"></div></div>
+  </section>
+  <section id="search-view" class="search-view is-hidden" aria-live="polite">
+    <div id="search-query" class="search-query"></div>
+    <div id="search-keyboard" class="search-keyboard"></div>
+    <div id="search-status" class="search-status"></div>
+    <div id="search-results" class="search-results"></div>
+  </section>
+  <section id="app-settings-view" class="app-settings-view is-hidden" aria-live="polite">
+    <h1 id="app-settings-title" class="app-settings-title">Settings</h1>
+    <p id="app-settings-notice" class="app-settings-notice"></p>
+    <div id="app-settings-list" class="app-settings-list"></div>
+    <div id="language-editor" class="language-editor is-hidden">
+      <h2 id="language-editor-title"></h2>
+      <p id="language-editor-hint"></p>
+      <div id="language-editor-list" class="language-editor-list"></div>
+    </div>
+  </section>
+  <section id="diagnostics-view" class="diagnostics-view is-hidden" aria-live="polite">
+    <h1 id="diagnostics-title" class="diagnostics-title">User diagnostics</h1>
+    <p id="diagnostics-notice" class="diagnostics-notice"></p>
+    <div id="diagnostics-content" class="diagnostics-content"></div>
+    <div class="diagnostics-actions">
+      <button id="diagnostics-refresh" data-diagnostics-action="refresh" type="button">Refresh</button>
+      <button id="diagnostics-back" data-diagnostics-action="back" type="button">Back</button>
+    </div>
+  </section>
+  <section id="detail-view" class="detail-view is-hidden" aria-live="polite">
+    <div id="detail-metadata-status" class="detail-metadata-status is-hidden" role="status"></div>
+    <div id="season-tabs" class="season-tabs"></div>
+    <div class="detail-copy">
+      <h1 id="detail-title" class="detail-title"></h1>
+      <div id="detail-subtitle" class="detail-subtitle"></div>
+      <div id="detail-facts" class="detail-facts"></div>
+      <p id="detail-summary" class="detail-summary"></p>
+      <div class="detail-actions">
+        <button id="detail-play" class="detail-action" type="button">Play</button>
+        <button id="detail-watched" class="detail-action detail-action-secondary" type="button">Mark watched</button>
+        <button id="detail-watchlist" class="detail-action detail-action-secondary" type="button">Watchlist</button>
+        <button id="detail-refresh-metadata" class="detail-action detail-action-secondary" type="button">Refresh metadata</button>
+      </div>
+      <div id="detail-playback-controls" class="detail-playback-controls">
+        <button id="detail-audio" class="detail-choice" type="button"><span id="detail-audio-label" class="detail-choice-label">Audio</span><span id="detail-audio-value" class="detail-choice-value"></span></button>
+        <button id="detail-subtitles" class="detail-choice" type="button"><span id="detail-subtitles-label" class="detail-choice-label">Subtitles</span><span id="detail-subtitles-value" class="detail-choice-value"></span></button>
+        <button id="detail-version" class="detail-choice" type="button"><span id="detail-version-label" class="detail-choice-label">Version</span><span id="detail-version-value" class="detail-choice-value"></span></button>
+        <div id="detail-media-info" class="detail-media-info is-hidden">
+          <div id="detail-media-info-label" class="detail-media-info-title">Media info</div>
+          <div class="detail-media-info-row">
+            <span id="detail-media-info-video-label" class="detail-media-info-row-label">Video</span>
+            <span id="detail-media-info-video" class="detail-media-info-row-value"></span>
+          </div>
+          <div class="detail-media-info-row">
+            <span id="detail-media-info-audio-label" class="detail-media-info-row-label">Audio</span>
+            <span id="detail-media-info-audio" class="detail-media-info-row-value"></span>
+          </div>
+          <div class="detail-media-info-row">
+            <span id="detail-media-info-bitrate-label" class="detail-media-info-row-label">Bitrate</span>
+            <span id="detail-media-info-bitrate" class="detail-media-info-row-value"></span>
+          </div>
+          <div class="detail-media-info-row">
+            <span id="detail-media-info-subtitle-languages-label" class="detail-media-info-row-label">Subtitle languages</span>
+            <span id="detail-media-info-subtitle-languages" class="detail-media-info-row-value"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <img id="detail-poster" class="detail-poster" alt="">
+    <div id="episode-strip" class="episode-strip"></div>
+  </section>
+  <section id="player-view" class="player-view is-hidden">
+    <video id="player-video" class="player-video" playsinline autoplay></video>
+    <div id="subtitle-preview-overlay" class="subtitle-preview-overlay is-hidden" aria-live="off"></div>
+    <div id="player-loading" class="player-loading is-hidden"><span class="player-loading-spinner"></span></div>
+    <div id="player-error" class="player-error is-hidden" role="alert">
+      <h3 id="player-error-title"></h3>
+      <p id="player-error-message"></p>
+      <div class="player-error-actions">
+        <button id="player-error-retry" type="button"></button>
+        <button id="player-error-settings" type="button"></button>
+        <button id="player-error-back" type="button"></button>
+      </div>
+    </div>
+    <div id="resume-choice" class="resume-choice is-hidden" role="dialog" aria-modal="true">
+      <h3 id="resume-choice-title"></h3>
+      <div class="resume-choice-actions">
+        <button id="resume-choice-resume" data-resume-index="0" type="button"></button>
+        <button id="resume-choice-restart" data-resume-index="1" type="button"></button>
+        <button id="resume-choice-cancel" data-resume-index="2" type="button"></button>
+      </div>
+    </div>
+    <button id="player-skip-marker" class="player-skip-marker is-hidden" type="button"></button>
+    <div id="player-controls" class="player-controls is-hidden">
+      <div class="player-heading">
+        <h2 id="player-title" class="player-title"></h2>
+        <div class="player-track-summary">
+          <span class="player-track-row"><span id="player-track-audio-label"></span><span id="player-track-audio"></span></span>
+          <span class="player-track-row"><span id="player-track-subtitles-label"></span><span id="player-track-subtitles"></span></span>
+        </div>
+      </div>
+      <div class="player-status-row"><div id="player-quality" class="player-quality"></div><div id="player-delivery-mode" class="player-delivery-mode"></div><div id="player-status" class="player-status">Loading</div></div>
+      <div id="player-end-time" class="player-end-time"></div>
+      <button id="player-timeline-button" class="player-timeline-button" type="button" aria-label="Playback position">
+        <span class="player-timeline"><span id="player-progress" class="player-progress"></span></span>
+      </button>
+      <div class="player-times"><span id="player-current-time">0:00</span><span id="player-duration">0:00</span></div>
+      <div class="player-buttons">
+        <button id="player-previous" class="player-button player-icon-button player-skip player-previous" type="button" aria-label="Previous episode"><span class="skip-bar"></span><span class="skip-triangle"></span></button>
+        <button id="player-toggle" class="player-button player-icon-button player-toggle is-focused" type="button" aria-label="Pausa"></button>
+        <button id="player-next" class="player-button player-icon-button player-skip player-next" type="button" aria-label="Next episode"><span class="skip-triangle"></span><span class="skip-bar"></span></button>
+        <button id="player-settings-button" class="player-button player-icon-button player-settings-command" type="button" aria-label="Settings"><span class="options-dot"></span><span class="options-dot"></span><span class="options-dot"></span></button>
+      </div>
+    </div>
+    <button id="player-chapters-hint" class="player-chapters-hint is-hidden" type="button">
+      <span class="player-chapters-chevron" aria-hidden="true"></span><span id="player-chapters-hint-label"></span>
+    </button>
+    <section id="player-chapters-drawer" class="player-chapters-drawer is-hidden">
+      <h3 id="player-chapters-title"></h3>
+      <div id="player-chapters-list" class="player-chapters-list"></div>
+    </section>
+    <div id="player-settings" class="player-settings is-hidden">
+      <h3 id="player-settings-title">Settings</h3>
+      <button class="setting-row is-cycle" data-setting="audio" type="button"><span id="setting-audio-label">Audio</span><span id="setting-audio"></span></button>
+      <button class="setting-row is-cycle" data-setting="subtitles" type="button"><span id="setting-subtitles-label">Subtitles</span><span id="setting-subtitles"></span></button>
+      <button class="setting-row is-cycle" data-setting="size" type="button"><span id="setting-size-label">Size</span><span id="setting-size"></span></button>
+      <button class="setting-row" data-setting="subtitle-advanced" type="button"><span id="setting-subtitle-advanced-label">Advanced subtitle settings</span><span id="setting-subtitle-advanced"></span></button>
+      <button class="setting-row is-cycle" data-setting="version" type="button"><span id="setting-version-label">Version</span><span id="setting-version"></span></button>
+      <button class="setting-row is-cycle" data-setting="quality" type="button"><span id="setting-quality-label">Video quality</span><span id="setting-quality"></span></button>
+      <button class="setting-row is-cycle" data-setting="playback-mode" type="button"><span id="setting-playback-mode-label">Playback mode</span><span id="setting-playback-mode"></span></button>
+      <div class="playback-info">
+        <div class="playback-info-row"><span id="playback-info-file-label">File</span><span id="playback-info-file"></span></div>
+        <div class="playback-info-row"><span id="playback-info-size-label">Size</span><span id="playback-info-size"></span></div>
+        <div class="playback-info-row"><span id="playback-info-source-label">Source</span><span id="playback-info-source"></span></div>
+        <div class="playback-info-row"><span id="playback-info-hdr-label">HDR</span><span id="playback-info-hdr"></span></div>
+        <div class="playback-info-row"><span id="playback-info-mode-label">Playback</span><span id="playback-info-mode"></span></div>
+      </div>
+    </div>
+    <div id="subtitle-editor" class="subtitle-editor is-hidden" role="dialog" aria-modal="true">
+      <h3 id="subtitle-editor-title"></h3>
+      <p id="subtitle-editor-status" class="subtitle-editor-status"></p>
+      <button class="subtitle-editor-row" data-subtitle-editor="track" type="button"><span id="subtitle-editor-track-label"></span><span id="subtitle-editor-track"></span></button>
+      <button class="subtitle-editor-row" data-subtitle-editor="size" type="button"><span id="subtitle-editor-size-label"></span><span id="subtitle-editor-size"></span></button>
+      <div class="subtitle-offset-row">
+        <button data-subtitle-editor="minus" type="button">-100 ms</button>
+        <span id="subtitle-editor-offset">0 ms</span>
+        <button data-subtitle-editor="plus" type="button">+100 ms</button>
+      </div>
+      <div class="subtitle-editor-timeline"><span id="subtitle-editor-timeline-progress"></span></div>
+      <div class="subtitle-editor-actions">
+        <button data-subtitle-editor="loop" type="button"><span id="subtitle-editor-loop-label"></span></button>
+        <button data-subtitle-editor="apply" type="button"><span id="subtitle-editor-apply-label"></span></button>
+        <button data-subtitle-editor="cancel" type="button"><span id="subtitle-editor-cancel-label"></span></button>
+      </div>
+    </div>
+    <div id="autoplay-prompt" class="autoplay-prompt is-hidden">
+      <h3 id="autoplay-title"></h3>
+      <div class="autoplay-actions">
+        <button id="autoplay-play" type="button">Play</button>
+        <button id="autoplay-cancel" type="button">Cancel</button>
+      </div>
+    </div>
+  </section>
+  <section id="view-state" class="view-state is-hidden" aria-live="polite">
+    <span id="view-state-spinner" class="view-state-spinner"></span>
+    <h2 id="view-state-title"></h2>
+    <p id="view-state-message"></p>
+    <div id="view-state-actions" class="view-state-actions"></div>
+  </section>
+  <div id="message" class="message" role="status" aria-live="polite"></div>
+  <audio id="theme-audio" preload="none"></audio>
+
+  <script src="focus-model.js?v=dev"></script>
+  <script src="navigation-model.js?v=dev"></script>
+  <script src="search-model.js?v=dev"></script>
+  <script src="home-state.js?v=dev"></script>
+  <script src="activity-state.js?v=dev"></script>
+  <script src="metadata-refresh.js?v=dev"></script>
+  <script src="skip-marker-state.js?v=dev"></script>
+  <script src="player-controls-state.js?v=dev"></script>
+  <script src="chapter-state.js?v=dev"></script>
+  <script src="playback-strategy.js?v=dev"></script>
+  <script src="playback-recovery.js?v=dev"></script>
+  <script src="playback-clock.js?v=dev"></script>
+  <script src="episode-navigation.js?v=dev"></script>
+  <script src="resume-choice.js?v=dev"></script>
+  <script src="subtitle-sync.js?v=dev"></script>
+  <script src="subtitle-offset-store.js?v=dev"></script>
+  <script src="diagnostics-state.js?v=dev"></script>
+  <script src="navbar-window.js?v=dev"></script>
+  <script src="library-containers.js?v=dev"></script>
+  <script src="view-state.js?v=dev"></script>
+  <script src="card-layout.js?v=dev"></script>
+  <script src="device-capabilities.js?v=dev"></script>
+  <script src="media-preferences.js?v=dev"></script>
+  <script src="media-profile.js?v=dev"></script>
+  <script src="media-labels.js?v=dev"></script>
+  <script src="watchlist-client.js?v=dev"></script>
+  <script src="watchlist-state.js?v=dev"></script>
+  <script src="build-info.js?v=dev"></script>
+  <script src="config.js?v=dev"></script>
+  <script src="i18n.js?v=dev"></script>
+  <script src="locales/en.js?v=dev"></script>
+  <script src="locales/it.js?v=dev"></script>
+  <script src="locales/es.js?v=dev"></script>
+  <script src="locales/fr.js?v=dev"></script>
+  <script src="locales/de.js?v=dev"></script>
+  <script src="locales/pt.js?v=dev"></script>
+  <script src="settings.js?v=dev"></script>
+  <script src="auth-store.js?v=dev"></script>
+  <script src="plex-auth.js?v=dev"></script>
+  <script src="server-store.js?v=dev"></script>
+  <script src="server-discovery.js?v=dev"></script>
+  <script src="background-audio.js?v=dev"></script>
+  <script src="plex-client.js?v=dev"></script>
+  <script src="progressive-images.js?v=dev"></script>
+  <script src="app.js?v=dev"></script>
+</body>
+</html>
