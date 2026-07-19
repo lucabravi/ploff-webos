@@ -77,7 +77,7 @@ grep -q "tags:.*v\*" .github/workflows/release.yml
 grep -q 'gh release create' .github/workflows/release.yml
 grep -q 'SHA256SUMS' .github/workflows/release.yml
 grep -q '@webos-tools/cli@3.2.5' .github/workflows/release.yml
-grep -q 'gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7' .github/workflows/ci.yml
+grep -q 'gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e' .github/workflows/ci.yml
 grep -q 'Prebuilt Releases' README.md
 
 echo "baseline checks passed"
