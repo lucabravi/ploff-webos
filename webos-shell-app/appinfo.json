@@ -1,0 +1,13 @@
+{
+  "id": "io.github.rhapsodos.ploff",
+  "version": "1.0.0",
+  "vendor": "Rhapsodos",
+  "type": "web",
+  "main": "index.html",
+  "title": "Ploff",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#0b0c0e",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true
+}

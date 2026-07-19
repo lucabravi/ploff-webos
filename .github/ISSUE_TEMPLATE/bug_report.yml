@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible Ploff problem without private data
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include Plex tokens, authenticated URLs, private media names, or complete server identifiers. Security issues must be reported privately."
+  - type: input
+    id: version
+    attributes:
+      label: Ploff version
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: TV model and webOS version
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true

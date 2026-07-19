@@ -1,0 +1,7 @@
+.worktrees/
+.env
+dist/
+*.ipk
+.DS_Store
+.superpowers/
+/shell/config.local.js
