@@ -73,6 +73,7 @@
   var setupLoginPurpose = 'profiles';
   var setupStatusKey = '';
   var setupReturnView = '';
+  var setupProfileBusy = false;
   if (ServerStore && configuredServer) {
     serverState.servers = ServerStore.merge(serverState.servers, [configuredServer]);
   }
@@ -90,6 +91,22 @@
   var languageEditorKind = '';
   var languageEditorIndex = 0;
   var languageCatalog = ['en', 'it', 'es', 'fr', 'de', 'pt', 'ja', 'ko', 'zh', 'ru'];
+  var accentColorValues = {
+    cyan: '#13b8ad',
+    amber: '#e5a00d',
+    blue: '#4da3ff',
+    green: '#48c774',
+    pink: '#ec6aa7',
+    red: '#f05d5e'
+  };
+  var setupUiLanguages = [
+    { code: 'en', label: 'English' },
+    { code: 'it', label: 'Italiano' },
+    { code: 'es', label: 'Espa\u00f1ol' },
+    { code: 'fr', label: 'Fran\u00e7ais' },
+    { code: 'de', label: 'Deutsch' },
+    { code: 'pt', label: 'Portugu\u00eas' }
+  ];
   var backgroundAudio = BackgroundAudio.create(document.getElementById('theme-audio'), root, 20);
   var themeLookupTimer = null;
   var themeLookupToken = 0;
@@ -2230,6 +2247,16 @@
     return t('settings.auto');
   }
 
+  function accentColorLabel(value) {
+    var normalized = String(value || 'cyan');
+    return t('settings.color' + normalized.charAt(0).toUpperCase() + normalized.slice(1));
+  }
+
+  function applyAccentColor() {
+    var value = accentColorValues[appSettings.accentColor] || accentColorValues.cyan;
+    document.documentElement.style.setProperty('--accent', value);
+  }
+
   function settingsRows() {
     var subtitleLabels = {
       off: t('subtitle.off'),
@@ -2243,6 +2270,7 @@
       { key: 'uiLanguage', section: 'interface', label: t('settings.interfaceLanguage'), value: I18n.languageName(appSettings.uiLanguage, appSettings.uiLanguage) },
       { key: 'wheelBehavior', section: 'interface', label: t('settings.wheelBehavior'), value: t(appSettings.wheelBehavior === 'page' ? 'settings.wheelPage' : 'settings.wheelItems') },
       { key: 'cardScale', section: 'interface', label: t('settings.cardSize'), value: appSettings.cardScale + '%' },
+      { key: 'accentColor', section: 'interface', label: t('settings.accentColor'), value: accentColorLabel(appSettings.accentColor), swatch: accentColorValues[appSettings.accentColor] || accentColorValues.cyan },
       { key: 'showMediaInfo', section: 'interface', label: t('settings.showMediaInfo'), value: t(appSettings.showMediaInfo ? 'settings.enabled' : 'settings.disabled') },
       { key: 'backgroundMusic', section: 'audioAppearance', label: t('settings.backgroundMusic'), value: t(appSettings.backgroundMusic ? 'settings.enabled' : 'settings.disabled') },
       { key: 'backgroundVolume', section: 'audioAppearance', label: t('settings.backgroundVolume'), value: appSettings.backgroundVolume + '%' },
@@ -2275,6 +2303,7 @@
     appSettings = Settings.save(root.localStorage, appSettings);
     document.documentElement.lang = appSettings.uiLanguage;
     applyCardScale();
+    applyAccentColor();
     translateStaticUi();
   }
 
@@ -2310,6 +2339,11 @@
       if (rows[index].serverEditor) { button.setAttribute('aria-expanded', serverEditorOpen ? 'true' : 'false'); }
       button.appendChild(element('span', 'app-setting-label', rows[index].label));
       value = element('span', 'app-setting-value', rows[index].value);
+      if (rows[index].swatch) {
+        editor = element('span', 'app-setting-swatch');
+        editor.style.backgroundColor = rows[index].swatch;
+        value.insertBefore(editor, value.firstChild);
+      }
       button.appendChild(value);
       container.appendChild(button);
       if (settingsViewIndex === 0 && serverEditorOpen && index === 0) {
@@ -2322,6 +2356,7 @@
         container.appendChild(editor);
       }
     }
+    container.appendChild(element('div', 'app-settings-credit', t('settings.createdBy', { name: 'Rhapsodos93' })));
     if (serverEditorOpen) {
       renderServerEditor();
     } else { updateSettingsFocus(); }
@@ -2371,6 +2406,8 @@
       appSettings.wheelBehavior = cycleValue(['items', 'page'], appSettings.wheelBehavior, direction);
     } else if (row.key === 'cardScale') {
       appSettings.cardScale = cycleValue(CardLayout.SCALES, appSettings.cardScale, direction);
+    } else if (row.key === 'accentColor') {
+      appSettings.accentColor = cycleValue(Settings.ACCENT_COLORS, appSettings.accentColor, direction);
     } else if (row.key === 'showMediaInfo') {
       appSettings.showMediaInfo = !appSettings.showMediaInfo;
     }
@@ -2780,6 +2817,43 @@
     if (!pointerSelectionActive) { buttons[setupFocusIndex].focus(); }
   }
 
+  function renderSetupLanguage() {
+    var list;
+    var index;
+    var language;
+    var button;
+    setupStage = 'language';
+    setupFocusIndex = 0;
+    resetSetupSurface(t('setup.stepLanguage'), t('setup.chooseLanguageTitle'), t('setup.chooseLanguageMessage'));
+    list = document.getElementById('setup-server-list');
+    list.className = 'setup-list setup-language-list';
+    list.innerHTML = '';
+    for (index = 0; index < setupUiLanguages.length; index += 1) {
+      language = setupUiLanguages[index];
+      button = element('button', 'setup-option' + (language.code === appSettings.uiLanguage ? ' is-active' : ''));
+      button.type = 'button';
+      button.setAttribute('data-setup-language', index);
+      button.appendChild(element('span', '', language.label));
+      button.appendChild(element('span', 'setup-option-meta', language.code === appSettings.uiLanguage ? '\u2713' : ''));
+      list.appendChild(button);
+      if (language.code === appSettings.uiLanguage) { setupFocusIndex = index; }
+    }
+    updateSetupFocus();
+  }
+
+  function selectSetupLanguage(index) {
+    var language = setupUiLanguages[index];
+    if (!language) { return; }
+    appSettings.uiLanguage = language.code;
+    appSettings.uiLanguageExplicit = true;
+    appSettings = Settings.save(root.localStorage, appSettings);
+    homeDomDirty = true;
+    setupFocusIndex = 0;
+    setupStatusKey = '';
+    renderSetupServers();
+    scanSetupServers();
+  }
+
   function renderSetupServers() {
     var list;
     var actions;
@@ -3073,6 +3147,7 @@
       serverMachineIdentifier: machineIdentifier || profile.serverMachineIdentifier,
       serverConnectionUri: connectionUri || profile.serverConnectionUri
     };
+    setupProfileBusy = false;
     authState.profiles = AuthStore.mergeProfiles(authState.profiles, [updated].concat(setupProfiles));
     authState.mode = 'plex'; authState.activeProfileId = profile.id; authState.setupComplete = true;
     authState = AuthStore.save(root.localStorage, authState);
@@ -3083,6 +3158,7 @@
     var server = setupSelectedServer || activeServer;
     var preferredServer;
     if (!server || !server.machineIdentifier) {
+      setupProfileBusy = false;
       setupStatusKey = 'setup.serverAccessUnavailable'; renderSetupProfiles(); return;
     }
     preferredServer = {
@@ -3093,6 +3169,7 @@
       var candidates;
       if (generation !== setupAuthGeneration || appView !== 'setup') { return; }
       if (error || !access || !access.token) {
+        setupProfileBusy = false;
         setupStatusKey = 'setup.serverAccessUnavailable'; renderSetupProfiles(); return;
       }
       candidates = access.connections.slice();
@@ -3103,6 +3180,7 @@
       PlexAuth.findReachableConnection(root, access.token, candidates, server.machineIdentifier, authOptions, function (connectionError, connectionUri) {
         if (generation !== setupAuthGeneration || appView !== 'setup') { return; }
         if (connectionError || !connectionUri) {
+          setupProfileBusy = false;
           setupStatusKey = 'setup.serverAccessUnavailable'; renderSetupProfiles(); return;
         }
         completeSetupProfile(profile, access.token, accountToken, server.machineIdentifier, connectionUri);
@@ -3114,16 +3192,21 @@
     var generation;
     var server = setupSelectedServer || activeServer;
     var accountToken;
+    if (setupProfileBusy) { return; }
     if (profile.token && server && profile.serverMachineIdentifier === server.machineIdentifier) {
       completeSetupProfile(profile, profile.token, profile.accountToken, profile.serverMachineIdentifier, profile.serverConnectionUri); return;
     }
     if (profile.protected && typeof pin !== 'string') { setupStatusKey = ''; renderSetupProfilePin(profile); return; }
+    setupProfileBusy = true;
+    setupStatusKey = 'setup.profileConnecting';
+    setText('setup-message', t(setupStatusKey));
     generation = setupAuthGeneration + 1; setupAuthGeneration = generation;
     accountToken = profile.accountToken || (!profile.serverMachineIdentifier ? profile.token : '');
     if (accountToken) { resolveSetupProfileAccess(profile, accountToken, generation); return; }
     PlexAuth.switchHomeUser(root, authState.ownerToken, profile, pin || '', authOptions, function (error, token) {
       if (generation !== setupAuthGeneration) { return; }
       if (error || !token) {
+        setupProfileBusy = false;
         setupStatusKey = 'setup.pinIncorrect';
         if (profile.protected) { renderSetupProfilePin(profile); }
         else { renderSetupProfiles(); }
@@ -3147,7 +3230,7 @@
 
   function finishSetup() {
     var destination = setupReturnView;
-    root.clearTimeout(setupPollTimer); setupAuthGeneration += 1; setupPin = null; setupStatusKey = '';
+    root.clearTimeout(setupPollTimer); setupAuthGeneration += 1; setupPin = null; setupStatusKey = ''; setupProfileBusy = false;
     if (setupSelectedServer) { applyServer(setupSelectedServer); }
     else if (activeServer) { applyServer(activeServer); }
     document.getElementById('setup-view').className = 'setup-view is-hidden';
@@ -3163,7 +3246,7 @@
 
   function cancelSetup() {
     var destination = setupReturnView;
-    root.clearTimeout(setupPollTimer); setupAuthGeneration += 1; setupPin = null; setupStatusKey = '';
+    root.clearTimeout(setupPollTimer); setupAuthGeneration += 1; setupPin = null; setupStatusKey = ''; setupProfileBusy = false;
     if (!setupReturnView) { renderSetupServers(); return; }
     document.getElementById('setup-view').className = 'setup-view is-hidden';
     setupReturnView = '';
@@ -3184,7 +3267,8 @@
   function openSetup() {
     appView = 'setup'; setupReturnView = ''; setupSelectedServer = null; setupPreferredConnectionUri = ''; setupEnteredConnectionUri = ''; setupFocusIndex = 0; setupStatusKey = '';
     document.getElementById('setup-view').className = 'setup-view';
-    renderSetupServers(); scanSetupServers();
+    if (!appSettings.uiLanguageExplicit) { renderSetupLanguage(); }
+    else { renderSetupServers(); scanSetupServers(); }
   }
 
   function openProfileManager() {
@@ -3236,6 +3320,10 @@
 
   function activateSetupButton(button) {
     var index;
+    if (button.hasAttribute('data-setup-language')) {
+      selectSetupLanguage(Number(button.getAttribute('data-setup-language')));
+      return;
+    }
     if (button.hasAttribute('data-setup-action')) { activateSetupAction(button.getAttribute('data-setup-action')); return; }
     if (button.hasAttribute('data-setup-server')) {
       index = Number(button.getAttribute('data-setup-server'));
@@ -6603,10 +6691,11 @@
 
   function handleSetupBack() {
     if (setupReturnView) { cancelSetup(); return; }
-    if (setupStage === 'manual' || setupStage === 'access') { setupStatusKey = ''; renderSetupServers(); }
+    if (setupStage === 'servers' && appSettings.uiLanguageExplicit) { renderSetupLanguage(); }
+    else if (setupStage === 'manual' || setupStage === 'access') { setupStatusKey = ''; renderSetupServers(); }
     else if (setupStage === 'connection-choice') { setupStatusKey = ''; renderSetupManual(); }
     else if (setupStage === 'login') { setupAuthGeneration += 1; root.clearTimeout(setupPollTimer); setupPin = null; renderSetupAccess(); }
-    else if (setupStage === 'profiles') { renderSetupAccess(); }
+    else if (setupStage === 'profiles') { setupAuthGeneration += 1; setupProfileBusy = false; renderSetupAccess(); }
     else if (setupStage === 'profile-pin') { setupStatusKey = ''; renderSetupProfiles(); }
   }
 
@@ -7042,7 +7131,7 @@
     } else if (button.hasAttribute('data-resume-index') && resumeChoiceVisible) {
       resumeChoiceState.index = Number(button.getAttribute('data-resume-index'));
       renderResumeChoice();
-    } else if (button.hasAttribute('data-setup-action') || button.hasAttribute('data-setup-server') || button.hasAttribute('data-setup-profile')) {
+    } else if (button.hasAttribute('data-setup-language') || button.hasAttribute('data-setup-action') || button.hasAttribute('data-setup-server') || button.hasAttribute('data-setup-profile')) {
       var setupButtons = document.querySelectorAll('#setup-view button');
       for (index = 0; index < setupButtons.length; index += 1) {
         if (setupButtons[index] === button) { setupFocusIndex = index; break; }
@@ -7384,7 +7473,7 @@
       activateDiagnosticsAction();
     } else if (button.hasAttribute('data-profile-shortcut')) {
       openProfileManager();
-    } else if (button.hasAttribute('data-setup-action') || button.hasAttribute('data-setup-server') || button.hasAttribute('data-setup-profile')) {
+    } else if (button.hasAttribute('data-setup-language') || button.hasAttribute('data-setup-action') || button.hasAttribute('data-setup-server') || button.hasAttribute('data-setup-profile')) {
       activateSetupButton(button);
     } else if (button.hasAttribute('data-nav-index')) {
       if (appView === 'search') { activateSearchNav(); return; }
@@ -7436,6 +7525,7 @@
   }
 
   applyCardScale();
+  applyAccentColor();
   translateStaticUi();
   renderNavigation();
   updateClock();

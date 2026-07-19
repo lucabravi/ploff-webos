@@ -149,8 +149,8 @@ assert.ok(/controlsHiddenAt/.test(scripts) && /1000/.test(scripts), 'Back must t
 assert.ok(/playerBackArmed/.test(scripts) && /detailBackLockedUntil/.test(scripts), 'Back must distinguish manual bar hiding from detail navigation debounce');
 assert.ok(/options-dot/.test(html), 'the settings icon must not depend on a webOS font glyph');
 assert.ok(/player-progress:after/.test(styles), 'the timeline must show a visible current-position cursor');
-assert.ok(/\.media-card\.is-focused[\s\S]*#13b8ad/.test(styles), 'home media focus must use the Ploff teal outline');
-assert.ok(/\.episode-card\.is-focused[\s\S]*#13b8ad/.test(styles), 'episode focus must always use the Ploff teal outline');
+assert.ok(/\.media-card\.is-focused[\s\S]*var\(--accent,\s*#13b8ad\)/.test(styles), 'home media focus must use the selected Ploff accent outline');
+assert.ok(/\.episode-card\.is-focused[\s\S]*var\(--accent,\s*#13b8ad\)/.test(styles), 'episode focus must always use the selected Ploff accent outline');
 assert.ok(/\.media-card\.is-viewed:after[\s\S]*\.search-card\.is-viewed:after[\s\S]*\.library-card\.is-viewed:after[\s\S]*bottom:/.test(styles), 'watched badges must appear at the bottom-right of cards in every media view');
 assert.ok(/function createCard\([\s\S]*item\.viewed \? ' is-viewed'/.test(scripts) && /function updateSearchCard\([\s\S]*item\.viewed \? ' is-viewed'/.test(scripts) && /function renderLibraryGrid\([\s\S]*item\.viewed \? ' is-viewed'/.test(scripts), 'Home, search, and library cards must consume Plex watched state');
 assert.ok(/data-home-row-key/.test(scripts) && /data-media-key/.test(scripts), 'Home rows and cards must reconcile by stable identity');
@@ -213,7 +213,7 @@ assert.ok(/showMessage\(t\('status\.opening', \{ title: mediaTitle\(item\) \}\)\
 assert.ok(/row\.key === 'uiLanguage'[\s\S]{0,220}homeDomDirty = true/.test(scripts), 'changing interface language must reconcile already-rendered Home media labels');
 assert.ok(/function renderEpisodeStrip\(\)[\s\S]*episodeImageSpecification\(image, episode\.image[\s\S]*posterLoader\.loadBatch\(posterJobs\)/.test(scripts), 'episode thumbnails must use the progressive loader at their rendered card dimensions');
 assert.ok(/function renderEpisodeStrip\(\)[\s\S]*episode-progress-track[\s\S]*episode\.progress/.test(scripts), 'partially watched episode cards must render their Plex progress below the thumbnail');
-assert.ok(/\.episode-progress-track\s*\{[^}]*position:absolute[^}]*height:[^;}]+[^}]*background:[^;}]+/.test(styles) && /\.episode-progress-value\s*\{[^}]*background:\s*#13b8ad/.test(styles), 'episode progress must use a compact Ploff-teal timeline without changing card dimensions');
+assert.ok(/\.episode-progress-track\s*\{[^}]*position:absolute[^}]*height:[^;}]+[^}]*background:[^;}]+/.test(styles) && /\.episode-progress-value\s*\{[^}]*background:\s*var\(--accent,\s*#13b8ad\)/.test(styles), 'episode progress must use the selected compact Ploff accent without changing card dimensions');
 assert.ok(/\.episode-progress-track\s*\{[^}]*transition:[^;}]*opacity/.test(styles) && /\.episode-progress-value\s*\{[^}]*transition:[^;}]*width/.test(styles), 'fresh Plex progress must animate in place without flashing or rebuilding episode artwork');
 assert.ok(/function loadRenderedPoster/.test(scripts) && /renderRows[\s\S]*renderedPosterSpecification\([\s\S]*'home'/.test(scripts), 'Home posters must use rendered progressive loading after layout');
 assert.ok(/renderSearchResults[\s\S]*renderedPosterSpecification\([\s\S]*'search'/.test(scripts), 'search posters must use rendered progressive loading');
@@ -349,6 +349,9 @@ assert.ok(/function openProfileManager\(\)[\s\S]*renderSetupProfiles\(\)[\s\S]*l
 assert.ok(/function renderSetupProfiles\(\)[\s\S]*authState\.activeProfileId[\s\S]*setupFocusIndex = index/.test(scripts), 'profile management must focus the active viewing profile immediately');
 assert.ok(/function renderSetupProfiles\(\)[\s\S]*list\.innerHTML = ''[\s\S]*for \(index = 0; index < setupProfiles\.length/.test(scripts), 'refreshing Plex profiles must replace the rendered list instead of appending duplicates');
 assert.ok(/function renderSetupProfiles\(\)[\s\S]*profile\.thumb[\s\S]*setup-profile-avatar/.test(scripts), 'profile selection must render each cached Plex avatar');
+assert.ok(/function renderSetupLanguage\(\)[\s\S]*data-setup-language[\s\S]*setupUiLanguages/.test(scripts), 'first-run setup must provide a remote-friendly interface language chooser');
+assert.ok(/function openSetup\(\)[\s\S]*!appSettings\.uiLanguageExplicit[\s\S]*renderSetupLanguage/.test(scripts), 'the language chooser must be the first screen for a fresh installation');
+assert.ok(/function switchSetupProfile\([\s\S]*setupProfileBusy[\s\S]*setup\.profileConnecting/.test(scripts), 'profile selection must provide immediate feedback and reject duplicate activation while connecting');
 assert.ok(/function renderActiveProfile\(\)[\s\S]*AuthStore\.activeProfile\(authState\)[\s\S]*active-profile-avatar[\s\S]*active-profile-name/.test(scripts), 'the top bar profile shortcut must reflect the active cached profile');
 assert.ok(/function renderActiveProfile\(\)[\s\S]*authState\.mode !== 'plex'[\s\S]*active-profile is-offline[\s\S]*profile\.offline[\s\S]*button\.disabled = false[\s\S]*setAttribute\('data-nav-index', navigationItems\.length \+ 1\)/.test(scripts), 'offline mode must show a localized focusable profile shortcut');
 assert.ok(/function activeProfileShortcutVisible\(\)[\s\S]*authState\.mode !== 'plex'[\s\S]*return !!authState\.setupComplete/.test(scripts), 'a configured offline profile must participate in the navbar focus model');
@@ -468,6 +471,8 @@ assert.ok(/function openAppSettings\(keepNavigationFocus\)[\s\S]*settingsZone = 
 assert.ok(/settingsZone === 'list'[\s\S]*event\.keyCode === 38 && settingsViewIndex === 0[\s\S]*settingsZone = 'nav'/.test(scripts), 'Up from the first Settings row must return focus to the navbar');
 assert.ok(/settings\.sectionPlex/.test(scripts) && /settings\.sectionInterface/.test(scripts) && /settings\.sectionAudioAppearance/.test(scripts) && /settings\.sectionPlayback/.test(scripts) && /settings\.sectionLanguages/.test(scripts) && /settings\.sectionSupport/.test(scripts), 'application settings must localize all six category headings');
 assert.ok(/key: 'plexServer'[\s\S]*section: 'plex'[\s\S]*key: 'uiLanguage'[\s\S]*section: 'interface'[\s\S]*key: 'backgroundMusic'[\s\S]*section: 'audioAppearance'[\s\S]*key: 'videoQuality'[\s\S]*section: 'playback'[\s\S]*key: 'audioLanguages'[\s\S]*section: 'languages'[\s\S]*key: 'diagnostics'[\s\S]*section: 'support'/.test(scripts), 'settings rows must follow the approved category order');
+assert.ok(/key: 'accentColor'[\s\S]*Settings\.ACCENT_COLORS[\s\S]*applyAccentColor/.test(scripts), 'settings must persist and apply a selectable interface accent color');
+assert.ok(/app-settings-credit[\s\S]*Rhapsodos93/.test(scripts), 'Settings must show the non-focusable project credit');
 assert.ok(/function renderAppSettings\(\)[\s\S]*app-settings-section[\s\S]*container\.appendChild\(button\)/.test(scripts), 'settings rendering must insert visual category headings before focusable rows');
 assert.ok(/\.app-settings-section[^}]*border-bottom:[^;}]*solid[^}]*font-size/.test(styles), 'settings category headings must render as restrained dividers');
 assert.ok(!/app-settings-section[^\n]*data-setting-index/.test(scripts), 'settings category headings must never enter the remote focus sequence');

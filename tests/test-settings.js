@@ -14,6 +14,7 @@ assert.strictEqual(defaults.skipPromptDuration, 5, 'skip marker prompts must rem
 assert.strictEqual(defaults.playbackMode, 'auto', 'playback must default to Plex automatic Direct Stream decisions');
 assert.strictEqual(defaults.wheelBehavior, 'items', 'the Magic Remote wheel must default to moving the selection');
 assert.strictEqual(defaults.cardScale, 100, 'poster cards must keep the current Home size by default');
+assert.strictEqual(defaults.accentColor, 'cyan', 'the original cyan accent must remain the default');
 assert.strictEqual(defaults.showMediaInfo, false, 'technical media information must remain opt-in');
 
 var validated = Settings.validate({
@@ -46,6 +47,8 @@ assert.strictEqual(Settings.validate({ playbackMode: 'direct' }).playbackMode, '
 assert.strictEqual(Settings.validate({ cardScale: 70 }).cardScale, 70, 'the smallest supported poster scale must be accepted');
 assert.strictEqual(Settings.validate({ cardScale: 130 }).cardScale, 130, 'the largest supported poster scale must be accepted');
 assert.strictEqual(Settings.validate({ cardScale: 75 }).cardScale, 100, 'unsupported poster scales must safely fall back to 100%');
+assert.strictEqual(Settings.validate({ accentColor: 'amber' }).accentColor, 'amber', 'supported accent colors must be preserved');
+assert.strictEqual(Settings.validate({ accentColor: 'purple' }).accentColor, 'cyan', 'unknown accent colors must fall back safely');
 assert.strictEqual(Settings.validate({ showMediaInfo: true }).showMediaInfo, true, 'technical media information may be enabled explicitly');
 assert.strictEqual(Settings.validate({ showMediaInfo: 'true' }).showMediaInfo, false, 'technical media information must accept only a real boolean');
 assert.deepStrictEqual(validated.audioLanguages, ['ja', 'en'], 'language priorities must be normalized and deduplicated in order');

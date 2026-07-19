@@ -24,6 +24,7 @@
   var PLAYBACK_MODES = ['auto', 'direct', 'transcode'];
   var WHEEL_BEHAVIORS = ['items', 'page'];
   var CARD_SCALES = [70, 80, 90, 100, 110, 120, 130];
+  var ACCENT_COLORS = ['cyan', 'amber', 'blue', 'green', 'pink', 'red'];
 
   function defaults() {
     return {
@@ -44,6 +45,7 @@
       playbackMode: 'auto',
       wheelBehavior: 'items',
       cardScale: 100,
+      accentColor: 'cyan',
       showMediaInfo: false
     };
   }
@@ -97,6 +99,7 @@
       playbackMode: enumValue(value.playbackMode, PLAYBACK_MODES, fallback.playbackMode),
       wheelBehavior: enumValue(value.wheelBehavior, WHEEL_BEHAVIORS, fallback.wheelBehavior),
       cardScale: enumValue(Number(value.cardScale), CARD_SCALES, fallback.cardScale),
+      accentColor: enumValue(String(value.accentColor || ''), ACCENT_COLORS, fallback.accentColor),
       showMediaInfo: value.showMediaInfo === true
     };
   }
@@ -141,6 +144,7 @@
   }
 
   return {
+    ACCENT_COLORS: ACCENT_COLORS.slice(),
     STORAGE_KEY: STORAGE_KEY,
     defaults: defaults,
     languageList: languageList,
