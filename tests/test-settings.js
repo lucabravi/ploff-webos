@@ -38,6 +38,7 @@ var validated = Settings.validate({
 assert.strictEqual(validated.uiLanguage, 'it', 'supported regional locales must use their primary tag');
 assert.strictEqual(Settings.validate({ uiLanguage: 'pt-BR' }).uiLanguage, 'pt', 'Brazilian Portuguese must be accepted as a UI locale');
 assert.strictEqual(Settings.validate({ uiLanguage: 'fr-FR' }).uiLanguage, 'fr', 'French regional locales must be accepted as a UI locale');
+assert.strictEqual(Settings.validate({ uiLanguage: 'ko-KR' }).uiLanguage, 'ko', 'Korean regional locales must be accepted as a UI locale');
 assert.deepStrictEqual(Settings.supportedUiLanguages().sort(), I18n.supportedLanguages().sort(), 'settings must use the i18n locale registry as its single source');
 assert.strictEqual(validated.backgroundVolume, 20, 'volume must be restricted to supported values');
 assert.strictEqual(validated.backgroundDelay, 1000, 'delay must be restricted to supported values');
@@ -78,6 +79,12 @@ assert.strictEqual(seeded.uiLanguage, 'it', 'Plex account locale must seed a mis
 assert.deepStrictEqual(seeded.audioLanguages, ['ja'], 'Plex audio preference must seed an empty priority list');
 assert.deepStrictEqual(seeded.subtitleLanguages, ['it'], 'Plex subtitle preference must seed an empty priority list');
 assert.strictEqual(seeded.subtitleMode, 'audio-mismatch', 'Plex automatic subtitle selection must seed the equivalent local mode');
+
+var koreanSeeded = Settings.seedFromPlex(Settings.defaults(), {
+  locale: 'ko-KR',
+  profile: {}
+});
+assert.strictEqual(koreanSeeded.uiLanguage, 'ko', 'a Korean Plex account locale must seed the Korean interface');
 
 var subtitlesDisabled = Settings.seedFromPlex(Settings.defaults(), {
   profile: { autoSelectSubtitle: false, defaultSubtitleLanguage: 'it' }
