@@ -12,6 +12,8 @@ assert.deepStrictEqual(defaults.subtitleSuppressedForAudio, [], 'subtitle suppre
 assert.strictEqual(defaults.autoplayDelay, 5, 'next-episode autoplay must keep the current five-second default');
 assert.strictEqual(defaults.skipPromptDuration, 5, 'skip marker prompts must remain visible for five seconds by default');
 assert.strictEqual(defaults.playbackMode, 'auto', 'playback must default to Plex automatic Direct Stream decisions');
+assert.strictEqual(defaults.lanVideoQuality, 'original', 'LAN playback must default to original quality');
+assert.strictEqual(defaults.remoteVideoQuality, '8000', 'remote playback must default to a bounded quality');
 assert.strictEqual(defaults.wheelBehavior, 'items', 'the Magic Remote wheel must default to moving the selection');
 assert.strictEqual(defaults.cardScale, 100, 'poster cards must keep the current Home size by default');
 assert.strictEqual(defaults.accentColor, 'cyan', 'the original cyan accent must remain the default');
@@ -24,7 +26,8 @@ var validated = Settings.validate({
   autoplayDelay: 9,
   skipPromptDuration: 9,
   subtitleMode: 'forced',
-  videoQuality: '8000',
+  lanVideoQuality: '12000',
+  remoteVideoQuality: '8000',
   playbackMode: 'invalid',
   wheelBehavior: 'page',
   audioLanguages: [' JA ', 'en-US', 'ja', ''],
@@ -41,6 +44,11 @@ assert.strictEqual(validated.backgroundDelay, 1000, 'delay must be restricted to
 assert.strictEqual(validated.autoplayDelay, 5, 'autoplay delay must be restricted to supported values');
 assert.strictEqual(validated.skipPromptDuration, 5, 'skip prompt duration must be restricted to supported values');
 assert.strictEqual(validated.playbackMode, 'auto', 'invalid playback modes must safely fall back to Auto');
+assert.strictEqual(validated.lanVideoQuality, '12000', 'LAN quality must validate independently');
+assert.strictEqual(validated.remoteVideoQuality, '8000', 'remote quality must validate independently');
+var migratedQuality = Settings.validate({ videoQuality: '4000' });
+assert.strictEqual(migratedQuality.lanVideoQuality, '4000', 'legacy quality must migrate to LAN playback');
+assert.strictEqual(migratedQuality.remoteVideoQuality, '4000', 'legacy quality must migrate to remote playback without changing behavior');
 assert.strictEqual(validated.wheelBehavior, 'page', 'page scrolling must be a supported wheel behavior');
 assert.strictEqual(Settings.validate({ wheelBehavior: 'invalid' }).wheelBehavior, 'items', 'invalid wheel behavior must safely fall back to selection movement');
 assert.strictEqual(Settings.validate({ playbackMode: 'direct' }).playbackMode, 'direct', 'Direct-only playback must be a supported global mode');
@@ -48,7 +56,9 @@ assert.strictEqual(Settings.validate({ cardScale: 70 }).cardScale, 70, 'the smal
 assert.strictEqual(Settings.validate({ cardScale: 130 }).cardScale, 130, 'the largest supported poster scale must be accepted');
 assert.strictEqual(Settings.validate({ cardScale: 75 }).cardScale, 100, 'unsupported poster scales must safely fall back to 100%');
 assert.strictEqual(Settings.validate({ accentColor: 'amber' }).accentColor, 'amber', 'supported accent colors must be preserved');
-assert.strictEqual(Settings.validate({ accentColor: 'purple' }).accentColor, 'cyan', 'unknown accent colors must fall back safely');
+assert.strictEqual(Settings.validate({ accentColor: 'purple' }).accentColor, 'purple', 'purple must be available as an accent color');
+assert.strictEqual(Settings.validate({ accentColor: 'white' }).accentColor, 'white', 'white must be available as an accent color');
+assert.strictEqual(Settings.validate({ accentColor: 'orange' }).accentColor, 'cyan', 'unknown accent colors must fall back safely');
 assert.strictEqual(Settings.validate({ showMediaInfo: true }).showMediaInfo, true, 'technical media information may be enabled explicitly');
 assert.strictEqual(Settings.validate({ showMediaInfo: 'true' }).showMediaInfo, false, 'technical media information must accept only a real boolean');
 assert.deepStrictEqual(validated.audioLanguages, ['ja', 'en'], 'language priorities must be normalized and deduplicated in order');

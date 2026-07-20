@@ -20,6 +20,7 @@
     var uri = normalizeUri(value.uri || value.apiBaseUrl);
     var normalized;
     var connections;
+    var connectionRoutes;
     if (!uri) { return null; }
     normalized = {
       name: String(value.name || value.serverName || uri),
@@ -32,6 +33,10 @@
       connections = value.connections.map(normalizeUri).filter(function (connection) { return !!connection; });
       if (connections.length) { normalized.connections = connections; }
     }
+    if (Object.prototype.toString.call(value.connectionRoutes) === '[object Array]') {
+      connectionRoutes = normalizeConnectionRoutes(value.connectionRoutes);
+      if (connectionRoutes.length) { normalized.connectionRoutes = connectionRoutes; }
+    }
     if (typeof value.owned !== 'undefined') { normalized.owned = value.owned === true; }
     if (/^(pending|linked|failed|unavailable)$/.test(String(value.remoteLinkStatus || ''))) {
       normalized.remoteLinkStatus = String(value.remoteLinkStatus);
@@ -40,6 +45,30 @@
       normalized.remoteLinkCheckedAt = Number(value.remoteLinkCheckedAt);
     }
     return normalized;
+  }
+
+  function normalizeConnectionRoutes(values) {
+    var source = Object.prototype.toString.call(values) === '[object Array]' ? values : [];
+    var result = [];
+    var index;
+    var route;
+    var uri;
+    for (index = 0; index < source.length; index += 1) {
+      route = source[index] || {};
+      uri = normalizeUri(typeof route === 'string' ? route : route.uri);
+      if (!uri || result.some(function (item) { return item.uri === uri; })) { continue; }
+      result.push({
+        uri: uri,
+        local: route.local === true,
+        relay: route.relay === true
+      });
+    }
+    return result;
+  }
+
+  function mergedConnectionRoutes(left, right) {
+    var values = (left.connectionRoutes || []).concat(right.connectionRoutes || []);
+    return normalizeConnectionRoutes(values);
   }
 
   function fromConfig(config) {
@@ -102,13 +131,14 @@
     return value;
   }
 
-  function withRemoteConnections(server, connections, status, checkedAt) {
+  function withRemoteConnections(server, connections, status, checkedAt, connectionRoutes) {
     var value = normalize(server);
     if (!value) { return null; }
     value.connections = connectionUris({
       uri: value.uri,
       connections: (value.connections || []).concat(connections || [])
     });
+    value.connectionRoutes = normalizeConnectionRoutes((value.connectionRoutes || []).concat(connectionRoutes || []));
     value.remoteLinkStatus = /^(pending|linked|failed|unavailable)$/.test(String(status || '')) ? String(status) : 'pending';
     if (Number(checkedAt) > 0) { value.remoteLinkCheckedAt = Number(checkedAt); }
     return value;
@@ -132,6 +162,9 @@
         } else {
           if (result[match].connections || candidate.connections || result[match].uri !== candidate.uri) {
             result[match].connections = mergedConnections(result[match], candidate);
+          }
+          if (result[match].connectionRoutes || candidate.connectionRoutes) {
+            result[match].connectionRoutes = mergedConnectionRoutes(result[match], candidate);
           }
           result[match].machineIdentifier = candidate.machineIdentifier || result[match].machineIdentifier;
           result[match].version = candidate.version || result[match].version;
@@ -176,6 +209,7 @@
 
   return {
     STORAGE_KEY: STORAGE_KEY,
+    connectionRoutes: normalizeConnectionRoutes,
     connectionUris: connectionUris,
     fromConfig: fromConfig,
     load: load,
