@@ -113,7 +113,8 @@
     { code: 'es', label: 'Espa\u00f1ol' },
     { code: 'fr', label: 'Fran\u00e7ais' },
     { code: 'de', label: 'Deutsch' },
-    { code: 'pt', label: 'Portugu\u00eas' }
+    { code: 'pt', label: 'Portugu\u00eas' },
+    { code: 'ko', label: '\ud55c\uad6d\uc5b4' }
   ];
   var backgroundAudio = BackgroundAudio.create(document.getElementById('theme-audio'), root, 20);
   var themeLookupTimer = null;
