@@ -1,0 +1,35 @@
+name: Apply Korean setup locale
+
+on:
+  push:
+    branches: ['feat/korean-localization']
+    paths: ['.github/workflows/apply-korean-setup.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/korean-localization
+      - name: Add Korean to first-launch languages
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/app.js')
+          content = path.read_text(encoding='utf-8')
+          old = "    { code: 'pt', label: 'Portugu\\u00eas' }\n  ];"
+          new = "    { code: 'pt', label: 'Portugu\\u00eas' },\n    { code: 'ko', label: '\\ud55c\\uad6d\\uc5b4' }\n  ];"
+          if content.count(old) != 1:
+              raise SystemExit('expected setup language block not found exactly once')
+          path.write_text(content.replace(old, new, 1), encoding='utf-8')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/app.js
+          git commit -m "i18n: offer Korean during first launch"
+          git push
