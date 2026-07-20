@@ -19,7 +19,7 @@ function placeholders(value) {
   var matches = String(value).match(/\{[^}]+\}/g) || [];
   return matches.sort();
 }
-['it', 'es', 'fr', 'de', 'pt'].forEach(function (locale) {
+['it', 'es', 'fr', 'de', 'pt', 'ja'].forEach(function (locale) {
   var loaded = loadLocale(locale);
   var index;
   assert.strictEqual(loaded.code, locale, locale + ' must register with its own locale code');
@@ -44,15 +44,17 @@ assert.strictEqual(I18n.t('en', 'library.recommended'), 'Recommended', 'the per-
 assert.strictEqual(I18n.language('it-IT'), 'it', 'Italian regional locales must resolve to Italian');
 assert.strictEqual(I18n.language('fr-FR'), 'fr', 'French regional locales must resolve to French');
 assert.strictEqual(I18n.language('pt-BR'), 'pt', 'Brazilian Portuguese locales must resolve to Portuguese');
-assert.strictEqual(I18n.language('ja-JP'), 'en', 'unsupported interface locales must fall back to English');
+assert.strictEqual(I18n.language('ja-JP'), 'ja', 'Japanese regional locales must resolve to Japanese');
 assert.strictEqual(I18n.t('en', 'nav.settings'), 'Settings', 'English must be the default project language');
 assert.strictEqual(I18n.t('it', 'nav.settings'), 'Impostazioni', 'Italian translations must be available');
+assert.strictEqual(I18n.t('ja', 'nav.settings'), '設定', 'Japanese translations must be available');
 assert.strictEqual(I18n.t('it', 'missing.key'), 'missing.key', 'missing translations must fail visibly but safely');
 assert.strictEqual(I18n.t('it', 'settings.episodeCount', { count: 3 }), '3 episodi', 'translations must interpolate values');
 assert.strictEqual(I18n.t('en', 'settings.wheelBehavior'), 'Wheel action', 'wheel behavior must have portable English copy');
 assert.strictEqual(I18n.t('it', 'settings.wheelItems'), 'Sposta la selezione', 'Italian wheel item mode must use user-friendly copy');
 assert.strictEqual(I18n.t('it', 'settings.backgroundMusic'), 'Tema di sottofondo', 'Italian settings must use the same theme terminology throughout');
 assert.strictEqual(I18n.languageName('it', 'ja'), 'Giapponese', 'language names must follow the UI language');
+assert.strictEqual(I18n.languageName('ja', 'en'), '英語', 'Japanese language names must be localized');
 assert.strictEqual(I18n.languageName('en', 'zz'), 'ZZ', 'unknown language tags must remain usable');
 assert.strictEqual(I18n.t('en', 'search.loading'), 'Searching...', 'search loading text must be localized in English');
 assert.strictEqual(I18n.t('it', 'search.noResults'), 'Nessun risultato', 'search empty state must be localized in Italian');
@@ -81,22 +83,23 @@ assert.strictEqual(I18n.t('it', 'profile.offline'), 'Profilo Offline', 'offline 
 assert.strictEqual(I18n.t('en', 'media.season', { number: 4 }), 'Season 4', 'generated season labels must be localized in English');
 assert.strictEqual(I18n.t('it', 'media.movie'), 'Film', 'generated movie labels must be localized in Italian');
 assert.strictEqual(I18n.t('en', 'media.episodeCount', { count: 12 }), '12 episodes', 'generated episode counts must be localized in English');
+assert.strictEqual(I18n.t('ja', 'media.episodeCount', { count: 12 }), '12話', 'Japanese episode counts must use a natural counter');
 assert.strictEqual(I18n.t('it', 'player.play'), 'Riproduci', 'player accessibility labels must be localized');
 assert.strictEqual(I18n.t('en', 'player.pause'), 'Pause', 'player accessibility labels must be localized in English');
 assert.strictEqual(I18n.t('en', 'media.episodeCount', { count: 1 }), '1 episode', 'English singular counts must be grammatical');
 assert.strictEqual(I18n.t('it', 'media.episodeCount', { count: 1 }), '1 episodio', 'Italian singular counts must be grammatical');
-assert.strictEqual(I18n.t('es', 'library.titlesCount', { count: 1 }), '1 t\u00edtulo', 'Spanish singular counts must be grammatical');
+assert.strictEqual(I18n.t('es', 'library.titlesCount', { count: 1 }), '1 título', 'Spanish singular counts must be grammatical');
 assert.strictEqual(I18n.t('fr', 'library.titlesCount', { count: 2 }), '2 titres', 'French plural counts must be grammatical');
 assert.strictEqual(I18n.t('de', 'media.episodeCount', { count: 1 }), '1 Folge', 'German singular counts must be grammatical');
-assert.strictEqual(I18n.t('pt', 'media.episodeCount', { count: 2 }), '2 epis\u00f3dios', 'Portuguese plural counts must be grammatical');
+assert.strictEqual(I18n.t('pt', 'media.episodeCount', { count: 2 }), '2 episódios', 'Portuguese plural counts must be grammatical');
 assert.strictEqual(I18n.t('en', 'status.opening', { title: 'Example' }), 'Opening Example', 'fallback actions must not leak a fixed UI language');
 assert.strictEqual(I18n.t('it', 'nav.main'), 'Navigazione principale', 'navigation accessibility labels must be localized');
 assert.strictEqual(I18n.t('en', 'player.timeline'), 'Playback position', 'timeline accessibility labels must be localized');
 assert.strictEqual(I18n.t('es', 'library.continue'), 'Seguir viendo', 'Spanish must localize the primary library navigation');
 assert.strictEqual(I18n.t('fr', 'player.chapters'), 'Chapitres', 'French must localize chapter navigation');
-assert.strictEqual(I18n.t('de', 'settings.interfaceLanguage'), 'Sprache der Oberfl\u00e4che', 'German must localize interface settings');
-assert.strictEqual(I18n.t('pt-BR', 'player.skipIntro'), 'Pular introdu\u00e7\u00e3o', 'Brazilian Portuguese must localize player actions');
-assert.strictEqual(I18n.languageName('fr', 'pt'), 'Portugais (Br\u00e9sil)', 'language names must follow the active interface locale');
-assert.deepStrictEqual(I18n.supportedLanguages().sort(), ['de', 'en', 'es', 'fr', 'it', 'pt'], 'the locale registry must expose every selectable UI language');
+assert.strictEqual(I18n.t('de', 'settings.interfaceLanguage'), 'Sprache der Oberfläche', 'German must localize interface settings');
+assert.strictEqual(I18n.t('pt-BR', 'player.skipIntro'), 'Pular introdução', 'Brazilian Portuguese must localize player actions');
+assert.strictEqual(I18n.languageName('fr', 'pt'), 'Portugais (Brésil)', 'language names must follow the active interface locale');
+assert.deepStrictEqual(I18n.supportedLanguages().sort(), ['de', 'en', 'es', 'fr', 'it', 'ja', 'pt'], 'the locale registry must expose every selectable UI language');
 
 console.log('i18n checks passed');
