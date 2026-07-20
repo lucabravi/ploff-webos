@@ -88,18 +88,18 @@ assert.strictEqual(I18n.t('it', 'player.play'), 'Riproduci', 'player accessibili
 assert.strictEqual(I18n.t('en', 'player.pause'), 'Pause', 'player accessibility labels must be localized in English');
 assert.strictEqual(I18n.t('en', 'media.episodeCount', { count: 1 }), '1 episode', 'English singular counts must be grammatical');
 assert.strictEqual(I18n.t('it', 'media.episodeCount', { count: 1 }), '1 episodio', 'Italian singular counts must be grammatical');
-assert.strictEqual(I18n.t('es', 'library.titlesCount', { count: 1 }), '1 título', 'Spanish singular counts must be grammatical');
+assert.strictEqual(I18n.t('es', 'library.titlesCount', { count: 1 }), '1 t\u00edtulo', 'Spanish singular counts must be grammatical');
 assert.strictEqual(I18n.t('fr', 'library.titlesCount', { count: 2 }), '2 titres', 'French plural counts must be grammatical');
 assert.strictEqual(I18n.t('de', 'media.episodeCount', { count: 1 }), '1 Folge', 'German singular counts must be grammatical');
-assert.strictEqual(I18n.t('pt', 'media.episodeCount', { count: 2 }), '2 episódios', 'Portuguese plural counts must be grammatical');
+assert.strictEqual(I18n.t('pt', 'media.episodeCount', { count: 2 }), '2 epis\u00f3dios', 'Portuguese plural counts must be grammatical');
 assert.strictEqual(I18n.t('en', 'status.opening', { title: 'Example' }), 'Opening Example', 'fallback actions must not leak a fixed UI language');
 assert.strictEqual(I18n.t('it', 'nav.main'), 'Navigazione principale', 'navigation accessibility labels must be localized');
 assert.strictEqual(I18n.t('en', 'player.timeline'), 'Playback position', 'timeline accessibility labels must be localized');
 assert.strictEqual(I18n.t('es', 'library.continue'), 'Seguir viendo', 'Spanish must localize the primary library navigation');
 assert.strictEqual(I18n.t('fr', 'player.chapters'), 'Chapitres', 'French must localize chapter navigation');
-assert.strictEqual(I18n.t('de', 'settings.interfaceLanguage'), 'Sprache der Oberfläche', 'German must localize interface settings');
-assert.strictEqual(I18n.t('pt-BR', 'player.skipIntro'), 'Pular introdução', 'Brazilian Portuguese must localize player actions');
-assert.strictEqual(I18n.languageName('fr', 'pt'), 'Portugais (Brésil)', 'language names must follow the active interface locale');
+assert.strictEqual(I18n.t('de', 'settings.interfaceLanguage'), 'Sprache der Oberfl\u00e4che', 'German must localize interface settings');
+assert.strictEqual(I18n.t('pt-BR', 'player.skipIntro'), 'Pular introdu\u00e7\u00e3o', 'Brazilian Portuguese must localize player actions');
+assert.strictEqual(I18n.languageName('fr', 'pt'), 'Portugais (Br\u00e9sil)', 'language names must follow the active interface locale');
 assert.deepStrictEqual(I18n.supportedLanguages().sort(), ['de', 'en', 'es', 'fr', 'it', 'ja', 'pt'], 'the locale registry must expose every selectable UI language');
 
 console.log('i18n checks passed');
