@@ -3,9 +3,11 @@
 var assert = require('assert');
 var LibraryContainers = require('../app/library-containers');
 
-assert.deepStrictEqual(LibraryContainers.views(), ['continue', 'recent', 'catalog', 'collections', 'playlists'], 'container tabs must follow Full Catalog');
-assert.deepStrictEqual(LibraryContainers.moveControl('sort', 1, 'right'), { zone: 'filter', index: 0 }, 'Right from Rating must move visually to All');
-assert.deepStrictEqual(LibraryContainers.moveControl('filter', 0, 'left'), { zone: 'sort', index: 1 }, 'Left from All must return visually to Rating');
+assert.deepStrictEqual(LibraryContainers.views(), ['recommended', 'continue', 'recent', 'catalog', 'collections', 'playlists'], 'library tabs must start with Plex recommendations and retain the browsing views');
+assert.deepStrictEqual(LibraryContainers.moveControl('sort', 1, 'right'), { zone: 'sort', index: 2 }, 'Right from Rating must move visually to Year');
+assert.deepStrictEqual(LibraryContainers.moveControl('sort', 2, 'right'), { zone: 'filter', index: 0 }, 'Right from Year must move visually to All');
+assert.deepStrictEqual(LibraryContainers.moveControl('filter', 0, 'left'), { zone: 'sort', index: 2 }, 'Left from All must return visually to Year');
+assert.deepStrictEqual(LibraryContainers.moveControl('filter', 2, 'right'), { zone: 'filter', index: 3 }, 'Right from Watched must reach Advanced Filters');
 assert.deepStrictEqual(LibraryContainers.moveControl('sort', 0, 'left'), { zone: 'sort', index: 0 }, 'the first visual control must remain bounded');
 assert.strictEqual(typeof LibraryContainers.moveControlVertical, 'function', 'library controls must expose vertical movement for their shared visual row');
 assert.deepStrictEqual(LibraryContainers.moveControlVertical('sort', 'down'), { zone: 'grid', index: 0 }, 'Down from sorting must enter the media grid instead of filters on the same row');

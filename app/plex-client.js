@@ -10,6 +10,7 @@
   'use strict';
 
   var transcodeSessionCounter = 0;
+  var recommendationCache = {};
 
   function trimSlash(value, fromStart) {
     return fromStart ? value.replace(/^\/+/, '') : value.replace(/\/+$/, '');
@@ -149,6 +150,7 @@
     if (metaKey) { item.metaKey = metaKey; }
     if (metaParameters) { item.metaParameters = metaParameters; }
     if (attributes.librarySectionTitle) { item.libraryTitle = attributes.librarySectionTitle; }
+    if (attributes.year) { item.year = Number(attributes.year) || attributes.year; }
     if (attributes.guid) { item.guid = attributes.guid; }
     if (attributes.ratingKey) {
       item.ratingKey = attributes.ratingKey;
@@ -746,6 +748,158 @@
     }].concat(sectionDefinitions(sections));
   }
 
+  function recommendationHubPriority(identifier) {
+    var value = String(identifier || '').toLowerCase();
+    if (value.indexOf('startwatching') !== -1) { return 1; }
+    if (value.indexOf('.genre.') !== -1 || value.indexOf('moreingenre') !== -1) { return 2; }
+    if (value.indexOf('by.actor.or.director') !== -1) { return 3; }
+    if (value.indexOf('topunwatched') !== -1) { return 4; }
+    if (value.indexOf('toprated') !== -1) { return 5; }
+    return 0;
+  }
+
+  function recommendationItemsFromXml(xmlText, baseUrl, token) {
+    var parser = new DOMParser();
+    var documentNode = parser.parseFromString(xmlText, 'application/xml');
+    var hubs;
+    var candidates = [];
+    var seen = {};
+    var result = [];
+    var hubIndex;
+    var childIndex;
+    var hub;
+    var priority;
+    var attributes;
+    var child;
+    if (documentNode.getElementsByTagName('parsererror').length) { throw new Error('Invalid Plex recommendation response'); }
+    hubs = documentNode.getElementsByTagName('Hub');
+    for (hubIndex = 0; hubIndex < hubs.length; hubIndex += 1) {
+      hub = hubs[hubIndex];
+      priority = recommendationHubPriority(hub.getAttribute('hubIdentifier'));
+      if (!priority) { continue; }
+      for (childIndex = 0; childIndex < hub.childNodes.length; childIndex += 1) {
+        child = hub.childNodes[childIndex];
+        if (!child || child.nodeType !== 1 || (child.nodeName !== 'Video' && child.nodeName !== 'Directory')) { continue; }
+        attributes = attributesFromNode(child);
+        if ((attributes.type !== 'movie' && attributes.type !== 'show') || !attributes.ratingKey || Number(attributes.viewCount || 0) > 0) { continue; }
+        if (attributes.type === 'show' && Number(attributes.leafCount || 0) > 0 && Number(attributes.viewedLeafCount || 0) >= Number(attributes.leafCount)) { continue; }
+        candidates.push({ priority: priority, order: candidates.length, attributes: attributes });
+      }
+    }
+    candidates.sort(function (left, right) {
+      return left.priority === right.priority ? left.order - right.order : left.priority - right.priority;
+    });
+    candidates.forEach(function (candidate) {
+      var key = String(candidate.attributes.ratingKey);
+      if (seen[key]) { return; }
+      seen[key] = true;
+      result.push(mediaFromAttributes(candidate.attributes, baseUrl, token));
+    });
+    return result;
+  }
+
+  function recommendationRowsFromXml(xmlText, baseUrl, token) {
+    var parser = new DOMParser();
+    var documentNode = parser.parseFromString(xmlText, 'application/xml');
+    var hubs;
+    var rows = [];
+    var hubIndex;
+    var childIndex;
+    var hub;
+    var priority;
+    var attributes;
+    var child;
+    var items;
+    var seen;
+    if (documentNode.getElementsByTagName('parsererror').length) { throw new Error('Invalid Plex recommendation response'); }
+    hubs = documentNode.getElementsByTagName('Hub');
+    for (hubIndex = 0; hubIndex < hubs.length; hubIndex += 1) {
+      hub = hubs[hubIndex];
+      priority = recommendationHubPriority(hub.getAttribute('hubIdentifier'));
+      if (!priority) { continue; }
+      items = [];
+      seen = {};
+      for (childIndex = 0; childIndex < hub.childNodes.length; childIndex += 1) {
+        child = hub.childNodes[childIndex];
+        if (!child || child.nodeType !== 1 || (child.nodeName !== 'Video' && child.nodeName !== 'Directory')) { continue; }
+        attributes = attributesFromNode(child);
+        if ((attributes.type !== 'movie' && attributes.type !== 'show') || !attributes.ratingKey || Number(attributes.viewCount || 0) > 0 || seen[attributes.ratingKey]) { continue; }
+        if (attributes.type === 'show' && Number(attributes.leafCount || 0) > 0 && Number(attributes.viewedLeafCount || 0) >= Number(attributes.leafCount)) { continue; }
+        seen[attributes.ratingKey] = true;
+        items.push(mediaFromAttributes(attributes, baseUrl, token));
+      }
+      if (items.length) {
+        rows.push({
+          title: hub.getAttribute('title') || '',
+          identifier: hub.getAttribute('hubIdentifier') || '',
+          priority: priority,
+          items: items
+        });
+      }
+    }
+    rows.sort(function (left, right) { return left.priority - right.priority; });
+    return rows;
+  }
+
+  function loadRecommendedItems(config, sections, callback) {
+    var libraries = (sections || []).filter(function (section) {
+      return section.key && (section.type === 'movie' || section.type === 'show');
+    });
+    var cacheKey = String(config.apiBaseUrl || '') + '|' + String(config.token || '') + '|' + libraries.map(function (section) { return section.key; }).join(',');
+    var cached = recommendationCache[cacheKey];
+    var pending = libraries.length;
+    var requests = [];
+    var items = [];
+    var seen = {};
+    var aborted = false;
+    if (cached && new Date().getTime() - cached.savedAt < 300000) {
+      callback(null, cached.items.slice(0));
+      return { abort: function () { aborted = true; } };
+    }
+    if (!pending) {
+      callback(null, []);
+      return { abort: function () { aborted = true; } };
+    }
+    libraries.forEach(function (section) {
+      requests.push(request(buildUrl(config.apiBaseUrl, '/hubs/sections/' + section.key, {
+        'X-Plex-Container-Start': 0,
+        'X-Plex-Container-Size': config.itemLimit || 12
+      }, config.token || ''), config.requestTimeout || 8000, function (error, xmlText) {
+        if (aborted) { return; }
+        if (!error) {
+          try {
+            recommendationItemsFromXml(xmlText, config.apiBaseUrl, config.token || '').forEach(function (item) {
+              if (!seen[item.ratingKey]) { seen[item.ratingKey] = true; items.push(item); }
+            });
+          } catch (parseError) {}
+        }
+        pending -= 1;
+        if (!pending) {
+          items = items.slice(0, config.itemLimit || 12);
+          recommendationCache[cacheKey] = { savedAt: new Date().getTime(), items: items };
+          callback(null, items);
+        }
+      }));
+    });
+    return {
+      abort: function () {
+        aborted = true;
+        requests.forEach(function (entry) { if (entry && entry.abort) { entry.abort(); } });
+      }
+    };
+  }
+
+  function loadLibraryRecommendations(config, library, callback) {
+    return request(buildUrl(config.apiBaseUrl, '/hubs/sections/' + library.key, {
+      'X-Plex-Container-Start': 0,
+      'X-Plex-Container-Size': config.itemLimit || 12
+    }, config.token || ''), config.requestTimeout || 8000, function (error, xmlText) {
+      if (error) { callback(error); return; }
+      try { callback(null, recommendationRowsFromXml(xmlText, config.apiBaseUrl, config.token || '')); }
+      catch (parseError) { callback(parseError); }
+    });
+  }
+
   function navigationDefinitions(sections) {
     var items = [{ title: 'Home', kind: 'home', labelKey: 'nav.home' }];
     sections.forEach(function (section) {
@@ -921,11 +1075,59 @@
       parameters.playlistType = 'video';
     } else {
       path = '/library/sections/' + library.key + '/all';
-      parameters.sort = (options.sort === 'audienceRating' ? 'audienceRating' : 'titleSort') + ':' + (options.direction === 'desc' ? 'desc' : 'asc');
+      parameters.sort = (options.sort === 'audienceRating' ? 'audienceRating' : (options.sort === 'year' ? 'year' : 'titleSort')) + ':' + (options.direction === 'desc' ? 'desc' : 'asc');
       if (options.watched === 'unwatched') { parameters.unwatched = 1; }
       else if (options.watched === 'watched') { parameters.unwatched = 0; }
+      if (options.filters) {
+        ['year', 'genre', 'actor', 'director', 'resolution', 'hdr'].forEach(function (key) {
+          if (options.filters[key] !== undefined && options.filters[key] !== null && options.filters[key] !== '') {
+            parameters[key] = options.filters[key];
+          }
+        });
+      }
     }
     return buildUrl(config.apiBaseUrl, path, parameters, config.token || '');
+  }
+
+  function libraryFilterOptionsFromXml(xmlText) {
+    var parser = new DOMParser();
+    var documentNode = parser.parseFromString(xmlText, 'application/xml');
+    var nodes;
+    var options = [];
+    var index;
+    var attributes;
+    if (documentNode.getElementsByTagName('parsererror').length) { throw new Error('Invalid Plex filter response'); }
+    nodes = documentNode.getElementsByTagName('Directory');
+    for (index = 0; index < nodes.length; index += 1) {
+      attributes = attributesFromNode(nodes[index]);
+      if (attributes.title || attributes.key) {
+        options.push({ value: attributes.key || attributes.title, label: attributes.title || attributes.key });
+      }
+    }
+    return options;
+  }
+
+  function loadLibraryFilterOptions(config, library, callback) {
+    var keys = ['year', 'genre', 'actor', 'director', 'resolution'];
+    var pending = keys.length;
+    var result = { hdr: [{ value: '1', label: 'HDR' }, { value: '0', label: 'SDR' }] };
+    var requests = [];
+    var aborted = false;
+    keys.forEach(function (key) {
+      requests.push(request(buildUrl(config.apiBaseUrl, '/library/sections/' + library.key + '/' + key, {}, config.token || ''), config.requestTimeout || 8000, function (error, xmlText) {
+        if (aborted) { return; }
+        try { result[key] = error ? [] : libraryFilterOptionsFromXml(xmlText); }
+        catch (parseError) { result[key] = []; }
+        pending -= 1;
+        if (!pending) { callback(null, result); }
+      }));
+    });
+    return {
+      abort: function () {
+        aborted = true;
+        requests.forEach(function (entry) { if (entry && entry.abort) { entry.abort(); } });
+      }
+    };
   }
 
   function loadLibraryPage(config, library, view, options, start, size, callback) {
@@ -1080,18 +1282,51 @@
     );
 
     request(sectionsUrl, config.requestTimeout || 8000, function (error, xmlText) {
+      var sections;
       var definitions;
+      var baseComplete = false;
+      var recommendationsComplete = false;
+      var recommendationDeadlineReached = false;
+      var finished = false;
+      var recommendationDeadline = null;
+      var baseError = null;
+      var baseRows = [];
+      var recommendedItems = [];
+      function finish() {
+        if (finished || !baseComplete || (!recommendationsComplete && !recommendationDeadlineReached)) { return; }
+        finished = true;
+        clearTimeout(recommendationDeadline);
+        if (recommendedItems.length) {
+          baseRows.splice(1, 0, { title: 'Recommended for You', recommendation: true, shape: 'poster', items: recommendedItems });
+        }
+        callback(baseRows.length ? null : baseError, baseRows);
+      }
       if (error) {
         callback(error);
         return;
       }
       try {
-        definitions = homeDefinitions(parseAttributes(xmlText), config);
+        sections = parseAttributes(xmlText);
+        definitions = homeDefinitions(sections, config);
       } catch (parseError) {
         callback(parseError);
         return;
       }
-      loadRows(config, definitions, callback);
+      loadRows(config, definitions, function (rowsError, rows) {
+        baseError = rowsError;
+        baseRows = rows || [];
+        baseComplete = true;
+        finish();
+      });
+      loadRecommendedItems(config, sections, function (recommendationError, items) {
+        recommendedItems = recommendationError ? [] : (items || []);
+        recommendationsComplete = true;
+        finish();
+      });
+      recommendationDeadline = setTimeout(function () {
+        recommendationDeadlineReached = true;
+        finish();
+      }, 400);
     });
   }
 
@@ -1632,6 +1867,9 @@
     episodeFromAttributes: episodeFromAttributes,
     preferredSeasonKeyFromAttributes: preferredSeasonKeyFromAttributes,
     groupRecentAttributes: groupRecentAttributes,
+    recommendationHubPriority: recommendationHubPriority,
+    recommendationItemsFromXml: recommendationItemsFromXml,
+    recommendationRowsFromXml: recommendationRowsFromXml,
     homeDefinitions: homeDefinitions,
     loadMetadata: loadMetadata,
     loadActivities: loadActivities,
@@ -1642,6 +1880,8 @@
     loadLibrary: loadLibrary,
     findByGuid: findByGuid,
     buildLibraryBrowseUrl: buildLibraryBrowseUrl,
+    libraryFilterOptionsFromXml: libraryFilterOptionsFromXml,
+    loadLibraryFilterOptions: loadLibraryFilterOptions,
     containerFromAttributes: containerFromAttributes,
     loadLibraryContainerPage: loadLibraryContainerPage,
     loadLibraryPage: loadLibraryPage,
@@ -1668,6 +1908,8 @@
     serverIdentityFromXml: serverIdentityFromXml,
     trackFromAttributes: trackFromAttributes,
     loadHome: loadHome,
+    loadRecommendedItems: loadRecommendedItems,
+    loadLibraryRecommendations: loadLibraryRecommendations,
     mediaFromAttributes: mediaFromAttributes,
     markersFromAttributes: markersFromAttributes,
     chaptersFromAttributes: chaptersFromAttributes,

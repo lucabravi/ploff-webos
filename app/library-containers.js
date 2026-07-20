@@ -9,18 +9,18 @@
   'use strict';
 
   function views() {
-    return ['continue', 'recent', 'catalog', 'collections', 'playlists'];
+    return ['recommended', 'continue', 'recent', 'catalog', 'collections', 'playlists'];
   }
 
   function moveControl(zone, index, direction) {
     if (zone === 'sort') {
       if (direction === 'left') { return { zone: 'sort', index: Math.max(0, index - 1) }; }
-      if (index < 1) { return { zone: 'sort', index: index + 1 }; }
+      if (index < 2) { return { zone: 'sort', index: index + 1 }; }
       return { zone: 'filter', index: 0 };
     }
     if (zone === 'filter') {
-      if (direction === 'left' && index === 0) { return { zone: 'sort', index: 1 }; }
-      return { zone: 'filter', index: Math.max(0, Math.min(2, index + (direction === 'left' ? -1 : 1))) };
+      if (direction === 'left' && index === 0) { return { zone: 'sort', index: 2 }; }
+      return { zone: 'filter', index: Math.max(0, Math.min(3, index + (direction === 'left' ? -1 : 1))) };
     }
     return { zone: zone, index: index };
   }

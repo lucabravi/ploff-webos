@@ -5,10 +5,10 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  package:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -17,20 +17,37 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20
+      - name: Scan repository history for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify version tag
         run: |
           APP_VERSION=$(node -p "require('./webos-shell-app/appinfo.json').version")
           test "$GITHUB_REF_NAME" = "v$APP_VERSION"
-      - name: Run tests
-        run: |
-          for test in tests/test-*.js; do node "$test"; done
-          sh tests/test-baseline.sh
+      - name: Run JavaScript tests
+        run: for test in tests/test-*.js; do node "$test"; done
+      - name: Run repository checks
+        run: sh tests/test-baseline.sh
+      - name: Verify shell asset references
+        run: node scripts/check-shell-assets.js app/index.html dev
+
+  package-ipk:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
       - name: Install webOS CLI
         run: npm install --global @webos-tools/cli@3.2.5
-      - name: Build generic IPK
-        run: ./scripts/package-tv-shell.sh
-      - name: Inspect generic IPK
-        run: ./scripts/inspect-ipk.sh
+      - name: Build and inspect generic IPK
+        run: |
+          ./scripts/package-tv-shell.sh
+          ./scripts/inspect-ipk.sh
       - name: Prepare release assets
         run: |
           APP_ID=$(node -p "require('./webos-shell-app/appinfo.json').id")
@@ -49,5 +66,43 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" "$PACKAGE" SHA256SUMS \
               --generate-notes \
+              --notes "Verified Ploff release for legacy LG webOS TVs. Includes the generic IPK and SHA-256 checksums." \
               --title "Ploff $GITHUB_REF_NAME"
           fi
+
+  publish-image:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+      - name: Verify version tag
+        run: |
+          APP_VERSION=$(node -p "require('./webos-shell-app/appinfo.json').version")
+          test "$GITHUB_REF_NAME" = "v$APP_VERSION"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ploff-webos-installer
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

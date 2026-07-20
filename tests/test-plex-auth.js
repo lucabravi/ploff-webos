@@ -19,7 +19,11 @@ assert.strictEqual(PlexAuth.profileTokenFromXml('<user authenticationToken="swit
 assert.deepStrictEqual(PlexAuth.serverAccessFromJson(JSON.stringify([
   { clientIdentifier: 'other', accessToken: 'wrong' },
   { clientIdentifier: 'server-id', accessToken: 'server-token', connections: [{ uri: 'https://plex.example' }] }
-]), 'server-id'), { token: 'server-token', connections: ['https://plex.example'] }, 'managed profile tokens must be exchanged for server-specific access');
+]), 'server-id'), {
+  token: 'server-token',
+  connections: ['https://plex.example'],
+  connectionRoutes: [{ uri: 'https://plex.example', local: false, relay: false }]
+}, 'managed profile tokens must be exchanged for server-specific access');
 
 var accountServers = PlexAuth.accountServersFromJson(JSON.stringify([
   { name: 'Player', provides: 'client', clientIdentifier: 'client-id', connections: [{ uri: 'https://player.example' }] },
@@ -39,7 +43,12 @@ assert.deepStrictEqual(accountServers, [{
   version: '1.41.0',
   source: 'plex',
   owned: false,
-  connections: ['http://192.0.2.10:32400', 'https://plex.example', 'https://relay.plex.tv']
+  connections: ['http://192.0.2.10:32400', 'https://plex.example', 'https://relay.plex.tv'],
+  connectionRoutes: [
+    { uri: 'http://192.0.2.10:32400', local: true, relay: false },
+    { uri: 'https://plex.example', local: false, relay: false },
+    { uri: 'https://relay.plex.tv', local: false, relay: true }
+  ]
 }], 'account discovery must keep only Plex servers and prefer local, direct remote, then Relay connections');
 
 var requests = [];

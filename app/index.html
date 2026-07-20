@@ -7,6 +7,13 @@
   <link rel="stylesheet" href="styles.css?v=dev">
 </head>
 <body class="is-booting">
+  <section id="startup-splash" class="startup-splash" aria-live="polite">
+    <img class="startup-splash-logo" src="ploff-logo.svg" alt="Ploff">
+    <div class="startup-splash-status">
+      <span class="startup-splash-spinner" aria-hidden="true"></span>
+      <span id="startup-splash-label">Loading...</span>
+    </div>
+  </section>
   <div class="backdrop" aria-hidden="true">
     <img id="backdrop-a" class="backdrop-image is-active" alt="">
     <img id="backdrop-b" class="backdrop-image" alt="">
@@ -69,7 +76,20 @@
       <div id="library-filter" class="library-control-group"></div>
     </div>
     <div id="library-status" class="library-status"></div>
+    <div id="library-recommended" class="library-recommended is-hidden"></div>
     <div id="library-grid" class="library-grid"><div id="library-grid-content" class="library-grid-content"></div></div>
+    <div id="library-filter-shade" class="library-filter-shade is-hidden"></div>
+    <aside id="library-filter-drawer" class="library-filter-drawer is-hidden" role="dialog" aria-modal="true">
+      <h2 id="library-filter-title"></h2>
+      <p id="library-filter-hint" class="library-filter-hint"></p>
+      <div id="library-filter-rows" class="library-filter-rows"></div>
+      <div class="library-filter-actions">
+        <span id="library-filter-count" class="library-filter-count"></span>
+        <button id="library-filter-reset" data-library-filter-action="reset" type="button"></button>
+        <button id="library-filter-cancel" data-library-filter-action="cancel" type="button"></button>
+        <button id="library-filter-apply" class="is-primary" data-library-filter-action="apply" type="button"></button>
+      </div>
+    </aside>
   </section>
   <section id="watchlist-view" class="watchlist-view is-hidden" aria-live="polite">
     <h1 id="watchlist-title" class="watchlist-title">Watchlist</h1>
@@ -108,7 +128,10 @@
       <h1 id="detail-title" class="detail-title"></h1>
       <div id="detail-subtitle" class="detail-subtitle"></div>
       <div id="detail-facts" class="detail-facts"></div>
-      <p id="detail-summary" class="detail-summary"></p>
+      <button id="detail-summary-button" class="detail-summary-button" type="button" disabled>
+        <span id="detail-summary" class="detail-summary"></span>
+        <span id="detail-summary-more" class="detail-summary-more" aria-hidden="true"></span>
+      </button>
       <div class="detail-actions">
         <button id="detail-play" class="detail-action" type="button">Play</button>
         <button id="detail-watched" class="detail-action detail-action-secondary" type="button">Mark watched</button>
@@ -116,10 +139,13 @@
         <button id="detail-refresh-metadata" class="detail-action detail-action-secondary" type="button">Refresh metadata</button>
       </div>
       <div id="detail-playback-controls" class="detail-playback-controls">
-        <button id="detail-audio" class="detail-choice" type="button"><span id="detail-audio-label" class="detail-choice-label">Audio</span><span id="detail-audio-value" class="detail-choice-value"></span></button>
-        <button id="detail-subtitles" class="detail-choice" type="button"><span id="detail-subtitles-label" class="detail-choice-label">Subtitles</span><span id="detail-subtitles-value" class="detail-choice-value"></span></button>
-        <button id="detail-version" class="detail-choice" type="button"><span id="detail-version-label" class="detail-choice-label">Version</span><span id="detail-version-value" class="detail-choice-value"></span></button>
-        <div id="detail-media-info" class="detail-media-info is-hidden">
+        <div class="detail-track-choices">
+          <button id="detail-audio" class="detail-choice" type="button"><span id="detail-audio-label" class="detail-choice-label">Audio</span><span id="detail-audio-value" class="detail-choice-value"></span></button>
+          <button id="detail-subtitles" class="detail-choice" type="button"><span id="detail-subtitles-label" class="detail-choice-label">Subtitles</span><span id="detail-subtitles-value" class="detail-choice-value"></span></button>
+          <button id="detail-version" class="detail-choice" type="button"><span id="detail-version-label" class="detail-choice-label">Version</span><span id="detail-version-value" class="detail-choice-value"></span></button>
+        </div>
+        <button id="detail-media-info-button" class="detail-media-info-button is-hidden" type="button" disabled>
+        <div id="detail-media-info" class="detail-media-info">
           <div id="detail-media-info-label" class="detail-media-info-title">Media info</div>
           <div class="detail-media-info-row">
             <span id="detail-media-info-video-label" class="detail-media-info-row-label">Video</span>
@@ -138,11 +164,27 @@
             <span id="detail-media-info-subtitle-languages" class="detail-media-info-row-value"></span>
           </div>
         </div>
+        <span class="detail-media-info-more" aria-hidden="true"></span>
+        </button>
       </div>
     </div>
     <img id="detail-poster" class="detail-poster" alt="">
     <div id="episode-strip" class="episode-strip"></div>
   </section>
+    <div id="detail-summary-dialog" class="detail-summary-dialog is-hidden" role="dialog" aria-modal="true" aria-labelledby="detail-summary-dialog-title">
+      <div class="detail-summary-dialog-panel">
+        <h2 id="detail-summary-dialog-title"></h2>
+        <div id="detail-summary-dialog-text" class="detail-summary-dialog-text"></div>
+        <div id="detail-summary-dialog-hint" class="detail-summary-dialog-hint"></div>
+      </div>
+    </div>
+    <div id="detail-media-info-dialog" class="detail-summary-dialog is-hidden" role="dialog" aria-modal="true" aria-labelledby="detail-media-info-dialog-title">
+      <div class="detail-summary-dialog-panel">
+        <h2 id="detail-media-info-dialog-title"></h2>
+        <div id="detail-media-info-dialog-text" class="detail-summary-dialog-text detail-media-info-dialog-text"></div>
+        <div id="detail-media-info-dialog-hint" class="detail-summary-dialog-hint"></div>
+      </div>
+    </div>
   <section id="player-view" class="player-view is-hidden">
     <video id="player-video" class="player-video" playsinline autoplay></video>
     <div id="subtitle-preview-overlay" class="subtitle-preview-overlay is-hidden" aria-live="off"></div>
@@ -173,7 +215,7 @@
           <span class="player-track-row"><span id="player-track-subtitles-label"></span><span id="player-track-subtitles"></span></span>
         </div>
       </div>
-      <div class="player-status-row"><div id="player-quality" class="player-quality"></div><div id="player-delivery-mode" class="player-delivery-mode"></div><div id="player-status" class="player-status">Loading</div></div>
+      <div class="player-status-row"><div id="player-quality" class="player-quality"></div><div id="player-connection-route" class="player-connection-route"></div><div id="player-delivery-mode" class="player-delivery-mode"></div><div id="player-status" class="player-status">Loading</div></div>
       <div id="player-end-time" class="player-end-time"></div>
       <button id="player-timeline-button" class="player-timeline-button" type="button" aria-label="Playback position">
         <span class="player-timeline"><span id="player-progress" class="player-progress"></span></span>

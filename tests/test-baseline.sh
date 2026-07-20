@@ -9,7 +9,6 @@ for path in \
   Dockerfile \
   .dockerignore \
   .github/workflows/ci.yml \
-  .github/workflows/container.yml \
   .github/workflows/release.yml \
   docs/architecture.md \
   docs/playback-invariants.md \
@@ -84,17 +83,24 @@ package_line=$(grep -n '"$SCRIPT_DIR/package-tv-shell.sh"' scripts/install-webos
 selection_line=$(grep -n 'PACKAGE=$(find' scripts/install-webos.sh | head -n 1 | cut -d: -f1)
 test -n "$package_line" && test -n "$selection_line" && test "$package_line" -lt "$selection_line"
 grep -q "tags:.*v\*" .github/workflows/release.yml
+grep -q '^  verify:' .github/workflows/release.yml
+grep -q '^  package-ipk:' .github/workflows/release.yml
+grep -q '^  publish-image:' .github/workflows/release.yml
+test "$(grep -c 'needs: verify' .github/workflows/release.yml)" -eq 2
+grep -q 'gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e' .github/workflows/release.yml
 grep -q 'gh release create' .github/workflows/release.yml
 grep -q 'SHA256SUMS' .github/workflows/release.yml
 grep -q 'cd dist && sha256sum' .github/workflows/release.yml
 grep -q '@webos-tools/cli@3.2.5' .github/workflows/release.yml
 grep -q 'gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e' .github/workflows/ci.yml
+grep -q "branches:.*\\*\\*" .github/workflows/ci.yml
 grep -q 'Prebuilt Releases' README.md
 grep -q 'Install With Docker (Recommended)' README.md
 grep -q 'ghcr.io/lucabravi/ploff-webos-installer:latest' README.md
 grep -q '@webos-tools/cli@3.2.5' Dockerfile
-grep -q 'platforms: linux/amd64,linux/arm64' .github/workflows/container.yml
+grep -q 'platforms: linux/amd64,linux/arm64' .github/workflows/release.yml
 grep -q 'VOLUME.*"/data"' Dockerfile
 ! grep -Eq 'PLOFF_TV_(IP|PASSPHRASE)=' Dockerfile
+grep -q "trap 'stty echo 2>/dev/null || true' 0" scripts/docker-installer.sh
 
 echo "baseline checks passed"

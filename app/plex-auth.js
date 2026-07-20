@@ -68,7 +68,7 @@
     return /^https?:\/\//i.test(uri) ? uri : '';
   }
 
-  function orderedConnections(values) {
+  function orderedConnectionRoutes(values) {
     var source = Object.prototype.toString.call(values) === '[object Array]' ? values : [];
     var ranked = [];
     var seen = {};
@@ -82,12 +82,24 @@
       if (!uri || seen[uri]) { continue; }
       seen[uri] = true;
       rank = connection.local === true ? 0 : (connection.relay === true ? 2 : 1);
-      ranked.push({ uri: uri, rank: rank, index: index });
+      ranked.push({
+        uri: uri,
+        local: connection.local === true,
+        relay: connection.relay === true,
+        rank: rank,
+        index: index
+      });
     }
     ranked.sort(function (left, right) {
       return left.rank === right.rank ? left.index - right.index : left.rank - right.rank;
     });
-    return ranked.map(function (item) { return item.uri; });
+    return ranked.map(function (item) {
+      return { uri: item.uri, local: item.local, relay: item.relay };
+    });
+  }
+
+  function orderedConnections(values) {
+    return orderedConnectionRoutes(values).map(function (item) { return item.uri; });
   }
 
   function accountServersFromJson(jsonText) {
@@ -96,6 +108,7 @@
     var index;
     var resource;
     var connections;
+    var connectionRoutes;
     var provides;
     if (Object.prototype.toString.call(resources) !== '[object Array]') { throw new Error('Invalid Plex resources response'); }
     for (index = 0; index < resources.length; index += 1) {
@@ -103,7 +116,8 @@
       provides = ',' + String(resource.provides || '').toLowerCase().replace(/\s+/g, '') + ',';
       if (provides.indexOf(',server,') === -1 && String(resource.product || '').toLowerCase() !== 'plex media server') { continue; }
       if (!resource.clientIdentifier) { continue; }
-      connections = orderedConnections(resource.connections || []);
+      connectionRoutes = orderedConnectionRoutes(resource.connections || []);
+      connections = connectionRoutes.map(function (connection) { return connection.uri; });
       if (!connections.length) { continue; }
       servers.push({
         name: String(resource.name || resource.product || 'Plex Media Server'),
@@ -112,7 +126,8 @@
         version: String(resource.productVersion || resource.version || ''),
         source: 'plex',
         owned: resource.owned === true || resource.owned === 1 || resource.owned === '1',
-        connections: connections
+        connections: connections,
+        connectionRoutes: connectionRoutes
       });
     }
     return servers;
@@ -123,12 +138,14 @@
     var index;
     var connectionIndex;
     var connections;
+    var connectionRoutes;
     if (Object.prototype.toString.call(resources) !== '[object Array]') { throw new Error('Invalid Plex resources response'); }
     for (index = 0; index < resources.length; index += 1) {
       if (String(resources[index].clientIdentifier || '') !== String(machineIdentifier || '')) { continue; }
       if (!resources[index].accessToken) { throw new Error('Plex server access token missing'); }
-      connections = orderedConnections(resources[index].connections || []);
-      return { token: String(resources[index].accessToken), connections: connections };
+      connectionRoutes = orderedConnectionRoutes(resources[index].connections || []);
+      connections = connectionRoutes.map(function (connection) { return connection.uri; });
+      return { token: String(resources[index].accessToken), connections: connections, connectionRoutes: connectionRoutes };
     }
     throw new Error('Plex profile has no access to this server');
   }

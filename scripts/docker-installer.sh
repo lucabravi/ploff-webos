@@ -49,9 +49,12 @@ prompt_secret() {
     exit 1
   fi
   printf 'Developer Mode passphrase: ' >&2
+  trap 'stty echo 2>/dev/null || true' 0
+  trap 'stty echo 2>/dev/null || true; exit 130' 1 2 15
   stty -echo
   IFS= read -r value
   stty echo
+  trap - 0 1 2 15
   printf '\n' >&2
   printf '%s' "$value"
 }

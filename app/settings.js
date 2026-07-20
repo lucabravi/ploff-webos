@@ -24,7 +24,7 @@
   var PLAYBACK_MODES = ['auto', 'direct', 'transcode'];
   var WHEEL_BEHAVIORS = ['items', 'page'];
   var CARD_SCALES = [70, 80, 90, 100, 110, 120, 130];
-  var ACCENT_COLORS = ['cyan', 'amber', 'blue', 'green', 'pink', 'red'];
+  var ACCENT_COLORS = ['cyan', 'amber', 'blue', 'green', 'pink', 'purple', 'red', 'white'];
 
   function defaults() {
     return {
@@ -41,7 +41,8 @@
       subtitleSuppressedForAudio: [],
       subtitleMode: 'audio-mismatch',
       subtitleModeExplicit: false,
-      videoQuality: 'original',
+      lanVideoQuality: 'original',
+      remoteVideoQuality: '8000',
       playbackMode: 'auto',
       wheelBehavior: 'items',
       cardScale: 100,
@@ -81,6 +82,7 @@
     var fallback = defaults();
     var value = source || {};
     var uiLanguage = primaryLanguage(value.uiLanguage);
+    var legacyVideoQuality = enumValue(String(value.videoQuality || ''), VIDEO_QUALITIES, '');
     return {
       version: 1,
       uiLanguage: enumValue(uiLanguage, SUPPORTED_UI_LANGUAGES, fallback.uiLanguage),
@@ -95,7 +97,8 @@
       subtitleSuppressedForAudio: languageList(value.subtitleSuppressedForAudio),
       subtitleMode: enumValue(value.subtitleMode, SUBTITLE_MODES, fallback.subtitleMode),
       subtitleModeExplicit: value.subtitleModeExplicit === true,
-      videoQuality: enumValue(String(value.videoQuality || ''), VIDEO_QUALITIES, fallback.videoQuality),
+      lanVideoQuality: enumValue(String(value.lanVideoQuality || ''), VIDEO_QUALITIES, legacyVideoQuality || fallback.lanVideoQuality),
+      remoteVideoQuality: enumValue(String(value.remoteVideoQuality || ''), VIDEO_QUALITIES, legacyVideoQuality || fallback.remoteVideoQuality),
       playbackMode: enumValue(value.playbackMode, PLAYBACK_MODES, fallback.playbackMode),
       wheelBehavior: enumValue(value.wheelBehavior, WHEEL_BEHAVIORS, fallback.wheelBehavior),
       cardScale: enumValue(Number(value.cardScale), CARD_SCALES, fallback.cardScale),

@@ -195,6 +195,44 @@ assert.deepStrictEqual(
   ],
   'Home must use the all-library Continue Watching hub exposed by Plex Media Server'
 );
+assert.strictEqual(PlexClient.recommendationHubPriority('tv.startwatching.4'), 1, 'Start Watching must have the highest recommendation priority');
+assert.strictEqual(PlexClient.recommendationHubPriority('movie.genre.2.1378'), 2, 'genre recommendations must be accepted');
+assert.strictEqual(PlexClient.recommendationHubPriority('movie.recentlyviewed.2'), 0, 'recently watched items must not be presented as new recommendations');
+var previousDomParser = global.DOMParser;
+function fakeXmlNode(name, attributes, children) {
+  var pairs = Object.keys(attributes || {}).map(function (key) { return { name: key, value: String(attributes[key]) }; });
+  return {
+    nodeType: 1,
+    nodeName: name,
+    attributes: pairs,
+    childNodes: children || [],
+    getAttribute: function (key) { return attributes[key] === undefined ? null : String(attributes[key]); }
+  };
+}
+var recommendationHubs = [
+  fakeXmlNode('Hub', { title: 'Start Watching', hubIdentifier: 'tv.startwatching.4' }, [
+    fakeXmlNode('Directory', { type: 'show', ratingKey: '100', title: 'New Show', thumb: '/new' }),
+    fakeXmlNode('Directory', { type: 'show', ratingKey: '101', title: 'Completed Show', leafCount: '12', viewedLeafCount: '12' })
+  ]),
+  fakeXmlNode('Hub', { title: 'Recently Watched', hubIdentifier: 'tv.recentlyviewed.4' }, [
+    fakeXmlNode('Directory', { type: 'show', ratingKey: '102', title: 'Old Show' })
+  ])
+];
+global.DOMParser = function () {
+  this.parseFromString = function () {
+    return {
+      getElementsByTagName: function (name) {
+        if (name === 'Hub') { return recommendationHubs; }
+        return [];
+      }
+    };
+  };
+};
+var recommendationRows = PlexClient.recommendationRowsFromXml('<xml/>', '/plex-api', 'token');
+assert.deepStrictEqual(recommendationRows.map(function (row) { return [row.identifier, row.items.map(function (item) { return item.ratingKey; })]; }), [
+  ['tv.startwatching.4', ['100']]
+], 'library recommendations must preserve Plex hubs while removing completed and non-recommendation rows');
+global.DOMParser = previousDomParser;
 var ratingCatalogUrl = PlexClient.buildLibraryBrowseUrl(
   { apiBaseUrl: '/plex-api', token: 'token' },
   { key: '4' },
@@ -206,6 +244,24 @@ var ratingCatalogUrl = PlexClient.buildLibraryBrowseUrl(
 assert.ok(/\/library\/sections\/4\/all\?/.test(ratingCatalogUrl), 'catalog must use the selected library endpoint');
 assert.ok(/sort=audienceRating%3Adesc/.test(ratingCatalogUrl) && /unwatched=0/.test(ratingCatalogUrl), 'catalog URL must carry server-side rating and watched controls');
 assert.ok(/X-Plex-Container-Start=60/.test(ratingCatalogUrl) && /X-Plex-Container-Size=60/.test(ratingCatalogUrl), 'catalog URL must carry page boundaries');
+var filteredYearCatalogUrl = PlexClient.buildLibraryBrowseUrl(
+  { apiBaseUrl: '/plex-api', token: 'token' },
+  { key: '4' },
+  'catalog',
+  { sort: 'year', direction: 'desc', watched: 'all', filters: { year: '2025', genre: '12', resolution: '4k', hdr: '1' } },
+  0,
+  60
+);
+assert.ok(/sort=year%3Adesc/.test(filteredYearCatalogUrl), 'catalog must support server-side year sorting');
+assert.ok(/year=2025/.test(filteredYearCatalogUrl) && /genre=12/.test(filteredYearCatalogUrl) && /resolution=4k/.test(filteredYearCatalogUrl) && /hdr=1/.test(filteredYearCatalogUrl), 'catalog must carry selected advanced filters, including HDR');
+assert.ok(/hdr=0/.test(PlexClient.buildLibraryBrowseUrl(
+  { apiBaseUrl: '/plex-api', token: 'token' },
+  { key: '4' },
+  'catalog',
+  { filters: { hdr: '0' } },
+  0,
+  60
+)), 'catalog must preserve the explicit SDR filter');
 
 assert.deepStrictEqual(
   PlexClient.mediaFromAttributes({
@@ -245,10 +301,17 @@ assert.deepStrictEqual(
     meta: 'Movie - 2025',
     metaKey: 'media.movieWithYear',
     metaParameters: { year: '2025' },
+    year: 2025,
     image: '',
     art: ''
   },
   'generated movie labels must expose locale-neutral metadata alongside their compatibility text'
+);
+
+assert.strictEqual(
+  PlexClient.mediaFromAttributes({ type: 'show', ratingKey: '8', title: 'Example Show', year: '2024' }, '/plex-api', '').year,
+  2024,
+  'series catalog items must retain their Plex year for visible year sorting'
 );
 
 assert.deepStrictEqual(
@@ -861,6 +924,7 @@ assert.deepStrictEqual(
     meta: 'Movie - 1979',
     metaKey: 'media.movieWithYear',
     metaParameters: { year: '1979' },
+    year: 1979,
     image: '/plex-api/library/metadata/7/thumb/1',
     art: '/plex-api/library/metadata/7/thumb/1'
   },

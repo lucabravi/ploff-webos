@@ -18,13 +18,21 @@ var merged = ServerStore.merge([
 ], [
   {
     name: 'Bedroom', uri: 'http://192.168.0.8:32400', machineIdentifier: 'machine-b', version: '1.0', source: 'plex',
-    owned: false, connections: ['http://192.168.0.8:32400', 'https://bedroom.example']
+    owned: false, connections: ['http://192.168.0.8:32400', 'https://bedroom.example'],
+    connectionRoutes: [
+      { uri: 'http://192.168.0.8:32400', local: true, relay: false },
+      { uri: 'https://bedroom.example', local: false, relay: true }
+    ]
   }
 ]);
 assert.strictEqual(merged.length, 2, 'servers must deduplicate by machine identifier or normalized URI');
 assert.strictEqual(merged[0].machineIdentifier, 'machine-a', 'discovery metadata must enrich configured servers');
 assert.strictEqual(merged[1].name, 'Bedroom', 'newly discovered servers must be retained');
 assert.deepStrictEqual(merged[1].connections, ['http://192.168.0.8:32400', 'https://bedroom.example'], 'account server connections must survive normalization and persistence');
+assert.deepStrictEqual(merged[1].connectionRoutes, [
+  { uri: 'http://192.168.0.8:32400', local: true, relay: false },
+  { uri: 'https://bedroom.example', local: false, relay: true }
+], 'connection route kinds must survive normalization and persistence');
 assert.strictEqual(merged[1].owned, false, 'shared account servers must remain identifiable');
 
 var alternateConnection = ServerStore.merge([
@@ -59,7 +67,10 @@ var backgroundLinked = ServerStore.withRemoteConnections({
   uri: 'http://192.168.50.10:32400',
   machineIdentifier: 'machine-a',
   source: 'gdm'
-}, ['https://plex.example', 'https://relay.plex.tv'], 'linked', 1234);
+}, ['https://plex.example', 'https://relay.plex.tv'], 'linked', 1234, [
+  { uri: 'https://plex.example', local: false, relay: false },
+  { uri: 'https://relay.plex.tv', local: false, relay: true }
+]);
 assert.strictEqual(backgroundLinked.uri, 'http://192.168.50.10:32400', 'background account linking must keep the LAN route primary');
 assert.deepStrictEqual(backgroundLinked.connections, [
   'http://192.168.50.10:32400',
@@ -68,6 +79,7 @@ assert.deepStrictEqual(backgroundLinked.connections, [
 ], 'background account linking must persist every trusted Plex route');
 assert.strictEqual(backgroundLinked.remoteLinkStatus, 'linked', 'background account linking must persist its result');
 assert.strictEqual(backgroundLinked.remoteLinkCheckedAt, 1234, 'background account linking must persist its last check time');
+assert.strictEqual(backgroundLinked.connectionRoutes[1].relay, true, 'Relay metadata must survive background route linking');
 
 var storageValue = null;
 var storage = {

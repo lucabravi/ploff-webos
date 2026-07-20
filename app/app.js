@@ -40,6 +40,9 @@
   var BackgroundAudio = root.PloffBackgroundAudio;
   var BuildInfo = root.PloffBuildInfo || { version: 'development' };
   var config = root.PloffConfig || {};
+  var startupStartedAt = new Date().getTime();
+  var startupComplete = false;
+  var startupTimer = null;
   var configuredApiBaseUrl = config.apiBaseUrl || '';
   var configuredToken = config.token || '';
   var configuredServer = ServerStore ? ServerStore.fromConfig(config) : null;
@@ -100,7 +103,9 @@
     blue: '#4da3ff',
     green: '#48c774',
     pink: '#ec6aa7',
-    red: '#f05d5e'
+    purple: '#a66cff',
+    red: '#f05d5e',
+    white: '#ffffff'
   };
   var setupUiLanguages = [
     { code: 'en', label: 'English' },
@@ -146,11 +151,22 @@
   var libraryZone = 'tabs';
   var libraryControlIndex = 0;
   var libraryItems = [];
+  var libraryRecommendationRows = [];
+  var libraryRecommendationRowIndex = 0;
   var libraryTotalSize = 0;
   var libraryFocusIndex = 0;
   var librarySort = 'titleSort';
   var librarySortDirection = 'asc';
   var libraryWatchedFilter = 'all';
+  var libraryAdvancedFilterKeys = ['year', 'genre', 'actor', 'director', 'resolution', 'hdr'];
+  var libraryAdvancedFilters = { year: '', genre: '', actor: '', director: '', resolution: '', hdr: '' };
+  var libraryDraftFilters = { year: '', genre: '', actor: '', director: '', resolution: '' };
+  var libraryFilterOptions = null;
+  var libraryFilterRequest = null;
+  var libraryFilterOpen = false;
+  var libraryFilterFocusZone = 'rows';
+  var libraryFilterFocusIndex = 0;
+  var libraryFilterPickerKey = '';
   var libraryGeneration = 0;
   var libraryRequest = null;
   var libraryContinueRequest = null;
@@ -182,11 +198,17 @@
   var selectedItem = null;
   var seriesContext = null;
   var detailZone = 'play';
+  var detailSummaryOverflowing = false;
+  var detailSummaryDialogOpen = false;
+  var detailMediaInfoOverflowing = false;
+  var detailMediaInfoDialogOpen = false;
   var detailSeasonIndex = 0;
   var detailEpisodeIndex = 0;
   var detailMetadataTimer = null;
+  var episodeDetailToken = 0;
   var seasonPreviewTimer = null;
   var seasonPreviewToken = 0;
+  var seasonTransitionMediaKey = '';
   var episodePanTimers = [];
   var episodePanToken = 0;
   var currentDetail = null;
@@ -197,6 +219,8 @@
   var detailMediaProfileToken = 0;
   var detailMediaProfileRatingKey = '';
   var detailMediaProfileLoading = false;
+  var detailMediaLoadingLabelTimer = null;
+  var detailMediaLoadingLabelVisible = false;
   var currentPlayback = null;
   var episodeResolver = EpisodeNavigation.createResolver(function (season, callback) {
     PlexClient.loadSeasonEpisodes(config, season.ratingKey, '', callback);
@@ -305,6 +329,9 @@
     try {
       PlexClient.loadHome(config, function (error, rows) {
         setHomeRefreshVisualActive(false);
+        (rows || []).forEach(function (row) {
+          if (row.recommendation) { row.title = t('home.recommended'); }
+        });
         callback(error, rows);
       });
     } catch (error) {
@@ -315,7 +342,7 @@
     if (homePoller) { homePoller.schedule(); }
     if (error) {
       if (appView === 'home' && !data.rows.length) {
-        document.body.className = document.body.className.replace(/\s*is-booting/g, '');
+        completeStartup();
         if (!passiveHomeState('state.homeError')) { showViewState('error', 'home', loadHomeRows, openSetup); }
       }
       return;
@@ -339,6 +366,27 @@
 
   function t(key, parameters) {
     return I18n.t(appSettings.uiLanguage, key, parameters);
+  }
+
+  function completeStartup() {
+    var splash = document.getElementById('startup-splash');
+    var elapsed;
+    var delay;
+    function finish() {
+      document.body.className = document.body.className.replace(/\s*is-booting/g, '');
+      if (!splash) { return; }
+      splash.className = 'startup-splash is-leaving';
+      root.setTimeout(function () { splash.className = 'startup-splash is-hidden'; }, 250);
+    }
+    if (startupComplete) {
+      document.body.className = document.body.className.replace(/\s*is-booting/g, '');
+      return;
+    }
+    startupComplete = true;
+    elapsed = new Date().getTime() - startupStartedAt;
+    delay = Math.max(0, 1000 - elapsed);
+    root.clearTimeout(startupTimer);
+    startupTimer = root.setTimeout(finish, delay);
   }
 
   function setHomeRefreshVisualActive(active) {
@@ -392,6 +440,7 @@
   }
 
   function translateStaticUi() {
+    setText('startup-splash-label', t('startup.loading'));
     document.getElementById('navigation').setAttribute('aria-label', t('nav.main'));
     setText('detail-play', t('detail.play'));
     setText('detail-refresh-metadata', t('detail.refreshMetadata'));
@@ -1493,30 +1542,50 @@
 
   function renderLibrarySubnav() {
     var container = document.getElementById('library-tabs');
-    var labels = [t('library.continue'), t('library.recent'), t('library.catalog'), t('library.collections'), t('library.playlists')];
+    var labels = [t('library.recommended'), t('library.continue'), t('library.recent'), t('library.catalog'), t('library.collections'), t('library.playlists')];
     var index;
     var button;
     container.innerHTML = '';
     for (index = 0; index < labels.length; index += 1) {
-      button = element('button', 'library-tab' + (index === libraryTabIndex ? ' is-active' : '') + (index === 0 && libraryContinueAvailable === false ? ' is-disabled' : ''), labels[index]);
+      button = element('button', 'library-tab' + (index === libraryTabIndex ? ' is-active' : '') + (index === 1 && libraryContinueAvailable === false ? ' is-disabled' : ''), labels[index]);
       button.type = 'button';
       button.setAttribute('data-library-tab', index);
-      if (index === 0 && libraryContinueAvailable === false) { button.disabled = true; }
+      if (index === 1 && libraryContinueAvailable === false) { button.disabled = true; }
       container.appendChild(button);
     }
   }
 
   function nextLibraryTab(direction) {
     var next = libraryTabIndex + direction;
-    while (next >= 0 && next <= 4 && next === 0 && libraryContinueAvailable === false) { next += direction; }
-    return next < 0 || next > 4 ? libraryTabIndex : next;
+    while (next >= 0 && next < LibraryContainers.views().length && next === 1 && libraryContinueAvailable === false) { next += direction; }
+    return next < 0 || next >= LibraryContainers.views().length ? libraryTabIndex : next;
   }
 
   function selectLibraryTab(index) {
     libraryContainer = null; libraryContainerParentState = null;
-    libraryTabIndex = Math.max(0, Math.min(4, Number(index) || 0));
+    libraryTabIndex = Math.max(0, Math.min(LibraryContainers.views().length - 1, Number(index) || 0));
     libraryZone = 'tabs'; libraryControlIndex = 0;
     renderLibrarySubnav(); renderLibraryControls(); loadLibraryContent(true); updateLibraryFocus();
+  }
+
+  function focusLibraryTabContent() {
+    var firstRecommendation;
+    if (libraryViewKey() === 'catalog') {
+      libraryZone = 'sort';
+      libraryControlIndex = 0;
+    } else if (libraryViewKey() === 'recommended') {
+      firstRecommendation = libraryRecommendationRows[0];
+      if (!firstRecommendation || !firstRecommendation.items.length) { return false; }
+      libraryZone = 'grid';
+      libraryRecommendationRowIndex = 0;
+      libraryFocusIndex = 0;
+    } else {
+      if (!libraryItems.length) { return false; }
+      libraryZone = 'grid';
+      libraryFocusIndex = Math.max(0, Math.min(libraryFocusIndex, libraryItems.length - 1));
+    }
+    updateLibraryFocus();
+    return true;
   }
 
   function libraryUsesGridScroll() {
@@ -1525,13 +1594,14 @@
 
   function sortLabel(key) {
     var active = librarySort === key;
-    var label = key === 'titleSort' ? 'A-Z' : t('library.rating');
+    var label = key === 'titleSort' ? 'A-Z' : (key === 'year' ? t('library.year') : t('library.rating'));
     if (active) { label += librarySortDirection === 'asc' ? ' \u2193' : ' \u2191'; }
     return label;
   }
 
   function libraryItemMeta(item) {
     if (item && item.containerType) { return t('library.titlesCount', { count: Number(item.childCount || 0) }); }
+    if (item && item.type === 'show' && item.year) { return mediaMeta(item) + ' \u00b7 ' + item.year; }
     return item ? mediaMeta(item) : '';
   }
 
@@ -1539,7 +1609,7 @@
     var controls = document.getElementById('library-controls');
     var sort = document.getElementById('library-sort');
     var filter = document.getElementById('library-filter');
-    var sortKeys = ['titleSort', 'audienceRating'];
+    var sortKeys = ['titleSort', 'audienceRating', 'year'];
     var filterKeys = ['all', 'unwatched', 'watched'];
     var index;
     var button;
@@ -1554,6 +1624,191 @@
       button = element('button', 'library-control' + (libraryWatchedFilter === filterKeys[index] ? ' is-active' : ''), t('library.' + filterKeys[index]));
       button.type = 'button'; button.setAttribute('data-library-filter', filterKeys[index]); filter.appendChild(button);
     }
+    button = element('button', 'library-control' + (activeLibraryFilterCount() ? ' is-active' : ''), t('library.filters'));
+    button.type = 'button';
+    button.setAttribute('data-library-filter-open', '1');
+    if (activeLibraryFilterCount()) { button.appendChild(element('span', 'library-control-badge', String(activeLibraryFilterCount()))); }
+    filter.appendChild(button);
+  }
+
+  function copyLibraryFilters(source) {
+    return { year: source.year || '', genre: source.genre || '', actor: source.actor || '', director: source.director || '', resolution: source.resolution || '', hdr: source.hdr || '' };
+  }
+
+  function activeLibraryFilterCount(filters) {
+    var source = filters || libraryAdvancedFilters;
+    return libraryAdvancedFilterKeys.filter(function (key) { return source[key] !== undefined && source[key] !== null && source[key] !== ''; }).length;
+  }
+
+  function libraryFilterLabel(key, value) {
+    var options = libraryFilterOptions && libraryFilterOptions[key] ? libraryFilterOptions[key] : [];
+    var index;
+    if (!value) { return t('library.filterAny'); }
+    for (index = 0; index < options.length; index += 1) {
+      if (String(options[index].value) === String(value)) { return options[index].label; }
+    }
+    return String(value);
+  }
+
+  function renderLibraryFilterDrawer() {
+    var drawer = document.getElementById('library-filter-drawer');
+    var shade = document.getElementById('library-filter-shade');
+    var rows = document.getElementById('library-filter-rows');
+    var keys = libraryAdvancedFilterKeys;
+    var index;
+    var button;
+    if (!libraryFilterOpen) {
+      drawer.className = 'library-filter-drawer is-hidden';
+      shade.className = 'library-filter-shade is-hidden';
+      return;
+    }
+    drawer.className = 'library-filter-drawer';
+    shade.className = 'library-filter-shade';
+    setText('library-filter-title', t('library.advancedFilters'));
+    setText('library-filter-hint', t('library.filtersHint', { library: activeLibrary ? activeLibrary.title : '' }));
+    setText('library-filter-reset', t('library.resetFilters'));
+    setText('library-filter-cancel', t('common.cancel'));
+    setText('library-filter-apply', t('common.apply'));
+    setText('library-filter-count', t('library.activeFilters', { count: activeLibraryFilterCount(libraryDraftFilters) }));
+    rows.innerHTML = '';
+    rows.className = 'library-filter-rows' + (libraryFilterPickerKey ? ' library-filter-options' : '');
+    if (libraryFilterPickerKey && libraryFilterOptions) {
+      renderLibraryFilterPicker();
+    } else if (!libraryFilterOptions) {
+      rows.appendChild(element('div', 'library-filter-loading', t('library.loadingFilters')));
+    } else {
+      for (index = 0; index < keys.length; index += 1) {
+        button = element('button', 'library-filter-row' + (libraryFilterFocusZone === 'rows' && libraryFilterFocusIndex === index ? ' is-focused' : ''));
+        button.type = 'button';
+        button.setAttribute('data-library-advanced-filter', keys[index]);
+        button.appendChild(element('span', 'library-filter-row-label', t('library.filter.' + keys[index])));
+        button.appendChild(element('span', 'library-filter-row-value', libraryFilterLabel(keys[index], libraryDraftFilters[keys[index]])));
+        button.appendChild(element('span', 'library-filter-row-arrow', '\u2039  \u203a'));
+        rows.appendChild(button);
+      }
+    }
+    ['reset', 'cancel', 'apply'].forEach(function (action, actionIndex) {
+      document.getElementById('library-filter-' + action).style.display = libraryFilterPickerKey ? 'none' : '';
+      document.getElementById('library-filter-' + action).className = (action === 'apply' ? 'is-primary' : '') + (libraryFilterFocusZone === 'actions' && libraryFilterFocusIndex === actionIndex ? ' is-focused' : '');
+    });
+    document.getElementById('library-filter-count').style.display = libraryFilterPickerKey ? 'none' : '';
+  }
+
+  function libraryFilterChoices(key) {
+    return [{ value: '', label: t('library.filterAny') }].concat((libraryFilterOptions && libraryFilterOptions[key]) || []);
+  }
+
+  function renderLibraryFilterPicker() {
+    var rows = document.getElementById('library-filter-rows');
+    var options = libraryFilterChoices(libraryFilterPickerKey);
+    var index;
+    var button;
+    setText('library-filter-title', t('library.filter.' + libraryFilterPickerKey));
+    setText('library-filter-hint', t('library.filterPickerHint'));
+    rows.className = 'library-filter-rows library-filter-options';
+    for (index = 0; index < options.length; index += 1) {
+      button = element('button', 'library-filter-option' +
+        (String(options[index].value) === String(libraryDraftFilters[libraryFilterPickerKey]) ? ' is-selected' : '') +
+        (libraryFilterFocusZone === 'picker' && libraryFilterFocusIndex === index ? ' is-focused' : ''), options[index].label);
+      button.type = 'button';
+      button.setAttribute('data-library-filter-option', index);
+      rows.appendChild(button);
+    }
+  }
+
+  function openLibraryFilterDrawer() {
+    libraryDraftFilters = copyLibraryFilters(libraryAdvancedFilters);
+    libraryFilterOpen = true;
+    libraryFilterFocusZone = 'rows';
+    libraryFilterFocusIndex = 0;
+    libraryFilterPickerKey = '';
+    renderLibraryFilterDrawer();
+    if (!libraryFilterOptions && !libraryFilterRequest) {
+      libraryFilterRequest = PlexClient.loadLibraryFilterOptions(config, activeLibrary, function (error, options) {
+        libraryFilterRequest = null;
+        if (!libraryFilterOpen) { return; }
+        libraryFilterOptions = error ? { year: [], genre: [], actor: [], director: [], resolution: [], hdr: [{ value: '1', label: t('library.filterHdr') }, { value: '0', label: t('library.filterSdr') }] } : options;
+        renderLibraryFilterDrawer();
+        updateLibraryFilterFocus();
+      });
+    }
+    updateLibraryFilterFocus();
+  }
+
+  function closeLibraryFilterDrawer() {
+    libraryFilterOpen = false;
+    libraryFilterPickerKey = '';
+    renderLibraryFilterDrawer();
+    libraryZone = 'filter';
+    libraryControlIndex = 3;
+    updateLibraryFocus();
+  }
+
+  function updateLibraryFilterFocus() {
+    var target;
+    clearLogicalFocus();
+    renderLibraryFilterDrawer();
+    if (!libraryFilterOpen) { return; }
+    if (libraryFilterFocusZone === 'rows') { target = document.querySelectorAll('[data-library-advanced-filter]')[libraryFilterFocusIndex]; }
+    else if (libraryFilterFocusZone === 'picker') { target = document.querySelectorAll('[data-library-filter-option]')[libraryFilterFocusIndex]; }
+    else { target = document.querySelectorAll('[data-library-filter-action]')[libraryFilterFocusIndex]; }
+    if (target && !pointerSelectionActive) {
+      target.focus();
+      if (libraryFilterFocusZone === 'picker' && target.scrollIntoView) { target.scrollIntoView(false); }
+    }
+  }
+
+  function changeLibraryAdvancedFilter(key, direction) {
+    var options = libraryFilterChoices(key);
+    var current = 0;
+    var index;
+    for (index = 0; index < options.length; index += 1) {
+      if (String(options[index].value) === String(libraryDraftFilters[key])) { current = index; break; }
+    }
+    current = (current + direction + options.length) % options.length;
+    libraryDraftFilters[key] = options[current].value;
+    renderLibraryFilterDrawer();
+    updateLibraryFilterFocus();
+  }
+
+  function openLibraryFilterPicker(key) {
+    var options = libraryFilterChoices(key);
+    var index;
+    libraryFilterPickerKey = key;
+    libraryFilterFocusZone = 'picker';
+    libraryFilterFocusIndex = 0;
+    for (index = 0; index < options.length; index += 1) {
+      if (String(options[index].value) === String(libraryDraftFilters[key])) { libraryFilterFocusIndex = index; break; }
+    }
+    document.getElementById('library-filter-rows').className = 'library-filter-rows';
+    renderLibraryFilterDrawer();
+    updateLibraryFilterFocus();
+  }
+
+  function selectLibraryFilterOption(index) {
+    var options = libraryFilterChoices(libraryFilterPickerKey);
+    var keys = libraryAdvancedFilterKeys;
+    var rowIndex = keys.indexOf(libraryFilterPickerKey);
+    if (!options[index]) { return; }
+    libraryDraftFilters[libraryFilterPickerKey] = options[index].value;
+    libraryFilterPickerKey = '';
+    libraryFilterFocusZone = 'rows';
+    libraryFilterFocusIndex = Math.max(0, rowIndex);
+    document.getElementById('library-filter-rows').className = 'library-filter-rows';
+    renderLibraryFilterDrawer();
+    updateLibraryFilterFocus();
+  }
+
+  function activateLibraryFilterAction(action) {
+    if (action === 'reset') {
+      libraryDraftFilters = copyLibraryFilters({});
+      renderLibraryFilterDrawer(); updateLibraryFilterFocus(); return;
+    }
+    if (action === 'cancel') { closeLibraryFilterDrawer(); return; }
+    libraryAdvancedFilters = copyLibraryFilters(libraryDraftFilters);
+    closeLibraryFilterDrawer();
+    renderLibraryControls();
+    loadLibraryContent(true);
   }
 
   function updateLibraryCardProgress(card, item) {
@@ -1704,6 +1959,73 @@
     else { container.scrollTop = libraryWindow.offsetRows * metrics.rowStep; }
   }
 
+  function recommendationItemAtFocus() {
+    var row = libraryRecommendationRows[libraryRecommendationRowIndex];
+    return row && row.items ? row.items[libraryFocusIndex] : null;
+  }
+
+  function libraryRecommendationTitle(row) {
+    var identifier = String(row && row.identifier || '').toLowerCase();
+    if (identifier.indexOf('startwatching') !== -1) { return t('recommendation.startWatching'); }
+    if (identifier.indexOf('.genre.') !== -1 || identifier.indexOf('moreingenre') !== -1) { return t('recommendation.byGenre'); }
+    if (identifier.indexOf('by.actor.or.director') !== -1) { return t('recommendation.byPeople'); }
+    if (identifier.indexOf('topunwatched') !== -1) { return t('recommendation.topUnwatched'); }
+    if (identifier.indexOf('toprated') !== -1) { return t('recommendation.topRated'); }
+    return row && row.title || t('library.recommended');
+  }
+
+  function renderLibraryRecommendations() {
+    var container = document.getElementById('library-recommended');
+    var grid = document.getElementById('library-grid');
+    var posterJobs = [];
+    var metrics = cardMetrics();
+    var rowIndex;
+    var column;
+    var rowData;
+    var section;
+    var row;
+    var item;
+    var card;
+    var image;
+    var caption;
+    if (libraryViewKey() !== 'recommended') {
+      container.className = 'library-recommended is-hidden';
+      grid.className = 'library-grid';
+      return;
+    }
+    container.className = 'library-recommended';
+    grid.className = 'library-grid is-hidden';
+    container.innerHTML = '';
+    for (rowIndex = 0; rowIndex < libraryRecommendationRows.length; rowIndex += 1) {
+      rowData = libraryRecommendationRows[rowIndex];
+      section = element('section', 'library-recommendation-section');
+      section.appendChild(element('h3', 'library-recommendation-title', libraryRecommendationTitle(rowData)));
+      row = element('div', 'library-recommendation-row');
+      for (column = 0; column < rowData.items.length; column += 1) {
+        item = rowData.items[column];
+        card = element('button', 'library-card library-recommendation-card' + (item.viewed ? ' is-viewed' : '') + (libraryZone === 'grid' && rowIndex === libraryRecommendationRowIndex && column === libraryFocusIndex ? ' is-focused' : ''));
+        card.type = 'button';
+        card.setAttribute('data-library-recommendation-row', rowIndex);
+        card.setAttribute('data-library-recommendation-column', column);
+        card.setAttribute('data-media-key', searchMediaKey(item));
+        image = element('img', 'library-card-image'); image.alt = ''; card.appendChild(image);
+        caption = element('span', 'library-card-caption');
+        caption.appendChild(element('span', 'library-card-title', mediaTitle(item)));
+        caption.appendChild(element('span', 'library-card-meta', libraryItemMeta(item)));
+        card.appendChild(caption);
+        updateLibraryCardProgress(card, item);
+        row.appendChild(card);
+        posterJobs.push({
+          target: image,
+          specification: renderedPosterSpecification(image, item.image, rowIndex === libraryRecommendationRowIndex && column === libraryFocusIndex ? 0 : 1, 'library', metrics.width, metrics.imageHeight)
+        });
+      }
+      section.appendChild(row);
+      container.appendChild(section);
+    }
+    posterLoader.loadBatch(posterJobs);
+  }
+
   function onLibraryGridScroll() {
     var container = document.getElementById('library-grid');
     if (appView !== 'library' || !libraryUsesGridScroll()) { return; }
@@ -1726,14 +2048,21 @@
 
   function keepLibraryFocusVisible(target) {
     var container;
+    var horizontalContainer;
     var targetRect;
     var containerRect;
-    if (!target || !target.hasAttribute('data-library-index')) { return; }
-    container = document.getElementById('library-grid');
+    if (!target || (!target.hasAttribute('data-library-index') && !target.hasAttribute('data-library-recommendation-row'))) { return; }
+    container = document.getElementById(target.hasAttribute('data-library-recommendation-row') ? 'library-recommended' : 'library-grid');
     targetRect = target.getBoundingClientRect();
     containerRect = container.getBoundingClientRect();
     if (targetRect.bottom > containerRect.bottom - 12) { container.scrollTop += targetRect.bottom - containerRect.bottom + 12; }
     else if (targetRect.top < containerRect.top + 12) { container.scrollTop -= containerRect.top - targetRect.top + 12; }
+    if (target.hasAttribute('data-library-recommendation-row')) {
+      horizontalContainer = target.parentNode;
+      containerRect = horizontalContainer.getBoundingClientRect();
+      if (targetRect.right > containerRect.right - 12) { horizontalContainer.scrollLeft += targetRect.right - containerRect.right + 12; }
+      else if (targetRect.left < containerRect.left + 12) { horizontalContainer.scrollLeft -= containerRect.left - targetRect.left + 12; }
+    }
   }
 
   function updateLibraryFocus() {
@@ -1744,16 +2073,17 @@
     else if (libraryZone === 'tabs') { target = document.querySelector('[data-library-tab="' + libraryTabIndex + '"]'); }
     else if (libraryZone === 'actions') { target = document.getElementById(libraryActionIndex === 0 ? 'library-refresh' : 'library-refresh-metadata'); }
     else if (libraryZone === 'sort') { target = document.querySelectorAll('[data-library-sort]')[libraryControlIndex]; }
-    else if (libraryZone === 'filter') { target = document.querySelectorAll('[data-library-filter]')[libraryControlIndex]; }
+    else if (libraryZone === 'filter') { target = document.querySelectorAll('[data-library-filter], [data-library-filter-open]')[libraryControlIndex]; }
+    else if (libraryViewKey() === 'recommended') { target = document.querySelector('[data-library-recommendation-row="' + libraryRecommendationRowIndex + '"][data-library-recommendation-column="' + libraryFocusIndex + '"]'); }
     else { target = document.querySelector('[data-library-index="' + libraryFocusIndex + '"]'); }
     if (target) {
       target.className += ' is-focused';
       if (libraryZone === 'grid') { prioritizePoster(target); }
       if (!pointerSelectionActive && !wheelNavigationActive) { target.focus(); keepLibraryFocusVisible(target); }
     }
-    if (libraryZone === 'grid' && libraryItems[libraryFocusIndex]) {
-      scheduleViewBackdrop(libraryItems[libraryFocusIndex], 'library', 250);
-      scheduleTheme(libraryItems[libraryFocusIndex]);
+    if (libraryZone === 'grid' && (libraryViewKey() === 'recommended' ? recommendationItemAtFocus() : libraryItems[libraryFocusIndex])) {
+      scheduleViewBackdrop(libraryViewKey() === 'recommended' ? recommendationItemAtFocus() : libraryItems[libraryFocusIndex], 'library', 250);
+      scheduleTheme(libraryViewKey() === 'recommended' ? recommendationItemAtFocus() : libraryItems[libraryFocusIndex]);
     } else {
       backgroundAudio.stop();
     }
@@ -1769,8 +2099,9 @@
       if (libraryRequest && libraryRequest.abort) { libraryRequest.abort(); }
       libraryLoading = false;
       libraryError = null;
-      libraryItems = []; libraryTotalSize = 0; libraryFocusIndex = 0; libraryVisibleStartRow = 0;
+      libraryItems = []; libraryRecommendationRows = []; libraryRecommendationRowIndex = 0; libraryTotalSize = 0; libraryFocusIndex = 0; libraryVisibleStartRow = 0;
       renderLibraryGrid();
+      renderLibraryRecommendations();
       hideViewState();
     }
     if (libraryLoading) { return; }
@@ -1778,13 +2109,25 @@
     start = libraryItems.length;
     libraryLoading = true;
     updateLibraryStatus();
-    if (libraryContainer) {
+    if (libraryViewKey() === 'recommended' && !libraryContainer) {
+      libraryRequest = PlexClient.loadLibraryRecommendations(config, activeLibrary, function (error, rows) {
+        libraryLoading = false;
+        if (generation !== libraryGeneration || appView !== 'library') { return; }
+        libraryError = error || null;
+        libraryRecommendationRows = error ? [] : (rows || []);
+        hideViewState();
+        updateLibraryStatus();
+        if (!libraryRecommendationRows.length && libraryZone === 'grid') { libraryZone = 'tabs'; }
+        renderLibraryRecommendations();
+        updateLibraryFocus();
+      });
+    } else if (libraryContainer) {
       libraryRequest = PlexClient.loadLibraryContainerPage(config, libraryContainer, start, 60, function (error, page) {
         finishLibraryPage(error, page, generation);
       });
     } else {
       libraryRequest = PlexClient.loadLibraryPage(config, activeLibrary, libraryViewKey(), {
-        sort: librarySort, direction: librarySortDirection, watched: libraryWatchedFilter
+        sort: librarySort, direction: librarySortDirection, watched: libraryWatchedFilter, filters: libraryAdvancedFilters
       }, start, libraryUsesGridScroll() ? 60 : 30, function (error, page) {
         finishLibraryPage(error, page, generation);
       });
@@ -1802,11 +2145,12 @@
       hideViewState();
       updateLibraryStatus();
       if (!libraryItems.length && libraryZone === 'grid') { libraryZone = 'tabs'; }
-      renderLibraryGrid(); updateLibraryFocus();
+      renderLibraryGrid(); renderLibraryRecommendations(); updateLibraryFocus();
   }
 
   function updateLibraryStatus() {
-    var key = LibraryContainers.statusKey(libraryViewKey(), libraryLoading, libraryError, libraryItems.length, !!libraryContainer);
+    var itemCount = libraryViewKey() === 'recommended' ? libraryRecommendationRows.reduce(function (count, row) { return count + row.items.length; }, 0) : libraryItems.length;
+    var key = LibraryContainers.statusKey(libraryViewKey(), libraryLoading, libraryError, itemCount, !!libraryContainer);
     document.getElementById('library-status').className = 'library-status' + (key && !libraryItems.length ? ' is-prominent' : '');
     setText('library-status', key ? t(key) : '');
   }
@@ -1821,16 +2165,18 @@
       libraryContinueRequest = null;
       if (error || !page) { return; }
       libraryContinueAvailable = page.items.length > 0;
-      if (!libraryContinueAvailable && libraryTabIndex === 0) {
-        libraryTabIndex = 1;
-        renderLibraryControls(); loadLibraryContent(true);
-      }
       renderLibrarySubnav(); updateLibraryFocus();
     });
   }
 
   function openLibrary(library, navIndex, keepNavigationFocus) {
+    if (libraryFilterRequest && libraryFilterRequest.abort) { libraryFilterRequest.abort(); }
+    libraryFilterRequest = null;
     activeLibrary = library; state.navIndex = navIndex; appView = 'library';
+    libraryAdvancedFilters = copyLibraryFilters({});
+    libraryDraftFilters = copyLibraryFilters({});
+    libraryFilterOptions = null;
+    libraryFilterOpen = false;
     libraryContainer = null; libraryContainerParentState = null;
     libraryTabIndex = 0; libraryZone = keepNavigationFocus ? 'nav' : 'tabs'; libraryControlIndex = 0; libraryActionIndex = 0; libraryContinueAvailable = null;
     document.getElementById('content').style.display = 'none';
@@ -1848,6 +2194,10 @@
     posterLoader.cancelScope('library');
     if (libraryRequest && libraryRequest.abort) { libraryRequest.abort(); }
     if (libraryContinueRequest && libraryContinueRequest.abort) { libraryContinueRequest.abort(); }
+    if (libraryFilterRequest && libraryFilterRequest.abort) { libraryFilterRequest.abort(); }
+    libraryFilterRequest = null;
+    libraryFilterOpen = false;
+    renderLibraryFilterDrawer();
     libraryContinueRequest = null;
     libraryContainer = null; libraryContainerParentState = null;
     document.getElementById('library-view').className = 'library-view is-hidden';
@@ -2057,8 +2407,45 @@
 
   function activateLibrarySort(key) {
     if (librarySort === key) { librarySortDirection = librarySortDirection === 'asc' ? 'desc' : 'asc'; }
-    else { librarySort = key; librarySortDirection = key === 'audienceRating' ? 'desc' : 'asc'; }
+    else { librarySort = key; librarySortDirection = key === 'titleSort' ? 'asc' : 'desc'; }
     renderLibraryControls(); loadLibraryContent(true); updateLibraryFocus();
+  }
+
+  function handleLibraryFilterKeyDown(event, direction) {
+    var keys = libraryAdvancedFilterKeys;
+    event.preventDefault();
+    if (event.keyCode === 27 || event.keyCode === 461) {
+      if (libraryFilterPickerKey) {
+        libraryFilterFocusIndex = keys.indexOf(libraryFilterPickerKey);
+        libraryFilterPickerKey = '';
+        libraryFilterFocusZone = 'rows';
+        document.getElementById('library-filter-rows').className = 'library-filter-rows';
+        updateLibraryFilterFocus();
+      } else { closeLibraryFilterDrawer(); }
+      return;
+    }
+    if (libraryFilterFocusZone === 'picker') {
+      if (direction === 'up') { libraryFilterFocusIndex = Math.max(0, libraryFilterFocusIndex - 1); }
+      else if (direction === 'down') { libraryFilterFocusIndex = Math.min(libraryFilterChoices(libraryFilterPickerKey).length - 1, libraryFilterFocusIndex + 1); }
+      else if (event.keyCode === 13) { selectLibraryFilterOption(libraryFilterFocusIndex); return; }
+      updateLibraryFilterFocus();
+      return;
+    }
+    if (libraryFilterFocusZone === 'rows') {
+      if (direction === 'up') { libraryFilterFocusIndex = Math.max(0, libraryFilterFocusIndex - 1); }
+      else if (direction === 'down') {
+        if (libraryFilterFocusIndex < keys.length - 1) { libraryFilterFocusIndex += 1; }
+        else { libraryFilterFocusZone = 'actions'; libraryFilterFocusIndex = 2; }
+      } else if (direction === 'left' || direction === 'right') {
+        changeLibraryAdvancedFilter(keys[libraryFilterFocusIndex], direction === 'left' ? -1 : 1); return;
+      } else if (event.keyCode === 13) { openLibraryFilterPicker(keys[libraryFilterFocusIndex]); return; }
+    } else {
+      if (direction === 'left') { libraryFilterFocusIndex = Math.max(0, libraryFilterFocusIndex - 1); }
+      else if (direction === 'right') { libraryFilterFocusIndex = Math.min(2, libraryFilterFocusIndex + 1); }
+      else if (direction === 'up') { libraryFilterFocusZone = 'rows'; libraryFilterFocusIndex = keys.length - 1; }
+      else if (event.keyCode === 13) { activateLibraryFilterAction(['reset', 'cancel', 'apply'][libraryFilterFocusIndex]); return; }
+    }
+    updateLibraryFilterFocus();
   }
 
   function activateLibraryFilter(key) {
@@ -2244,6 +2631,35 @@
     return value === 'original' ? t('settings.original') : (Number(value) / 1000) + ' Mbps';
   }
 
+  function activeConnectionRoute() {
+    var uri = ServerStore.normalizeUri(config.apiBaseUrl);
+    var routes = activeServer && activeServer.connectionRoutes || [];
+    var index;
+    for (index = 0; index < routes.length; index += 1) {
+      if (ServerStore.normalizeUri(routes[index].uri) !== uri) { continue; }
+      if (routes[index].relay === true) { return 'relay'; }
+      if (routes[index].local === true) { return 'lan'; }
+      return 'remote';
+    }
+    if (/^https:\/\/[^/]+\.plex\.direct(?::443)?$/i.test(uri) && (!String(uri).match(/:\d+$/) || /:443$/i.test(uri))) {
+      return 'relay';
+    }
+    return ServerDiscovery.isLocalCandidate(uri) ? 'lan' : 'remote';
+  }
+
+  function connectionRouteLabel(route) {
+    return t('connection.' + (route || activeConnectionRoute()));
+  }
+
+  function activeVideoQuality() {
+    return activeConnectionRoute() === 'lan' ? appSettings.lanVideoQuality : appSettings.remoteVideoQuality;
+  }
+
+  function activeServerSettingsLabel() {
+    var label = activeServer ? activeServer.name : (config.serverName || config.apiBaseUrl || t('settings.notConfigured'));
+    return config.apiBaseUrl ? label + ' \u00b7 ' + connectionRouteLabel() : label;
+  }
+
   function playbackPreferenceLabel(value) {
     if (value === 'transcode') { return t('settings.forceTranscode'); }
     if (value === 'direct') { return t('settings.directOnly'); }
@@ -2268,17 +2684,18 @@
       forced: t('subtitle.forced')
     };
     return [
-      { key: 'plexServer', section: 'plex', label: t('settings.plexServer'), value: activeServer ? activeServer.name : (config.serverName || config.apiBaseUrl || t('settings.notConfigured')), serverEditor: true },
+      { key: 'plexServer', section: 'plex', label: t('settings.plexServer'), value: activeServerSettingsLabel(), serverEditor: true },
       { key: 'plexProfile', section: 'plex', label: t('settings.plexProfile'), value: activeProfileTitle(), profileEditor: true },
       { key: 'uiLanguage', section: 'interface', label: t('settings.interfaceLanguage'), value: I18n.languageName(appSettings.uiLanguage, appSettings.uiLanguage) },
       { key: 'wheelBehavior', section: 'interface', label: t('settings.wheelBehavior'), value: t(appSettings.wheelBehavior === 'page' ? 'settings.wheelPage' : 'settings.wheelItems') },
       { key: 'cardScale', section: 'interface', label: t('settings.cardSize'), value: appSettings.cardScale + '%' },
-      { key: 'accentColor', section: 'interface', label: t('settings.accentColor'), value: accentColorLabel(appSettings.accentColor), swatch: accentColorValues[appSettings.accentColor] || accentColorValues.cyan },
+      { key: 'accentColor', section: 'interface', label: t('settings.accentColor'), value: accentColorLabel(appSettings.accentColor), palette: true },
       { key: 'showMediaInfo', section: 'interface', label: t('settings.showMediaInfo'), value: t(appSettings.showMediaInfo ? 'settings.enabled' : 'settings.disabled') },
       { key: 'backgroundMusic', section: 'audioAppearance', label: t('settings.backgroundMusic'), value: t(appSettings.backgroundMusic ? 'settings.enabled' : 'settings.disabled') },
       { key: 'backgroundVolume', section: 'audioAppearance', label: t('settings.backgroundVolume'), value: appSettings.backgroundVolume + '%' },
       { key: 'backgroundDelay', section: 'audioAppearance', label: t('settings.backgroundDelay'), value: appSettings.backgroundDelay + ' ms' },
-      { key: 'videoQuality', section: 'playback', label: t('settings.videoQuality'), value: videoQualityLabel(appSettings.videoQuality) },
+      { key: 'lanVideoQuality', section: 'playback', label: t('settings.lanVideoQuality'), value: videoQualityLabel(appSettings.lanVideoQuality) },
+      { key: 'remoteVideoQuality', section: 'playback', label: t('settings.remoteVideoQuality'), value: videoQualityLabel(appSettings.remoteVideoQuality) },
       { key: 'playbackMode', section: 'playback', label: t('settings.playbackMode'), value: playbackPreferenceLabel(appSettings.playbackMode) },
       { key: 'autoplayDelay', section: 'playback', label: t('settings.autoplayNext'), value: appSettings.autoplayDelay === 0 ? t('settings.disabled').toUpperCase() : appSettings.autoplayDelay + ' s' },
       { key: 'skipPromptDuration', section: 'playback', label: t('settings.skipPromptDuration'), value: appSettings.skipPromptDuration + ' s' },
@@ -2327,6 +2744,9 @@
     var button;
     var value;
     var editor;
+    var colorIndex;
+    var colorName;
+    var palette;
     var section = '';
     setText('app-settings-title', t('settings.title'));
     setText('app-settings-notice', t('settings.globalNotice'));
@@ -2342,10 +2762,18 @@
       if (rows[index].serverEditor) { button.setAttribute('aria-expanded', serverEditorOpen ? 'true' : 'false'); }
       button.appendChild(element('span', 'app-setting-label', rows[index].label));
       value = element('span', 'app-setting-value', rows[index].value);
-      if (rows[index].swatch) {
-        editor = element('span', 'app-setting-swatch');
-        editor.style.backgroundColor = rows[index].swatch;
-        value.insertBefore(editor, value.firstChild);
+      if (rows[index].palette) {
+        value.className += ' app-setting-palette-value';
+        palette = element('span', 'app-setting-palette');
+        for (colorIndex = 0; colorIndex < Settings.ACCENT_COLORS.length; colorIndex += 1) {
+          colorName = Settings.ACCENT_COLORS[colorIndex];
+          editor = element('span', 'app-setting-swatch' + (colorName === appSettings.accentColor ? ' is-selected' : ''));
+          editor.style.backgroundColor = accentColorValues[colorName];
+          editor.setAttribute('data-accent-color', colorName);
+          editor.setAttribute('aria-hidden', 'true');
+          palette.appendChild(editor);
+        }
+        value.insertBefore(palette, value.firstChild);
       }
       button.appendChild(value);
       container.appendChild(button);
@@ -2401,8 +2829,8 @@
     } else if (row.key === 'subtitleMode') {
       appSettings.subtitleMode = cycleValue(['off', 'always', 'audio-mismatch', 'forced'], appSettings.subtitleMode, direction);
       appSettings.subtitleModeExplicit = true;
-    } else if (row.key === 'videoQuality') {
-      appSettings.videoQuality = cycleValue(['original', '12000', '8000', '4000'], appSettings.videoQuality, direction);
+    } else if (row.key === 'lanVideoQuality' || row.key === 'remoteVideoQuality') {
+      appSettings[row.key] = cycleValue(['original', '12000', '8000', '4000'], appSettings[row.key], direction);
     } else if (row.key === 'playbackMode') {
       appSettings.playbackMode = cycleValue(['auto', 'direct', 'transcode'], appSettings.playbackMode, direction);
     } else if (row.key === 'wheelBehavior') {
@@ -2421,6 +2849,14 @@
       else if (appView === 'library') { renderLibraryGrid(); updateLibraryFocus(); }
       else if (appView === 'watchlist') { renderWatchlistGrid(); updateWatchlistFocus(); }
     }
+    renderNavigation();
+    renderAppSettings();
+  }
+
+  function selectAccentColor(color) {
+    if (Settings.ACCENT_COLORS.indexOf(color) === -1) { return; }
+    appSettings.accentColor = color;
+    saveAppSettings();
     renderNavigation();
     renderAppSettings();
   }
@@ -3206,9 +3642,9 @@
     finishSetup();
   }
 
-  function persistRemoteConnectionState(server, connections, status) {
+  function persistRemoteConnectionState(server, connections, status, connectionRoutes) {
     var current = serverForIdentity(server) || server;
-    var updated = ServerStore.withRemoteConnections(current, connections, status, new Date().getTime());
+    var updated = ServerStore.withRemoteConnections(current, connections, status, new Date().getTime(), connectionRoutes);
     if (!updated) { return; }
     replaceStoredServer(updated);
     if (activeServer && (
@@ -3225,18 +3661,18 @@
     }
   }
 
-  function verifyRemoteConnectionsInBackground(server, token, connections) {
+  function verifyRemoteConnectionsInBackground(server, token, connections, connectionRoutes) {
     var verificationKey = String(server && (server.machineIdentifier || server.uri) || '');
     var remoteConnections = (connections || []).filter(function (uri) {
       return !ServerDiscovery.isLocalCandidate(uri);
     });
     if (!verificationKey || remoteConnectionVerificationStarted[verificationKey]) { return; }
     remoteConnectionVerificationStarted[verificationKey] = true;
-    persistRemoteConnectionState(server, connections, remoteConnections.length ? 'pending' : 'unavailable');
+    persistRemoteConnectionState(server, connections, remoteConnections.length ? 'pending' : 'unavailable', connectionRoutes);
     if (!remoteConnections.length) { return; }
     root.setTimeout(function () {
       PlexAuth.findReachableConnection(root, token, remoteConnections, server.machineIdentifier, authOptions, function (error) {
-        persistRemoteConnectionState(server, connections, error ? 'failed' : 'linked');
+        persistRemoteConnectionState(server, connections, error ? 'failed' : 'linked', connectionRoutes);
         if (serverEditorOpen) { renderServerEditor(); }
       });
     }, 0);
@@ -3246,7 +3682,7 @@
     var status = String(server && server.remoteLinkStatus || '');
     var token = AuthStore ? AuthStore.activeToken(authState, server && server.machineIdentifier) : '';
     if (!server || !token || status === 'linked' || status === 'unavailable') { return; }
-    verifyRemoteConnectionsInBackground(server, token, server.connections || []);
+    verifyRemoteConnectionsInBackground(server, token, server.connections || [], server.connectionRoutes || []);
   }
 
   function resolveSetupProfileAccess(profile, accountToken, generation) {
@@ -3280,7 +3716,7 @@
           setupProfileBusy = false;
           setupStatusKey = 'setup.serverAccessUnavailable'; renderSetupProfiles(); return;
         }
-        verifyRemoteConnectionsInBackground(server, access.token, access.connections);
+        verifyRemoteConnectionsInBackground(server, access.token, access.connections, access.connectionRoutes);
         completeSetupProfile(profile, access.token, accountToken, server.machineIdentifier, connectionUri);
       });
     });
@@ -3367,6 +3803,7 @@
     document.getElementById('setup-view').className = 'setup-view';
     if (!appSettings.uiLanguageExplicit) { renderSetupLanguage(); }
     else { renderSetupServers(); scanSetupServers(); }
+    completeStartup();
   }
 
   function openProfileManager() {
@@ -3763,12 +4200,15 @@
   }
 
   function clearDetailPresentation(clearPoster) {
+    episodeDetailToken += 1;
+    seasonTransitionMediaKey = '';
     posterLoader.cancelScope('detail');
     if (clearPoster) { loadRenderedPoster(document.getElementById('detail-poster'), '', 0, 'detail', 360, 540); }
     setText('detail-title', '');
     setText('detail-subtitle', '');
     setText('detail-facts', '');
     setText('detail-summary', '');
+    closeDetailSummary();
     setText('detail-audio-value', '');
     setText('detail-subtitles-value', '');
     setText('detail-version-value', '');
@@ -3776,6 +4216,7 @@
     setText('detail-media-info-audio', '');
     setText('detail-media-info-bitrate', '');
     setText('detail-media-info-subtitle-languages', '');
+    closeDetailMediaInfo();
     document.getElementById('season-tabs').innerHTML = '';
     document.getElementById('episode-strip').innerHTML = '';
   }
@@ -3878,12 +4319,13 @@
     setText('detail-media-info-video-label', t('detail.video'));
     setText('detail-media-info-audio-label', t('detail.audio'));
     setText('detail-media-info-bitrate-label', t('detail.bitrate'));
-    document.getElementById('detail-media-info').className = 'detail-media-info' + (appSettings.showMediaInfo ? '' : ' is-hidden');
+    document.getElementById('detail-media-info-button').className = 'detail-media-info-button' + (appSettings.showMediaInfo ? '' : ' is-hidden');
     renderDetailChoiceState(audioButton, choices.audio);
     renderDetailChoiceState(subtitleButton, choices.subtitles);
     renderDetailChoiceState(versionButton, choices.versions);
     if (!profile || !resolved) {
-      unavailableLabel = detailMediaProfileLoading ? t('detail.loadingTracks') : t('player.unavailable');
+      unavailableLabel = detailMediaProfileLoading ?
+        (detailMediaLoadingLabelVisible ? t('detail.loadingTracks') : '') : t('player.unavailable');
       setText('detail-audio-value', unavailableLabel);
       setText('detail-subtitles-value', unavailableLabel);
       setText('detail-version-value', unavailableLabel);
@@ -3891,6 +4333,7 @@
       setText('detail-media-info-audio', '');
       setText('detail-media-info-bitrate', '');
       setText('detail-media-info-subtitle-languages', '');
+      root.setTimeout(updateDetailMediaInfoOverflow, 0);
       return;
     }
     setText('detail-version-value', mediaVersionLabel(profile, !currentMediaOverride || currentMediaOverride.mediaIndex === null));
@@ -3915,6 +4358,68 @@
     setText('detail-media-info-bitrate', bitrate);
     subtitleLanguages = MediaProfile.subtitleLanguages(profile);
     setText('detail-media-info-subtitle-languages', subtitleLanguages.length ? subtitleLanguages.join(', ') : t('detail.noSubtitles'));
+    root.setTimeout(updateDetailMediaInfoOverflow, 0);
+  }
+
+  function animateSeasonContent(elementId) {
+    var node = document.getElementById(elementId);
+    if (!node) { return; }
+    node.className = node.className.replace(/\s*is-season-updating/g, '');
+    node.offsetWidth;
+    node.className += ' is-season-updating';
+    root.setTimeout(function () {
+      node.className = node.className.replace(/\s*is-season-updating/g, '');
+    }, 220);
+  }
+
+  function detailMediaInfoText() {
+    var rows = [
+      [t('detail.video'), document.getElementById('detail-media-info-video').innerText],
+      [t('detail.audio'), document.getElementById('detail-media-info-audio').innerText],
+      [t('detail.bitrate'), document.getElementById('detail-media-info-bitrate').innerText],
+      [t('detail.subtitleLanguages'), document.getElementById('detail-media-info-subtitle-languages').innerText]
+    ];
+    return rows.map(function (row) { return row[0] + ': ' + (row[1] || t('player.unavailable')); }).join('\n\n');
+  }
+
+  function updateDetailMediaInfoOverflow() {
+    var button = document.getElementById('detail-media-info-button');
+    var content = document.getElementById('detail-media-info');
+    var visible = appSettings.showMediaInfo && button.className.indexOf('is-hidden') === -1;
+    if (!button || !content) { return; }
+    detailMediaInfoOverflowing = visible &&
+      content.getBoundingClientRect().bottom > button.getBoundingClientRect().bottom - 2;
+    button.disabled = !detailMediaInfoOverflowing;
+    button.className = 'detail-media-info-button' + (visible ? '' : ' is-hidden') +
+      (detailMediaInfoOverflowing ? ' is-overflowing' : '') +
+      (detailZone === 'media-info' && detailMediaInfoOverflowing ? ' is-focused' : '');
+    button.setAttribute('aria-label', detailMediaInfoOverflowing ? t('detail.readFullMediaInfo') : '');
+    if (!detailMediaInfoOverflowing && detailZone === 'media-info') {
+      detailZone = seriesContext ? 'episodes' : 'play';
+      updateDetailFocus();
+    }
+  }
+
+  function openDetailMediaInfo() {
+    if (!detailMediaInfoOverflowing || detailMediaInfoDialogOpen) { return; }
+    detailMediaInfoDialogOpen = true;
+    setText('detail-media-info-dialog-title', t('detail.mediaInfo'));
+    setText('detail-media-info-dialog-text', detailMediaInfoText());
+    setText('detail-media-info-dialog-hint', t('detail.summaryCloseHint'));
+    document.getElementById('detail-media-info-dialog-text').scrollTop = 0;
+    document.getElementById('detail-media-info-dialog').className = 'detail-summary-dialog';
+  }
+
+  function closeDetailMediaInfo() {
+    var dialog = document.getElementById('detail-media-info-dialog');
+    detailMediaInfoDialogOpen = false;
+    if (dialog) { dialog.className = 'detail-summary-dialog is-hidden'; }
+    if (appView === 'detail' && detailZone === 'media-info') { updateDetailFocus(); }
+  }
+
+  function scrollDetailMediaInfo(direction) {
+    var text = document.getElementById('detail-media-info-dialog-text');
+    if (text) { text.scrollTop += direction * Math.max(150, Math.round(text.clientHeight * .35)); }
   }
 
   function loadDetailMediaProfile(detail) {
@@ -3935,9 +4440,16 @@
       detailMediaProfileRequest = null;
       if (!currentDetail || String(currentDetail.ratingKey) !== String(ratingKey)) { return; }
       detailMediaProfileLoading = false;
+      detailMediaLoadingLabelVisible = false;
+      root.clearTimeout(detailMediaLoadingLabelTimer);
+      detailMediaLoadingLabelTimer = null;
       currentMediaProfile = error ? null : profile;
       if (appView === 'detail') {
         renderDetailMediaControls();
+        if (String(ratingKey) === seasonTransitionMediaKey) {
+          seasonTransitionMediaKey = '';
+          animateSeasonContent('detail-playback-controls');
+        }
         updateDetailFocus();
       }
     });
@@ -3952,9 +4464,20 @@
     detailMediaProfileToken += 1;
     detailMediaProfileRatingKey = String(ratingKey || '');
     detailMediaProfileLoading = !!ratingKey;
+    detailMediaLoadingLabelVisible = false;
+    root.clearTimeout(detailMediaLoadingLabelTimer);
+    detailMediaLoadingLabelTimer = null;
     currentMediaProfile = null;
     currentMediaOverride = ratingKey && MediaPreferences ? MediaPreferences.load(root.localStorage, mediaPreferenceIdentity(detail)) : null;
     renderDetailMediaControls();
+    if (ratingKey) {
+      detailMediaLoadingLabelTimer = root.setTimeout(function () {
+        detailMediaLoadingLabelTimer = null;
+        if (!detailMediaProfileLoading || String(detailMediaProfileRatingKey) !== String(ratingKey)) { return; }
+        detailMediaLoadingLabelVisible = true;
+        if (appView === 'detail') { renderDetailMediaControls(); }
+      }, 500);
+    }
   }
 
   function queueDetailMediaProfile(detail) {
@@ -4052,6 +4575,7 @@
     var key;
     var language;
     for (key in appSettings) { if (Object.prototype.hasOwnProperty.call(appSettings, key)) { preferences[key] = appSettings[key]; } }
+    preferences.videoQuality = activeVideoQuality();
     if (!currentMediaOverride) { return preferences; }
     if (currentMediaOverride.mediaIndex !== null) {
       preferences.mediaIndex = currentMediaOverride.mediaIndex;
@@ -4154,6 +4678,8 @@
   function renderDetail(detail, deferMediaProfile) {
     var poster = document.getElementById('detail-poster');
     currentDetail = detail;
+    document.body.className = document.body.className.replace(/\s*is-movie-detail/g, '');
+    if (detail && detail.type === 'movie') { document.body.className += ' is-movie-detail'; }
     if (selectedItem && String(selectedItem.ratingKey || '') === String(detail.ratingKey || '')) {
       if (!detail.guid && selectedItem.guid) { detail.guid = selectedItem.guid; }
       if (selectedItem.cloudRatingKey) { detail.cloudRatingKey = selectedItem.cloudRatingKey; }
@@ -4163,6 +4689,10 @@
     setText('detail-subtitle', detailDisplaySubtitle(detail));
     setText('detail-facts', detail.facts);
     setText('detail-summary', detail.summary || t('detail.noSummary'));
+    setText('detail-summary-dialog-title', detail.title);
+    setText('detail-summary-dialog-text', detail.summary || t('detail.noSummary'));
+    setText('detail-summary-dialog-hint', t('detail.summaryCloseHint'));
+    root.setTimeout(updateDetailSummaryOverflow, 0);
     loadRenderedPoster(poster, detail.image, 0, 'detail', 360, 540);
     setText('detail-watched', detail.viewed ? t('detail.markUnwatched') : t('detail.markWatched'));
     scheduleDetailBackdrop(detail);
@@ -4174,6 +4704,41 @@
     if (watchlistAvailable() && watchlistLoadedIdentity !== watchlistIdentity() && !watchlistLoading) {
       loadWatchlistData(false, function () { if (appView === 'detail' && currentDetail === detail) { syncCurrentDetailWatchlist(); renderDetailWatchlist(); } });
     }
+  }
+
+  function updateDetailSummaryOverflow() {
+    var button = document.getElementById('detail-summary-button');
+    var summary = document.getElementById('detail-summary');
+    if (!button || !summary) { return; }
+    detailSummaryOverflowing = summary.scrollHeight > summary.clientHeight + 2;
+    button.disabled = !detailSummaryOverflowing;
+    button.className = 'detail-summary-button' +
+      (detailSummaryOverflowing ? ' is-overflowing' : '') +
+      (detailZone === 'summary' && detailSummaryOverflowing ? ' is-focused' : '');
+    button.setAttribute('aria-label', detailSummaryOverflowing ? t('detail.readFullSummary') : '');
+    if (!detailSummaryOverflowing && detailZone === 'summary') {
+      detailZone = 'play';
+      updateDetailFocus();
+    }
+  }
+
+  function openDetailSummary() {
+    if (!detailSummaryOverflowing || detailSummaryDialogOpen) { return; }
+    detailSummaryDialogOpen = true;
+    document.getElementById('detail-summary-dialog-text').scrollTop = 0;
+    document.getElementById('detail-summary-dialog').className = 'detail-summary-dialog';
+  }
+
+  function closeDetailSummary() {
+    var dialog = document.getElementById('detail-summary-dialog');
+    detailSummaryDialogOpen = false;
+    if (dialog) { dialog.className = 'detail-summary-dialog is-hidden'; }
+    if (appView === 'detail' && detailZone === 'summary') { updateDetailFocus(); }
+  }
+
+  function scrollDetailSummary(direction) {
+    var text = document.getElementById('detail-summary-dialog-text');
+    if (text) { text.scrollTop += direction * Math.max(150, Math.round(text.clientHeight * .35)); }
   }
 
   function toggleCurrentWatched() {
@@ -4586,10 +5151,18 @@
     return value < 10 ? '0' + value : String(value);
   }
 
-  function loadEpisodeDetail(episode, callback) {
+  function loadEpisodeDetail(episode, callback, animateSeason) {
+    var token = ++episodeDetailToken;
+    var ratingKey = String(episode && episode.ratingKey || '');
     PlexClient.loadMetadata(config, episode.ratingKey, function (error, detail) {
-      if (!error && appView === 'detail') {
+      var selectedEpisode = seriesContext && seriesContext.episodes[detailEpisodeIndex];
+      if (!error && appView === 'detail' && token === episodeDetailToken &&
+          (!selectedEpisode || String(selectedEpisode.ratingKey || '') === ratingKey)) {
+        if (animateSeason) { seasonTransitionMediaKey = ratingKey; }
         renderDetail(detail);
+        if (animateSeason) {
+          animateSeasonContent('detail-copy');
+        }
         if (callback) { callback(detail); }
       }
     });
@@ -4656,7 +5229,7 @@
     root.clearTimeout(detailMetadataTimer);
     detailMetadataTimer = root.setTimeout(function () {
       if (seriesContext && seriesContext.episodes[detailEpisodeIndex]) {
-        loadEpisodeDetail(seriesContext.episodes[detailEpisodeIndex]);
+        loadEpisodeDetail(seriesContext.episodes[detailEpisodeIndex], null, true);
       }
     }, 180);
   }
@@ -4676,9 +5249,11 @@
     } else if (detailZone === 'seasons') {
       if (direction === 'left') {
         detailSeasonIndex = Math.max(0, detailSeasonIndex - 1);
+        renderSeasonTabs();
         scheduleSeasonPreview();
       } else if (direction === 'right') {
         detailSeasonIndex = Math.min(seriesContext.seasons.length - 1, detailSeasonIndex + 1);
+        renderSeasonTabs();
         scheduleSeasonPreview();
       } else if (direction === 'down') {
         detailZone = 'play';
@@ -4693,19 +5268,34 @@
         renderEpisodeStrip();
         scheduleEpisodeDetail();
       } else if (direction === 'up') {
-        detailZone = choiceZones.length ? choiceZones[choiceZones.length - 1] : 'play';
+        detailZone = detailMediaInfoOverflowing ? 'media-info' : (choiceZones.length ? choiceZones[choiceZones.length - 1] : 'play');
       }
     } else if (detailZone === 'play') {
       if (direction === 'left') {
         detailActionIndex = Math.max(0, detailActionIndex - 1);
       } else if (direction === 'right') {
         detailActionIndex = Math.min(3, detailActionIndex + 1);
+      } else if (direction === 'up' && detailSummaryOverflowing) {
+        detailZone = 'summary';
       } else if (direction === 'up' && seriesContext) {
         detailZone = 'seasons';
       } else if (direction === 'up') {
         detailZone = 'nav';
       } else if (direction === 'down') {
         detailZone = choiceZones.length ? choiceZones[0] : (seriesContext ? 'episodes' : 'play');
+      }
+    } else if (detailZone === 'summary') {
+      if (direction === 'down') {
+        detailZone = 'play';
+        detailActionIndex = 0;
+      } else if (direction === 'up' && seriesContext) {
+        detailZone = 'seasons';
+      }
+    } else if (detailZone === 'media-info') {
+      if (direction === 'up') {
+        detailZone = choiceZones.length ? choiceZones[choiceZones.length - 1] : 'play';
+      } else if (direction === 'down' && seriesContext) {
+        detailZone = 'episodes';
       }
     } else if (detailZone === 'audio' || detailZone === 'subtitles' || detailZone === 'version') {
       choiceIndex = choiceZones.indexOf(detailZone);
@@ -4717,7 +5307,8 @@
       } else if (direction === 'up') {
         detailZone = choiceIndex > 0 ? choiceZones[choiceIndex - 1] : 'play';
       } else if (direction === 'down') {
-        detailZone = choiceIndex < choiceZones.length - 1 ? choiceZones[choiceIndex + 1] : (seriesContext ? 'episodes' : detailZone);
+        detailZone = choiceIndex < choiceZones.length - 1 ? choiceZones[choiceIndex + 1] :
+          (detailMediaInfoOverflowing ? 'media-info' : (seriesContext ? 'episodes' : detailZone));
       }
     }
     updateDetailFocus();
@@ -4733,10 +5324,18 @@
       if (appView !== 'detail' || detailZone !== 'seasons' || token !== seasonPreviewToken) { return; }
       var season = seriesContext.seasons[seasonIndex];
       PlexClient.loadSeasonEpisodes(config, season.ratingKey, '', function (error, episodes) {
+        var index;
         if (error || appView !== 'detail' || detailZone !== 'seasons' || token !== seasonPreviewToken || seasonIndex !== detailSeasonIndex) { return; }
+        for (index = 0; index < seriesContext.seasons.length; index += 1) {
+          seriesContext.seasons[index].selected = index === seasonIndex;
+        }
         seriesContext.episodes = episodes;
         detailEpisodeIndex = selectedIndex(episodes);
+        renderSeasonTabs();
         renderEpisodeStrip();
+        animateSeasonContent('episode-strip');
+        updateDetailFocus();
+        if (episodes.length) { loadEpisodeDetail(episodes[detailEpisodeIndex], null, true); }
       });
     }, 200);
   }
@@ -4758,7 +5357,8 @@
       renderEpisodeStrip();
       updateDetailFocus();
       if (episodes.length) {
-        loadEpisodeDetail(episodes[detailEpisodeIndex]);
+        animateSeasonContent('episode-strip');
+        loadEpisodeDetail(episodes[detailEpisodeIndex], null, true);
       }
     });
   }
@@ -4778,6 +5378,10 @@
       target = document.getElementById('detail-subtitles');
     } else if (detailZone === 'version') {
       target = document.getElementById('detail-version');
+    } else if (detailZone === 'summary') {
+      target = document.getElementById('detail-summary-button');
+    } else if (detailZone === 'media-info') {
+      target = document.getElementById('detail-media-info-button');
     } else {
       target = document.getElementById(['detail-play', 'detail-watched', 'detail-watchlist', 'detail-refresh-metadata'][detailActionIndex]);
     }
@@ -5431,6 +6035,7 @@
     setText('player-track-audio', trackLabel(currentPlayback.audioTracks, currentPlayback.options.audioStreamID, t('player.automatic')));
     setText('player-track-subtitles', trackLabel(currentPlayback.subtitleTracks, currentPlayback.options.subtitleStreamID, t('subtitle.off')));
     setText('player-quality', t('player.quality') + ': ' + videoQualityLabel(currentPlayback.options.videoQuality));
+    setText('player-connection-route', connectionRouteLabel());
     setText('player-delivery-mode', compactPlaybackModeLabel(currentPlayback.playbackMode));
   }
 
@@ -5986,11 +6591,9 @@
     var resumeTarget = Math.max(0, Math.min(currentPlayback.duration / 1000, Math.floor(absoluteTime)));
     var playback = currentPlayback;
     var transcodeSession;
-    var applySource = function () {
-      var sourceUrl;
+    var applySource = function (sourceUrl) {
       if (appView !== 'player' || currentPlayback !== playback || playback.transcodeSession !== transcodeSession) { return; }
       try {
-        sourceUrl = PlexClient.buildPlaybackUrl(config, playback, playback.options);
         playback.sourceUrl = sourceUrl;
         playback.hlsUrl = sourceUrl;
         startTranscodeKeepalive();
@@ -6007,6 +6610,20 @@
         if (pendingPlaybackRestore) { restartTimelineAfterSubtitleRestore(); }
       }
     };
+    var prepareSource = function () {
+      PlexClient.preparePlayback(config, playback, playback.options, function (error, sourceUrl) {
+        if (appView !== 'player' || currentPlayback !== playback || playback.transcodeSession !== transcodeSession) { return; }
+        if (error || !sourceUrl) {
+          playerStreamSwitching = false;
+          playbackClock = PlaybackClock.freeze(playbackClock, false);
+          setPlayerLoading(false);
+          setText('player-status', t('status.streamError'));
+          recoverPlaybackError();
+          return;
+        }
+        applySource(sourceUrl);
+      });
+    };
     currentPlayback.options.offset = resumeTarget;
     pendingPlayerSeek = null;
     root.clearTimeout(playerSeekTimer);
@@ -6019,11 +6636,11 @@
     transcodeSession = playback.transcodeSession;
     setText('player-status', t('status.preparing'));
     setPlayerLoading(true, false);
-    if (!updateSelection) { applySource(); return; }
+    if (!updateSelection) { prepareSource(); return; }
     PlexClient.setStreamSelection(config, playback, playback.options, function (selectionError) {
       if (appView !== 'player' || currentPlayback !== playback || playback.transcodeSession !== transcodeSession) { return; }
       if (selectionError) { playerStreamSwitching = false; playbackClock = PlaybackClock.freeze(playbackClock, false); setPlayerLoading(false); setText('player-status', t('status.trackError')); return; }
-      applySource();
+      prepareSource();
     });
   }
 
@@ -6538,15 +7155,20 @@
     hideViewState();
     hideDetailMetadataStatus();
     setDetailViewMode(false);
+    document.body.className = document.body.className.replace(/\s*is-movie-detail/g, '');
     selectedItem = null;
     currentDetail = null;
     currentMediaProfile = null;
     currentMediaOverride = null;
     detailMediaProfileRatingKey = '';
     detailMediaProfileLoading = false;
+    seasonTransitionMediaKey = '';
+    detailMediaLoadingLabelVisible = false;
     detailMediaProfileToken += 1;
     root.clearTimeout(detailMediaProfileTimer);
     detailMediaProfileTimer = null;
+    root.clearTimeout(detailMediaLoadingLabelTimer);
+    detailMediaLoadingLabelTimer = null;
     if (detailMediaProfileRequest && detailMediaProfileRequest.abort) { detailMediaProfileRequest.abort(); }
     detailMediaProfileRequest = null;
     seriesContext = null;
@@ -6699,11 +7321,13 @@
     root.clearTimeout(libraryWheelScrollTimer);
     libraryWheelScrollTimer = null;
     wheelNavigationActive = false;
+    if (libraryFilterOpen) { handleLibraryFilterKeyDown(event, direction); return; }
     event.preventDefault();
     if (event.keyCode === 27 || event.keyCode === 461) { handleLibraryBack(); return; }
     if (event.keyCode === 415 && libraryZone === 'grid') {
-      if (!libraryItems[libraryFocusIndex] || libraryItems[libraryFocusIndex].containerKey) { return; }
-      playHomeItem(libraryItems[libraryFocusIndex]); return;
+      var playItem = libraryViewKey() === 'recommended' ? recommendationItemAtFocus() : libraryItems[libraryFocusIndex];
+      if (!playItem || playItem.containerKey) { return; }
+      playHomeItem(playItem); return;
     }
     if (libraryZone === 'nav') {
       if (direction === 'left' || direction === 'right') {
@@ -6720,29 +7344,50 @@
     if (libraryZone === 'tabs') {
       if (direction === 'up') { libraryZone = 'nav'; updateLibraryFocus(); return; }
       if (direction === 'left' || direction === 'right') {
-        if (direction === 'right' && libraryTabIndex === 4) { libraryZone = 'actions'; libraryActionIndex = 0; updateLibraryFocus(); return; }
+        if (direction === 'right' && libraryTabIndex === LibraryContainers.views().length - 1) { libraryZone = 'actions'; libraryActionIndex = 0; updateLibraryFocus(); return; }
         next = nextLibraryTab(direction === 'left' ? -1 : 1);
         if (next !== libraryTabIndex) {
           selectLibraryTab(next);
         }
         return;
       }
-      if (direction === 'down') { libraryZone = libraryViewKey() === 'catalog' ? 'sort' : 'grid'; libraryControlIndex = 0; updateLibraryFocus(); }
+      if (direction === 'down' || event.keyCode === 13) { focusLibraryTabContent(); }
       return;
     }
     if (libraryZone === 'actions') {
       if (direction === 'left') {
         if (libraryActionIndex > 0) { libraryActionIndex -= 1; }
-        else { libraryZone = 'tabs'; libraryTabIndex = 4; }
+        else { libraryZone = 'tabs'; libraryTabIndex = LibraryContainers.views().length - 1; }
         updateLibraryFocus();
       } else if (direction === 'right') {
         libraryActionIndex = Math.min(1, libraryActionIndex + 1); updateLibraryFocus();
       } else if (direction === 'up') { libraryZone = 'nav'; updateLibraryFocus(); }
-      else if (direction === 'down') { libraryZone = libraryViewKey() === 'catalog' ? 'sort' : 'grid'; updateLibraryFocus(); }
+      else if (direction === 'down') { libraryZone = libraryViewKey() === 'catalog' ? 'filter' : 'grid'; libraryControlIndex = 0; updateLibraryFocus(); }
       else if (event.keyCode === 13) {
         if (libraryActionIndex === 0) { refreshActiveLibrary(); }
         else { refreshActiveLibraryMetadata(); }
       }
+      return;
+    }
+    if (libraryViewKey() === 'recommended') {
+      var recommendationRow = libraryRecommendationRows[libraryRecommendationRowIndex];
+      if (!recommendationRow || !recommendationRow.items.length) { libraryZone = 'tabs'; updateLibraryFocus(); return; }
+      if (direction === 'left') { libraryFocusIndex = Math.max(0, libraryFocusIndex - 1); }
+      else if (direction === 'right') { libraryFocusIndex = Math.min(recommendationRow.items.length - 1, libraryFocusIndex + 1); }
+      else if (direction === 'up') {
+        if (libraryRecommendationRowIndex > 0) {
+          libraryRecommendationRowIndex -= 1;
+          libraryFocusIndex = Math.min(libraryFocusIndex, libraryRecommendationRows[libraryRecommendationRowIndex].items.length - 1);
+        } else { libraryZone = 'tabs'; }
+      } else if (direction === 'down' && libraryRecommendationRowIndex < libraryRecommendationRows.length - 1) {
+        libraryRecommendationRowIndex += 1;
+        libraryFocusIndex = Math.min(libraryFocusIndex, libraryRecommendationRows[libraryRecommendationRowIndex].items.length - 1);
+      } else if (event.keyCode === 13 && recommendationItemAtFocus()) {
+        openDetail(recommendationItemAtFocus());
+        return;
+      }
+      renderLibraryRecommendations();
+      updateLibraryFocus();
       return;
     }
     if (libraryZone === 'sort') {
@@ -6754,7 +7399,7 @@
         next = LibraryContainers.moveControlVertical('sort', direction);
         if (next.zone !== 'grid' || libraryItems.length) { libraryZone = next.zone; updateLibraryFocus(); }
       }
-      else if (event.keyCode === 13) { activateLibrarySort(libraryControlIndex === 0 ? 'titleSort' : 'audienceRating'); }
+      else if (event.keyCode === 13) { activateLibrarySort(['titleSort', 'audienceRating', 'year'][libraryControlIndex]); }
       return;
     }
     if (libraryZone === 'filter') {
@@ -6762,11 +7407,17 @@
         next = LibraryContainers.moveControl('filter', libraryControlIndex, direction);
         libraryZone = next.zone; libraryControlIndex = next.index; updateLibraryFocus();
       }
-      else if (direction === 'up' || direction === 'down') {
+      else if (direction === 'up') {
+        libraryZone = 'actions'; libraryActionIndex = 0; updateLibraryFocus();
+      }
+      else if (direction === 'down') {
         next = LibraryContainers.moveControlVertical('filter', direction);
         if (next.zone !== 'grid' || libraryItems.length) { libraryZone = next.zone; updateLibraryFocus(); }
       }
-      else if (event.keyCode === 13) { activateLibraryFilter(['all','unwatched','watched'][libraryControlIndex]); }
+      else if (event.keyCode === 13) {
+        if (libraryControlIndex === 3) { openLibraryFilterDrawer(); }
+        else { activateLibraryFilter(['all','unwatched','watched'][libraryControlIndex]); }
+      }
       return;
     }
     if (direction === 'left' && libraryFocusIndex % columns > 0) { libraryFocusIndex -= 1; }
@@ -7052,6 +7703,20 @@
     }
 
     if (appView === 'detail') {
+      if (detailMediaInfoDialogOpen) {
+        event.preventDefault();
+        if (event.keyCode === 27 || event.keyCode === 461) { closeDetailMediaInfo(); }
+        else if (direction === 'up') { scrollDetailMediaInfo(-1); }
+        else if (direction === 'down') { scrollDetailMediaInfo(1); }
+        return;
+      }
+      if (detailSummaryDialogOpen) {
+        event.preventDefault();
+        if (event.keyCode === 27 || event.keyCode === 461) { closeDetailSummary(); }
+        else if (direction === 'up') { scrollDetailSummary(-1); }
+        else if (direction === 'down') { scrollDetailSummary(1); }
+        return;
+      }
       if (event.keyCode === 415) {
         event.preventDefault();
         if (detailZone === 'episodes' && seriesContext) { playSelectedEpisode(seriesContext.episodes[detailEpisodeIndex]); }
@@ -7077,6 +7742,10 @@
           cycleDetailTrack('subtitles', 1);
         } else if (detailZone === 'version') {
           cycleDetailVersion(1);
+        } else if (detailZone === 'summary') {
+          openDetailSummary();
+        } else if (detailZone === 'media-info') {
+          openDetailMediaInfo();
         } else if (detailActionIndex === 1) {
           toggleCurrentWatched();
         } else if (detailActionIndex === 2) {
@@ -7150,7 +7819,7 @@
     options = options || {};
 
     if (!availableRows.length) {
-      document.body.className = document.body.className.replace(/\s*is-booting/g, '');
+      completeStartup();
       if (appView === 'home' && !passiveHomeState('state.homeEmpty')) { showViewState('empty', 'home', null, openSetup); }
       return;
     }
@@ -7167,7 +7836,7 @@
     homeDomDirty = false;
     if (options.focus === 'first') { document.getElementById('content').scrollTop = 0; }
     updateFocus();
-    document.body.className = document.body.className.replace(/\s*is-booting/g, '');
+    completeStartup();
   }
 
   function loadHomeRows() {
@@ -7296,6 +7965,12 @@
     } else if (button.id === 'detail-audio' || button.id === 'detail-subtitles' || button.id === 'detail-version') {
       detailZone = button.id === 'detail-audio' ? 'audio' : (button.id === 'detail-subtitles' ? 'subtitles' : 'version');
       updateDetailFocus();
+    } else if (button.id === 'detail-summary-button') {
+      detailZone = 'summary';
+      updateDetailFocus();
+    } else if (button.id === 'detail-media-info-button') {
+      detailZone = 'media-info';
+      updateDetailFocus();
     } else if (button.hasAttribute('data-setting-index')) {
       settingsZone = 'list';
       settingsViewIndex = Number(button.getAttribute('data-setting-index'));
@@ -7330,11 +8005,24 @@
     } else if (button.id === 'library-refresh' || button.id === 'library-refresh-metadata') {
       libraryZone = 'actions'; libraryActionIndex = button.id === 'library-refresh' ? 0 : 1; updateLibraryFocus();
     } else if (button.hasAttribute('data-library-sort')) {
-      libraryZone = 'sort'; libraryControlIndex = button.getAttribute('data-library-sort') === 'titleSort' ? 0 : 1; updateLibraryFocus();
+      libraryZone = 'sort'; libraryControlIndex = ['titleSort', 'audienceRating', 'year'].indexOf(button.getAttribute('data-library-sort')); updateLibraryFocus();
     } else if (button.hasAttribute('data-library-filter')) {
       libraryZone = 'filter'; libraryControlIndex = ['all','unwatched','watched'].indexOf(button.getAttribute('data-library-filter')); updateLibraryFocus();
+    } else if (button.hasAttribute('data-library-filter-open')) {
+      libraryZone = 'filter'; libraryControlIndex = 3; updateLibraryFocus();
+    } else if (button.hasAttribute('data-library-advanced-filter')) {
+      libraryFilterFocusZone = 'rows'; libraryFilterFocusIndex = libraryAdvancedFilterKeys.indexOf(button.getAttribute('data-library-advanced-filter')); updateLibraryFilterFocus();
+    } else if (button.hasAttribute('data-library-filter-option')) {
+      libraryFilterFocusZone = 'picker'; libraryFilterFocusIndex = Number(button.getAttribute('data-library-filter-option')); updateLibraryFilterFocus();
+    } else if (button.hasAttribute('data-library-filter-action')) {
+      libraryFilterFocusZone = 'actions'; libraryFilterFocusIndex = ['reset', 'cancel', 'apply'].indexOf(button.getAttribute('data-library-filter-action')); updateLibraryFilterFocus();
     } else if (button.hasAttribute('data-library-index')) {
       libraryZone = 'grid'; libraryFocusIndex = Number(button.getAttribute('data-library-index')); updateLibraryFocus();
+    } else if (button.hasAttribute('data-library-recommendation-row')) {
+      libraryZone = 'grid';
+      libraryRecommendationRowIndex = Number(button.getAttribute('data-library-recommendation-row'));
+      libraryFocusIndex = Number(button.getAttribute('data-library-recommendation-column'));
+      updateLibraryFocus();
     } else if (button.hasAttribute('data-watchlist-index')) {
       watchlistZone = 'grid'; watchlistFocusIndex = Number(button.getAttribute('data-watchlist-index')); updateWatchlistFocus();
     } else if (button.id === 'player-timeline-button') {
@@ -7447,7 +8135,7 @@
 
   function pageScrollContainer() {
     if (appView === 'home' && state.area === 'media') { return document.getElementById('content'); }
-    if (appView === 'library' && libraryZone === 'grid') { return document.getElementById('library-grid'); }
+    if (appView === 'library' && libraryZone === 'grid') { return document.getElementById(libraryViewKey() === 'recommended' ? 'library-recommended' : 'library-grid'); }
     if (appView === 'watchlist' && watchlistZone === 'grid') { return document.getElementById('watchlist-grid'); }
     if (appView === 'search' && searchFocus.zone === 'results') { return document.getElementById('search-results'); }
     if (appView === 'settings' && serverEditorOpen) { return document.getElementById('app-settings-list'); }
@@ -7485,8 +8173,14 @@
         state.column = Number(button.getAttribute('data-column'));
       }
     } else if (appView === 'library') {
-      button = firstVisibleButton(container, '[data-library-index]');
-      if (button) { libraryZone = 'grid'; libraryFocusIndex = Number(button.getAttribute('data-library-index')); }
+      button = firstVisibleButton(container, libraryViewKey() === 'recommended' ? '[data-library-recommendation-row]' : '[data-library-index]');
+      if (button) {
+        libraryZone = 'grid';
+        if (libraryViewKey() === 'recommended') {
+          libraryRecommendationRowIndex = Number(button.getAttribute('data-library-recommendation-row'));
+          libraryFocusIndex = Number(button.getAttribute('data-library-recommendation-column'));
+        } else { libraryFocusIndex = Number(button.getAttribute('data-library-index')); }
+      }
     } else if (appView === 'watchlist') {
       button = firstVisibleButton(container, '[data-watchlist-index]');
       if (button) { watchlistZone = 'grid'; watchlistFocusIndex = Number(button.getAttribute('data-watchlist-index')); }
@@ -7541,6 +8235,14 @@
     wheelPointerLockY = pointerLastY;
     pointerSuppressedUntil = new Date().getTime() + 500;
     wheelDebounceTimer = root.setTimeout(function () { wheelDebounceTimer = null; }, 70);
+    if (detailMediaInfoDialogOpen) {
+      scrollDetailMediaInfo(direction);
+      return;
+    }
+    if (detailSummaryDialogOpen) {
+      scrollDetailSummary(direction);
+      return;
+    }
     if (appSettings.wheelBehavior === 'items') {
       onKeyDown(wheelKeyEvent(direction));
     } else if (appSettings.wheelBehavior === 'page' && scrollCurrentPage(direction)) {
@@ -7583,6 +8285,7 @@
 
   function onPointerClick(event) {
     var button = closestButton(event.target);
+    var accentColor = event.target && event.target.getAttribute ? event.target.getAttribute('data-accent-color') : '';
     if (!button || button.disabled) { return; }
     if (suppressNextPointerClick) { suppressNextPointerClick = false; return; }
     if (typeof button.onclick === 'function') {
@@ -7595,7 +8298,9 @@
     }
     syncPointerFocus(button);
     notePlayerPointerActivity(button);
-    if (button.hasAttribute('data-resume-index') && resumeChoiceVisible) {
+    if (accentColor && button.hasAttribute('data-setting-index')) {
+      selectAccentColor(accentColor);
+    } else if (button.hasAttribute('data-resume-index') && resumeChoiceVisible) {
       resumeChoiceState.index = Number(button.getAttribute('data-resume-index'));
       activateResumeChoice();
     } else if (button.hasAttribute('data-diagnostics-action') && appView === 'diagnostics') {
@@ -7627,10 +8332,22 @@
       activateLibrarySort(button.getAttribute('data-library-sort'));
     } else if (button.hasAttribute('data-library-filter')) {
       activateLibraryFilter(button.getAttribute('data-library-filter'));
+    } else if (button.hasAttribute('data-library-filter-open')) {
+      openLibraryFilterDrawer();
+    } else if (button.hasAttribute('data-library-advanced-filter')) {
+      openLibraryFilterPicker(button.getAttribute('data-library-advanced-filter'));
+    } else if (button.hasAttribute('data-library-filter-option')) {
+      selectLibraryFilterOption(Number(button.getAttribute('data-library-filter-option')));
+    } else if (button.hasAttribute('data-library-filter-action')) {
+      activateLibraryFilterAction(button.getAttribute('data-library-filter-action'));
     } else if (button.hasAttribute('data-library-index')) {
       var libraryItem = libraryItems[Number(button.getAttribute('data-library-index'))];
       if (libraryItem && libraryItem.containerKey) { openLibraryContainer(libraryItem); }
       else { openDetail(libraryItem); }
+    } else if (button.hasAttribute('data-library-recommendation-row')) {
+      libraryRecommendationRowIndex = Number(button.getAttribute('data-library-recommendation-row'));
+      libraryFocusIndex = Number(button.getAttribute('data-library-recommendation-column'));
+      openDetail(recommendationItemAtFocus());
     } else if (button.hasAttribute('data-watchlist-index')) {
       openDetail(watchlistItems[Number(button.getAttribute('data-watchlist-index'))]);
     } else if (button.id === 'library-refresh') {
@@ -7683,7 +8400,10 @@
   }, false);
   root.addEventListener('resize', function () {
     root.clearTimeout(navbarResizeTimer);
-    navbarResizeTimer = root.setTimeout(function () { renderNavigation(); }, 100);
+    navbarResizeTimer = root.setTimeout(function () {
+      renderNavigation();
+      if (appView === 'detail') { updateDetailSummaryOverflow(); updateDetailMediaInfoOverflow(); }
+    }, 100);
   }, false);
   document.getElementById('detail-play').onclick = openPlayer;
   document.getElementById('detail-watched').onclick = toggleCurrentWatched;
@@ -7692,6 +8412,8 @@
   document.getElementById('detail-audio').onclick = function () { cycleDetailTrack('audio', 1); };
   document.getElementById('detail-subtitles').onclick = function () { cycleDetailTrack('subtitles', 1); };
   document.getElementById('detail-version').onclick = function () { cycleDetailVersion(1); };
+  document.getElementById('detail-summary-button').onclick = openDetailSummary;
+  document.getElementById('detail-media-info-button').onclick = openDetailMediaInfo;
   document.getElementById('player-previous').onclick = function () { switchPlayerEpisode(-1); };
   document.getElementById('player-toggle').onclick = function () {
     togglePlayback();

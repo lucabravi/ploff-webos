@@ -1,5 +1,9 @@
 # Contributing
 
+## Focus and accent color
+
+Remote and pointer focus is always shown in neutral white. The user-selected accent color is reserved for active state, progress, selections, and primary actions. Keep these meanings separate when adding controls.
+
 Ploff targets legacy LG webOS televisions and the Chrome 53 WebView. Runtime
 code must remain dependency-free ES5: no classes, arrow functions, `let`,
 `const`, async functions, modules, framework runtime, or required transpilation.

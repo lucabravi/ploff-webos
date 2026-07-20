@@ -38,6 +38,8 @@ assert.strictEqual(I18n.t('en', 'search.typeMore'), 'Type at least 2 characters'
 assert.strictEqual(I18n.t('it', 'search.typeMore'), 'Inserisci almeno 2 caratteri', 'Italian search guidance must match the two-character threshold');
 assert.strictEqual(I18n.t('en', 'library.catalog'), 'Full Catalog', 'English library catalog label must be available');
 assert.strictEqual(I18n.t('it', 'library.unwatched'), 'Non visti', 'Italian watched filter labels must be available');
+assert.strictEqual(I18n.t('it', 'home.recommended'), 'Consigliati per te', 'the recommended Home row must be localized');
+assert.strictEqual(I18n.t('en', 'library.recommended'), 'Recommended', 'the per-library recommendation tab must be localized');
 
 assert.strictEqual(I18n.language('it-IT'), 'it', 'Italian regional locales must resolve to Italian');
 assert.strictEqual(I18n.language('fr-FR'), 'fr', 'French regional locales must resolve to French');
