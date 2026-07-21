@@ -22,6 +22,8 @@ for path in \
   app/locales/fr.js \
   app/locales/de.js \
   app/locales/pt.js \
+  app/locales/ja.js \
+  app/locales/ko.js \
   app/media-labels.js \
   app/ploff-logo.svg \
   app/plex-link-qr.png \
