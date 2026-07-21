@@ -113,7 +113,9 @@
     { code: 'es', label: 'Espa\u00f1ol' },
     { code: 'fr', label: 'Fran\u00e7ais' },
     { code: 'de', label: 'Deutsch' },
-    { code: 'pt', label: 'Portugu\u00eas' }
+    { code: 'pt', label: 'Portugu\u00eas' },
+    { code: 'ja', label: '\u65e5\u672c\u8a9e' },
+    { code: 'ko', label: '\ud55c\uad6d\uc5b4' }
   ];
   var backgroundAudio = BackgroundAudio.create(document.getElementById('theme-audio'), root, 20);
   var themeLookupTimer = null;
@@ -4080,6 +4082,7 @@
   function renderDiagnostics() {
     var snapshot = diagnosticsSnapshot();
     var content = document.getElementById('diagnostics-content');
+    var scrollTop = content.scrollTop;
     var playback = snapshot.playback;
     var serverRows;
     setText('diagnostics-title', t('diagnostics.title'));
@@ -4129,6 +4132,7 @@
     appendDiagnosticsSection(content, 'diagnostics.lastError', [
       ['diagnostics.lastError', snapshot.error || t('diagnostics.none')]
     ]);
+    content.scrollTop = scrollTop;
     renderDiagnosticsFocus();
   }
 
@@ -4156,6 +4160,7 @@
     backgroundAudio.stop();
     document.getElementById('app-settings-view').className = 'app-settings-view is-hidden';
     document.getElementById('diagnostics-view').className = 'diagnostics-view';
+    document.getElementById('diagnostics-content').scrollTop = 0;
     renderDiagnostics();
     refreshDiagnostics();
     root.clearInterval(diagnosticsTimer);
@@ -4181,11 +4186,19 @@
     else { closeDiagnostics(); }
   }
 
+  function scrollDiagnostics(direction) {
+    var content = document.getElementById('diagnostics-content');
+    var distance = Math.max(120, Math.round(content.clientHeight * 0.55));
+    var maximum = Math.max(0, content.scrollHeight - content.clientHeight);
+    content.scrollTop = Math.max(0, Math.min(maximum, content.scrollTop + (direction === 'down' ? distance : -distance)));
+  }
+
   function handleDiagnosticsKey(event, direction) {
     event.preventDefault();
     if (event.keyCode === 27 || event.keyCode === 461) { closeDiagnostics(); return; }
-    if (direction === 'left' || direction === 'up') { diagnosticsFocusIndex = 0; renderDiagnosticsFocus(); }
-    else if (direction === 'right' || direction === 'down') { diagnosticsFocusIndex = 1; renderDiagnosticsFocus(); }
+    if (direction === 'left') { diagnosticsFocusIndex = 0; renderDiagnosticsFocus(); }
+    else if (direction === 'right') { diagnosticsFocusIndex = 1; renderDiagnosticsFocus(); }
+    else if (direction === 'up' || direction === 'down') { scrollDiagnostics(direction); }
     else if (event.keyCode === 13) { activateDiagnosticsAction(); }
   }
 

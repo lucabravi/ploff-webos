@@ -8,6 +8,8 @@
     require('./locales/fr')(registry);
     require('./locales/de')(registry);
     require('./locales/pt')(registry);
+    require('./locales/ja')(registry);
+    require('./locales/ko')(registry);
     module.exports = registry;
   } else {
     root.PloffI18n = factory();

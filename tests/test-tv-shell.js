@@ -335,6 +335,8 @@ assert.ok(/diagnostics-state\.js/.test(html) && /PloffDiagnosticsState/.test(scr
 assert.ok(/id="diagnostics-view"/.test(html) && /id="diagnostics-refresh"/.test(html) && /id="diagnostics-back"/.test(html), 'application settings must include a dedicated diagnostics surface');
 assert.ok(/key: 'diagnostics', section: 'support'/.test(scripts) && /settings\.sectionSupport/.test(scripts), 'diagnostics must remain the final setting in its own Support category');
 assert.ok(/function openDiagnostics\(\)[\s\S]*setInterval\([\s\S]*2000/.test(scripts), 'diagnostics must refresh local playback state every two seconds only while open');
+assert.ok(/function scrollDiagnostics\(direction\)[\s\S]*content\.scrollTop[\s\S]*direction === 'down'/.test(scripts), 'diagnostics must support remote and wheel scrolling when its content exceeds the viewport');
+assert.ok(/function renderDiagnostics\(\)[\s\S]*var scrollTop = content\.scrollTop[\s\S]*content\.scrollTop = scrollTop/.test(scripts), 'diagnostics polling must preserve the current scroll position');
 assert.ok(/function closeDiagnostics\(\)[\s\S]*clearInterval\(diagnosticsTimer\)[\s\S]*diagnosticsIdentityRequest\.abort/.test(scripts), 'leaving diagnostics must stop polling and abort its local identity request');
 assert.ok(/PlexClient\.loadServerIdentity/.test(scripts) && /DiagnosticsState\.snapshot/.test(scripts), 'diagnostics must fetch only local server identity and render an allowlisted snapshot');
 assert.ok(/function serverConnectionAddresses\(server, compactDirect\)[\s\S]*ServerStore\.connectionUris[\s\S]*ServerDiscovery\.isLocalCandidate/.test(scripts), 'server connection addresses must be deduplicated and classified consistently');
@@ -380,6 +382,7 @@ assert.ok(/function renderSetupProfiles\(\)[\s\S]*authState\.activeProfileId[\s\
 assert.ok(/function renderSetupProfiles\(\)[\s\S]*list\.innerHTML = ''[\s\S]*for \(index = 0; index < setupProfiles\.length/.test(scripts), 'refreshing Plex profiles must replace the rendered list instead of appending duplicates');
 assert.ok(/function renderSetupProfiles\(\)[\s\S]*profile\.thumb[\s\S]*setup-profile-avatar/.test(scripts), 'profile selection must render each cached Plex avatar');
 assert.ok(/function renderSetupLanguage\(\)[\s\S]*data-setup-language[\s\S]*setupUiLanguages/.test(scripts), 'first-run setup must provide a remote-friendly interface language chooser');
+assert.ok(/code: 'ja', label: '\\u65e5\\u672c\\u8a9e'[\s\S]*code: 'ko', label: '\\ud55c\\uad6d\\uc5b4'/.test(scripts), 'first-run setup must offer Japanese and Korean in their native names');
 assert.ok(/function openSetup\(\)[\s\S]*!appSettings\.uiLanguageExplicit[\s\S]*renderSetupLanguage/.test(scripts), 'the language chooser must be the first screen for a fresh installation');
 assert.ok(/function switchSetupProfile\([\s\S]*setupProfileBusy[\s\S]*setup\.profileConnecting/.test(scripts), 'profile selection must provide immediate feedback and reject duplicate activation while connecting');
 assert.ok(/function resolveSetupProfileAccess\([\s\S]*preferredIndex = candidates\.indexOf\(preferredServer\.uri\)[\s\S]*candidates\.unshift\(preferredServer\.uri\)[\s\S]*findReachableConnection/.test(scripts), 'profile activation must probe the already-discovered LAN server before Plex resource URLs');

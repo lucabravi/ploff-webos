@@ -25,7 +25,7 @@ compatible with the Chrome 53 WebView.
 - Playback progress, watched state, next-episode autoplay, and metadata refresh
 - Progressive artwork, adjustable card sizes, backdrops, and media themes
 - Local discovery, Plex Home profiles, and automatic LAN/direct/Relay failover
-- English, Italian, Spanish, French, German, and Brazilian Portuguese interface
+- English, Italian, Spanish, French, German, Brazilian Portuguese, Japanese, and Korean interface
 
 ## Requirements
 

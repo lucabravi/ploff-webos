@@ -648,7 +648,7 @@ body.is-detail-view .detail-view { box-sizing:border-box; height:100%; }
 
 .diagnostics-title { margin: 0 0 8px; font-size: 44px; }
 .diagnostics-notice { margin: 0 0 20px; color: #b9bec4; font-size: 19px; }
-.diagnostics-content { display: flex; align-content: flex-start; flex-wrap: wrap; width: 100%; height: calc(100% - 168px); overflow-x: hidden; overflow-y: auto; }
+.diagnostics-content { display: flex; align-content: flex-start; flex-wrap: wrap; width: 100%; height: calc(100% - 168px); overflow-x: hidden; overflow-y: auto; scroll-behavior: smooth; }
 .diagnostics-section { box-sizing: border-box; flex: 0 0 48%; width: 48%; margin: 0 2% 16px 0; }
 .diagnostics-section-title { margin: 0 0 6px; color: var(--accent, #13b8ad); font-size: 23px; }
 .diagnostics-row { display: flex; align-items: baseline; min-height: 30px; border-bottom: 1px solid #292d32; font-size: 18px; line-height: 30px; }
