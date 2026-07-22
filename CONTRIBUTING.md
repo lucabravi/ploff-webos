@@ -8,13 +8,18 @@ Ploff targets legacy LG webOS televisions and the Chrome 53 WebView. Runtime
 code must remain dependency-free ES5: no classes, arrow functions, `let`,
 `const`, async functions, modules, framework runtime, or required transpilation.
 
+The canonical application coordinator lives in the ordered fragments under
+`app/source/`. Do not edit generated `app/app.js` directly. After changing a
+fragment, run `npm run build:app`; `npm run verify` rejects a stale bundle.
+
 ## Before A Pull Request
 
 Run:
 
 ```sh
-for test in tests/test-*.js; do node "$test"; done
-sh tests/test-baseline.sh
+npm ci
+npm run build:app
+npm run verify
 ```
 
 Add or update focused tests whenever behavior changes. Follow the manual TV

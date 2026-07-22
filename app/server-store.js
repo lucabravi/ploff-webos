@@ -144,15 +144,15 @@
     return value;
   }
 
-  function merge() {
+  function merge(first, second) {
     var result = [];
     var listIndex;
     var itemIndex;
     var source;
     var candidate;
     var match;
-    for (listIndex = 0; listIndex < arguments.length; listIndex += 1) {
-      source = Object.prototype.toString.call(arguments[listIndex]) === '[object Array]' ? arguments[listIndex] : [];
+    for (listIndex = 0; listIndex < 2; listIndex += 1) {
+      source = Object.prototype.toString.call(listIndex === 0 ? first : second) === '[object Array]' ? (listIndex === 0 ? first : second) : [];
       for (itemIndex = 0; itemIndex < source.length; itemIndex += 1) {
         candidate = normalize(source[itemIndex]);
         if (!candidate) { continue; }

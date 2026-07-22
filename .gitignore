@@ -1,6 +1,7 @@
 .worktrees/
 .env
 dist/
+node_modules/
 *.ipk
 .DS_Store
 .superpowers/

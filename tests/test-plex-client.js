@@ -10,7 +10,7 @@ assert.strictEqual(
 );
 
 var searchItems = PlexClient.searchItemsFromAttributes([
-  { type: 'show', ratingKey: '20', title: 'Zeta', librarySectionTitle: 'Anime', thumb: '/z', art: '/za' },
+  { type: 'show', ratingKey: '20', title: 'Zeta', librarySectionTitle: 'Anime', year: '2020', childCount: '5', genre: 'Animation', thumb: '/z', art: '/za' },
   { type: 'show', ratingKey: '10', title: 'Alpha', librarySectionTitle: 'Serie TV', thumb: '/a', art: '/aa' },
   { type: 'show', ratingKey: '10', title: 'Alpha duplicate', librarySectionTitle: 'Serie TV', thumb: '/dup' },
   { type: 'movie', ratingKey: '30', title: 'Beta', librarySectionTitle: 'Film', year: '2025', thumb: '/b', art: '/ba' },
@@ -24,6 +24,26 @@ assert.deepStrictEqual(searchItems.map(function (item) {
   ['Beta', 'movie', '30', 'Film'],
   ['Zeta', 'show', '20', 'Anime']
 ], 'search must keep top-level media, deduplicate it, retain libraries and sort alphabetically');
+assert.deepStrictEqual(
+  [searchItems[2].year, searchItems[2].seasonCount, searchItems[2].genre],
+  [2020, 5, 'Animation'],
+  'top-level shows must retain card metadata used consistently across views'
+);
+var parsedCardItem = PlexClient.mediaFromAttributes(PlexClient.attributesFromNode({
+  attributes: [
+    { name: 'type', value: 'show' }, { name: 'ratingKey', value: '50' }, { name: 'title', value: 'Genre Show' },
+    { name: 'year', value: '2021' }, { name: 'childCount', value: '3' }
+  ],
+  childNodes: [
+    { nodeType: 1, nodeName: 'Genre', getAttribute: function () { return 'Drama'; } },
+    { nodeType: 1, nodeName: 'Genre', getAttribute: function () { return 'Mystery'; } }
+  ]
+}), '/plex-api', 'token');
+assert.deepStrictEqual(
+  [parsedCardItem.year, parsedCardItem.seasonCount, parsedCardItem.genre],
+  [2021, 3, 'Drama'],
+  'Plex XML parsing must retain the primary genre and show card facts'
+);
 assert.deepStrictEqual(PlexClient.searchItemsFromAttributes([
   { type: 'show', ratingKey: '40', title: 'Blue Box', originalTitle: 'Ao no Hako', librarySectionTitle: 'Anime' },
   { type: 'show', ratingKey: '41', title: 'Pokémon', titleSort: 'Pokemon', librarySectionTitle: 'Anime' }
@@ -232,6 +252,15 @@ var recommendationRows = PlexClient.recommendationRowsFromXml('<xml/>', '/plex-a
 assert.deepStrictEqual(recommendationRows.map(function (row) { return [row.identifier, row.items.map(function (item) { return item.ratingKey; })]; }), [
   ['tv.startwatching.4', ['100']]
 ], 'library recommendations must preserve Plex hubs while removing completed and non-recommendation rows');
+global.DOMParser = function () {
+  this.parseFromString = function () {
+    return {
+      documentElement: { childNodes: [fakeXmlNode('Playlist', { ratingKey: '23829', key: '/playlists/23829/items', title: 'Quintessential Quintuplets', playlistType: 'video' })] },
+      getElementsByTagName: function () { return []; }
+    };
+  };
+};
+assert.deepStrictEqual(PlexClient.parseAttributes('<xml/>').map(function (item) { return item.ratingKey; }), ['23829'], 'the local Plex parser must retain Playlist nodes returned by the global playlist endpoint');
 global.DOMParser = previousDomParser;
 var ratingCatalogUrl = PlexClient.buildLibraryBrowseUrl(
   { apiBaseUrl: '/plex-api', token: 'token' },
@@ -377,6 +406,7 @@ assert.deepStrictEqual(
     { title: 'Film', kind: 'library', key: '2', type: 'movie' },
     { title: 'Anime', kind: 'library', key: '4', type: 'show' },
     { title: 'Watchlist', kind: 'watchlist', labelKey: 'nav.watchlist' },
+    { title: 'Playlists', kind: 'playlists', labelKey: 'nav.playlists' },
     { title: 'Cerca', kind: 'search', labelKey: 'nav.search' },
     { title: 'Impostazioni', kind: 'settings', labelKey: 'nav.settings' }
   ],
@@ -711,8 +741,8 @@ assert.ok(/audioStreamID=10/.test(playback.hlsUrl), 'selected audio must be sent
 assert.ok(/subtitleStreamID=20/.test(playback.hlsUrl), 'selected subtitles must be sent to the transcoder');
 
 assert.deepStrictEqual(
-  PlexClient.trackFromAttributes({ id: '12', index: '3', language: 'Italiano', languageTag: 'it-IT', languageCode: 'ita', codec: 'srt', key: '/library/streams/12', offset: '450', forced: '1', selected: '1', title: 'Forced signs' }),
-  { id: '12', language: 'Italiano', languageTag: 'it', languageCode: 'it', codec: 'srt', forced: true, selected: true, title: 'Forced signs', index: 3, key: '/library/streams/12', external: true, format: 'srt', offset: 450 },
+  PlexClient.trackFromAttributes({ id: '12', index: '3', language: 'Italiano', languageTag: 'it-IT', languageCode: 'ita', codec: 'srt', key: '/library/streams/12', offset: '450', forced: '1', selected: '1', title: 'Forced signs', displayTitle: 'Italiano (SRT External)', extendedDisplayTitle: 'Italiano (SRT External)', channels: '2', audioChannelLayout: 'stereo' }),
+  { id: '12', language: 'Italiano', languageTag: 'it', languageCode: 'it', codec: 'srt', forced: true, selected: true, title: 'Forced signs', index: 3, key: '/library/streams/12', external: true, format: 'srt', offset: 450, displayTitle: 'Italiano (SRT External)', extendedDisplayTitle: 'Italiano (SRT External)', channels: 2, channelLayout: 'stereo' },
   'track metadata must retain normalized language, forced and display information'
 );
 
@@ -735,6 +765,16 @@ var preferred = PlexClient.resolvePlaybackOptions({
 });
 assert.strictEqual(preferred.audioStreamID, '2', 'the first available audio priority must win');
 assert.strictEqual(preferred.subtitleStreamID, '', 'subtitle suppression for the selected audio language must win');
+
+var duplicateSubtitlePreference = PlexClient.resolvePlaybackOptions({
+  audioTracks: [{ id: 'a-it', languageTag: 'it', selected: true }],
+  subtitleTracks: [
+    { id: 'sub-internal', languageTag: 'it', codec: 'ass', external: false },
+    { id: 'sub-external', languageTag: 'it', codec: 'ass', external: true }
+  ],
+  options: {}
+}, { subtitleLanguages: ['it'], subtitleMode: 'always', subtitleSourcePreference: 'external' });
+assert.strictEqual(duplicateSubtitlePreference.subtitleStreamID, 'sub-external', 'playback loading must use the same automatic external subtitle preference as media detail');
 
 var mismatchPreferences = PlexClient.resolvePlaybackOptions({
   audioTracks: [

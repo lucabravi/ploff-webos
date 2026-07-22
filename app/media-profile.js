@@ -31,8 +31,40 @@
       key: String(stream.key || ''),
       external: stream.external === '1' || !!stream.key,
       format: String(stream.format || stream.codec || '').toLowerCase(),
-      offset: Number(stream.offset || 0)
+      offset: Number(stream.offset || 0),
+      displayTitle: String(stream.displayTitle || ''),
+      extendedDisplayTitle: String(stream.extendedDisplayTitle || ''),
+      channelLayout: String(stream.audioChannelLayout || stream.channelLayout || '')
     };
+  }
+
+  function channelLabel(item) {
+    var layout = String(item.channelLayout || '').replace(/\s*\([^)]*\)\s*/g, '').trim();
+    var channels = Number(item.channels || 0);
+    if (layout) {
+      if (layout.toLowerCase() === 'mono') { return 'Mono'; }
+      if (layout.toLowerCase() === 'stereo') { return 'Stereo'; }
+      return layout;
+    }
+    if (channels === 1) { return 'Mono'; }
+    if (channels === 2) { return 'Stereo'; }
+    if (channels === 6) { return '5.1'; }
+    if (channels === 8) { return '7.1'; }
+    return channels ? channels + ' ch' : '';
+  }
+
+  function trackDisplayLabel(item, externalLabel) {
+    var trackValue = item || {};
+    var official = String(trackValue.extendedDisplayTitle || trackValue.displayTitle || '').trim();
+    var language = String(trackValue.language || trackValue.title || trackValue.languageTag || trackValue.languageCode || '').trim();
+    var details = [];
+    var channels;
+    if (official) { return official; }
+    if (trackValue.codec || trackValue.format) { details.push(String(trackValue.codec || trackValue.format).toUpperCase()); }
+    channels = channelLabel(trackValue);
+    if (channels) { details.push(channels); }
+    if (trackValue.external && externalLabel) { details.push(externalLabel); }
+    return language + (details.length ? ' (' + details.join(' ') + ')' : '');
   }
 
   function resolution(media) {
@@ -129,6 +161,7 @@
     formattedSize: formattedSize,
     fromNodes: fromNodes,
     fromVersions: fromVersions,
-    subtitleLanguages: subtitleLanguages
+    subtitleLanguages: subtitleLanguages,
+    trackDisplayLabel: trackDisplayLabel
   };
 }));

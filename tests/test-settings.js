@@ -9,6 +9,7 @@ assert.strictEqual(defaults.uiLanguage, 'en', 'English must remain the portable 
 assert.deepStrictEqual(defaults.audioLanguages, [], 'audio priority starts empty until Plex seeds it');
 assert.deepStrictEqual(defaults.subtitleLanguages, [], 'subtitle priority starts empty until Plex seeds it');
 assert.deepStrictEqual(defaults.subtitleSuppressedForAudio, [], 'subtitle suppression must be opt-in');
+assert.strictEqual(defaults.subtitleSourcePreference, 'external', 'automatic subtitles must prefer external tracks by default');
 assert.strictEqual(defaults.autoplayDelay, 5, 'next-episode autoplay must keep the current five-second default');
 assert.strictEqual(defaults.skipPromptDuration, 5, 'skip marker prompts must remain visible for five seconds by default');
 assert.strictEqual(defaults.playbackMode, 'auto', 'playback must default to Plex automatic Direct Stream decisions');
@@ -17,7 +18,11 @@ assert.strictEqual(defaults.remoteVideoQuality, '8000', 'remote playback must de
 assert.strictEqual(defaults.wheelBehavior, 'items', 'the Magic Remote wheel must default to moving the selection');
 assert.strictEqual(defaults.cardScale, 100, 'poster cards must keep the current Home size by default');
 assert.strictEqual(defaults.accentColor, 'cyan', 'the original cyan accent must remain the default');
+assert.strictEqual(defaults.backgroundDelay, 500, 'theme audio must default to a responsive 500 ms hover delay');
+assert.strictEqual(defaults.searchT9Input, true, 'T9 search input must be enabled by default');
 assert.strictEqual(defaults.showMediaInfo, false, 'technical media information must remain opt-in');
+assert.strictEqual(defaults.showWatchlist, true, 'Watchlist navigation must remain visible by default');
+assert.strictEqual(defaults.showPlaylists, true, 'Playlist navigation must remain visible by default');
 
 var validated = Settings.validate({
   uiLanguage: 'it-IT',
@@ -32,7 +37,8 @@ var validated = Settings.validate({
   wheelBehavior: 'page',
   audioLanguages: [' JA ', 'en-US', 'ja', ''],
   subtitleLanguages: ['it-IT', 'EN'],
-  subtitleSuppressedForAudio: ['ja-JP', 'EN', 'ja']
+  subtitleSuppressedForAudio: ['ja-JP', 'EN', 'ja'],
+  subtitleSourcePreference: 'internal'
 });
 
 assert.strictEqual(validated.uiLanguage, 'it', 'supported regional locales must use their primary tag');
@@ -42,7 +48,7 @@ assert.strictEqual(Settings.validate({ uiLanguage: 'ja-JP' }).uiLanguage, 'ja', 
 assert.strictEqual(Settings.validate({ uiLanguage: 'ko-KR' }).uiLanguage, 'ko', 'Korean regional locales must be accepted as a UI locale');
 assert.deepStrictEqual(Settings.supportedUiLanguages().sort(), I18n.supportedLanguages().sort(), 'settings must use the i18n locale registry as its single source');
 assert.strictEqual(validated.backgroundVolume, 20, 'volume must be restricted to supported values');
-assert.strictEqual(validated.backgroundDelay, 1000, 'delay must be restricted to supported values');
+assert.strictEqual(validated.backgroundDelay, 500, 'invalid delays must fall back to the 500 ms default');
 assert.strictEqual(validated.autoplayDelay, 5, 'autoplay delay must be restricted to supported values');
 assert.strictEqual(validated.skipPromptDuration, 5, 'skip prompt duration must be restricted to supported values');
 assert.strictEqual(validated.playbackMode, 'auto', 'invalid playback modes must safely fall back to Auto');
@@ -61,11 +67,19 @@ assert.strictEqual(Settings.validate({ accentColor: 'amber' }).accentColor, 'amb
 assert.strictEqual(Settings.validate({ accentColor: 'purple' }).accentColor, 'purple', 'purple must be available as an accent color');
 assert.strictEqual(Settings.validate({ accentColor: 'white' }).accentColor, 'white', 'white must be available as an accent color');
 assert.strictEqual(Settings.validate({ accentColor: 'orange' }).accentColor, 'cyan', 'unknown accent colors must fall back safely');
+assert.strictEqual(Settings.validate({ searchT9Input: true }).searchT9Input, true, 'T9 search input may be enabled explicitly');
+assert.strictEqual(Settings.validate({ searchT9Input: 'true' }).searchT9Input, false, 'T9 search input must accept only a real boolean');
+assert.strictEqual(Settings.validate({ searchT9Input: false }).searchT9Input, false, 'an explicitly disabled T9 setting must be preserved');
+assert.strictEqual(Settings.validate({}).searchT9Input, true, 'stored settings without a T9 preference must receive the new default');
 assert.strictEqual(Settings.validate({ showMediaInfo: true }).showMediaInfo, true, 'technical media information may be enabled explicitly');
 assert.strictEqual(Settings.validate({ showMediaInfo: 'true' }).showMediaInfo, false, 'technical media information must accept only a real boolean');
+assert.strictEqual(Settings.validate({ showWatchlist: false }).showWatchlist, false, 'Watchlist navigation may be hidden independently');
+assert.strictEqual(Settings.validate({ showPlaylists: false }).showPlaylists, false, 'Playlist navigation may be hidden independently');
 assert.deepStrictEqual(validated.audioLanguages, ['ja', 'en'], 'language priorities must be normalized and deduplicated in order');
 assert.deepStrictEqual(validated.subtitleLanguages, ['it', 'en'], 'subtitle priorities must retain their order');
 assert.deepStrictEqual(validated.subtitleSuppressedForAudio, ['ja', 'en'], 'suppressed audio languages must be normalized');
+assert.strictEqual(validated.subtitleSourcePreference, 'internal', 'the preferred subtitle source must be validated');
+assert.strictEqual(Settings.validate({ subtitleSourcePreference: 'invalid' }).subtitleSourcePreference, 'external', 'invalid subtitle source preferences must fall back to external');
 
 var seeded = Settings.seedFromPlex(Settings.defaults(), {
   locale: 'it-IT',

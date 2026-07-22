@@ -26,7 +26,7 @@
   function select(state) {
     if (Number(state.index || 0) === 0) { return { action: 'resume', offset: Math.max(0, Number(state.offset || 0)) }; }
     if (Number(state.index || 0) === 1) { return { action: 'restart', offset: 0 }; }
-    return cancel(state);
+    return cancel();
   }
 
   function cancel() {

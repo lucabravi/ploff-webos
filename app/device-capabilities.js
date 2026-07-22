@@ -58,7 +58,7 @@
     try {
       webOS.deviceInfo(done);
     } catch (error) {
-      done({}, true);
+      done({});
     }
   }
 

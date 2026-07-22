@@ -1,0 +1,25 @@
+{
+  "name": "ploff-webos",
+  "version": "1.0.3",
+  "private": true,
+  "description": "Development checks for Ploff for Plex on LG webOS",
+  "scripts": {
+    "build:app": "node scripts/build-app.js",
+    "check:app-bundle": "node scripts/build-app.js --check",
+    "lint": "eslint app scripts tests webos-service eslint.config.js",
+    "typecheck": "tsc --project jsconfig.json",
+    "test:unit": "for test in tests/test-*.js; do node \"$test\" || exit 1; done",
+    "test:baseline": "sh tests/test-baseline.sh",
+    "check:assets": "node scripts/check-shell-assets.js app/index.html dev",
+    "test": "npm run test:unit && npm run test:baseline",
+    "verify": "npm run check:app-bundle && npm run lint && npm run typecheck && npm run test && npm run check:assets"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "eslint": "10.7.0",
+    "globals": "17.7.0",
+    "typescript": "7.0.2"
+  }
+}

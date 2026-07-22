@@ -3,7 +3,7 @@
 var assert = require('assert');
 var LibraryContainers = require('../app/library-containers');
 
-assert.deepStrictEqual(LibraryContainers.views(), ['recommended', 'continue', 'recent', 'catalog', 'collections', 'playlists'], 'library tabs must start with Plex recommendations and retain the browsing views');
+assert.deepStrictEqual(LibraryContainers.views(), ['recommended', 'continue', 'recent', 'catalog', 'collections'], 'only library-scoped views belong in the library subnavigation');
 assert.deepStrictEqual(LibraryContainers.moveControl('sort', 1, 'right'), { zone: 'sort', index: 2 }, 'Right from Rating must move visually to Year');
 assert.deepStrictEqual(LibraryContainers.moveControl('sort', 2, 'right'), { zone: 'filter', index: 0 }, 'Right from Year must move visually to All');
 assert.deepStrictEqual(LibraryContainers.moveControl('filter', 0, 'left'), { zone: 'sort', index: 2 }, 'Left from All must return visually to Year');
@@ -16,8 +16,6 @@ assert.deepStrictEqual(LibraryContainers.moveControlVertical('filter', 'up'), { 
 assert.strictEqual(LibraryContainers.moveGridDown(8, 15, 7), 14, 'Down into a short final row must select its last available card');
 assert.strictEqual(LibraryContainers.moveGridDown(9, 15, 7), 14, 'every missing destination column must fall back to the final card');
 assert.strictEqual(LibraryContainers.moveGridDown(14, 15, 7), 14, 'Down from the final row must remain bounded');
-assert.strictEqual(LibraryContainers.belongsToLibrary([{ librarySectionID: '4' }], '4'), true, 'a playlist containing library media must belong to that library');
-assert.strictEqual(LibraryContainers.belongsToLibrary([{ librarySectionID: '2' }], '4'), false, 'playlist filtering must not leak another library');
 assert.strictEqual(LibraryContainers.statusKey('playlists', false, null, 0, false), 'state.playlistsEmpty', 'empty playlists must use a passive inline status');
 assert.strictEqual(LibraryContainers.statusKey('collections', false, null, 0, false), 'state.collectionsEmpty', 'empty collections must use a passive inline status');
 assert.strictEqual(LibraryContainers.statusKey('catalog', false, new Error('failed'), 0, false), 'status.libraryUnavailable', 'library failures must remain inline');

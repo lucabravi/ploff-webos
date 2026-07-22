@@ -28,4 +28,16 @@ state = Recovery.retry(state);
 assert.strictEqual(state.status, 'retrying', 'manual retry must restart the strategy ladder');
 assert.strictEqual(state.index, 0, 'manual retry must restart from the preferred strategy');
 
+state = Recovery.create([{ kind: 'direct-play' }, { kind: 'direct-stream' }, { kind: 'transcode' }]);
+state = Recovery.start(state, 37);
+state = Recovery.rebuild(state, 12);
+assert.strictEqual(state.position, 12, 'a reconstructed seek must preserve the requested absolute position');
+assert.strictEqual(state.index, 1, 'a reconstructed seek must leave full-file Direct Play before applying an offset');
+assert.strictEqual(Recovery.current(state).kind, 'direct-stream', 'a reconstructed Direct Play seek must use an offset-capable stream');
+assert.strictEqual(state.status, 'retrying', 'an offset-capable reconstruction must be ready to start immediately');
+
+state = Recovery.rebuild(state, 24);
+assert.strictEqual(state.index, 1, 'an already offset-capable stream must retain its current strategy');
+assert.strictEqual(state.position, 24, 'an HLS reconstruction must update its absolute position');
+
 console.log('Playback recovery checks passed');

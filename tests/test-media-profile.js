@@ -8,8 +8,8 @@ var fullHd = MediaProfile.fromNodes(
   { id: '7', container: 'mkv', videoResolution: '1080', width: '1920', height: '1080', bitrate: '12000', videoCodec: 'h264', audioCodec: 'aac', audioChannels: '2' },
   { id: '99', size: String(2576980377), container: 'mkv' },
   [
-    { id: '10', streamType: '2', language: 'Japanese', languageTag: 'ja', codec: 'aac', channels: '2', selected: '1' },
-    { id: '20', streamType: '3', index: '4', language: 'Italiano', languageTag: 'it', codec: 'srt', key: '/library/streams/20', offset: '-250' }
+    { id: '10', streamType: '2', language: 'Japanese', languageTag: 'ja', codec: 'aac', channels: '2', selected: '1', displayTitle: 'Japanese (AAC Stereo)' },
+    { id: '20', streamType: '3', index: '4', language: 'Italiano', languageTag: 'it', codec: 'srt', key: '/library/streams/20', offset: '-250', displayTitle: 'Italiano (SRT External)' }
   ]
 );
 assert.strictEqual(fullHd.summary, '1080p · MKV · 2.4 GB', '1080p files must expose a compact summary');
@@ -31,8 +31,15 @@ assert.deepStrictEqual(fullHd.subtitleTracks[0], {
   key: '/library/streams/20',
   external: true,
   format: 'srt',
-  offset: -250
+  offset: -250,
+  displayTitle: 'Italiano (SRT External)',
+  extendedDisplayTitle: '',
+  channelLayout: ''
 }, 'subtitle metadata must retain source, index and existing Plex offset');
+assert.strictEqual(MediaProfile.trackDisplayLabel(fullHd.audioTracks[0], 'External'), 'Japanese (AAC Stereo)', 'Plex display titles must be preferred for audio choices');
+assert.strictEqual(MediaProfile.trackDisplayLabel(fullHd.subtitleTracks[0], 'External'), 'Italiano (SRT External)', 'Plex display titles must be preferred for subtitle choices');
+assert.strictEqual(MediaProfile.trackDisplayLabel({ language: 'Italiano', codec: 'ASS', external: true }, 'External'), 'Italiano (ASS External)', 'external subtitle labels must have a readable fallback');
+assert.strictEqual(MediaProfile.trackDisplayLabel({ language: 'English', codec: 'TRUEHD', channels: 8 }, 'External'), 'English (TRUEHD 7.1)', 'audio labels must derive a readable channel layout when Plex omits its title');
 
 var hdr = MediaProfile.fromNodes({}, {
   container: 'mkv', videoResolution: '4k', width: '3840', height: '2160', videoCodec: 'hevc', videoDynamicRange: 'HDR10', bitrate: '24000'

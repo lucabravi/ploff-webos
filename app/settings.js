@@ -20,6 +20,7 @@
   var AUTOPLAY_DELAYS = [0, 3, 5, 10, 15];
   var SKIP_PROMPT_DURATIONS = [3, 5, 10];
   var SUBTITLE_MODES = ['off', 'always', 'audio-mismatch', 'forced'];
+  var SUBTITLE_SOURCE_PREFERENCES = ['external', 'internal'];
   var VIDEO_QUALITIES = ['original', '12000', '8000', '4000'];
   var PLAYBACK_MODES = ['auto', 'direct', 'transcode'];
   var WHEEL_BEHAVIORS = ['items', 'page'];
@@ -33,7 +34,7 @@
       uiLanguageExplicit: false,
       backgroundMusic: true,
       backgroundVolume: 20,
-      backgroundDelay: 1000,
+      backgroundDelay: 500,
       autoplayDelay: 5,
       skipPromptDuration: 5,
       audioLanguages: [],
@@ -41,13 +42,17 @@
       subtitleSuppressedForAudio: [],
       subtitleMode: 'audio-mismatch',
       subtitleModeExplicit: false,
+      subtitleSourcePreference: 'external',
       lanVideoQuality: 'original',
       remoteVideoQuality: '8000',
       playbackMode: 'auto',
       wheelBehavior: 'items',
       cardScale: 100,
       accentColor: 'cyan',
-      showMediaInfo: false
+      searchT9Input: true,
+      showMediaInfo: false,
+      showWatchlist: true,
+      showPlaylists: true
     };
   }
 
@@ -97,13 +102,17 @@
       subtitleSuppressedForAudio: languageList(value.subtitleSuppressedForAudio),
       subtitleMode: enumValue(value.subtitleMode, SUBTITLE_MODES, fallback.subtitleMode),
       subtitleModeExplicit: value.subtitleModeExplicit === true,
+      subtitleSourcePreference: enumValue(value.subtitleSourcePreference, SUBTITLE_SOURCE_PREFERENCES, fallback.subtitleSourcePreference),
       lanVideoQuality: enumValue(String(value.lanVideoQuality || ''), VIDEO_QUALITIES, legacyVideoQuality || fallback.lanVideoQuality),
       remoteVideoQuality: enumValue(String(value.remoteVideoQuality || ''), VIDEO_QUALITIES, legacyVideoQuality || fallback.remoteVideoQuality),
       playbackMode: enumValue(value.playbackMode, PLAYBACK_MODES, fallback.playbackMode),
       wheelBehavior: enumValue(value.wheelBehavior, WHEEL_BEHAVIORS, fallback.wheelBehavior),
       cardScale: enumValue(Number(value.cardScale), CARD_SCALES, fallback.cardScale),
       accentColor: enumValue(String(value.accentColor || ''), ACCENT_COLORS, fallback.accentColor),
-      showMediaInfo: value.showMediaInfo === true
+      searchT9Input: value.searchT9Input === undefined ? fallback.searchT9Input : value.searchT9Input === true,
+      showMediaInfo: value.showMediaInfo === true,
+      showWatchlist: value.showWatchlist !== false,
+      showPlaylists: value.showPlaylists !== false
     };
   }
 

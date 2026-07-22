@@ -2,11 +2,11 @@
   'use strict';
 
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./media-profile'), require('./library-containers'));
+    module.exports = factory(require('./media-profile'), require('./media-preferences'));
   } else {
-    root.PloffClient = factory(root.PloffMediaProfile, root.PloffLibraryContainers);
+    root.PloffClient = factory(root.PloffMediaProfile, root.PloffMediaPreferences);
   }
-}(this, function (MediaProfile, LibraryContainers) {
+}(this, function (MediaProfile, MediaPreferences) {
   'use strict';
 
   var transcodeSessionCounter = 0;
@@ -151,6 +151,8 @@
     if (metaParameters) { item.metaParameters = metaParameters; }
     if (attributes.librarySectionTitle) { item.libraryTitle = attributes.librarySectionTitle; }
     if (attributes.year) { item.year = Number(attributes.year) || attributes.year; }
+    if (attributes.genre) { item.genre = attributes.genre; }
+    if (type === 'show') { item.seasonCount = Math.max(0, Number(attributes.childCount || 0)); }
     if (attributes.guid) { item.guid = attributes.guid; }
     if (attributes.ratingKey) {
       item.ratingKey = attributes.ratingKey;
@@ -190,6 +192,8 @@
     return {
       title: attributes.title || 'Untitled',
       meta: count + (count === 1 ? ' title' : ' titles'),
+      metaKey: 'media.titleCount',
+      metaParameters: { count: count },
       image: assetUrl(baseUrl, attributes.thumb || attributes.composite || attributes.art, token),
       art: assetUrl(baseUrl, attributes.art || attributes.thumb || attributes.composite, token),
       ratingKey: attributes.ratingKey || '',
@@ -207,6 +211,12 @@
     for (index = 0; index < node.attributes.length; index += 1) {
       attribute = node.attributes[index];
       result[attribute.name] = attribute.value;
+    }
+    for (index = 0; index < node.childNodes.length; index += 1) {
+      if (node.childNodes[index].nodeType === 1 && node.childNodes[index].nodeName === 'Genre') {
+        result.genre = node.childNodes[index].getAttribute('tag') || '';
+        break;
+      }
     }
     return result;
   }
@@ -226,7 +236,7 @@
     candidates = documentNode.documentElement.childNodes;
     for (index = 0; index < candidates.length; index += 1) {
       node = candidates[index];
-      if (node.nodeType === 1 && (node.nodeName === 'Video' || node.nodeName === 'Directory')) {
+      if (node.nodeType === 1 && (node.nodeName === 'Video' || node.nodeName === 'Directory' || node.nodeName === 'Playlist')) {
         items.push(attributesFromNode(node));
       }
     }
@@ -475,19 +485,32 @@
       key: String(stream.key || ''),
       external: stream.external === '1' || !!stream.key,
       format: String(stream.format || stream.codec || '').toLowerCase(),
-      offset: Number(stream.offset || 0)
+      offset: Number(stream.offset || 0),
+      displayTitle: String(stream.displayTitle || ''),
+      extendedDisplayTitle: String(stream.extendedDisplayTitle || ''),
+      channels: Number(stream.channels || 0),
+      channelLayout: String(stream.audioChannelLayout || stream.channelLayout || '')
     };
   }
 
-  function firstTrackByLanguage(tracks, priorities, forcedOnly) {
+  function firstTrackByLanguage(tracks, priorities, forcedOnly, sourcePreference) {
     var priorityIndex;
     var trackIndex;
+    var candidates;
+    var preferExternal = sourcePreference !== 'internal';
     for (priorityIndex = 0; priorityIndex < priorities.length; priorityIndex += 1) {
+      candidates = [];
       for (trackIndex = 0; trackIndex < tracks.length; trackIndex += 1) {
         if ((!forcedOnly || tracks[trackIndex].forced) && tracks[trackIndex].languageTag === priorities[priorityIndex]) {
-          return tracks[trackIndex];
+          candidates.push(tracks[trackIndex]);
         }
       }
+      if (candidates.length && sourcePreference) {
+        for (trackIndex = 0; trackIndex < candidates.length; trackIndex += 1) {
+          if (!!candidates[trackIndex].external === preferExternal) { return candidates[trackIndex]; }
+        }
+      }
+      if (candidates.length) { return candidates[0]; }
     }
     if (forcedOnly) {
       for (trackIndex = 0; trackIndex < tracks.length; trackIndex += 1) {
@@ -510,22 +533,27 @@
     var settings = preferences || {};
     var audioTracks = playback.audioTracks || [];
     var subtitleTracks = playback.subtitleTracks || [];
-    var audio = firstTrackByLanguage(audioTracks, settings.audioLanguages || [], false) || selectedTrack(audioTracks) || audioTracks[0] || null;
-    var subtitle = null;
+    var audio = settings.audioTrackPreference && MediaPreferences ? MediaPreferences.findTrack(audioTracks, settings.audioTrackPreference, false) : null;
+    var subtitle = settings.subtitleTrackPreference && MediaPreferences ? MediaPreferences.findTrack(subtitleTracks, settings.subtitleTrackPreference, false) : null;
     var mode = settings.subtitleMode || 'audio-mismatch';
     var suppress = settings.subtitleSuppressedForAudio || [];
     var preferredSubtitleLanguage = settings.subtitleLanguages && settings.subtitleLanguages.length ? settings.subtitleLanguages[0] : '';
     var result;
 
+    audio = audio || firstTrackByLanguage(audioTracks, settings.audioLanguages || [], false) || selectedTrack(audioTracks) || audioTracks[0] || null;
     if (audio && suppress.indexOf(audio.languageTag) !== -1) {
       mode = 'off';
     }
-    if (mode === 'always') {
-      subtitle = firstTrackByLanguage(subtitleTracks, settings.subtitleLanguages || [], false) || selectedTrack(subtitleTracks);
-    } else if (mode === 'forced') {
-      subtitle = firstTrackByLanguage(subtitleTracks, settings.subtitleLanguages || [], true);
-    } else if (mode === 'audio-mismatch' && (!audio || !preferredSubtitleLanguage || audio.languageTag !== preferredSubtitleLanguage)) {
-      subtitle = firstTrackByLanguage(subtitleTracks, settings.subtitleLanguages || [], false) || selectedTrack(subtitleTracks);
+    if (mode === 'off') {
+      subtitle = null;
+    } else if (!subtitle && mode === 'always') {
+      subtitle = firstTrackByLanguage(subtitleTracks, settings.subtitleLanguages || [], false, settings.subtitleSourcePreference || 'external') || selectedTrack(subtitleTracks);
+    } else if (!subtitle && mode === 'forced') {
+      subtitle = firstTrackByLanguage(subtitleTracks, settings.subtitleLanguages || [], true, settings.subtitleSourcePreference || 'external');
+    } else if (!subtitle && mode === 'audio-mismatch' && (!audio || !preferredSubtitleLanguage || audio.languageTag !== preferredSubtitleLanguage)) {
+      subtitle = firstTrackByLanguage(subtitleTracks, settings.subtitleLanguages || [], false, settings.subtitleSourcePreference || 'external') || selectedTrack(subtitleTracks);
+    } else if (mode === 'audio-mismatch' && audio && preferredSubtitleLanguage && audio.languageTag === preferredSubtitleLanguage) {
+      subtitle = null;
     }
     result = {
       audioStreamID: audio ? audio.id : '',
@@ -901,6 +929,7 @@
   }
 
   function navigationDefinitions(sections) {
+    /** @type {Array<Object>} */
     var items = [{ title: 'Home', kind: 'home', labelKey: 'nav.home' }];
     sections.forEach(function (section) {
       if (section.key && section.title && (section.type === 'movie' || section.type === 'show')) {
@@ -908,6 +937,7 @@
       }
     });
     items.push({ title: 'Watchlist', kind: 'watchlist', labelKey: 'nav.watchlist' });
+    items.push({ title: 'Playlists', kind: 'playlists', labelKey: 'nav.playlists' });
     items.push({ title: 'Cerca', kind: 'search', labelKey: 'nav.search' });
     items.push({ title: 'Impostazioni', kind: 'settings', labelKey: 'nav.settings' });
     return items;
@@ -1162,48 +1192,23 @@
   }
 
   function loadLibraryPlaylists(config, library, start, size, callback) {
-    var childRequests = [];
     var aborted = false;
     var listRequest = request(buildLibraryBrowseUrl(config, library, 'playlists', {}, start, size), config.requestTimeout || 8000, function (error, xmlText) {
       var attributes;
-      var remaining;
-      var matches;
       if (aborted) { return; }
       if (error) { callback(error); return; }
       try { attributes = parseAttributes(xmlText).filter(function (item) { return !!(item.key || item.ratingKey); }); }
       catch (parseError) { callback(parseError); return; }
-      remaining = attributes.length;
-      matches = new Array(remaining);
-      if (!remaining) { callback(null, { items: [], totalSize: 0, libraryKey: String(library.key) }); return; }
-      attributes.forEach(function (playlist, playlistIndex) {
-        var path = playlist.key || '/playlists/' + playlist.ratingKey + '/items';
-        childRequests.push(request(buildUrl(config.apiBaseUrl, path, {
-          'X-Plex-Container-Start': 0,
-          'X-Plex-Container-Size': 1000
-        }, config.token || ''), config.requestTimeout || 8000, function (itemError, itemXml) {
-          if (aborted) { return; }
-          if (!itemError) {
-            try {
-              if (LibraryContainers.belongsToLibrary(parseAttributes(itemXml), library.key)) { matches[playlistIndex] = playlist; }
-            } catch (ignoreParseError) {}
-          }
-          remaining -= 1;
-          if (!remaining) {
-            matches = matches.filter(function (item) { return !!item; });
-            callback(null, {
-              items: matches.map(function (item) { return containerFromAttributes(item, config.apiBaseUrl, config.token || '', 'playlists'); }),
-              totalSize: matches.length,
-              libraryKey: String(library.key)
-            });
-          }
-        }));
+      callback(null, {
+        items: attributes.map(function (item) { return containerFromAttributes(item, config.apiBaseUrl, config.token || '', 'playlists'); }),
+        totalSize: attributes.length,
+        libraryKey: String(library.key)
       });
     });
     return {
       abort: function () {
         aborted = true;
         if (listRequest && listRequest.abort) { listRequest.abort(); }
-        childRequests.forEach(function (childRequest) { if (childRequest && childRequest.abort) { childRequest.abort(); } });
       }
     };
   }
@@ -1844,6 +1849,7 @@
   }
 
   return {
+    attributesFromNode: attributesFromNode,
     buildUrl: buildUrl,
     buildDecisionUrl: buildDecisionUrl,
     buildPlaybackUrl: buildPlaybackUrl,
@@ -1914,6 +1920,7 @@
     markersFromAttributes: markersFromAttributes,
     chaptersFromAttributes: chaptersFromAttributes,
     navigationDefinitions: navigationDefinitions,
+    parseAttributes: parseAttributes,
     parseItems: parseItems,
     sectionDefinitions: sectionDefinitions
   };

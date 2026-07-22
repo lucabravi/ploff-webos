@@ -64,6 +64,16 @@
     return next;
   }
 
+  function rebuild(state, position) {
+    var next = clone(state);
+    next.position = Math.max(0, Number(position || 0));
+    if (current(next) && current(next).kind === 'direct-play' && next.index + 1 < next.plan.length) {
+      next.index += 1;
+    }
+    next.status = 'retrying';
+    return next;
+  }
+
   function current(state) {
     return state && state.plan[state.index] || null;
   }
@@ -79,6 +89,7 @@
     fail: fail,
     online: online,
     playing: playing,
+    rebuild: rebuild,
     retry: retry,
     start: start
   };
