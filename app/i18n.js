@@ -62,6 +62,12 @@
     return names[primary] || primary.toUpperCase();
   }
 
+  function nativeLanguageName(code) {
+    var primary = primaryLanguage(code);
+    var names = languageNames[primary] || languageNames.en || {};
+    return names[primary] || primary.toUpperCase();
+  }
+
   function supportedLanguages() {
     return Object.keys(dictionaries);
   }
@@ -69,6 +75,7 @@
   return {
     language: language,
     languageName: languageName,
+    nativeLanguageName: nativeLanguageName,
     register: register,
     supportedLanguages: supportedLanguages,
     t: t

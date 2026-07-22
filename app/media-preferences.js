@@ -20,6 +20,54 @@
     return language(track && (track.languageTag || track.languageCode));
   }
 
+  function normalizedText(value) {
+    return String(value || '').toLowerCase().replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+  }
+
+  function trackPreference(track) {
+    if (!track) { return null; }
+    return {
+      language: trackLanguage(track),
+      name: normalizedText(track.title || track.extendedDisplayTitle || track.displayTitle),
+      codec: normalizedText(track.codec || track.format),
+      channels: Math.max(0, Number(track.channels || 0)),
+      external: track.external === true || track.external === '1' || !!track.key
+    };
+  }
+
+  function normalizeTrackPreference(value) {
+    if (!value || typeof value !== 'object') { return null; }
+    return {
+      language: language(value.language),
+      name: normalizedText(value.name),
+      codec: normalizedText(value.codec),
+      channels: Math.max(0, Number(value.channels || 0)),
+      external: value.external === true
+    };
+  }
+
+  function matchingCandidates(candidates, predicate) {
+    var matches = candidates.filter(predicate);
+    return matches.length ? matches : candidates;
+  }
+
+  function findTrack(tracks, preference, forcedOnly) {
+    var signature = normalizeTrackPreference(preference);
+    var candidates = (tracks || []).filter(function (track) { return !forcedOnly || track.forced; });
+    var languageMatches;
+    if (!signature || !candidates.length) { return null; }
+    if (signature.language) {
+      languageMatches = candidates.filter(function (track) { return trackLanguage(track) === signature.language; });
+      if (!languageMatches.length) { return null; }
+      candidates = languageMatches;
+    }
+    if (signature.name) { candidates = matchingCandidates(candidates, function (track) { return trackPreference(track).name === signature.name; }); }
+    if (signature.codec) { candidates = matchingCandidates(candidates, function (track) { return trackPreference(track).codec === signature.codec; }); }
+    if (signature.channels) { candidates = matchingCandidates(candidates, function (track) { return trackPreference(track).channels === signature.channels; }); }
+    candidates = matchingCandidates(candidates, function (track) { return trackPreference(track).external === signature.external; });
+    return candidates[0] || null;
+  }
+
   function key(serverId, profileId, detail) {
     var mediaKind = detail && (detail.type === 'episode' || detail.type === 'season' || detail.type === 'show') ? 'show' : 'movie';
     var mediaKey = mediaKind === 'show'
@@ -39,8 +87,8 @@
     mediaIndex = value.mediaIndex === null || value.mediaIndex === undefined || value.mediaIndex === '' ? null : Number(value.mediaIndex);
     partIndex = value.partIndex === null || value.partIndex === undefined || value.partIndex === '' ? null : Number(value.partIndex);
     return {
-      audioLanguage: language(value.audioLanguage),
-      subtitleLanguage: language(value.subtitleLanguage),
+      audioTrack: normalizeTrackPreference(value.audioTrack),
+      subtitleTrack: normalizeTrackPreference(value.subtitleTrack),
       subtitlesOff: value.subtitlesOff === true,
       mediaIndex: isFinite(mediaIndex) && mediaIndex >= 0 ? mediaIndex : null,
       partIndex: isFinite(partIndex) && partIndex >= 0 ? partIndex : null
@@ -68,21 +116,28 @@
     if (storage && storage.removeItem) { storage.removeItem(storageKey(identity)); }
   }
 
-  function byLanguage(tracks, requested, forcedOnly) {
+  function preferredSource(tracks, preference) {
+    var external = preference !== 'internal';
+    var matches = tracks.filter(function (track) { return trackPreference(track).external === external; });
+    return matches.length ? matches[0] : (tracks[0] || null);
+  }
+
+  function byLanguage(tracks, requested, forcedOnly, sourcePreference) {
     var target = language(requested);
+    var candidates = [];
     var index;
     if (!target) { return null; }
     for (index = 0; index < tracks.length; index += 1) {
-      if ((!forcedOnly || tracks[index].forced) && trackLanguage(tracks[index]) === target) { return tracks[index]; }
+      if ((!forcedOnly || tracks[index].forced) && trackLanguage(tracks[index]) === target) { candidates.push(tracks[index]); }
     }
-    return null;
+    return sourcePreference ? preferredSource(candidates, sourcePreference) : (candidates[0] || null);
   }
 
-  function byPriorities(tracks, priorities, forcedOnly) {
+  function byPriorities(tracks, priorities, forcedOnly, sourcePreference) {
     var index;
     var found;
     for (index = 0; index < (priorities || []).length; index += 1) {
-      found = byLanguage(tracks, priorities[index], forcedOnly);
+      found = byLanguage(tracks, priorities[index], forcedOnly, sourcePreference);
       if (found) { return found; }
     }
     return null;
@@ -106,15 +161,15 @@
     var preferred = settings.subtitleLanguages && settings.subtitleLanguages.length ? language(settings.subtitleLanguages[0]) : '';
     var index;
     if (audio && suppressed.indexOf(trackLanguage(audio)) !== -1) { mode = 'off'; }
-    if (mode === 'always') { return byPriorities(tracks, settings.subtitleLanguages || [], false) || selected(tracks); }
+    if (mode === 'always') { return byPriorities(tracks, settings.subtitleLanguages || [], false, settings.subtitleSourcePreference || 'external') || selected(tracks); }
     if (mode === 'forced') {
-      return byPriorities(tracks, settings.subtitleLanguages || [], true) || (function () {
+      return byPriorities(tracks, settings.subtitleLanguages || [], true, settings.subtitleSourcePreference || 'external') || (function () {
         for (index = 0; index < tracks.length; index += 1) { if (tracks[index].forced) { return tracks[index]; } }
         return null;
       }());
     }
     if (mode === 'audio-mismatch' && (!audio || !preferred || trackLanguage(audio) !== preferred)) {
-      return byPriorities(tracks, settings.subtitleLanguages || [], false) || selected(tracks);
+      return byPriorities(tracks, settings.subtitleLanguages || [], false, settings.subtitleSourcePreference || 'external') || selected(tracks);
     }
     return null;
   }
@@ -124,17 +179,19 @@
     var audioTracks = playback && playback.audioTracks || [];
     var subtitleTracks = playback && playback.subtitleTracks || [];
     var settings = globalSettings || {};
-    var local = normalize(override) || { audioLanguage: '', subtitleLanguage: '', subtitlesOff: false, mediaIndex: null, partIndex: null };
-    var requestedAudio = local.audioLanguage ? byLanguage(audioTracks, local.audioLanguage, false) : null;
-    var requestedSubtitle = local.subtitleLanguage && !local.subtitlesOff ? byLanguage(subtitleTracks, local.subtitleLanguage, false) : null;
+    var local = normalize(override) || { audioTrack: null, subtitleTrack: null, subtitlesOff: false, mediaIndex: null, partIndex: null };
+    var requestedAudio = local.audioTrack ? findTrack(audioTracks, local.audioTrack, false) : null;
+    var requestedSubtitle = local.subtitleTrack && !local.subtitlesOff ? findTrack(subtitleTracks, local.subtitleTrack, false) : null;
     var audio = requestedAudio || globalAudio(audioTracks, settings);
     var subtitle = local.subtitlesOff ? null : (requestedSubtitle || globalSubtitle(subtitleTracks, audio, settings));
     return {
       audioStreamID: audio ? audio.id : '',
       subtitleStreamID: subtitle ? subtitle.id : '',
+      audioTrack: audio,
+      subtitleTrack: subtitle,
       audioLabel: audio ? (audio.language || audio.title || trackLanguage(audio)) : '',
       subtitleLabel: subtitle ? (subtitle.language || subtitle.title || trackLanguage(subtitle)) : '',
-      fallbackUsed: !!((local.audioLanguage && !requestedAudio) || (local.subtitleLanguage && !local.subtitlesOff && !requestedSubtitle)),
+      fallbackUsed: !!((local.audioTrack && !requestedAudio) || (local.subtitleTrack && !local.subtitlesOff && !requestedSubtitle)),
       mediaIndex: local.mediaIndex === null ? current.mediaIndex : local.mediaIndex,
       partIndex: local.partIndex === null ? current.partIndex : local.partIndex,
       subtitleSize: current.subtitleSize || 100,
@@ -147,10 +204,12 @@
   return {
     STORAGE_PREFIX: STORAGE_PREFIX,
     clear: clear,
+    findTrack: findTrack,
     key: key,
     load: load,
     resolve: resolve,
     save: save,
-    storageKey: storageKey
+    storageKey: storageKey,
+    trackPreference: trackPreference
   };
 }));

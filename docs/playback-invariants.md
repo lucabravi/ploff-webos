@@ -19,21 +19,27 @@ change the playback clock model without reproducing every case below.
   Plex timeline report.
 - Outside an explicit seek, the public clock is monotonic. A native regression
   larger than two seconds after playback resumes is treated as a decoder clock
-  discontinuity: first seek back to the confirmed native position when it is
-  buffered, otherwise rebuild the stream at that absolute position.
+  discontinuity and rebuilds once at the last confirmed absolute position.
+  Never repeatedly seek the same unstable stream to repair its clock.
 - Stream replacement anchors and freezes the public clock before changing the
   offset, so a new offset can never be added to the previous stream's stale
   `currentTime`.
 
 ## Seeking
 
+- Every UI seek target is expressed in absolute Plex seconds and enters through
+  `seekPlayerTo()`. Inputs must never subtract the stream offset themselves.
 - Forward seek inside the current HLS window assigns
   `absolute target - stream offset` to `video.currentTime`.
-- On the target TV, `duration` and `seekable.end()` may cover the complete HLS
-  timeline even when only a small prefix exists. A native seek is safe only
-  when the relative target is contained in a `video.buffered` range.
-- A target outside `video.buffered` must rebuild at the exact target instead of
-  assigning `video.currentTime`; otherwise webOS may jump to the stream start.
+- Direct Play follows `video.seekable`, allowing the browser to request an
+  unbuffered portion of the original file through HTTP Range. Every native
+  seek is verified against the requested position and has a bounded timeout.
+- Offset HLS streams use `video.buffered` for native seeks. A target outside
+  the active buffer rebuilds at the exact absolute target instead of assigning
+  an unsafe relative `video.currentTime`.
+- If a Direct Play seek fails, times out, or later regresses, recovery advances
+  to an offset-capable Direct Stream. Transcoding remains a later bounded
+  fallback according to the selected playback mode.
 - Backward seek before the current stream offset rebuilds at the exact target.
   The old frame is held while webOS replaces the stream, and playback is
   retried after `canplay` so the seek lock cannot remain stuck.
@@ -45,6 +51,19 @@ change the playback clock model without reproducing every case below.
 - Ordinary stream rebuilds assign the new source synchronously. Plex decision
   requests are reserved for initial playback and bounded recovery so a slow
   decision endpoint cannot leave remote input locked during a seek.
+
+## Automated guards
+
+- `tests/test-player-seek-controller.js` locks normalization, Direct Play
+  `seekable` handling, buffered HLS seeking, target verification, pre-offset
+  rebuild, native-duration validation, tolerance, and clock recovery behavior.
+- `tests/test-player-timeline-policy.js` locks the 20-second reporting boundary
+  and both time formats.
+- `tests/test-tv-shell.js` verifies that remote arrows, timeline pointer input,
+  and chapters still delegate to the absolute seek gateway and that the
+  gateway delegates its decision to `PloffPlayerSeekController`.
+- `npm run verify` is required after every player extraction. Passing browser
+  tests do not replace the manual LG decoder matrix below.
 
 ## Subtitle synchronization editor
 
@@ -71,7 +90,8 @@ change the playback clock model without reproducing every case below.
 8. Cancel subtitle timing: no stream, size, offset, or progress change remains.
 9. Buffering: the timer remains fixed until playback resumes and never jumps
    backward because of a transient native clock reset.
-10. Unexpected clock regression: the decoder is realigned to the last
-    confirmed absolute position before progress reporting continues.
+10. Unexpected clock regression: the stream is rebuilt once at the last
+    confirmed absolute position before progress reporting continues; the
+    decoder must never oscillate between two native positions.
 11. Chapter selection: content and timer start at the selected chapter, then
     both backward and forward seeks remain responsive.

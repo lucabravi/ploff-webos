@@ -7,7 +7,9 @@ STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ploff-shell.XXXXXX")
 SERVICE_STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ploff-service.XXXXXX")
 trap 'rm -rf "$STAGE" "$SERVICE_STAGE"' EXIT HUP INT TERM
 
+node "$ROOT/scripts/build-app.js" --check
 cp -R "$ROOT/app/." "$STAGE/"
+rm -rf "$STAGE/source"
 cp "$ROOT/webos-shell-app/appinfo.json" "$STAGE/appinfo.json"
 cp "$ROOT/webos-shell-app/icon.png" "$STAGE/icon.png"
 cp "$ROOT/webos-shell-app/largeIcon.png" "$STAGE/largeIcon.png"

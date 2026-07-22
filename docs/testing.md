@@ -1,10 +1,23 @@
 # Testing
 
-Run automated checks first:
+Install the development-only verification tools, then run the complete local
+CI workflow:
 
 ```sh
-for test in tests/test-*.js; do node "$test"; done
-sh tests/test-baseline.sh
+npm ci
+npm run verify
+```
+
+This first rejects a stale generated `app/app.js`, then runs ESLint, JavaScript
+type-checking, unit tests, repository baseline checks, and shell asset
+validation. Node.js is required only for development, tests, and packaging; it
+is not required by the installed TV application.
+
+After editing any file under `app/source/`, regenerate the browser bundle:
+
+```sh
+npm run build:app
+npm run verify
 ```
 
 ## Clean-Room Release Check

@@ -1,9 +1,11 @@
 # Runtime Maintenance
 
 `app/app.js` intentionally remains the view coordinator. State calculations
-with stable inputs belong in small ES5 modules under `app/`; native player,
-DOM, and view lifecycle code remains in the coordinator unless an extraction
-removes a concrete race or makes a risky behavior independently testable.
+with stable inputs belong in small ES5 modules under `app/`. Detail
+presentation, player controls, chapters, and subtitle-editor presentation own
+their DOM through injected dependencies. Native video lifecycle, Plex playback
+requests, timeline timers, and stream replacement remain in the coordinator so
+they retain one owner.
 
 When adding asynchronous work:
 

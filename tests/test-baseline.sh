@@ -6,6 +6,10 @@ cd "$(dirname "$0")/.."
 for path in \
   LICENSE \
   README.md \
+  package.json \
+  package-lock.json \
+  eslint.config.js \
+  jsconfig.json \
   Dockerfile \
   .dockerignore \
   .github/workflows/ci.yml \
@@ -34,9 +38,29 @@ for path in \
   scripts/package-tv-shell.sh \
   scripts/inspect-ipk.sh \
   scripts/check-shell-assets.js \
+  scripts/build-app.js \
+  scripts/preview-local.sh \
   scripts/docker-installer.sh \
   scripts/install-webos.sh; do
   test -f "$path" || { echo "missing: $path" >&2; exit 1; }
+done
+
+for fragment in \
+  00-runtime.js \
+  10-shell-home.js \
+  20-search.js \
+  30-library.js \
+  40-settings.js \
+  42-server.js \
+  45-setup.js \
+  46-server-actions.js \
+  47-settings-navigation.js \
+  48-diagnostics.js \
+  50-detail.js \
+  60-player-controls.js \
+  65-player-subtitles-playback.js \
+  70-input-bootstrap.js; do
+  test -f "app/source/$fragment" || { echo "missing: app/source/$fragment" >&2; exit 1; }
 done
 
 test ! -f app/config.local.js || git check-ignore -q app/config.local.js
@@ -58,19 +82,26 @@ test ! -f scripts/package-webos.sh
 ! grep -RE '(apiBaseUrl|token)[[:space:]]*:[[:space:]]*["'"'][^"'"']+["'"']' app/config.js
 sh -n scripts/package-tv-shell.sh scripts/docker-installer.sh scripts/install-webos.sh scripts/inspect-ipk.sh
 node scripts/check-shell-assets.js app/index.html dev
+node scripts/build-app.js --check
 node --check webos-service/service.js
 node --check webos-service/gdm-parser.js
 
 test -f README.md
 grep -q 'MIT' README.md
 grep -qi 'unofficial' README.md
-grep -q 'for test in tests/test-\*.js' README.md
+grep -q 'npm run verify' README.md
+grep -q 'npm run build:app' README.md
+grep -q 'Generated bundle entry' app/app.js
+grep -q 'npm run verify' .github/workflows/ci.yml
+grep -q 'npm run verify' .github/workflows/release.yml
 grep -q 'package-tv-shell.sh' README.md
 grep -q 'install-webos.sh' README.md
 grep -qi 'chapter' README.md
 grep -qi 'chapter' docs/playback-invariants.md
 grep -q 'rm -f "$STAGE/config.local.js"' scripts/package-tv-shell.sh
 grep -q 'PloffBuildInfo' scripts/package-tv-shell.sh
+grep -q 'build-app.js.*--check' scripts/package-tv-shell.sh
+grep -q 'rm -rf "$STAGE/source"' scripts/package-tv-shell.sh
 grep -q 'io.github.rhapsodos.ploff' webos-shell-app/appinfo.json
 grep -q 'webos-shell-app/logo.svg' README.md
 grep -q '<title id="title">Ploff</title>' app/ploff-logo.svg
@@ -96,8 +127,9 @@ grep -q 'cd dist && sha256sum' .github/workflows/release.yml
 grep -q '@webos-tools/cli@3.2.5' .github/workflows/release.yml
 grep -q 'gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e' .github/workflows/ci.yml
 grep -q "branches:.*\\*\\*" .github/workflows/ci.yml
-grep -q 'Prebuilt Releases' README.md
-grep -q 'Install With Docker (Recommended)' README.md
+grep -q '^## Installation$' README.md
+grep -q '^### Docker (recommended)$' README.md
+grep -q '<summary><strong>Manual installation</strong></summary>' README.md
 grep -q 'ghcr.io/lucabravi/ploff-webos-installer:latest' README.md
 grep -q '@webos-tools/cli@3.2.5' Dockerfile
 grep -q 'platforms: linux/amd64,linux/arm64' .github/workflows/release.yml

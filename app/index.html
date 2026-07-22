@@ -64,6 +64,7 @@
   <main id="content" class="content"></main>
 
   <section id="library-view" class="library-view is-hidden">
+    <h1 id="library-global-title" class="library-global-title"></h1>
     <nav id="library-subnav" class="library-subnav">
       <div id="library-tabs" class="library-tabs"></div>
       <div class="library-actions">
@@ -98,6 +99,7 @@
   </section>
   <section id="search-view" class="search-view is-hidden" aria-live="polite">
     <div id="search-query" class="search-query"></div>
+    <div id="search-t9-legend" class="search-t9-legend is-hidden" aria-hidden="true"></div>
     <div id="search-keyboard" class="search-keyboard"></div>
     <div id="search-status" class="search-status"></div>
     <div id="search-results" class="search-results"></div>
@@ -183,6 +185,12 @@
         <h2 id="detail-media-info-dialog-title"></h2>
         <div id="detail-media-info-dialog-text" class="detail-summary-dialog-text detail-media-info-dialog-text"></div>
         <div id="detail-media-info-dialog-hint" class="detail-summary-dialog-hint"></div>
+      </div>
+    </div>
+    <div id="choice-dialog" class="choice-dialog is-hidden" role="dialog" aria-modal="true" aria-labelledby="choice-dialog-title">
+      <div class="choice-dialog-panel">
+        <h3 id="choice-dialog-title"></h3>
+        <div id="choice-dialog-list" class="choice-dialog-list"></div>
       </div>
     </div>
   <section id="player-view" class="player-view is-hidden">
@@ -289,20 +297,28 @@
   <script src="focus-model.js?v=dev"></script>
   <script src="navigation-model.js?v=dev"></script>
   <script src="search-model.js?v=dev"></script>
+  <script src="search-session.js?v=dev"></script>
   <script src="home-state.js?v=dev"></script>
   <script src="activity-state.js?v=dev"></script>
   <script src="metadata-refresh.js?v=dev"></script>
   <script src="skip-marker-state.js?v=dev"></script>
   <script src="player-controls-state.js?v=dev"></script>
+  <script src="player-controls-view.js?v=dev"></script>
+  <script src="player-buffering-indicator.js?v=dev"></script>
   <script src="chapter-state.js?v=dev"></script>
+  <script src="player-chapters-view.js?v=dev"></script>
   <script src="playback-strategy.js?v=dev"></script>
   <script src="playback-recovery.js?v=dev"></script>
   <script src="playback-clock.js?v=dev"></script>
+  <script src="player-seek-controller.js?v=dev"></script>
+  <script src="player-timeline-policy.js?v=dev"></script>
   <script src="episode-navigation.js?v=dev"></script>
   <script src="resume-choice.js?v=dev"></script>
   <script src="subtitle-sync.js?v=dev"></script>
+  <script src="subtitle-editor-view.js?v=dev"></script>
   <script src="subtitle-offset-store.js?v=dev"></script>
   <script src="diagnostics-state.js?v=dev"></script>
+  <script src="diagnostics-view.js?v=dev"></script>
   <script src="navbar-window.js?v=dev"></script>
   <script src="library-containers.js?v=dev"></script>
   <script src="view-state.js?v=dev"></script>
@@ -313,6 +329,7 @@
   <script src="media-labels.js?v=dev"></script>
   <script src="watchlist-client.js?v=dev"></script>
   <script src="watchlist-state.js?v=dev"></script>
+  <script src="watchlist-view.js?v=dev"></script>
   <script src="build-info.js?v=dev"></script>
   <script src="config.js?v=dev"></script>
   <script src="i18n.js?v=dev"></script>
@@ -325,6 +342,24 @@
   <script src="locales/ja.js?v=dev"></script>
   <script src="locales/ko.js?v=dev"></script>
   <script src="settings.js?v=dev"></script>
+  <script src="settings-catalog.js?v=dev"></script>
+  <script src="settings-view.js?v=dev"></script>
+  <script src="t9-input.js?v=dev"></script>
+  <script src="search-view.js?v=dev"></script>
+  <script src="server-editor-view.js?v=dev"></script>
+  <script src="setup-scan-indicator.js?v=dev"></script>
+  <script src="setup-focus.js?v=dev"></script>
+  <script src="setup-view.js?v=dev"></script>
+  <script src="setup-auth-session.js?v=dev"></script>
+  <script src="setup-controller.js?v=dev"></script>
+  <script src="library-filter-view.js?v=dev"></script>
+  <script src="library-grid-view.js?v=dev"></script>
+  <script src="library-lifecycle.js?v=dev"></script>
+  <script src="detail-episode-view.js?v=dev"></script>
+  <script src="detail-navigation.js?v=dev"></script>
+  <script src="detail-presentation-view.js?v=dev"></script>
+  <script src="detail-preference-state.js?v=dev"></script>
+  <script src="choice-dialog-view.js?v=dev"></script>
   <script src="auth-store.js?v=dev"></script>
   <script src="plex-auth.js?v=dev"></script>
   <script src="server-store.js?v=dev"></script>

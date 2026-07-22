@@ -136,7 +136,6 @@
   function serverAccessFromJson(jsonText, machineIdentifier) {
     var resources = JSON.parse(jsonText);
     var index;
-    var connectionIndex;
     var connections;
     var connectionRoutes;
     if (Object.prototype.toString.call(resources) !== '[object Array]') { throw new Error('Invalid Plex resources response'); }

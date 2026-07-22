@@ -16,7 +16,7 @@ assert.deepStrictEqual(ResumeChoice.select(state), { action: 'restart', offset: 
 state = ResumeChoice.move(state, 1);
 assert.strictEqual(state.index, 2, 'Right must focus Cancel after Restart');
 assert.deepStrictEqual(ResumeChoice.select(state), { action: 'cancel', offset: null }, 'the third action must cancel playback');
-assert.deepStrictEqual(ResumeChoice.cancel(state), { action: 'cancel', offset: null }, 'Back must be identical to Cancel');
+assert.deepStrictEqual(ResumeChoice.cancel(), { action: 'cancel', offset: null }, 'Back must be identical to Cancel');
 
 state = ResumeChoice.move(state, 1);
 assert.strictEqual(state.index, 0, 'focus movement must wrap after Cancel');

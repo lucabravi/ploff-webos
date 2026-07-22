@@ -58,6 +58,10 @@ assert.strictEqual(I18n.t('it', 'settings.backgroundMusic'), 'Tema di sottofondo
 assert.strictEqual(I18n.languageName('it', 'ja'), 'Giapponese', 'language names must follow the UI language');
 assert.strictEqual(I18n.languageName('ja', 'en'), '英語', 'Japanese language names must be localized');
 assert.strictEqual(I18n.languageName('ko', 'en'), '영어', 'language names must be localized in Korean');
+assert.strictEqual(I18n.nativeLanguageName('en'), 'English', 'English must identify itself in English');
+assert.strictEqual(I18n.nativeLanguageName('it'), 'Italiano', 'Italian must identify itself in Italian');
+assert.strictEqual(I18n.nativeLanguageName('ja'), '日本語', 'Japanese must identify itself in Japanese');
+assert.strictEqual(I18n.nativeLanguageName('ko'), '한국어', 'Korean must identify itself in Korean');
 assert.strictEqual(I18n.languageName('en', 'zz'), 'ZZ', 'unknown language tags must remain usable');
 assert.strictEqual(I18n.t('en', 'search.loading'), 'Searching...', 'search loading text must be localized in English');
 assert.strictEqual(I18n.t('it', 'search.noResults'), 'Nessun risultato', 'search empty state must be localized in Italian');

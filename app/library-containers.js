@@ -9,7 +9,7 @@
   'use strict';
 
   function views() {
-    return ['recommended', 'continue', 'recent', 'catalog', 'collections', 'playlists'];
+    return ['recommended', 'continue', 'recent', 'catalog', 'collections'];
   }
 
   function moveControl(zone, index, direction) {
@@ -42,15 +42,6 @@
     return Math.min(current + columnCount, count - 1);
   }
 
-  function belongsToLibrary(items, libraryKey) {
-    var target = String(libraryKey || '');
-    var index;
-    for (index = 0; index < (items || []).length; index += 1) {
-      if (String(items[index].librarySectionID || items[index].librarySectionId || items[index].sectionID || '') === target) { return true; }
-    }
-    return false;
-  }
-
   function statusKey(view, loading, error, itemCount, insideContainer) {
     if (loading) { return 'library.loading'; }
     if (error) { return 'status.libraryUnavailable'; }
@@ -60,5 +51,5 @@
     return 'state.libraryEmpty';
   }
 
-  return { belongsToLibrary: belongsToLibrary, moveControl: moveControl, moveControlVertical: moveControlVertical, moveGridDown: moveGridDown, statusKey: statusKey, views: views };
+  return { moveControl: moveControl, moveControlVertical: moveControlVertical, moveGridDown: moveGridDown, statusKey: statusKey, views: views };
 }));

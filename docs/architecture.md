@@ -8,6 +8,9 @@ Plex Media Server over the local network.
 
 - `app/` contains the TV interface, player, Plex API client, authentication,
   settings, server discovery, and remote-control navigation.
+- `app/source/` contains the ordered, responsibility-based source fragments for
+  the application coordinator. `scripts/build-app.js` concatenates them into
+  the checked-in `app/app.js` bundle executed by webOS.
 - `app/i18n.js` is the small locale registry; `app/locales/` contains one
   complete offline locale file per supported interface language.
 - `webos-service/` provides UDP-based Plex GDM discovery because browser code
@@ -21,6 +24,24 @@ resolution, chapter focus, localized media labels, resume choice, subtitle cue
 timing and offset persistence, and diagnostic redaction live outside `app.js`;
 the application shell owns their Plex requests, native-player lifecycle, and
 remote-control focus.
+
+Settings, server selection, diagnostics, and onboarding/profile rendering are
+independent ES5 UMD views. They receive explicit presentation snapshots and
+callbacks; Plex account, discovery, and PMS requests remain adapter concerns in
+the coordinator.
+
+Detail metadata, media preferences, chapter cards, player-control chrome, and
+subtitle-editor presentation are independent ES5 UMD views as well. They
+receive resolved view models and never replace the native video stream. The
+coordinator remains the sole owner of playback requests, timeline reporting,
+stream replacement, and direct `video.currentTime` mutation.
+
+The coordinator remains one lexical ES5 scope for compatibility, but its
+canonical source is split into Home/shell, search, library, settings, server,
+setup, diagnostics, detail, player controls, player lifecycle, and
+input/bootstrap fragments. The generated bundle is never the editing surface.
+This preserves legacy function hoisting and shared state while keeping each
+responsibility reviewable.
 
 Every locale is loaded statically before settings and application code. The
 files are small enough for this to remain inexpensive, while avoiding dynamic
@@ -63,7 +84,10 @@ when the chosen tracks require Plex processing. Playback diagnostics show the
 source version, device UHD/HDR support, and effective delivery mode. Progress
 is reported back to Plex throughout playback. A discontinuity-resistant clock
 freezes during buffering and stream replacement, while explicit seeks remain
-free to move backward. The clock and seeking rules verified on the target TV are documented in
+free to move backward. Direct Play follows native `seekable` ranges and is
+retained whenever webOS reaches the requested point; failed seeks and decoder
+clock regressions recover through an offset-capable Direct Stream before any
+transcoding fallback. The clock and seeking rules verified on the target TV are documented in
 [`playback-invariants.md`](playback-invariants.md).
 
 Advanced synchronization is limited to text subtitles that Plex can expose as
@@ -91,10 +115,13 @@ their owning view state.
 
 ## Compatibility
 
-The project intentionally avoids frameworks, build-time transpilation, modern
-JavaScript syntax, CSS Grid, and browser APIs unavailable in Chrome 53. Keep
-new runtime code ES5-compatible and run the complete test suite before
-packaging. The manual playback and navigation matrix is in
+The installed application intentionally avoids frameworks, runtime dependencies,
+build-time transpilation, modern JavaScript syntax, CSS Grid, and browser APIs
+unavailable in Chrome 53. Development uses ESLint and TypeScript's JavaScript
+checker without changing the delivered syntax. `npm run verify` first confirms
+that `app/app.js` matches `app/source/` exactly. Keep new runtime code
+ES5-compatible and run the complete verification suite before packaging. The
+manual playback and navigation matrix is in
 [`testing.md`](testing.md).
 
 Lifecycle guidance for the view coordinator is documented in
