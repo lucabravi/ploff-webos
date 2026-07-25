@@ -20,10 +20,14 @@ var model = MediaInfo.create({
 }, { audioStreamID: '1', subtitleStreamID: '2' }, function (key) { return key; });
 
 assert.strictEqual(model.sections[0].title, 'mediaDetails.file', 'the first section must identify the selected file version');
+assert.strictEqual(model.sections[0].column, 'left', 'file details must stay in the left technical column');
 assert.strictEqual(model.sections[0].rows[0].value, 'Example.Movie.2026.mkv', 'the UI model must never expose a full local path');
 assert.ok(model.sections[1].rows.some(function (row) { return row.value === 'HEVC'; }), 'video codec must be present in a TV-readable model');
+assert.strictEqual(model.sections[1].column, 'left', 'video details must follow file details in the left technical column');
 assert.ok(model.sections[2].rows.some(function (row) { return row.value === 'Japanese (TRUEHD 7.1)'; }), 'the selected audio track must retain Plex display details');
+assert.strictEqual(model.sections[2].column, 'right', 'audio details must lead the right technical column without empty space above them');
 assert.ok(model.sections[3].rows.some(function (row) { return row.value === 'Italian (SRT External)'; }), 'the selected subtitle track must retain Plex display details');
+assert.strictEqual(model.sections[3].column, 'right', 'subtitle details must follow audio in the right technical column');
 assert.ok(!JSON.stringify(model).match(/private\/var/), 'media details must not leak an original filesystem path');
 
 console.log('Media info checks passed');

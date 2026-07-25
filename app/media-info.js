@@ -76,7 +76,7 @@
     add(fileRows, t('mediaDetails.size'), item.formattedSize || item.fileSizeLabel);
     add(fileRows, t('mediaDetails.container'), item.container);
     add(fileRows, t('mediaDetails.duration'), durationLabel(item.duration));
-    if (fileRows.length) { sections.push({ title: t('mediaDetails.file'), rows: fileRows }); }
+    if (fileRows.length) { sections.push({ title: t('mediaDetails.file'), column: 'left', rows: fileRows }); }
 
     add(videoRows, t('mediaDetails.resolution'), item.resolution || ((item.width && item.height) ? item.width + 'x' + item.height : ''));
     if (item.width && item.height) { add(videoRows, t('mediaDetails.dimensions'), item.width + 'x' + item.height); }
@@ -87,15 +87,15 @@
     add(videoRows, t('mediaDetails.frameRate'), details.frameRate || item.videoFrameRate);
     add(videoRows, t('mediaDetails.bitDepth'), details.bitDepth || item.videoBitDepth);
     add(videoRows, t('mediaDetails.colorRange'), details.colorRange || item.videoColorRange);
-    if (videoRows.length) { sections.push({ title: t('mediaDetails.video'), rows: videoRows }); }
+    if (videoRows.length) { sections.push({ title: t('mediaDetails.video'), column: 'left', rows: videoRows }); }
 
     add(audioRows, t('mediaDetails.selectedTrack'), trackLabel(audio));
-    if (audioRows.length) { sections.push({ title: t('mediaDetails.audio'), rows: audioRows }); }
+    if (audioRows.length) { sections.push({ title: t('mediaDetails.audio'), column: 'right', rows: audioRows }); }
 
     add(subtitleRows, t('mediaDetails.selectedTrack'), subtitle ? trackLabel(subtitle) : t('mediaDetails.off'));
-    if (subtitleRows.length) { sections.push({ title: t('mediaDetails.subtitles'), rows: subtitleRows }); }
+    if (subtitleRows.length) { sections.push({ title: t('mediaDetails.subtitles'), column: 'right', rows: subtitleRows }); }
 
-    if (!sections.length) { sections.push({ title: t('mediaDetails.file'), rows: [{ label: t('mediaDetails.status'), value: t('player.unavailable') }] }); }
+    if (!sections.length) { sections.push({ title: t('mediaDetails.file'), column: 'left', rows: [{ label: t('mediaDetails.status'), value: t('player.unavailable') }] }); }
     return { sections: sections };
   }
 

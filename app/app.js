@@ -5021,8 +5021,12 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
     return false;
   }
 
+  function playerSettingRows() {
+    return document.querySelectorAll('.setting-row, .playback-info');
+  }
+
   function movePlayerSetting(direction) {
-    var rows = document.querySelectorAll('.setting-row');
+    var rows = playerSettingRows();
     var next = settingIndex;
     do { next += direction; } while (next >= 0 && next < rows.length && rows[next].disabled);
     if (next >= 0 && next < rows.length) { settingIndex = next; }
@@ -5030,7 +5034,7 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
   }
 
   function updateSettingsDisplay() {
-    var rows = document.querySelectorAll('.setting-row');
+    var rows = playerSettingRows();
     var advanced = subtitleEditorAvailability();
     var disabled;
     var next;
@@ -5049,7 +5053,7 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
       settingKey = rows[index].getAttribute('data-setting');
       disabled = playerSettingDisabled(settingKey, advanced);
       rows[index].disabled = disabled;
-      rows[index].className = 'setting-row' +
+      rows[index].className = (settingKey === 'media-info' ? 'playback-info' : 'setting-row') +
         (!disabled && settingKey !== 'subtitle-advanced' && settingKey !== 'media-info' ? ' is-cycle' : '') +
         (disabled ? ' is-disabled' : '');
     }
@@ -5139,7 +5143,7 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
   function cycleSetting(direction) {
     var sizes = [75, 100, 125, 150];
     var index;
-    var row = document.querySelectorAll('.setting-row')[settingIndex];
+    var row = playerSettingRows()[settingIndex];
     var key;
     if (!row || row.disabled) { return; }
     key = row.getAttribute('data-setting');
@@ -5214,7 +5218,7 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
   }
 
   function openPlayerSettingChoice() {
-    var row = document.querySelectorAll('.setting-row')[settingIndex];
+    var row = playerSettingRows()[settingIndex];
     var key;
     var choices = [];
     var selected = '';
@@ -8047,6 +8051,7 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
       event.preventDefault();
       if (mediaInfoView.snapshot().open) {
         if (event.keyCode === 27 || event.keyCode === 461) { closeAdvancedMediaInfo(); }
+        else if (event.keyCode === 13) { closeAdvancedMediaInfo(); }
         else if (direction === 'up') { mediaInfoView.scroll(-1); }
         else if (direction === 'down') { mediaInfoView.scroll(1); }
         return;
@@ -8173,6 +8178,7 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
       if (mediaInfoView.snapshot().open) {
         event.preventDefault();
         if (event.keyCode === 27 || event.keyCode === 461) { closeAdvancedMediaInfo(); }
+        else if (event.keyCode === 13) { closeAdvancedMediaInfo(); }
         else if (direction === 'up') { mediaInfoView.scroll(-1); }
         else if (direction === 'down') { mediaInfoView.scroll(1); }
         return;
@@ -8500,8 +8506,8 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
       playerZone = 'buttons'; updatePlayerButtonFocus();
     } else if (button.hasAttribute('data-choice-index') && choiceDialogView.snapshot().open) {
       choiceDialogView.focus(Number(button.getAttribute('data-choice-index')));
-    } else if (button.className.indexOf('setting-row') !== -1) {
-      var settingRows = document.querySelectorAll('.setting-row');
+    } else if (button.className.indexOf('setting-row') !== -1 || button.id === 'player-media-info') {
+      var settingRows = playerSettingRows();
       for (index = 0; index < settingRows.length; index += 1) {
         if (settingRows[index] === button) { settingIndex = index; break; }
       }
@@ -8819,7 +8825,7 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
     } else if (button.hasAttribute('data-chapter-index') && chapterState.open) {
       chapterState.index = Number(button.getAttribute('data-chapter-index'));
       activateChapter();
-    } else if (button.className.indexOf('setting-row') !== -1 && settingsOpen) {
+    } else if ((button.className.indexOf('setting-row') !== -1 || button.id === 'player-media-info') && settingsOpen) {
       openPlayerSettingChoice();
     } else if (button.hasAttribute('data-subtitle-editor') && subtitleEditorOpen) {
       activateSubtitleEditorControl(button.getAttribute('data-subtitle-editor'));
@@ -8878,6 +8884,7 @@ this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialS
   document.getElementById('player-next').onclick = function () { switchPlayerEpisode(1); };
   document.getElementById('player-settings-button').onclick = function () { setSettingsOpen(true); };
   document.getElementById('player-media-info').onclick = function () { openAdvancedMediaInfo('player'); };
+  document.getElementById('media-info-dialog-close').onclick = closeAdvancedMediaInfo;
   document.getElementById('player-error-retry').onclick = retryPlaybackFromError;
   document.getElementById('player-error-settings').onclick = function () { hidePlayerError(); setSettingsOpen(true); };
   document.getElementById('player-error-back').onclick = function () { hidePlayerError(); closePlayer(); };

@@ -30,21 +30,32 @@
       element.appendChild(valueNode);
       return element;
     }
+    function sectionNode(section) {
+      var element = documentRef.createElement('section');
+      var heading = documentRef.createElement('h3');
+      element.className = 'media-info-dialog-section';
+      heading.textContent = section.title;
+      element.appendChild(heading);
+      (section.rows || []).forEach(function (entry) { element.appendChild(row(entry.label, entry.value)); });
+      return element;
+    }
     function render(model) {
       var content = node('media-info-dialog-content');
       var title = node('media-info-dialog-title');
       var hint = node('media-info-dialog-hint');
+      var close = node('media-info-dialog-close');
+      var left = documentRef.createElement('div');
+      var right = documentRef.createElement('div');
+      left.className = 'media-info-dialog-column media-info-dialog-column-left';
+      right.className = 'media-info-dialog-column media-info-dialog-column-right';
       (model && model.sections || []).forEach(function (section) {
-        var sectionNode = documentRef.createElement('section');
-        var heading = documentRef.createElement('h3');
-        sectionNode.className = 'media-info-dialog-section';
-        heading.textContent = section.title;
-        sectionNode.appendChild(heading);
-        (section.rows || []).forEach(function (entry) { sectionNode.appendChild(row(entry.label, entry.value)); });
-        content.appendChild(sectionNode);
+        (section.column === 'right' ? right : left).appendChild(sectionNode(section));
       });
+      content.appendChild(left);
+      content.appendChild(right);
       if (title) { title.textContent = t('mediaDetails.title'); }
       if (hint) { hint.textContent = t('mediaDetails.closeHint'); }
+      if (close) { close.textContent = t('state.back'); }
     }
     function open(model, origin) {
       var dialog = node('media-info-dialog');

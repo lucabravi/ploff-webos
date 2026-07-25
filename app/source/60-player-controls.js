@@ -514,8 +514,12 @@
     return false;
   }
 
+  function playerSettingRows() {
+    return document.querySelectorAll('.setting-row, .playback-info');
+  }
+
   function movePlayerSetting(direction) {
-    var rows = document.querySelectorAll('.setting-row');
+    var rows = playerSettingRows();
     var next = settingIndex;
     do { next += direction; } while (next >= 0 && next < rows.length && rows[next].disabled);
     if (next >= 0 && next < rows.length) { settingIndex = next; }
@@ -523,7 +527,7 @@
   }
 
   function updateSettingsDisplay() {
-    var rows = document.querySelectorAll('.setting-row');
+    var rows = playerSettingRows();
     var advanced = subtitleEditorAvailability();
     var disabled;
     var next;
@@ -542,7 +546,7 @@
       settingKey = rows[index].getAttribute('data-setting');
       disabled = playerSettingDisabled(settingKey, advanced);
       rows[index].disabled = disabled;
-      rows[index].className = 'setting-row' +
+      rows[index].className = (settingKey === 'media-info' ? 'playback-info' : 'setting-row') +
         (!disabled && settingKey !== 'subtitle-advanced' && settingKey !== 'media-info' ? ' is-cycle' : '') +
         (disabled ? ' is-disabled' : '');
     }
@@ -632,7 +636,7 @@
   function cycleSetting(direction) {
     var sizes = [75, 100, 125, 150];
     var index;
-    var row = document.querySelectorAll('.setting-row')[settingIndex];
+    var row = playerSettingRows()[settingIndex];
     var key;
     if (!row || row.disabled) { return; }
     key = row.getAttribute('data-setting');
@@ -707,7 +711,7 @@
   }
 
   function openPlayerSettingChoice() {
-    var row = document.querySelectorAll('.setting-row')[settingIndex];
+    var row = playerSettingRows()[settingIndex];
     var key;
     var choices = [];
     var selected = '';

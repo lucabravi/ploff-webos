@@ -434,6 +434,7 @@
       event.preventDefault();
       if (mediaInfoView.snapshot().open) {
         if (event.keyCode === 27 || event.keyCode === 461) { closeAdvancedMediaInfo(); }
+        else if (event.keyCode === 13) { closeAdvancedMediaInfo(); }
         else if (direction === 'up') { mediaInfoView.scroll(-1); }
         else if (direction === 'down') { mediaInfoView.scroll(1); }
         return;
@@ -560,6 +561,7 @@
       if (mediaInfoView.snapshot().open) {
         event.preventDefault();
         if (event.keyCode === 27 || event.keyCode === 461) { closeAdvancedMediaInfo(); }
+        else if (event.keyCode === 13) { closeAdvancedMediaInfo(); }
         else if (direction === 'up') { mediaInfoView.scroll(-1); }
         else if (direction === 'down') { mediaInfoView.scroll(1); }
         return;
@@ -887,8 +889,8 @@
       playerZone = 'buttons'; updatePlayerButtonFocus();
     } else if (button.hasAttribute('data-choice-index') && choiceDialogView.snapshot().open) {
       choiceDialogView.focus(Number(button.getAttribute('data-choice-index')));
-    } else if (button.className.indexOf('setting-row') !== -1) {
-      var settingRows = document.querySelectorAll('.setting-row');
+    } else if (button.className.indexOf('setting-row') !== -1 || button.id === 'player-media-info') {
+      var settingRows = playerSettingRows();
       for (index = 0; index < settingRows.length; index += 1) {
         if (settingRows[index] === button) { settingIndex = index; break; }
       }
@@ -1206,7 +1208,7 @@
     } else if (button.hasAttribute('data-chapter-index') && chapterState.open) {
       chapterState.index = Number(button.getAttribute('data-chapter-index'));
       activateChapter();
-    } else if (button.className.indexOf('setting-row') !== -1 && settingsOpen) {
+    } else if ((button.className.indexOf('setting-row') !== -1 || button.id === 'player-media-info') && settingsOpen) {
       openPlayerSettingChoice();
     } else if (button.hasAttribute('data-subtitle-editor') && subtitleEditorOpen) {
       activateSubtitleEditorControl(button.getAttribute('data-subtitle-editor'));
@@ -1265,6 +1267,7 @@
   document.getElementById('player-next').onclick = function () { switchPlayerEpisode(1); };
   document.getElementById('player-settings-button').onclick = function () { setSettingsOpen(true); };
   document.getElementById('player-media-info').onclick = function () { openAdvancedMediaInfo('player'); };
+  document.getElementById('media-info-dialog-close').onclick = closeAdvancedMediaInfo;
   document.getElementById('player-error-retry').onclick = retryPlaybackFromError;
   document.getElementById('player-error-settings').onclick = function () { hidePlayerError(); setSettingsOpen(true); };
   document.getElementById('player-error-back').onclick = function () { hidePlayerError(); closePlayer(); };
