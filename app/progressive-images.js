@@ -39,6 +39,37 @@
     var activeFull = 0;
     var sequence = 0;
     var jobs = [];
+    var knownPreviewUrls = {};
+    var knownPreviewUrlOrder = [];
+    var knownFullUrls = {};
+    var knownFullUrlOrder = [];
+    var knownFullUrlLimit = Math.max(1, Number(settings.knownFullUrlLimit || 1000));
+
+    function rememberFullUrl(url) {
+      var index;
+      var expired;
+      if (knownFullUrls[url]) {
+        index = knownFullUrlOrder.indexOf(url);
+        if (index !== -1) { knownFullUrlOrder.splice(index, 1); }
+      }
+      knownFullUrls[url] = true;
+      knownFullUrlOrder.push(url);
+      while (knownFullUrlOrder.length > knownFullUrlLimit) {
+        expired = knownFullUrlOrder.shift();
+        delete knownFullUrls[expired];
+      }
+    }
+
+    function rememberPreviewUrl(url) {
+      var expired;
+      if (knownPreviewUrls[url]) { return; }
+      knownPreviewUrls[url] = true;
+      knownPreviewUrlOrder.push(url);
+      while (knownPreviewUrlOrder.length > knownFullUrlLimit) {
+        expired = knownPreviewUrlOrder.shift();
+        delete knownPreviewUrls[expired];
+      }
+    }
 
     function current(job) {
       return !!job && !job.cancelled && job.target.__plexProgressiveJob === job;
@@ -124,6 +155,7 @@
         activePreview = Math.max(0, activePreview - 1);
         if (current(job)) {
           if (success) {
+            rememberPreviewUrl(previewUrl(job));
             target.__plexProgressiveState = 'preview';
             addClass(target, 'is-loaded');
             addClass(target, 'is-preview');
@@ -171,6 +203,7 @@
         preload.onerror = null;
         activeFull = Math.max(0, activeFull - 1);
         if (success && current(job) && attached(job)) {
+          rememberFullUrl(url);
           job.target.src = url;
           job.target.__plexProgressiveFullUrl = url;
           job.target.__plexProgressiveState = 'full';
@@ -193,7 +226,9 @@
     }
 
     function cancelJob(job) {
+      var clearIncompleteTarget;
       if (!job || job.cancelled) { return; }
+      clearIncompleteTarget = job.phase === 'queued-preview' || job.phase === 'loading-preview';
       job.cancelled = true;
       if (job.finishPreview) { job.finishPreview(false); }
       else if (job.finishFull) {
@@ -206,6 +241,7 @@
         job.finishFull(false);
       }
       else { removeJob(job); }
+      if (clearIncompleteTarget && job.target.__plexProgressiveJob === job) { clearTarget(job.target); }
     }
 
     function load(target, specification) {
@@ -239,6 +275,21 @@
       if (target.__plexProgressiveSource !== source) {
         clearTarget(target);
       }
+      if (knownFullUrls[requestedFullUrl]) {
+        target.__plexProgressiveJob = null;
+        target.__plexProgressiveSource = source;
+        target.__plexProgressiveFullUrl = requestedFullUrl;
+        target.__plexProgressiveState = 'full';
+        target.src = requestedFullUrl;
+        addClass(target, 'is-loaded');
+        addClass(target, 'is-full');
+        removeClass(target, 'is-preview');
+        if (typeof spec.onPreview === 'function') {
+          try { spec.onPreview(target); }
+          catch (knownFullCallbackError) {}
+        }
+        return null;
+      }
       job = {
         target: target,
         source: source,
@@ -256,7 +307,18 @@
       target.__plexProgressiveJob = job;
       target.__plexProgressiveSource = source;
       jobs.push(job);
-      if (target.__plexProgressiveState === 'preview' || target.__plexProgressiveState === 'full') { queueFull(job); }
+      if (knownPreviewUrls[previewUrl(job)] && target.__plexProgressiveState !== 'full') {
+        target.src = previewUrl(job);
+        target.__plexProgressiveState = 'preview';
+        addClass(target, 'is-loaded');
+        addClass(target, 'is-preview');
+        removeClass(target, 'is-full');
+        if (job.onPreview) {
+          try { job.onPreview(target); }
+          catch (previewCallbackError) {}
+        }
+        queueFull(job);
+      } else if (target.__plexProgressiveState === 'preview' || target.__plexProgressiveState === 'full') { queueFull(job); }
       else { previewQueue.push(job); pump(); }
       return job;
     }

@@ -18,7 +18,9 @@ while ((match = expression.exec(html))) {
   if (!fs.existsSync(path.join(directory, parts[0]))) {
     throw new Error('Missing local shell asset: ' + parts[0]);
   }
-  if (/\.(?:css|js)$/i.test(parts[0]) && parts[1] !== expectedVersion) {
+  var isVersionedVendorAsset = /^vendor\//.test(parts[0]) &&
+    /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/.test(parts[1] || '');
+  if (/\.(?:css|js)$/i.test(parts[0]) && parts[1] !== expectedVersion && !isVersionedVendorAsset) {
     throw new Error('Inconsistent cache key for ' + parts[0] + ': expected ' + expectedVersion);
   }
   checked += 1;

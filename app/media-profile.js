@@ -91,9 +91,22 @@
     var subtitleTracks = [];
     var result;
     var summary = [];
+    var videoDetails = {};
     (streams || []).forEach(function (stream) {
       if (stream.streamType === '2') { audioTracks.push(track(stream)); }
       else if (stream.streamType === '3') { subtitleTracks.push(track(stream)); }
+      else if (stream.streamType === '1' && !videoDetails.codec) {
+        videoDetails = {
+          codec: String(stream.codec || media.videoCodec || '').toUpperCase(),
+          profile: String(stream.profile || stream.videoProfile || ''),
+          frameRate: String(stream.frameRate || media.videoFrameRate || ''),
+          bitDepth: String(stream.bitDepth || ''),
+          colorRange: String(stream.colorRange || ''),
+          chromaSubsampling: String(stream.chromaSubsampling || ''),
+          codedWidth: Number(stream.codedWidth || 0),
+          codedHeight: Number(stream.codedHeight || 0)
+        };
+      }
     });
     result = {
       ratingKey: video.ratingKey || '',
@@ -104,11 +117,16 @@
       height: Number(media.height || 0),
       size: Number(part.size || 0),
       formattedSize: formattedSize(part.size),
+      fileName: String(part.file || part.key || '').split(/[\\/]/).pop(),
+      duration: Number(part.duration || media.duration || video.duration || 0),
       bitrate: Number(media.bitrate || 0),
       videoCodec: String(media.videoCodec || '').toUpperCase(),
       videoDynamicRange: media.videoDynamicRange || media.dynamicRange || '',
       audioCodec: String(media.audioCodec || '').toUpperCase(),
       audioChannels: Number(media.audioChannels || 0),
+      videoProfile: String(media.videoProfile || videoDetails.profile || ''),
+      videoFrameRate: String(media.videoFrameRate || videoDetails.frameRate || ''),
+      videoDetails: videoDetails,
       audioTracks: audioTracks,
       subtitleTracks: subtitleTracks,
       summary: ''

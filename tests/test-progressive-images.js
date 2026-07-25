@@ -74,6 +74,24 @@ assert.strictEqual(poster.src, 'one@64x96', 'the visible preview must remain unt
 progressive.preloads[0].onload();
 assert.strictEqual(poster.src, 'one@154x224', 'completed full artwork must replace the preview');
 assert.ok(/is-full/.test(poster.className) && !/is-preview/.test(poster.className), 'the final image must leave preview state');
+var recreatedPoster = imageTarget('recreated-poster');
+load(progressive.loader, recreatedPoster, 'one', 1);
+assert.strictEqual(recreatedPoster.src, 'one@154x224', 'recreated cards must reuse a known full image URL without flashing a preview');
+assert.ok(/is-full/.test(recreatedPoster.className) && !/is-preview/.test(recreatedPoster.className), 'reused artwork must immediately enter full-image state');
+assert.strictEqual(progressive.preloads.length, 1, 'reusing known artwork must not create another preload job');
+var cachedBackdrop = imageTarget('cached-backdrop');
+var cachedBackdropActivated = 0;
+progressive.loader.load(cachedBackdrop, {
+  source: 'one', previewWidth: 64, previewHeight: 96, width: 154, height: 224, priority: 0, scope: 'backdrop',
+  onPreview: function (target) { cachedBackdropActivated += target === cachedBackdrop ? 1 : 0; }
+});
+assert.strictEqual(cachedBackdropActivated, 1, 'a cached full backdrop must still notify its consumer so the new layer can become active');
+var recreatedPreview = imageTarget('recreated-preview');
+progressive.loader.load(recreatedPreview, {
+  source: 'one', previewWidth: 64, previewHeight: 96, width: 220, height: 310, priority: 1, scope: 'library'
+});
+assert.strictEqual(recreatedPreview.src, 'one@64x96', 'a known SD preview must become available synchronously for a newly sized image');
+assert.ok(/is-preview/.test(recreatedPreview.className), 'synchronously reused SD artwork must enter preview state without a blank frame');
 
 var duplicate = harness();
 var duplicatePoster = imageTarget('duplicate');
@@ -158,6 +176,9 @@ stale.loader.cancelScope('search');
 oldLoad();
 assert.strictEqual(stale.preloads.length, 0, 'cancelled views must not start full artwork from stale preview callbacks');
 assert.ok(!/is-loaded/.test(stalePoster.className), 'cancelled previews must not update detached view state');
+assert.strictEqual(stalePoster.src, '', 'cancelling an incomplete preview must clear its source so the same URL can be retried');
+load(stale.loader, stalePoster, 'old', 0, 'search');
+assert.deepStrictEqual(stalePoster.starts, ['old@64x96', 'old@64x96'], 'an interrupted preview must restart the same URL instead of remaining stuck');
 
 var cancelledFull = harness({ previewConcurrency: 1, fullConcurrency: 1 });
 var cancelledFullPoster = imageTarget('cancelled-full');

@@ -18,7 +18,8 @@ var snapshot = Diagnostics.snapshot({
     ]
   },
   profile: { mode: 'plex', name: 'Example User', accountToken: 'must-not-leak' },
-  device: { modelName: 'LG OLED', webOSVersion: '3.9', viewport: '1920x1080', known: true, uhd: true, hdr10: true, userAgent: 'private' },
+  device: { modelName: 'LG OLED', webOSVersion: '3.9', viewport: '1920x1080', known: true, uhd: true, hdr10: true, dolbyVision: true, hdrKnown: true, userAgent: 'private' },
+  network: { status: 'local-only', lanAvailable: true, internetAvailable: false, connectionType: 'wired', localAddress: '192.168.50.20', rawResponse: 'must-not-leak' },
   playback: {
     fileName: 'Episode 03.mkv',
     fileSize: 1572864000,
@@ -47,7 +48,21 @@ assert.deepStrictEqual(snapshot.server, {
   ]
 }, 'server diagnostics must retain safe Plex origins without paths, credentials or tokens');
 assert.deepStrictEqual(snapshot.profile, { mode: 'plex', name: 'Example User' }, 'profile diagnostics must exclude account credentials');
-assert.deepStrictEqual(snapshot.device, { modelName: 'LG OLED', webOSVersion: '3.9', viewport: '1920x1080', known: true, uhd: true, hdr10: true }, 'device diagnostics must exclude the raw browser agent');
+assert.deepStrictEqual(snapshot.device, { modelName: 'LG OLED', webOSVersion: '3.9', viewport: '1920x1080', known: true, uhd: true, hdr10: true, dolbyVision: true, hdrKnown: true }, 'device diagnostics must exclude the raw browser agent');
+assert.deepStrictEqual(snapshot.network, {
+  status: 'local-only',
+  lanAvailable: true,
+  internetAvailable: false,
+  connectionType: 'wired',
+  localAddress: '192.168.50.20'
+}, 'network diagnostics must retain only normalized, non-sensitive fields');
+assert.deepStrictEqual(Diagnostics.snapshot({}).network, {
+  status: 'unknown',
+  lanAvailable: null,
+  internetAvailable: null,
+  connectionType: '',
+  localAddress: ''
+}, 'missing network diagnostics must remain unknown rather than offline');
 assert.strictEqual(snapshot.playback.sourceUrl, undefined, 'playback diagnostics must never retain authenticated URLs');
 assert.deepStrictEqual(snapshot.playback.attempts, ['direct-play', 'direct-stream'], 'bounded recovery attempts must remain visible');
 assert.strictEqual(snapshot.error, 'Plex request failed at [url]', 'diagnostic errors must be sanitized');

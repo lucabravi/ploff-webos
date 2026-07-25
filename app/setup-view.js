@@ -12,6 +12,9 @@
   function create(options) {
     var values = options || {};
     var documentRef = values.document;
+    var root = values.root || {};
+    var languageCycleTimer = null;
+    var languageCycleAnimation = null;
 
     function text(key) {
       return values.t ? values.t(key) : key;
@@ -31,9 +34,16 @@
     }
 
     function reset(step, title, message) {
+      if (languageCycleTimer && root.clearInterval) { root.clearInterval(languageCycleTimer); }
+      if (languageCycleAnimation && root.clearTimeout) { root.clearTimeout(languageCycleAnimation); }
+      languageCycleTimer = null;
+      languageCycleAnimation = null;
       setText('setup-step', step);
       setText('setup-title', title);
       setText('setup-message', message);
+      if (documentRef.getElementById('setup-title-spinner')) {
+        documentRef.getElementById('setup-title-spinner').className = 'setup-title-spinner is-hidden';
+      }
       documentRef.getElementById('setup-server-list').className = 'setup-list is-hidden';
       documentRef.getElementById('setup-server-list').innerHTML = '';
       documentRef.getElementById('setup-profile-list').className = 'setup-list is-hidden';
@@ -61,6 +71,31 @@
 
     function appendAction(actionList, labelKey, actionName, primary) {
       actionList.appendChild(button(text(labelKey), actionName, primary));
+    }
+
+    function appendLanguageAction(actionList) {
+      var source = array(values.languages);
+      var labels = [];
+      var index = 0;
+      var action;
+      source.forEach(function (language) {
+        labels.push(String(language.changeLabel || language.label || ''));
+      });
+      if (!labels.length) { return; }
+      action = button(labels[0], 'change-language', false);
+      action.className += ' setup-change-language';
+      actionList.appendChild(action);
+      if (!root.setInterval) { return; }
+      languageCycleTimer = root.setInterval(function () {
+        index = (index + 1) % labels.length;
+        action.className = action.className.replace(' is-cycling', '');
+        action.textContent = labels[index];
+        if (root.setTimeout) {
+          languageCycleAnimation = root.setTimeout(function () {
+            action.className += ' is-cycling';
+          }, 0);
+        }
+      }, 2000);
     }
 
     function uriLabel(uri) {
@@ -135,6 +170,7 @@
       }
       appendAction(actions, 'setup.scanAgain', 'scan', true);
       appendAction(actions, 'setup.manualAddress', 'manual', false);
+      if (snapshot.canChangeLanguage) { appendLanguageAction(actions); }
       if (!servers.length) {
         appendAction(actions, 'setup.findAccountServers', state.ownerToken ? 'account-servers' : 'login-servers', false);
       }
@@ -199,7 +235,16 @@
       var identity;
       var avatar;
       var marker;
-      reset(text('setup.stepProfile'), text('setup.chooseProfileTitle'), statusKey(snapshot, state) ? text(statusKey(snapshot, state)) : text('setup.chooseProfileMessage'));
+      reset(
+        text('setup.stepProfile'),
+        text('setup.chooseProfileTitle'),
+        snapshot.profileLoading ? text('setup.chooseProfileMessage') :
+          (statusKey(snapshot, state) ? text(statusKey(snapshot, state)) : text('setup.chooseProfileMessage'))
+      );
+      if (documentRef.getElementById('setup-title-spinner')) {
+        documentRef.getElementById('setup-title-spinner').className =
+          'setup-title-spinner' + (snapshot.profileLoading ? '' : ' is-hidden');
+      }
       list.className = 'setup-list';
       list.innerHTML = '';
       for (index = 0; index < profiles.length; index += 1) {

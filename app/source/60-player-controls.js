@@ -17,10 +17,10 @@
       suppressed: playerTimelineSuppressed,
       position: absoluteTime
     })) {
-      callback();
+      callback(absoluteTime, false);
       return;
     }
-    PlexClient.sendTimeline(config, playback, 'stopped', absoluteTime * 1000, function () { callback(); });
+    PlexClient.sendTimeline(config, playback, 'stopped', absoluteTime * 1000, function () { callback(absoluteTime, true); });
   }
 
   function stopTranscodeKeepalive() {
@@ -299,7 +299,7 @@
     root.clearTimeout(playerControlsTimer);
     if (!delay) { return; }
     playerControlsTimer = root.setTimeout(function () {
-      if (appView === 'player' && !settingsOpen) { hidePlayerControls(false); }
+      if (appView === 'player' && !settingsOpen && !playlistQueueDrawerOpen) { hidePlayerControls(false); }
     }, delay);
   }
 
@@ -404,6 +404,7 @@
     controlsHiddenAt = 0;
     ensurePlayerControlsView().renderMode('hidden');
     resetChapterDrawer();
+    closePlaylistQueueDrawer(false);
   }
 
   function hidePlayerControls(manual) {
@@ -467,9 +468,10 @@
   }
 
   function movePlayerButton(direction) {
+    var buttons = document.querySelectorAll('.player-button');
     var next = playerButtonIndex;
-    do { next += direction; } while (next >= 0 && next < 4 && !playerButtonAvailable(next));
-    if (next >= 0 && next < 4) { playerButtonIndex = next; }
+    do { next += direction; } while (next >= 0 && next < buttons.length && !playerButtonAvailable(next));
+    if (next >= 0 && next < buttons.length) { playerButtonIndex = next; }
     updatePlayerButtonFocus();
   }
 
@@ -486,6 +488,18 @@
       if (tracks[index].id === id) { return MediaProfile.trackDisplayLabel(tracks[index], t('detail.external')); }
     }
     return offLabel;
+  }
+
+  function formatSignedSubtitleOffset(offsetMs) {
+    var offset = Math.round(Number(offsetMs || 0));
+    return (offset > 0 ? '+' : '') + offset + ' ms';
+  }
+
+  function subtitleTrackLabelWithOffset() {
+    var track = trackForId(currentPlayback.subtitleTracks, currentPlayback.options.subtitleStreamID);
+    var label = trackLabel(currentPlayback.subtitleTracks, currentPlayback.options.subtitleStreamID, t('subtitle.off'));
+    var offset = subtitleOffsetFor(track);
+    return offset ? label + ' \u00b7 ' + formatSignedSubtitleOffset(offset) : label;
   }
 
   function playerSettingDisabled(settingKey, advanced) {
@@ -516,7 +530,7 @@
     var settingKey;
     var index;
     setText('setting-audio', trackLabel(currentPlayback.audioTracks, currentPlayback.options.audioStreamID, t('player.automatic')));
-    setText('setting-subtitles', trackLabel(currentPlayback.subtitleTracks, currentPlayback.options.subtitleStreamID, t('subtitle.off')));
+    setText('setting-subtitles', subtitleTrackLabelWithOffset());
     setText('setting-size', currentPlayback.options.subtitleSize + '%');
     setText('setting-subtitle-advanced', t(advanced.enabled ? 'player.subtitleAvailable' : 'player.subtitleUnsupported'));
     setText('setting-version', mediaVersionLabelForPlayback());
@@ -529,7 +543,7 @@
       disabled = playerSettingDisabled(settingKey, advanced);
       rows[index].disabled = disabled;
       rows[index].className = 'setting-row' +
-        (!disabled && settingKey !== 'subtitle-advanced' ? ' is-cycle' : '') +
+        (!disabled && settingKey !== 'subtitle-advanced' && settingKey !== 'media-info' ? ' is-cycle' : '') +
         (disabled ? ' is-disabled' : '');
     }
     if (!rows[settingIndex] || rows[settingIndex].disabled) {
@@ -578,7 +592,7 @@
       return;
     }
     setText('player-track-audio', trackLabel(currentPlayback.audioTracks, currentPlayback.options.audioStreamID, t('player.automatic')));
-    setText('player-track-subtitles', trackLabel(currentPlayback.subtitleTracks, currentPlayback.options.subtitleStreamID, t('subtitle.off')));
+    setText('player-track-subtitles', subtitleTrackLabelWithOffset());
     setText('player-quality', t('player.quality') + ': ' + videoQualityLabel(currentPlayback.options.videoQuality));
     setText('player-connection-route', connectionRouteLabel());
     setText('player-delivery-mode', compactPlaybackModeLabel(currentPlayback.playbackMode));
@@ -619,24 +633,28 @@
     var sizes = [75, 100, 125, 150];
     var index;
     var row = document.querySelectorAll('.setting-row')[settingIndex];
+    var key;
     if (!row || row.disabled) { return; }
-    if (settingIndex === 0) {
+    key = row.getAttribute('data-setting');
+    if (key === 'audio') {
       currentPlayback.options.audioStreamID = cycleTrack(currentPlayback.audioTracks, currentPlayback.options.audioStreamID, direction, false);
       detailPreferenceState.setTrack('audio', trackForId(currentPlayback.audioTracks, currentPlayback.options.audioStreamID), false);
-    } else if (settingIndex === 1) {
+    } else if (key === 'subtitles') {
       currentPlayback.options.subtitleStreamID = cycleTrack(currentPlayback.subtitleTracks, currentPlayback.options.subtitleStreamID, direction, true);
       detailPreferenceState.setTrack('subtitles', trackForId(currentPlayback.subtitleTracks, currentPlayback.options.subtitleStreamID), !currentPlayback.options.subtitleStreamID);
-    } else if (settingIndex === 2) {
+    } else if (key === 'size') {
       index = sizes.indexOf(currentPlayback.options.subtitleSize);
       currentPlayback.options.subtitleSize = sizes[Math.max(0, Math.min(sizes.length - 1, index + direction))];
-    } else if (settingIndex === 3) {
+    } else if (key === 'subtitle-advanced' || key === 'media-info') {
       return;
-    } else if (settingIndex === 4) {
+    } else if (key === 'version') {
       cyclePlaybackVersion(direction);
-    } else if (settingIndex === 5) {
+    } else if (key === 'quality') {
       currentPlayback.requestedVideoQuality = cycleValue(['original', '12000', '8000', '4000'], currentPlayback.requestedVideoQuality || currentPlayback.options.videoQuality, direction);
-    } else {
+    } else if (key === 'playback-mode') {
       currentPlayback.requestedPlaybackMode = cycleValue(['auto', 'direct', 'transcode'], currentPlayback.requestedPlaybackMode || currentPlayback.options.playbackMode, direction);
+    } else {
+      return;
     }
     updateSettingsDisplay();
   }
@@ -697,6 +715,7 @@
     if (!row || row.disabled) { return; }
     key = row.getAttribute('data-setting');
     if (key === 'subtitle-advanced') { openSubtitleEditor(); return; }
+    if (key === 'media-info') { openAdvancedMediaInfo('player'); return; }
     if (key === 'audio') {
       choices = playerTrackChoices(currentPlayback.audioTracks, false); selected = currentPlayback.options.audioStreamID;
     } else if (key === 'subtitles') {

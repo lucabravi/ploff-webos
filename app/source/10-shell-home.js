@@ -56,8 +56,8 @@
     style.setProperty('--wide-card-width', wide.width + 'px');
     style.setProperty('--wide-image-height', wide.imageHeight + 'px');
     style.setProperty('--wide-card-height', wide.height + 'px');
-    style.setProperty('--poster-title-font', Math.max(16, Math.round(23 * appSettings.cardScale / 100)) + 'px');
-    style.setProperty('--poster-meta-font', Math.max(13, Math.round(18 * appSettings.cardScale / 100)) + 'px');
+    style.setProperty('--poster-title-font', Math.max(20, Math.round(23 * appSettings.cardScale / 100)) + 'px');
+    style.setProperty('--poster-meta-font', Math.max(20, Math.round(20 * appSettings.cardScale / 100)) + 'px');
   }
 
   function navigationTitle(item) {
@@ -77,7 +77,14 @@
   }
 
   function watchlistAvailable() {
-    return !!(WatchlistState && WatchlistClient && WatchlistState.available(authState.mode, watchlistAccountToken()));
+    return !!(networkState.allowsCloud() && WatchlistState && WatchlistClient && WatchlistState.available(authState.mode, watchlistAccountToken()));
+  }
+
+  function renderNetworkPresentation() {
+    renderNavigation();
+    renderServerActivities();
+    if (appView === 'settings') { renderAppSettings(); }
+    if (typeof diagnosticsView !== 'undefined' && diagnosticsView && diagnosticsView.isOpen()) { diagnosticsView.render(); }
   }
 
   function watchlistIdentity() {
@@ -90,6 +97,7 @@
     document.getElementById('navigation').setAttribute('aria-label', t('nav.main'));
     setText('detail-play', t('detail.play'));
     setText('detail-refresh-metadata', t('detail.refreshMetadata'));
+    document.getElementById('detail-file-info').setAttribute('aria-label', t('detail.mediaDetails'));
     setText('detail-version-label', t('detail.version'));
     setText('detail-media-info-subtitle-languages-label', t('detail.subtitleLanguages'));
     setText('detail-media-info-video-label', t('detail.video'));
@@ -245,6 +253,7 @@
     }
     if (entry.index === state.navIndex) {
       item.className += ' is-selected';
+      if (navigationHasFocus()) { item.className += ' is-focused'; }
       if (navReorderMode) { item.className += ' is-reordering'; }
     }
     return item;

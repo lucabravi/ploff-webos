@@ -1,0 +1,51 @@
+'use strict';
+
+var assert = require('assert');
+var fs = require('fs');
+var path = require('path');
+
+var root = path.join(__dirname, '..');
+var index = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
+var styles = fs.readFileSync(path.join(root, 'app/styles.css'), 'utf8');
+var server = fs.readFileSync(path.join(root, 'app/source/42-server.js'), 'utf8');
+
+assert.ok(index.indexOf('server-activity-spinner processing-orb') !== -1, 'the Plex activity control must render the processing orb');
+assert.ok(index.indexOf('server-activity-fluid-filter') !== -1, 'the fluid SVG filter must be present');
+assert.ok(index.indexOf('energy-pulse p2') !== -1, 'the orb must include staggered energy pulses');
+assert.ok(styles.indexOf('.server-activity.is-network-online { color:#48c774; }') !== -1, 'online activities must remain green');
+assert.ok(styles.indexOf('.server-activity.is-network-local-only { color:#e5a00d; }') !== -1, 'local-only activities must remain amber');
+assert.ok(styles.indexOf('.server-activity.is-network-offline { color:#f05d5e; }') !== -1, 'offline activities must remain red');
+assert.ok(styles.indexOf('.server-activity.is-network-unknown { color:#737a84; }') !== -1, 'unknown activities must remain grey');
+assert.ok(index.indexOf('server-activity-status-gradient-online') !== -1, 'the Chrome 53 orb must use explicit per-state gradients');
+assert.strictEqual(index.indexOf('<animate'), -1, 'the Chrome 53 orb must not depend on SVG SMIL animations');
+assert.strictEqual(styles.indexOf('--activity-orb-size'), -1, 'the Chrome 53 orb must not depend on a CSS size variable');
+assert.strictEqual(styles.indexOf('--network-status-rgb'), -1, 'the Chrome 53 orb must not interpolate CSS variables inside filters');
+assert.strictEqual(styles.indexOf('calc(var(--activity-orb-size)'), -1, 'the Chrome 53 orb must use fixed filter radii');
+assert.ok(styles.indexOf('@-webkit-keyframes server-activity-orb-start') !== -1, 'the orb must include prefixed Chrome 53 keyframes');
+assert.ok(styles.indexOf('@keyframes server-activity-orb-start') !== -1, 'the orb must have an ignition transition');
+assert.ok(styles.indexOf('@keyframes server-activity-orb-stop') !== -1, 'the orb must have a shutdown transition');
+assert.ok(styles.indexOf('.server-activity.is-idle .processing-orb-active') !== -1, 'idle mode must disable the expensive active layer');
+assert.ok(styles.indexOf('.server-activity-spinner:before') !== -1, 'idle mode must render a webOS-safe CSS ring');
+assert.ok(styles.indexOf('.server-activity.is-idle .server-activity-spinner:before { opacity:1; }') !== -1, 'the network ring must remain visible while idle');
+assert.ok(styles.indexOf('.server-activity.is-idle.is-network-online .server-activity-spinner:before { border-color:#48c774;') !== -1, 'the idle fallback ring must preserve the online color');
+assert.ok(styles.indexOf('.server-activity.is-idle.is-network-local-only .server-activity-spinner:before { border-color:#e5a00d;') !== -1, 'the idle fallback ring must preserve the local-only color');
+assert.ok(styles.indexOf('.server-activity.is-idle.is-network-offline .server-activity-spinner:before { border-color:#f05d5e;') !== -1, 'the idle fallback ring must preserve the offline color');
+assert.ok(styles.indexOf('.server-activity.is-idle.is-network-unknown .server-activity-spinner:before { border-color:#737a84;') !== -1, 'the idle fallback ring must preserve the unknown color');
+assert.ok(styles.indexOf('.server-activity.is-idle .processing-orb-ring { display:none !important; }') !== -1, 'idle mode must avoid stacking the SVG ring over the CSS fallback');
+assert.ok(server.indexOf("var serverActivityVisualState = 'idle'") !== -1, 'activity rendering must track the visual state');
+assert.ok(server.indexOf('interfaceAnimationDuration(520)') !== -1, 'the refactored start transition must respect interface animation settings');
+assert.ok(styles.indexOf('server-activity-orb-start .52s cubic-bezier(.16,.78,.18,1)') !== -1, 'the shell must use the selected 520ms three-act startup');
+assert.ok(styles.indexOf('server-activity-visual-start .4s cubic-bezier(.18,.75,.18,1) .09s') !== -1, 'the fluid field must enter after the ring');
+assert.ok(styles.indexOf('server-activity-aura-start .34s cubic-bezier(.16,.78,.18,1) .06s') !== -1, 'the aura must ignite between the ring and the fluid field');
+assert.ok(styles.indexOf('opacity .28s ease .08s') !== -1, 'the activity title must follow the refactored staggered entrance');
+assert.ok(styles.indexOf('32% { transform:scale(.88)') !== -1 && styles.indexOf('74% { transform:scale(1.045)') !== -1, 'the startup shell must use the refactored restrained overshoot');
+assert.ok(server.indexOf('interfaceAnimationDuration(900)') !== -1, 'the stop transition must respect interface animation settings');
+assert.ok(server.indexOf("button.setAttribute('aria-busy'") !== -1, 'activity state must remain accessible');
+assert.ok(index.indexOf('processing-orb-legacy') !== -1, 'legacy Chromium must receive a CSS-only activity visual');
+assert.ok(index.indexOf('legacy-orbit legacy-orbit-a') !== -1 && index.indexOf('legacy-orbit legacy-orbit-b') !== -1 && index.indexOf('legacy-orb-core') !== -1, 'the legacy activity visual must retain a core and two orbiting energy layers');
+assert.ok(styles.indexOf('.server-activity.is-active .processing-orb-legacy') !== -1, 'active activity state must enable the CSS orb');
+assert.ok(styles.indexOf('.processing-orb-active { display:none !important; }') !== -1, 'the unsupported SVG active layer must be disabled everywhere');
+assert.ok(styles.indexOf('@-webkit-keyframes ploff-legacy-orbit-a') !== -1, 'legacy activity orbit must use prefixed Chrome 53 keyframes');
+assert.ok(styles.indexOf('@keyframes ploff-legacy-orbit-b') !== -1, 'legacy activity orbit must expose standard keyframes too');
+
+console.log('Plex activity orb checks passed');

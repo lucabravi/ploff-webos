@@ -69,7 +69,25 @@
       viewport: sanitizeText(source.viewport),
       known: source.known === true,
       uhd: source.uhd === true,
-      hdr10: source.hdr10 === true
+      hdr10: source.hdr10 === true,
+      dolbyVision: source.dolbyVision === true,
+      hdrKnown: source.hdrKnown === true
+    };
+  }
+
+  function nullableBoolean(value) {
+    return typeof value === 'boolean' ? value : null;
+  }
+
+  function network(value) {
+    var source = value || {};
+    var status = String(source.status || 'unknown');
+    return {
+      status: /^(online|local-only|offline|unknown)$/.test(status) ? status : 'unknown',
+      lanAvailable: nullableBoolean(source.lanAvailable),
+      internetAvailable: nullableBoolean(source.internetAvailable),
+      connectionType: sanitizeText(source.connectionType),
+      localAddress: sanitizeText(source.localAddress)
     };
   }
 
@@ -98,6 +116,7 @@
       server: server(source.server),
       profile: profile(source.profile),
       device: device(source.device),
+      network: network(source.network),
       playback: playback(source.playback),
       error: sanitizeText(source.error)
     };
@@ -106,6 +125,7 @@
   return {
     abbreviateIdentifier: abbreviateIdentifier,
     device: device,
+    network: network,
     playback: playback,
     profile: profile,
     sanitizeText: sanitizeText,

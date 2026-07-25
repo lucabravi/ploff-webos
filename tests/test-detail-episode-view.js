@@ -8,7 +8,11 @@ function node(tagName, className, text) {
   var value = {
     tagName: String(tagName || '').toUpperCase(), className: className || '', textContent: text || '', children: [],
     attributes: {}, style: {}, parentNode: null, clientWidth: 310, clientHeight: 124,
-    appendChild: function (child) { child.parentNode = this; this.children.push(child); return child; },
+    appendChild: function (child) {
+      var existingIndex = this.children.indexOf(child);
+      if (existingIndex >= 0) { this.children.splice(existingIndex, 1); }
+      child.parentNode = this; this.children.push(child); return child;
+    },
     removeChild: function (child) { var index = this.children.indexOf(child); if (index >= 0) { this.children.splice(index, 1); } },
     setAttribute: function (key, value) { this.attributes[key] = String(value); },
     getAttribute: function (key) { return this.attributes[key]; },
@@ -61,15 +65,24 @@ var context = {
 view.setContext(context);
 assert.deepStrictEqual(view.snapshot().window, { start: 1, end: 6 }, 'episode strip must center a five-card window around the selected episode');
 assert.strictEqual(roots['season-tabs'].children.length, 2, 'all season tabs must be rendered');
-assert.strictEqual(roots['episode-strip'].children.length, 5, 'only the five-card episode window must be rendered');
-assert.strictEqual(batches[batches.length - 1].length, 5, 'episode previews must be loaded as one prioritized batch');
-assert.strictEqual(batches[batches.length - 1][2].specification.width, 310, 'final episode preview must match the rendered card width');
-assert.strictEqual(batches[batches.length - 1][2].specification.height, 124, 'final episode preview must match the rendered card height');
+assert.strictEqual(roots['episode-strip'].children.length, 7, 'the five-card episode window must retain a two-card artwork buffer');
+assert.strictEqual(batches[batches.length - 1].length, 7, 'visible and buffered episode previews must be loaded as one prioritized batch');
+assert.strictEqual(batches[batches.length - 1][3].specification.width, 310, 'final episode preview must match the rendered card width');
+assert.strictEqual(batches[batches.length - 1][3].specification.height, 124, 'final episode preview must match the rendered card height');
+assert.strictEqual(find(roots['episode-strip'], '.is-buffered').length, 2, 'only the five visible episode cards may participate in layout');
+
+var preservedCard = roots['episode-strip'].children[0];
+var batchCount = batches.length;
+view.setEpisodeIndex(4, false);
+view.refreshSelection();
+assert.strictEqual(roots['episode-strip'].children[0], preservedCard, 'moving the episode window must preserve overlapping card nodes');
+assert.strictEqual(batches.length, batchCount, 'moving inside the artwork buffer must not request another preview');
+assert.ok(roots['episode-strip'].children[4].className.indexOf('is-current') !== -1, 'the current episode marker must move without rebuilding shared cards');
 
 roots['season-tabs'].children[0].onclick.call(roots['season-tabs'].children[0]);
 roots['episode-strip'].children[1].onclick.call(roots['episode-strip'].children[1]);
 assert.strictEqual(seasonActivation, 0, 'season pointer activation must delegate its stable index');
-assert.strictEqual(episodeActivation, 2, 'episode pointer activation must delegate its absolute index');
+assert.strictEqual(episodeActivation, Number(roots['episode-strip'].children[1].getAttribute('data-episode-position')), 'episode pointer activation must delegate its absolute index');
 
 view.reconcilePlayback([{ ratingKey: 'episode-3', viewed: true, progress: 100, duration: 10, viewOffset: 10 }]);
 assert.strictEqual(context.episodes[2].viewed, true, 'fresh Plex playback state must update the matching episode identity');

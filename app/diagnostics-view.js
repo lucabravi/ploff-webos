@@ -42,6 +42,14 @@
       container.appendChild(section);
     }
 
+    function appendColumns(container) {
+      var left = values.element('div', 'diagnostics-column');
+      var right = values.element('div', 'diagnostics-column');
+      container.appendChild(left);
+      container.appendChild(right);
+      return [left, right];
+    }
+
     function appendServerAddresses(rows, addresses) {
       var source = addresses || [];
       var index;
@@ -54,7 +62,16 @@
     }
 
     function booleanLabel(value) {
+      if (value !== true && value !== false) { return text('diagnostics.unknown'); }
       return text(value ? 'diagnostics.yes' : 'diagnostics.no');
+    }
+
+    function hdrLabel(device) {
+      var formats = [];
+      if (!device.hdrKnown) { return text('diagnostics.unknown'); }
+      if (device.hdr10) { formats.push('HDR10'); }
+      if (device.dolbyVision) { formats.push('Dolby Vision'); }
+      return formats.length ? formats.join(' / ') : text('diagnostics.no');
     }
 
     function renderFocus() {
@@ -71,13 +88,16 @@
       var content = documentRef.getElementById('diagnostics-content');
       var scrollTop = content.scrollTop;
       var playback = snapshot.playback;
+      var network = snapshot.network || { status: 'unknown', lanAvailable: null, internetAvailable: null, connectionType: '', localAddress: '' };
       var serverRows;
+      var columns;
       values.setText('diagnostics-title', text('diagnostics.title'));
       values.setText('diagnostics-notice', text('diagnostics.notice'));
       values.setText('diagnostics-refresh', text('diagnostics.refresh'));
       values.setText('diagnostics-back', text('diagnostics.back'));
       content.innerHTML = '';
-      appendSection(content, 'diagnostics.app', [['diagnostics.appVersion', snapshot.appVersion]]);
+      columns = appendColumns(content);
+      appendSection(columns[0], 'diagnostics.app', [['diagnostics.appVersion', snapshot.appVersion]]);
       serverRows = [
         ['diagnostics.serverName', snapshot.server.name],
         ['diagnostics.serverVersion', snapshot.server.version],
@@ -85,23 +105,31 @@
         ['diagnostics.reachable', booleanLabel(snapshot.server.reachable)]
       ];
       appendServerAddresses(serverRows, snapshot.server.addresses);
-      appendSection(content, 'diagnostics.server', serverRows);
-      appendSection(content, 'diagnostics.profile', [
+      appendSection(columns[1], 'diagnostics.server', serverRows);
+      appendSection(columns[0], 'diagnostics.profile', [
         ['diagnostics.profileMode', snapshot.profile.mode],
         ['diagnostics.profileName', snapshot.profile.name]
       ]);
-      appendSection(content, 'diagnostics.device', [
+      appendSection(columns[1], 'diagnostics.device', [
         ['diagnostics.model', snapshot.device.modelName],
         ['diagnostics.webos', snapshot.device.webOSVersion],
         ['diagnostics.viewport', snapshot.device.viewport],
         ['diagnostics.capabilities', snapshot.device.known
-          ? (snapshot.device.uhd ? '4K' : 'HD') + (snapshot.device.hdr10 ? ' / HDR10' : '')
-          : text('diagnostics.unknownCapabilities')]
+          ? (snapshot.device.uhd ? '4K' : 'HD')
+          : text('diagnostics.unknownCapabilities')],
+        ['diagnostics.hdrSupport', hdrLabel(snapshot.device)]
+      ]);
+      appendSection(columns[0], 'diagnostics.network', [
+        ['diagnostics.networkStatus', text('network.' + network.status)],
+        ['diagnostics.lanAvailable', booleanLabel(network.lanAvailable)],
+        ['diagnostics.internetAvailable', booleanLabel(network.internetAvailable)],
+        ['diagnostics.connectionType', network.connectionType],
+        ['diagnostics.networkAddress', network.localAddress]
       ]);
       if (!playback) {
-        appendSection(content, 'diagnostics.playback', [['diagnostics.state', text('diagnostics.noPlayback')]]);
+        appendSection(columns[1], 'diagnostics.playback', [['diagnostics.state', text('diagnostics.noPlayback')]]);
       } else {
-        appendSection(content, 'diagnostics.playback', [
+        appendSection(columns[1], 'diagnostics.playback', [
           ['diagnostics.file', playback.fileName],
           ['diagnostics.size', values.formatFileSize(playback.fileSize)],
           ['diagnostics.source', playback.source],
@@ -114,7 +142,7 @@
           ['diagnostics.state', playback.state]
         ]);
       }
-      appendSection(content, 'diagnostics.lastError', [
+      appendSection(columns[0], 'diagnostics.lastError', [
         ['diagnostics.lastError', snapshot.error || text('diagnostics.none')]
       ]);
       content.scrollTop = scrollTop;

@@ -6,14 +6,18 @@ var MediaProfile = require('../app/media-profile');
 var fullHd = MediaProfile.fromNodes(
   { ratingKey: '42' },
   { id: '7', container: 'mkv', videoResolution: '1080', width: '1920', height: '1080', bitrate: '12000', videoCodec: 'h264', audioCodec: 'aac', audioChannels: '2' },
-  { id: '99', size: String(2576980377), container: 'mkv' },
+  { id: '99', size: String(2576980377), container: 'mkv', file: '/private/media/Example.Movie.mkv', duration: '1439000' },
   [
+    { streamType: '1', codec: 'hevc', profile: 'main 10', frameRate: '23.976', bitDepth: '10', colorRange: 'tv' },
     { id: '10', streamType: '2', language: 'Japanese', languageTag: 'ja', codec: 'aac', channels: '2', selected: '1', displayTitle: 'Japanese (AAC Stereo)' },
     { id: '20', streamType: '3', index: '4', language: 'Italiano', languageTag: 'it', codec: 'srt', key: '/library/streams/20', offset: '-250', displayTitle: 'Italiano (SRT External)' }
   ]
 );
 assert.strictEqual(fullHd.summary, '1080p · MKV · 2.4 GB', '1080p files must expose a compact summary');
 assert.strictEqual(fullHd.partId, '99', 'the playable part identifier must be retained');
+assert.strictEqual(fullHd.fileName, 'Example.Movie.mkv', 'the media profile must retain only a safe file basename');
+assert.strictEqual(fullHd.duration, 1439000, 'the media profile must retain the playable duration');
+assert.strictEqual(fullHd.videoDetails.profile, 'main 10', 'the media profile must retain safe video stream details');
 assert.strictEqual(fullHd.audioTracks.length, 1, 'audio tracks must be parsed');
 assert.strictEqual(fullHd.subtitleTracks.length, 1, 'subtitle tracks must be parsed');
 assert.deepStrictEqual(MediaProfile.subtitleLanguages(fullHd), ['Italiano'], 'media information must expose the available subtitle languages');

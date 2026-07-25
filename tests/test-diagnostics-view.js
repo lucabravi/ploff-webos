@@ -60,6 +60,7 @@ var view = DiagnosticsView.create({
       server: { name: identityState.identity && identityState.identity.name || 'Server', version: '', machineIdentifier: '', reachable: identityState.reachable, addresses: [] },
       profile: { mode: 'Offline', name: 'Offline profile' },
       device: { modelName: 'TV', webOSVersion: '1', viewport: '1920x1080', known: true, uhd: false, hdr10: false },
+      network: { status: 'local-only', lanAvailable: true, internetAvailable: false, connectionType: 'wired', localAddress: '192.168.1.20' },
       playback: null,
       error: identityState.error
     };
@@ -81,6 +82,15 @@ assert.strictEqual(nodes['diagnostics-view'].className, 'diagnostics-view', 'ope
 assert.strictEqual(interval.delay, 2000, 'opening must poll local playback data every two seconds');
 assert.strictEqual(requests.length, 1, 'opening must request the local PMS identity once');
 assert.strictEqual(actions[0].className, 'is-focused', 'opening must focus Refresh first');
+assert.ok(
+  nodes['diagnostics-content'].children.some(function (column) {
+    return /diagnostics-column/.test(column.className) && column.children.some(function (section) {
+      return section.children.some(function (child) { return child.textContent === 'diagnostics.network'; });
+    });
+  }),
+  'diagnostics must render a dedicated network section'
+);
+assert.strictEqual(nodes['diagnostics-content'].children.length, 2, 'diagnostics sections must render in two independent columns');
 
 nodes['diagnostics-content'].scrollTop = 90;
 view.handleKey({ keyCode: 40, preventDefault: function () {} }, 'down');

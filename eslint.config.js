@@ -62,14 +62,14 @@ var correctnessRules = {
 
 module.exports = [
   {
-    ignores: ['app/source/**', 'dist/**', 'node_modules/**']
+    ignores: ['app/source/**', 'app/vendor/**', 'dist/**', 'node_modules/**']
   },
   {
     files: ['app/**/*.js'],
     languageOptions: {
       ecmaVersion: 2017,
       sourceType: 'script',
-      globals: Object.assign({}, globals.browser, globals.commonjs)
+      globals: Object.assign({}, globals.browser, globals.commonjs, { MediaInfo: 'readonly', MediaInfoView: 'readonly' })
     },
     rules: correctnessRules
   },

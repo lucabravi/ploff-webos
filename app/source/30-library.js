@@ -3,6 +3,228 @@
     return activeLibrary && activeLibrary.globalPlaylists ? 'playlists' : LibraryContainers.views()[libraryTabIndex];
   }
 
+  function libraryCacheKey(library) {
+    return String(library && (library.key || library.title) || '');
+  }
+
+  function touchLibraryDomCache(key) {
+    var index = libraryDomCacheOrder.indexOf(key);
+    var evicted;
+    if (index !== -1) { libraryDomCacheOrder.splice(index, 1); }
+    libraryDomCacheOrder.push(key);
+    while (libraryDomCacheOrder.length > 5) {
+      evicted = libraryDomCacheOrder.shift();
+      if (libraryViewCache[evicted]) { libraryViewCache[evicted].dom = null; }
+    }
+  }
+
+  function prefetchedLibraryState(library, rows) {
+    return {
+      tabIndex: 0,
+      zone: 'tabs',
+      controlIndex: 0,
+      actionIndex: 0,
+      sort: 'titleSort',
+      sortDirection: 'asc',
+      watchedFilter: 'all',
+      filters: {},
+      continueAvailable: null,
+      scrollTop: 0,
+      grid: {
+        mode: 'recommended',
+        usesGridScroll: false,
+        items: [],
+        recommendations: rows || [],
+        totalSize: 0,
+        focus: { zone: 'grid', index: 0, recommendationRow: 0 }
+      },
+      usesGridScroll: false,
+      dom: null
+    };
+  }
+
+  function prefetchLibraryPosterPreviews(rows) {
+    var metrics = cardMetrics();
+    var preview = ProgressiveImages.previewSize(metrics.width, metrics.imageHeight, 96);
+    var sources = [];
+    (rows || []).forEach(function (row) {
+      (row && row.items || []).forEach(function (item) {
+        if (item && item.image && sources.indexOf(item.image) === -1 && sources.length < 30) {
+          sources.push(item.image);
+        }
+      });
+    });
+    sources.forEach(function (source) {
+      posterLoader.load(new root.Image(), {
+        source: source,
+        previewWidth: preview.width,
+        previewHeight: preview.height,
+        width: preview.width,
+        height: preview.height,
+        priority: 3,
+        scope: 'library-prefetch'
+      });
+    });
+  }
+
+  function prefetchLibraryBackdropPreview(rows) {
+    var item = rows && rows[0] && rows[0].items && rows[0].items[0];
+    var source = item && artworkUrl(item);
+    if (!source) { return; }
+    posterLoader.load(new root.Image(), {
+      source: source,
+      previewWidth: 320,
+      previewHeight: 180,
+      width: 320,
+      height: 180,
+      priority: 3,
+      scope: 'library-prefetch'
+    });
+  }
+
+  function runAdjacentLibraryPrefetch() {
+    var library;
+    var key;
+    var saved;
+    libraryPrefetchTimer = null;
+    if (libraryPrefetchActive || !libraryPrefetchQueue.length) { return; }
+    if ((libraryLifecycle && libraryLifecycle.snapshot().loading) ||
+        (homeRefreshCoordinator && homeRefreshCoordinator.isLoading())) {
+      scheduleAdjacentLibraryPrefetch();
+      return;
+    }
+    library = libraryPrefetchQueue.shift();
+    key = libraryCacheKey(library);
+    if (!key || libraryViewCache[key] || (activeLibrary && libraryCacheKey(activeLibrary) === key)) {
+      scheduleAdjacentLibraryPrefetch();
+      return;
+    }
+    libraryPrefetchActive = true;
+    PlexClient.loadLibraryRecommendations(config, library, function (error, rows) {
+      libraryPrefetchActive = false;
+      if (!error && !libraryViewCache[key] && (!activeLibrary || libraryCacheKey(activeLibrary) !== key)) {
+        saved = prefetchedLibraryState(library, rows);
+        if (libraryGridView && libraryGridView.buildDetachedRecommendations) {
+          saved.dom = libraryGridView.buildDetachedRecommendations(rows, 30);
+        }
+        libraryViewCache[key] = saved;
+        if (saved.dom) { touchLibraryDomCache(key); }
+        if (!saved.dom) { prefetchLibraryPosterPreviews(rows); }
+        prefetchLibraryBackdropPreview(rows);
+      }
+      scheduleAdjacentLibraryPrefetch();
+    });
+  }
+
+  function scheduleAdjacentLibraryPrefetch() {
+    var candidates = [];
+    var distance;
+    var indexes;
+    var item;
+    var key;
+    var schedule;
+    if (libraryPrefetchAnchor !== state.navIndex) {
+      libraryPrefetchAnchor = state.navIndex;
+      libraryPrefetchQueue = [];
+    }
+    if (libraryPrefetchTimer || libraryPrefetchActive) { return; }
+    if (!libraryPrefetchQueue.length) {
+      for (distance = 1; distance < navigationItems.length && candidates.length < 2; distance += 1) {
+        indexes = [state.navIndex - distance, state.navIndex + distance];
+        indexes.forEach(function (index) {
+          item = navigationItems[index];
+          key = libraryCacheKey(item);
+          if (candidates.length < 2 && item && item.kind === 'library' && key && !libraryViewCache[key] && candidates.indexOf(item) === -1) {
+            candidates.push(item);
+          }
+        });
+      }
+      libraryPrefetchQueue = candidates;
+    }
+    if (!libraryPrefetchQueue.length) { return; }
+    schedule = function () {
+      libraryPrefetchTimer = null;
+      runAdjacentLibraryPrefetch();
+    };
+    if (root.requestIdleCallback) {
+      libraryPrefetchTimer = root.requestIdleCallback(schedule, { timeout: 400 });
+    } else {
+      libraryPrefetchTimer = root.setTimeout(schedule, 100);
+    }
+  }
+
+  function detachLibraryDom() {
+    var grid = document.createDocumentFragment();
+    var recommendations = document.createDocumentFragment();
+    var gridContent = document.getElementById('library-grid-content');
+    var recommendationContent = document.getElementById('library-recommended');
+    while (gridContent.firstChild) { grid.appendChild(gridContent.firstChild); }
+    while (recommendationContent.firstChild) { recommendations.appendChild(recommendationContent.firstChild); }
+    return { grid: grid, recommendations: recommendations };
+  }
+
+  function attachLibraryDom(saved) {
+    var gridContent = document.getElementById('library-grid-content');
+    var recommendationContent = document.getElementById('library-recommended');
+    while (gridContent.firstChild) { gridContent.removeChild(gridContent.firstChild); }
+    while (recommendationContent.firstChild) { recommendationContent.removeChild(recommendationContent.firstChild); }
+    if (saved.dom) {
+      gridContent.appendChild(saved.dom.grid);
+      recommendationContent.appendChild(saved.dom.recommendations);
+    }
+  }
+
+  function cacheActiveLibraryView() {
+    var key;
+    if (!activeLibrary) { return; }
+    key = libraryCacheKey(activeLibrary);
+    if (!key) { return; }
+    libraryViewCache[key] = {
+      tabIndex: libraryTabIndex,
+      zone: libraryZone,
+      controlIndex: libraryControlIndex,
+      actionIndex: libraryActionIndex,
+      sort: librarySort,
+      sortDirection: librarySortDirection,
+      watchedFilter: libraryWatchedFilter,
+      filters: libraryFilterView.filters(),
+      continueAvailable: libraryLifecycle.snapshot().continueAvailable,
+      scrollTop: document.getElementById('library-grid').scrollTop,
+      grid: libraryGridView.snapshot(),
+      usesGridScroll: libraryUsesGridScroll(),
+      dom: detachLibraryDom()
+    };
+    touchLibraryDomCache(key);
+  }
+
+  function restoreCachedLibraryState(saved, keepNavigationFocus) {
+    libraryTabIndex = saved.tabIndex;
+    libraryZone = keepNavigationFocus ? 'nav' : saved.zone;
+    libraryControlIndex = saved.controlIndex;
+    libraryActionIndex = saved.actionIndex;
+    librarySort = saved.sort;
+    librarySortDirection = saved.sortDirection;
+    libraryWatchedFilter = saved.watchedFilter;
+    libraryFilterView.setActiveFilters(saved.filters || {});
+    libraryLifecycle.setContinueAvailable(saved.continueAvailable);
+  }
+
+  function restoreCachedLibraryGrid(saved, resetFocus) {
+    var focus = resetFocus ? { zone: 'grid', index: 0, recommendationRow: 0 } : saved.grid.focus;
+    attachLibraryDom(saved);
+    libraryGridView.restore({
+      mode: saved.grid.mode,
+      usesGridScroll: saved.usesGridScroll,
+      items: saved.grid.items,
+      recommendations: saved.grid.recommendations,
+      totalSize: saved.grid.totalSize,
+      focus: focus
+    });
+    document.getElementById('library-grid').scrollTop = resetFocus ? 0 : Number(saved.scrollTop || 0);
+    if (resetFocus) { document.getElementById('library-recommended').scrollTop = 0; }
+    if (saved.dom) { touchLibraryDomCache(libraryCacheKey(activeLibrary)); }
+  }
+
   function renderLibrarySubnav() {
     var container = document.getElementById('library-tabs');
     var labels = [t('library.recommended'), t('library.continue'), t('library.recent'), t('library.catalog'), t('library.collections')];
@@ -151,7 +373,10 @@
     else if (libraryZone === 'actions') { target = document.getElementById(libraryActionIndex === 0 ? 'library-refresh' : 'library-refresh-metadata'); }
     else if (libraryZone === 'sort') { target = document.querySelectorAll('[data-library-sort]')[libraryControlIndex]; }
     else if (libraryZone === 'filter') { target = document.querySelectorAll('[data-library-filter], [data-library-filter-open]')[libraryControlIndex]; }
-    if (target) { target.className += ' is-focused'; if (!pointerSelectionActive && !wheelNavigationActive) { target.focus(); } }
+    if (target) {
+      if (target.className.indexOf('is-focused') === -1) { target.className += ' is-focused'; }
+      if (!pointerSelectionActive && !wheelNavigationActive) { target.focus(); }
+    }
     backgroundAudio.stop();
   }
 
@@ -204,6 +429,7 @@
         hideViewState();
         renderLibraryGrid();
         updateLibraryFocus();
+        scheduleAdjacentLibraryPrefetch();
       },
       onContinueAvailable: function () {
         renderLibrarySubnav();
@@ -238,30 +464,47 @@
   }
 
   function openLibrary(library, navIndex, keepNavigationFocus) {
+    var saved = libraryViewCache[libraryCacheKey(library)];
     activeLibrary = library; state.navIndex = navIndex; appView = 'library';
-    libraryWatchedFilter = 'all';
-    libraryFilterView.setActiveFilters({});
     libraryLifecycle.prepareLibrary();
-    libraryTabIndex = 0; libraryZone = keepNavigationFocus ? 'nav' : (library.globalPlaylists ? 'grid' : 'tabs'); libraryControlIndex = 0; libraryActionIndex = 0;
+    if (saved) {
+      restoreCachedLibraryState(saved, keepNavigationFocus);
+    } else {
+      libraryWatchedFilter = 'all';
+      libraryFilterView.setActiveFilters({});
+      libraryTabIndex = 0; libraryZone = keepNavigationFocus ? 'nav' : (library.globalPlaylists ? 'grid' : 'tabs'); libraryControlIndex = 0; libraryActionIndex = 0;
+    }
     document.getElementById('content').style.display = 'none';
     document.getElementById('search-view').className = 'search-view is-hidden';
     document.getElementById('app-settings-view').className = 'app-settings-view is-hidden';
     document.getElementById('detail-view').className = 'detail-view is-hidden';
     document.getElementById('library-view').className = 'library-view' + (library.globalPlaylists ? ' is-global-playlists' : '');
     setText('library-global-title', library.globalPlaylists ? t('nav.playlists') : '');
-    renderNavigation(); renderLibrarySubnav(); renderLibraryControls(); loadLibraryContent(true); if (!library.globalPlaylists) { probeLibraryContinue(); } updateLibraryFocus();
+    renderNavigation(); renderLibrarySubnav(); renderLibraryControls();
+    if (saved) {
+      restoreCachedLibraryGrid(saved, true);
+      updateLibraryStatus();
+    }
+    if (!saved) {
+      loadLibraryContent(true);
+      if (!library.globalPlaylists) { probeLibraryContinue(); }
+    } else {
+      if (!library.globalPlaylists && saved.continueAvailable === null) { probeLibraryContinue(); }
+      scheduleAdjacentLibraryPrefetch();
+    }
+    updateLibraryFocus();
   }
 
   function leaveLibrary() {
     hideViewState();
+    cacheActiveLibraryView();
     libraryLifecycle.leave();
     libraryFilterView.dismiss();
     document.getElementById('library-view').className = 'library-view is-hidden';
   }
 
   function closeLibrary() {
-    leaveLibrary();
-    revealHome({ focus: 'preserve' });
+    transitionToHome('preserve');
   }
 
   function openLibraryContainer(item) {
@@ -328,7 +571,7 @@
   }
 
   function closeWatchlist() {
-    leaveWatchlist(); revealHome({ focus: 'preserve' });
+    transitionToHome('preserve');
   }
 
   function activateLibrarySort(key) {
@@ -362,7 +605,7 @@
     if (error) { showMessage(t('status.updateError')); return; }
     showMessage(t('status.refreshComplete'));
     probeLibraryContinue();
-    loadLibraryContent(true);
+    libraryLifecycle.load(libraryLoadContext(), false, true);
     homeRefreshCoordinator.refresh();
     updateLibraryFocus();
   }
@@ -435,6 +678,31 @@
     else if (appView === 'detail') { detailZone = 'nav'; updateDetailFocus(); }
   }
 
+  function transitionToHome(focus) {
+    if (appView === 'search') { leaveSearch(); }
+    else if (appView === 'library') { leaveLibrary(); }
+    else if (appView === 'watchlist') { leaveWatchlist(); }
+    else if (appView === 'settings') { leaveAppSettings(); }
+    revealHome({ focus: focus || 'preserve' });
+  }
+
+  function commitNavigationView(item, targetIndex, keepNavigationFocus) {
+    if (appView === 'search') { leaveSearch(); }
+    else if (appView === 'library') { leaveLibrary(); }
+    else if (appView === 'watchlist') { leaveWatchlist(); }
+    else if (appView === 'detail') { leaveDetail(); }
+    else if (appView === 'settings') { leaveAppSettings(); }
+    state.navIndex = targetIndex;
+    state.area = 'nav';
+    if (item.kind === 'home') { revealHome({ focus: keepNavigationFocus ? 'nav' : 'first' }); }
+    else if (item.kind === 'library') { openLibrary(item, targetIndex, keepNavigationFocus); }
+    else if (item.kind === 'watchlist') { openWatchlist(keepNavigationFocus); }
+    else if (item.kind === 'playlists') { openLibrary({ key: 'playlists', title: t('nav.playlists'), globalPlaylists: true }, targetIndex, keepNavigationFocus); }
+    else if (item.kind === 'search') { openSearch(keepNavigationFocus); }
+    else if (item.kind === 'settings') { openAppSettings(keepNavigationFocus); }
+    scheduleAdjacentLibraryPrefetch();
+  }
+
   function showNavigationView(index, keepNavigationFocus) {
     var targetIndex = Number(index);
     var item = navigationItems[targetIndex];
@@ -448,20 +716,7 @@
       else { enterActiveNavigationView(); }
       return;
     }
-    if (appView === 'search') { leaveSearch(); }
-    else if (appView === 'library') { leaveLibrary(); }
-    else if (appView === 'watchlist') { leaveWatchlist(); }
-    else if (appView === 'detail') { leaveDetail(); }
-    else if (appView === 'settings') { leaveAppSettings(); }
-    state.navIndex = targetIndex;
-    state.area = 'nav';
-    renderNavigation();
-    if (item.kind === 'home') { revealHome({ focus: keepNavigationFocus ? 'nav' : 'first' }); }
-    else if (item.kind === 'library') { openLibrary(item, targetIndex, keepNavigationFocus); }
-    else if (item.kind === 'watchlist') { openWatchlist(keepNavigationFocus); }
-    else if (item.kind === 'playlists') { openLibrary({ key: 'playlists', title: t('nav.playlists'), globalPlaylists: true }, targetIndex, keepNavigationFocus); }
-    else if (item.kind === 'search') { openSearch(keepNavigationFocus); }
-    else if (item.kind === 'settings') { openAppSettings(keepNavigationFocus); }
+    commitNavigationView(item, targetIndex, keepNavigationFocus);
   }
 
   function showNavigationPreview(index) {
@@ -494,7 +749,7 @@
     } else if (item.kind === 'search') {
       searchView.focusKeyboard(0, 0);
     } else if (item.kind === 'settings') {
-      settingsView.focusList(0, settingsRows().length);
+      settingsView.focusList(0, settingsRows());
       renderAppSettings();
     }
   }

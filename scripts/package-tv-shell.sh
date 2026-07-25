@@ -13,6 +13,7 @@ rm -rf "$STAGE/source"
 cp "$ROOT/webos-shell-app/appinfo.json" "$STAGE/appinfo.json"
 cp "$ROOT/webos-shell-app/icon.png" "$STAGE/icon.png"
 cp "$ROOT/webos-shell-app/largeIcon.png" "$STAGE/largeIcon.png"
+cp "$ROOT/webos-shell-app/splashBackground.png" "$STAGE/splashBackground.png"
 cp -R "$ROOT/webos-service/." "$SERVICE_STAGE/"
 
 APP_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/webos-shell-app/appinfo.json" | head -n 1)

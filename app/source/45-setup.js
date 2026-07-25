@@ -19,6 +19,7 @@
   });
 
   var setupView = SetupView.create({
+    root: root,
     document: document,
     element: element,
     setText: setText,
@@ -98,7 +99,7 @@
     shouldOfferConnection: ServerDiscovery.shouldOfferLocalConnection,
     loadAccountServers: function (ownerToken, callback) {
       authState.ownerToken = ownerToken || authState.ownerToken;
-      authState = AuthStore.save(root.localStorage, authState);
+      authState = AuthStore.save(credentialStorage, authState);
       return PlexAuth.loadAccountServers(root, authState.ownerToken, authOptions, function (error, servers) {
         if (!error) {
           serverState.servers = ServerStore.merge(serverState.servers, servers);
@@ -110,7 +111,7 @@
     loadProfiles: function (ownerToken, callback) {
       var previousActiveProfile = AuthStore.activeProfile(authState);
       authState.ownerToken = ownerToken || authState.ownerToken;
-      authState = AuthStore.save(root.localStorage, authState);
+      authState = AuthStore.save(credentialStorage, authState);
       return PlexAuth.loadHomeUsers(root, authState.ownerToken, authOptions, function (error, profiles) {
         var merged;
         var index;
@@ -122,17 +123,17 @@
           }
         }
         authState.profiles = merged;
-        authState = AuthStore.save(root.localStorage, authState);
+        authState = AuthStore.save(credentialStorage, authState);
         callback(null, merged);
       });
     },
     switchProfile: function (profile, pin, callback) { return switchSetupProfile(profile, pin, callback); },
     continueOffline: function () {
       authState.mode = 'offline'; authState.activeProfileId = ''; authState.setupComplete = true;
-      authState = AuthStore.save(root.localStorage, authState);
+      authState = AuthStore.save(credentialStorage, authState);
     },
     disconnect: function () {
-      authState = AuthStore.save(root.localStorage, AuthStore.disconnect(authState));
+      authState = AuthStore.save(credentialStorage, AuthStore.disconnect(authState));
     },
     finish: function (snapshot) { finishSetup(snapshot); },
     cancel: function (snapshot) { cancelSetup(snapshot); }
@@ -149,7 +150,7 @@
     };
     authState.profiles = AuthStore.mergeProfiles(authState.profiles, [updated].concat(setupSnapshot.profiles));
     authState.mode = 'plex'; authState.activeProfileId = profile.id; authState.setupComplete = true;
-    authState = AuthStore.save(root.localStorage, authState);
+    authState = AuthStore.save(credentialStorage, authState);
     if (callback) { callback(null, updated); }
     else { finishSetup(); }
   }
@@ -172,16 +173,19 @@
     var remoteConnections = (connections || []).filter(function (uri) {
       return !ServerDiscovery.isLocalCandidate(uri);
     });
+    if (!networkState.allowsCloud()) { return; }
     if (!verificationKey || remoteConnectionVerificationStarted[verificationKey]) { return; }
     remoteConnectionVerificationStarted[verificationKey] = true;
     persistRemoteConnectionState(server, connections, remoteConnections.length ? 'pending' : 'unavailable', connectionRoutes);
     if (!remoteConnections.length) { return; }
-    root.setTimeout(function () {
+    NetworkPolicy.deferCloudWork(root, function () { return networkState.allowsCloud(); }, function () {
       PlexAuth.findReachableConnection(root, token, remoteConnections, server.machineIdentifier, authOptions, function (error) {
         persistRemoteConnectionState(server, connections, error ? 'failed' : 'linked', connectionRoutes);
         if (serverEditorView.snapshot().open) { renderServerEditor(); }
       });
-    }, 0);
+    }, function () {
+      delete remoteConnectionVerificationStarted[verificationKey];
+    });
   }
 
   function resumeRemoteConnectionVerification(server) {
@@ -301,11 +305,16 @@
     return 0;
   }
 
-  function openSetup() {
+  function openSetupWithLanguage(language) {
+    if (!appSettings.uiLanguageExplicit && language && appSettings.uiLanguage !== language) {
+      appSettings.uiLanguage = language;
+      appSettings = Settings.save(root.localStorage, appSettings);
+    }
     appView = 'setup';
     document.getElementById('setup-view').className = 'setup-view';
     setupController.open({
       firstRun: !authState.setupComplete,
+      prefetchScan: !authState.setupComplete,
       languageExplicit: appSettings.uiLanguageExplicit,
       language: appSettings.uiLanguage,
       servers: serverState.servers,
@@ -315,6 +324,18 @@
       returnView: ''
     });
     completeStartup();
+  }
+
+  function openSetup() {
+    var supported;
+    if (authState.setupComplete || appSettings.uiLanguageExplicit || !DeviceLocale) {
+      openSetupWithLanguage(appSettings.uiLanguage);
+      return;
+    }
+    supported = setupUiLanguages.map(function (item) { return item.code; });
+    DeviceLocale.detect(root, supported, function (language) {
+      openSetupWithLanguage(language);
+    });
   }
 
   function openProfileManager() {

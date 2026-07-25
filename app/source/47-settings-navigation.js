@@ -6,6 +6,7 @@
 
   function toggleEditorLanguage() {
     var viewState = settingsView.snapshot();
+    if (viewState.languageKind === 'videoVersionPriorities' || editorItemDisabled(orderedEditorLanguages()[viewState.languageIndex])) { return; }
     var code = orderedEditorLanguages()[viewState.languageIndex];
     var enabled = appSettings[viewState.languageKind];
     var position = enabled.indexOf(code);
@@ -21,11 +22,30 @@
     var enabled = appSettings[viewState.languageKind];
     var position = enabled.indexOf(code);
     var next = position + direction;
-    if (position === -1 || next < 0 || next >= enabled.length) { return; }
+    if (position === -1 || next < 0 || next >= enabled.length || editorItemDisabled(code)) { return; }
+    while (next >= 0 && next < enabled.length && editorItemDisabled(enabled[next])) { next += direction; }
+    if (next < 0 || next >= enabled.length) { return; }
+    if (viewState.languageKind === 'videoVersionPriorities') {
+      enabled[position] = enabled[next];
+      enabled[next] = code;
+      saveAppSettings();
+      renderLanguageEditor(code);
+      return;
+    }
     enabled.splice(position, 1);
     enabled.splice(next, 0, code);
     saveAppSettings();
     renderLanguageEditor(code);
+  }
+
+  function moveEditorFocus(direction) {
+    var viewState = settingsView.snapshot();
+    var items = orderedEditorLanguages();
+    var next = viewState.languageIndex + direction;
+    while (next >= 0 && next < items.length && editorItemDisabled(items[next])) { next += direction; }
+    if (next < 0 || next >= items.length) { return; }
+    settingsView.focusLanguage(next, items.length);
+    renderLanguageEditor();
   }
 
   function openAppSettings(keepNavigationFocus) {
@@ -44,6 +64,10 @@
   }
 
   function leaveAppSettings() {
+    if (privacyDialogOpen) {
+      privacyDialogOpen = false;
+      document.getElementById('privacy-dialog').className = 'privacy-dialog is-hidden';
+    }
     settingsView.close();
     serverEditorView.close();
     document.getElementById('language-editor').className = 'language-editor is-hidden';
@@ -51,6 +75,5 @@
   }
 
   function closeAppSettings() {
-    leaveAppSettings();
-    revealHome({ focus: 'nav' });
+    transitionToHome('nav');
   }

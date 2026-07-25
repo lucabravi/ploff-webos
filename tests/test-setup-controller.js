@@ -77,6 +77,50 @@ var localServer = {
 };
 var protectedProfile = { id: 'profile-1', title: 'Protected', protected: true };
 var openSnapshot;
+var prefetchScans = [];
+var prefetchController = SetupController.create({
+  render: function () {},
+  scan: function (snapshot, callback) {
+    prefetchScans.push({ snapshot: snapshot, callback: callback });
+    return abortable();
+  }
+});
+
+openSnapshot = prefetchController.open({ firstRun: true, prefetchScan: true, servers: [] });
+assert.strictEqual(openSnapshot.stage, 'language', 'language selection must remain visible while local discovery is prefetched');
+assert.strictEqual(prefetchScans.length, 1, 'first-run language selection must prefetch local discovery once');
+prefetchScans[0].callback(null, [localServer]);
+assert.strictEqual(prefetchController.snapshot().stage, 'language', 'a prefetch result must not advance onboarding automatically');
+assert.strictEqual(prefetchController.snapshot().servers.length, 1, 'prefetched server results must be retained for the next screen');
+prefetchController.activate('language', 'en');
+assert.strictEqual(prefetchController.snapshot().stage, 'servers', 'choosing language must advance to server selection');
+assert.strictEqual(prefetchScans.length, 1, 'choosing language must reuse the completed prefetch instead of starting a duplicate scan');
+prefetchController.back();
+assert.strictEqual(prefetchController.snapshot().stage, 'language', 'Back from first-run server selection must return to language selection');
+assert.strictEqual(prefetchController.snapshot().canChangeLanguage, true, 'first-run onboarding must retain language navigation after selection');
+
+var ongoingPrefetchScans = [];
+var ongoingPrefetchController = SetupController.create({
+  render: function () {},
+  scan: function (snapshot, callback) {
+    var request = abortable();
+    ongoingPrefetchScans.push({ snapshot: snapshot, callback: callback, request: request });
+    return request;
+  }
+});
+
+ongoingPrefetchController.open({ firstRun: true, prefetchScan: true, servers: [] });
+ongoingPrefetchController.activate('language', 'en');
+ongoingPrefetchController.back();
+assert.strictEqual(ongoingPrefetchController.snapshot().stage, 'language', 'Back must return to language selection while local discovery is still running');
+assert.strictEqual(ongoingPrefetchScans.length, 1, 'Back must not start a second local discovery request');
+assert.strictEqual(ongoingPrefetchScans[0].request.aborted, false, 'Back must not interrupt the in-flight local discovery request');
+ongoingPrefetchScans[0].callback(null, [localServer]);
+assert.strictEqual(ongoingPrefetchController.snapshot().servers.length, 1, 'a completed background scan must remain available after returning to language selection');
+ongoingPrefetchController.setFocus(4, 8);
+ongoingPrefetchController.back();
+assert.strictEqual(ongoingPrefetchController.snapshot().stage, 'language', 'Back on language selection must keep onboarding open');
+assert.strictEqual(ongoingPrefetchController.snapshot().focusIndex, 0, 'Back on language selection must return focus to the first language');
 
 openSnapshot = controller.open({ firstRun: true, servers: [localServer] });
 assert.strictEqual(openSnapshot.stage, 'language', 'first-run setup must start with language selection');

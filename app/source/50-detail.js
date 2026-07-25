@@ -86,7 +86,11 @@
   }
 
   function resolvedDetailTracks() {
-    return detailPreferenceState.resolved(appSettings);
+    var profile = selectedDetailMediaProfile();
+    var override = detailPreferenceState.snapshot().override;
+    return MediaPreferences && profile
+      ? MediaPreferences.resolve({ options: {}, audioTracks: profile.audioTracks, subtitleTracks: profile.subtitleTracks }, override, appSettings)
+      : null;
   }
 
   function detailMediaVersions() {
@@ -94,7 +98,35 @@
   }
 
   function selectedDetailMediaProfile() {
-    return detailPreferenceState.selectedProfile();
+    var snapshot = detailPreferenceState.snapshot();
+    if (snapshot.override && snapshot.override.mediaIndex !== null) { return detailPreferenceState.selectedProfile(); }
+    return VersionSelection.selectAutomatic(detailMediaVersions(), {
+      directPlay: playbackCapabilities.directPlay,
+      codecs: playbackCapabilities.codecs,
+      containers: playbackCapabilities.containers,
+      uhd: playbackCapabilities.uhd,
+      hdr10: playbackCapabilities.hdr10,
+      dolbyVision: playbackCapabilities.dolbyVision,
+      hdrKnown: playbackCapabilities.hdrKnown
+    }, appSettings.playbackMode, appSettings.videoVersionPriorities) || detailPreferenceState.selectedProfile();
+  }
+
+  function mediaInfoModel(profile, options) {
+    return MediaInfo.create(profile || {}, options || {}, t);
+  }
+
+  function openAdvancedMediaInfo(origin) {
+    var profile = origin === 'player' && currentPlayback ? currentPlayback.mediaProfile : selectedDetailMediaProfile();
+    var options = origin === 'player' && currentPlayback ? currentPlayback.options : (resolvedDetailTracks() || {});
+    if (!profile) { return false; }
+    return mediaInfoView.open(mediaInfoModel(profile, options), origin);
+  }
+
+  function closeAdvancedMediaInfo() {
+    var origin = mediaInfoView.snapshot().origin;
+    mediaInfoView.close();
+    if (origin === 'player') { updateSettingsDisplay(); }
+    else if (appView === 'detail') { updateDetailFocus(); }
   }
 
   function mediaVersionLabel(profile, automatic) {
@@ -177,7 +209,64 @@
     node.className += ' is-season-updating';
     root.setTimeout(function () {
       node.className = node.className.replace(/\s*is-season-updating/g, '');
-    }, 220);
+    }, interfaceAnimationDuration(220));
+  }
+
+  function animateDetailEntry() {
+    var view = document.getElementById('detail-view');
+    if (!view) { return; }
+    view.className = view.className.replace(/\s*is-entering/g, '');
+    view.offsetWidth;
+    view.className += ' is-entering';
+    root.setTimeout(function () {
+      view.className = view.className.replace(/\s*is-entering/g, '');
+    }, interfaceAnimationDuration(220));
+  }
+
+  function revealDetailSurface() {
+    var view = document.getElementById('detail-view');
+    var awaitingMetadata = view && view.className.indexOf('is-awaiting-metadata') !== -1;
+    setDetailViewMode(true);
+    document.getElementById('content').style.display = 'none';
+    document.getElementById('search-view').className = 'search-view is-hidden';
+    document.getElementById('library-view').className = 'library-view is-hidden';
+    document.getElementById('watchlist-view').className = 'watchlist-view is-hidden';
+    view.className = 'detail-view' + (awaitingMetadata ? ' is-awaiting-metadata' : '');
+    updateDetailFocus();
+  }
+
+  function finishDetailTransition() {
+    revealDetailSurface();
+    if (!appSettings.interfaceAnimations) {
+      document.body.className = document.body.className.replace(/\s*is-detail-transitioning|\s*is-detail-transition-revealing/g, '');
+      return;
+    }
+    document.body.className = document.body.className.replace(/\s*is-detail-transitioning/g, '') + ' is-detail-transition-revealing';
+    root.clearTimeout(detailTransitionEndTimer);
+    detailTransitionEndTimer = root.setTimeout(function () {
+      detailTransitionEndTimer = null;
+      document.body.className = document.body.className.replace(/\s*is-detail-transition-revealing/g, '');
+    }, interfaceAnimationDuration(200));
+  }
+
+  function completeDetailTransition() {
+    var view = document.getElementById('detail-view');
+    if (view) { view.className = view.className.replace(/\s*is-awaiting-metadata/g, ''); }
+  }
+
+  function transitionToDetailSurface() {
+    root.clearTimeout(detailTransitionTimer);
+    root.clearTimeout(detailTransitionEndTimer);
+    document.body.className = document.body.className.replace(/\s*is-detail-transitioning|\s*is-detail-transition-revealing|\s*is-detail-closing|\s*is-detail-returning/g, '');
+    if (!appSettings.interfaceAnimations) {
+      finishDetailTransition();
+      return;
+    }
+    document.body.className += ' is-detail-transitioning';
+    detailTransitionTimer = root.setTimeout(function () {
+      detailTransitionTimer = null;
+      if (appView === 'detail') { finishDetailTransition(); }
+    }, interfaceAnimationDuration(200));
   }
 
   function updateDetailMediaInfoOverflow() {
@@ -187,7 +276,7 @@
   }
 
   function openDetailMediaInfo() {
-    ensureDetailPresentationView().openMediaInfo();
+    openAdvancedMediaInfo('detail');
   }
 
   function closeDetailMediaInfo() {
@@ -338,8 +427,19 @@
     }, function () { updateDetailFocus(); });
   }
 
-  function detailPlaybackPreferences() {
-    return detailPreferenceState.playbackPreferences(appSettings, activeVideoQuality());
+  function detailPlaybackPreferences(versionAffinity) {
+    var preferences = detailPreferenceState.playbackPreferences(appSettings, activeVideoQuality());
+    preferences.playbackCapabilities = {
+      directPlay: playbackCapabilities.directPlay,
+      codecs: playbackCapabilities.codecs.slice(),
+      containers: playbackCapabilities.containers.slice(),
+      uhd: playbackCapabilities.uhd,
+      hdr10: playbackCapabilities.hdr10,
+      dolbyVision: playbackCapabilities.dolbyVision,
+      hdrKnown: playbackCapabilities.hdrKnown
+    };
+    if (versionAffinity) { preferences.versionAffinity = versionAffinity; }
+    return preferences;
   }
 
   function cloudRatingKeyForDetail(detail) {
@@ -426,8 +526,10 @@
     setText('detail-watched', detail.viewed ? t('detail.markUnwatched') : t('detail.markWatched'));
     scheduleDetailBackdrop(detail);
     scheduleTheme(detail);
-    if (deferMediaProfile) { prepareDetailMediaProfile(detail); }
-    else { queueDetailMediaProfile(detail); }
+    if (detail.ratingKey) {
+      if (deferMediaProfile) { prepareDetailMediaProfile(detail); }
+      else { queueDetailMediaProfile(detail); }
+    }
     syncCurrentDetailWatchlist();
     renderDetailWatchlist();
     if (watchlistAvailable() && watchlistSnapshot().loadedIdentity !== watchlistIdentity() && !watchlistSnapshot().loading) {
@@ -575,12 +677,8 @@
     detailZone = 'play';
     detailActionIndex = 0;
     appView = 'detail';
-    setDetailViewMode(true);
-    document.getElementById('content').style.display = 'none';
-    document.getElementById('search-view').className = 'search-view is-hidden';
-    document.getElementById('library-view').className = 'library-view is-hidden';
-    document.getElementById('watchlist-view').className = 'watchlist-view is-hidden';
-    document.getElementById('detail-view').className = 'detail-view';
+    document.getElementById('detail-view').className = 'detail-view is-hidden is-awaiting-metadata';
+    transitionToDetailSurface();
     renderDetail({
       type: item.type,
       title: mediaTitle(item),
@@ -592,7 +690,7 @@
     });
     document.getElementById('detail-play').className = 'detail-action is-focused';
     document.getElementById('detail-play').focus();
-    showViewState('loading', 'detail', null, closeDetail);
+    hideViewState();
     loadSelectedDetail(item);
   }
 
@@ -601,13 +699,16 @@
       if (appView !== 'detail' || !selectedItem || selectedItem.ratingKey !== item.ratingKey) { return; }
       if (error || !detail) {
         showViewState('error', 'detail', function () {
-          showViewState('loading', 'detail', null, closeDetail);
+          hideViewState();
           loadSelectedDetail(item);
         }, closeDetail);
+        completeDetailTransition();
         return;
       }
-      hideViewState();
       renderDetail(detail, true);
+      hideViewState();
+      animateDetailEntry();
+      completeDetailTransition();
       PlexClient.loadSeriesContext(config, detail, function (seriesError, context) {
         if (appView !== 'detail' || !currentDetail || String(currentDetail.ratingKey) !== String(detail.ratingKey)) { return; }
         if (!seriesError && context) { renderSeriesContext(context, detail, completePendingDetailPlay); }
@@ -662,6 +763,26 @@
     ensureDetailEpisodeView().refreshPlaybackCards();
   }
 
+  function applyLocalPlaybackProgress(ratingKey, seconds) {
+    var offset = Math.max(0, Math.round(Number(seconds || 0) * 1000));
+    var episode;
+    var index;
+    if (!ratingKey || !offset) { return; }
+    pendingDetailProgress = { ratingKey: String(ratingKey), viewOffset: offset, expiresAt: new Date().getTime() + 6000 };
+    if (currentDetail && String(currentDetail.ratingKey || '') === pendingDetailProgress.ratingKey) {
+      currentDetail.viewOffset = offset;
+      currentDetail.progress = currentDetail.duration ? Math.min(1, offset / Number(currentDetail.duration)) : currentDetail.progress;
+    }
+    for (index = 0; seriesContext && index < seriesContext.episodes.length; index += 1) {
+      episode = seriesContext.episodes[index];
+      if (String(episode.ratingKey || '') === pendingDetailProgress.ratingKey) {
+        episode.viewOffset = offset;
+        episode.progress = episode.duration ? Math.min(1, offset / Number(episode.duration)) : episode.progress;
+      }
+    }
+    updateEpisodeCardsPlaybackState();
+  }
+
   function reconcileEpisodePlaybackState(freshEpisodes) {
     var episode;
     var fresh;
@@ -674,6 +795,15 @@
       episode = seriesContext.episodes[index];
       fresh = freshByKey[String(episode.ratingKey || '')];
       if (!fresh) { continue; }
+      if (pendingDetailProgress && pendingDetailProgress.expiresAt > new Date().getTime() &&
+          String(fresh.ratingKey || '') === pendingDetailProgress.ratingKey) {
+        if (Number(fresh.viewOffset || 0) + 2000 < pendingDetailProgress.viewOffset) {
+          fresh.viewOffset = pendingDetailProgress.viewOffset;
+          fresh.progress = fresh.duration ? Math.min(1, fresh.viewOffset / Number(fresh.duration)) : fresh.progress;
+        } else {
+          pendingDetailProgress = null;
+        }
+      }
       if (currentDetail && String(currentDetail.ratingKey || '') === String(episode.ratingKey || '')) {
         currentDetail.viewed = fresh.viewed;
         currentDetail.viewOffset = fresh.viewOffset;
@@ -685,7 +815,7 @@
     ensureDetailEpisodeView().reconcilePlayback(freshEpisodes);
   }
 
-  function refreshEpisodePlaybackState(ratingKey) {
+  function refreshEpisodePlaybackState(ratingKey, expectedSeconds, retried) {
     var season;
     var seasonKey;
     if (appView !== 'detail' || !seriesContext || !seriesContext.seasons.length) { return; }
@@ -697,6 +827,10 @@
       if (error || appView !== 'detail' || !activeSeason || String(activeSeason.ratingKey || '') !== seasonKey) { return; }
       reconcileEpisodePlaybackState(episodes);
       updateEpisodeCardsPlaybackState();
+      if (!retried && pendingDetailProgress && String(pendingDetailProgress.ratingKey) === String(ratingKey || '') &&
+          pendingDetailProgress.expiresAt > new Date().getTime()) {
+        root.setTimeout(function () { refreshEpisodePlaybackState(ratingKey, expectedSeconds, true); }, 650);
+      }
     });
   }
 
@@ -794,6 +928,7 @@
     detailNavigation.set({ zone: detailZone, actionIndex: detailActionIndex, seasonIndex: detailSeasonIndex, episodeIndex: detailEpisodeIndex });
     result = detailNavigation.navigate(direction, {
       hasSeries: !!seriesContext,
+      actionCount: 5,
       seasonCount: seriesContext ? seriesContext.seasons.length : 0,
       episodeCount: seriesContext ? seriesContext.episodes.length : 0,
       choiceZones: choiceZones,
@@ -810,7 +945,9 @@
     } else if (result.effect === 'season-preview') {
       renderSeasonTabs(); scheduleSeasonPreview();
     } else if (result.effect === 'episode-preview') {
-      renderEpisodeStrip(); scheduleEpisodeDetail();
+      ensureDetailEpisodeView().setEpisodeIndex(detailEpisodeIndex, false);
+      ensureDetailEpisodeView().refreshSelection();
+      scheduleEpisodeDetail();
     } else if (result.effect.indexOf('cycle-') === 0) {
       if (detailZone === 'version') { cycleDetailVersion(direction === 'left' ? -1 : 1); }
       else { cycleDetailTrack(detailZone, direction === 'left' ? -1 : 1); }
@@ -889,7 +1026,7 @@
     } else if (detailZone === 'media-info') {
       target = document.getElementById('detail-media-info-button');
     } else {
-      target = document.getElementById(['detail-play', 'detail-watched', 'detail-watchlist', 'detail-refresh-metadata'][detailActionIndex]);
+      target = document.getElementById(['detail-play', 'detail-watched', 'detail-watchlist', 'detail-refresh-metadata', 'detail-file-info'][detailActionIndex]);
     }
     if (target) {
       target.className += ' is-focused';

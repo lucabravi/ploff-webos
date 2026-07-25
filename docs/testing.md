@@ -13,6 +13,11 @@ type-checking, unit tests, repository baseline checks, and shell asset
 validation. Node.js is required only for development, tests, and packaging; it
 is not required by the installed TV application.
 
+CI and tagged releases also run `npm run check:deps`, which queries the npm
+registry and fails on unaddressed high or critical dependency vulnerabilities.
+It remains separate from `npm run verify` so the local verification suite can
+run without network access.
+
 After editing any file under `app/source/`, regenerate the browser bundle:
 
 ```sh
@@ -88,3 +93,14 @@ Before a release, verify these cases on a target webOS TV:
 The `1920x1080` manifest resolution is the application UI canvas. On UHD TVs,
 webOS can still decode a 3840x2160 video surface; actual Direct Play and HDR
 support depends on the model and source codecs.
+
+## Physical-TV Release Signoff
+
+Official tagged releases require a completed, git-tracked signoff matching the
+application version. Copy `docs/release-signoff/TEMPLATE.md` to
+`docs/release-signoff/v<major>.<minor>.<patch>.md`, complete its metadata, and
+check every item only after running the physical-TV matrix above.
+
+The release workflow validates the signoff before packaging or publishing any
+artifact. Local builds, Docker installations, and downstream forks remain
+unblocked by this official-release gate.

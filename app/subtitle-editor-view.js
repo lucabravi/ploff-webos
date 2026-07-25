@@ -32,14 +32,23 @@
     function render(model) {
       var data = model || {};
       var list = controls();
+      var name;
+      var baseClass;
       var index;
       setText('subtitle-editor-status', data.status || '');
       setText('subtitle-editor-track', data.track || '');
       setText('subtitle-editor-size', Number(data.size || 100) + '%');
       setText('subtitle-editor-offset', signedOffset(data.offsetMs));
+      setText('subtitle-editor-current-time', data.currentTime || '0:00');
+      setText('subtitle-editor-duration', data.duration || '0:00');
       node('subtitle-editor-timeline-progress').style.width = Math.max(0, Math.min(100, Number(data.progress || 0))) + '%';
       for (index = 0; index < list.length; index += 1) {
-        list[index].className = (index === data.index ? 'is-focused' : '') + (list[index].getAttribute('data-subtitle-editor') === 'loop' && data.loop ? ' is-active' : '');
+        name = list[index].getAttribute('data-subtitle-editor');
+        baseClass = name === 'track' || name === 'size' ? 'subtitle-editor-row is-cycle' :
+          (name === 'minus' || name === 'plus' ? 'subtitle-offset-button' :
+            (name === 'timeline' ? 'subtitle-editor-timeline-button' : 'subtitle-editor-action'));
+        list[index].className = baseClass + (index === data.index ? ' is-focused' : '') +
+          (name === 'loop' && data.loop ? ' is-active' : '');
       }
       if (!data.pointerActive && list[data.index] && list[data.index].focus) { list[data.index].focus(); }
     }
