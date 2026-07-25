@@ -13,6 +13,7 @@ assert.strictEqual(defaults.subtitleSourcePreference, 'external', 'automatic sub
 assert.strictEqual(defaults.autoplayDelay, 5, 'next-episode autoplay must keep the current five-second default');
 assert.strictEqual(defaults.skipPromptDuration, 5, 'skip marker prompts must remain visible for five seconds by default');
 assert.strictEqual(defaults.playbackMode, 'auto', 'playback must default to Plex automatic Direct Stream decisions');
+assert.deepStrictEqual(defaults.videoVersionPriorities, ['resolution', 'hdr', 'quality', 'directPlay'], 'automatic video versions must prioritize resolution before HDR, estimated quality, and Direct Play');
 assert.strictEqual(defaults.lanVideoQuality, 'original', 'LAN playback must default to original quality');
 assert.strictEqual(defaults.remoteVideoQuality, '8000', 'remote playback must default to a bounded quality');
 assert.strictEqual(defaults.wheelBehavior, 'items', 'the Magic Remote wheel must default to moving the selection');
@@ -60,6 +61,11 @@ assert.strictEqual(migratedQuality.remoteVideoQuality, '4000', 'legacy quality m
 assert.strictEqual(validated.wheelBehavior, 'page', 'page scrolling must be a supported wheel behavior');
 assert.strictEqual(Settings.validate({ wheelBehavior: 'invalid' }).wheelBehavior, 'items', 'invalid wheel behavior must safely fall back to selection movement');
 assert.strictEqual(Settings.validate({ playbackMode: 'direct' }).playbackMode, 'direct', 'Direct-only playback must be a supported global mode');
+assert.deepStrictEqual(
+  Settings.validate({ videoVersionPriorities: ['directPlay', 'quality', 'directPlay', 'invalid'] }).videoVersionPriorities,
+  ['directPlay', 'quality', 'resolution', 'hdr'],
+  'video version priorities must preserve valid unique choices and append missing criteria'
+);
 assert.strictEqual(Settings.validate({ cardScale: 70 }).cardScale, 70, 'the smallest supported poster scale must be accepted');
 assert.strictEqual(Settings.validate({ cardScale: 130 }).cardScale, 130, 'the largest supported poster scale must be accepted');
 assert.strictEqual(Settings.validate({ cardScale: 75 }).cardScale, 100, 'unsupported poster scales must safely fall back to 100%');

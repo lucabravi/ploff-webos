@@ -16,9 +16,11 @@
     var source = info || {};
     var screenWidth = Number(source.screenWidth || 0);
     var screenHeight = Number(source.screenHeight || 0);
-    var known = source.uhd !== undefined || screenWidth > 0 || screenHeight > 0;
+    var hdrKnown = source.hdr10 !== undefined || source.dolbyVision !== undefined || source.hdr !== undefined;
+    var known = source.uhd !== undefined || hdrKnown || screenWidth > 0 || screenHeight > 0;
     var uhd = truthy(source.uhd) || screenWidth >= 3840 || screenHeight >= 2160;
     var hdr10 = truthy(source.hdr10) || truthy(source.hdr);
+    var dolbyVision = truthy(source.dolbyVision);
     return {
       directPlay: !!isWebOS,
       codecs: isWebOS ? (uhd ? ['h264', 'hevc'] : ['h264']) : [],
@@ -26,6 +28,8 @@
       known: !!known,
       uhd: !!uhd,
       hdr10: !!hdr10,
+      dolbyVision: !!dolbyVision,
+      hdrKnown: !!hdrKnown,
       modelName: String(source.modelName || source.model || ''),
       screenWidth: screenWidth,
       screenHeight: screenHeight

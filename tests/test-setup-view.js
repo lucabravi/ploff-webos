@@ -38,8 +38,8 @@ var focusCalls = [];
 var scanCalls = [];
 var translations = {};
 var languages = [
-  { code: 'en', label: 'English' },
-  { code: 'it', label: 'Italiano' }
+  { code: 'en', label: 'English', changeLabel: 'Change language' },
+  { code: 'it', label: 'Italiano', changeLabel: 'Cambia lingua' }
 ];
 var presentation = {
   activeLanguage: 'it',
@@ -95,14 +95,15 @@ assert.deepStrictEqual(focusCalls[0], { index: 1, count: 2 }, 'language stage mu
 
 view.render({
   stage: 'servers', focusIndex: 0, servers: [{ name: 'Local Plex', uri: 'http://plex.local:32400', version: '1.2' }],
-  profiles: [], statusKey: '', returnView: 'settings'
+  profiles: [], statusKey: '', returnView: 'settings', canChangeLanguage: true
 });
 assert.deepStrictEqual(listText('setup-server-list'), ['Local Plexplex.local:32400 - 1.2'], 'servers stage must render server identity and metadata');
 assert.deepStrictEqual(actions(), [
   { label: 'setup.scanAgain', action: 'scan', primary: true },
   { label: 'setup.manualAddress', action: 'manual', primary: false },
+  { label: 'Change language', action: 'change-language', primary: false },
   { label: 'setup.cancel', action: 'cancel', primary: false }
-], 'servers stage must expose scan, manual, and return actions');
+], 'first-run servers stage must expose scan, manual, language, and return actions');
 
 presentation.serverDiscoveryActive = true;
 presentation.ownerToken = '';

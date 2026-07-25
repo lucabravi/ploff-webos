@@ -1,5 +1,10 @@
   // Global input dispatch, view closure, event wiring, Home loading, bootstrap.
   function leaveDetail() {
+    root.clearTimeout(detailTransitionTimer);
+    root.clearTimeout(detailTransitionEndTimer);
+    detailTransitionTimer = null;
+    detailTransitionEndTimer = null;
+    document.body.className = document.body.className.replace(/\s*is-detail-transitioning|\s*is-detail-transition-revealing|\s*is-detail-closing|\s*is-detail-returning/g, '');
     hideViewState();
     hideDetailMetadataStatus();
     setDetailViewMode(false);
@@ -32,7 +37,7 @@
     document.getElementById('detail-view').className = 'detail-view is-hidden';
   }
 
-  function closeDetail() {
+  function finishCloseDetail() {
     var returnToSearch = detailReturnView === 'search';
     var returnToLibrary = detailReturnView === 'library';
     var returnToWatchlist = detailReturnView === 'watchlist';
@@ -41,12 +46,11 @@
     if (returnToSearch) {
       document.getElementById('content').style.display = 'none';
       document.getElementById('search-view').className = 'search-view';
-      if (searchSnapshot().query.length >= 2) { scheduleSearch(); }
       updateSearchFocus();
     } else if (returnToLibrary) {
       document.getElementById('content').style.display = 'none';
       document.getElementById('library-view').className = 'library-view' + (activeLibrary && activeLibrary.globalPlaylists ? ' is-global-playlists' : '');
-      loadLibraryContent(true);
+      libraryLifecycle.load(libraryLoadContext(), false, true);
       updateLibraryFocus();
     } else if (returnToWatchlist) {
       document.getElementById('content').style.display = 'none';
@@ -55,6 +59,29 @@
     } else {
       revealHome({ focus: 'preserve' });
     }
+  }
+
+  function closeDetail() {
+    if (!appSettings.interfaceAnimations) {
+      finishCloseDetail();
+      return;
+    }
+    if (document.body.className.indexOf('is-detail-transitioning') !== -1) {
+      finishCloseDetail();
+      return;
+    }
+    root.clearTimeout(detailTransitionTimer);
+    root.clearTimeout(detailTransitionEndTimer);
+    document.body.className = document.body.className.replace(/\s*is-detail-transitioning|\s*is-detail-transition-revealing|\s*is-detail-closing|\s*is-detail-returning/g, '') + ' is-detail-closing';
+    detailTransitionTimer = root.setTimeout(function () {
+      detailTransitionTimer = null;
+      finishCloseDetail();
+      document.body.className += ' is-detail-returning';
+      detailTransitionEndTimer = root.setTimeout(function () {
+        detailTransitionEndTimer = null;
+        document.body.className = document.body.className.replace(/\s*is-detail-returning/g, '');
+      }, interfaceAnimationDuration(200));
+    }, interfaceAnimationDuration(200));
   }
 
   function directionForKey(keyCode) {
@@ -310,6 +337,14 @@
       return;
     }
 
+    if (privacyDialogOpen) {
+      event.preventDefault();
+      if (event.keyCode === 38) { scrollPrivacyPolicy(-1); }
+      else if (event.keyCode === 40) { scrollPrivacyPolicy(1); }
+      else if (event.keyCode === 13 || event.keyCode === 27 || event.keyCode === 461) { closePrivacyPolicy(); }
+      return;
+    }
+
     if (appView === 'setup') {
       handleSetupKeyDown(event);
       return;
@@ -355,7 +390,7 @@
           updateSettingsFocus();
           scheduleNavigationPreview(state.navIndex);
         } else if (direction === 'down') {
-          settingsView.focusList(settingsSnapshot.index, settingsRows().length);
+          settingsView.focusList(settingsSnapshot.index, settingsRows());
           renderAppSettings();
         } else if (event.keyCode === 13) {
           if (navigationItems[state.navIndex] && navigationItems[state.navIndex].kind === 'library') { startNavHold(state.navIndex); }
@@ -367,8 +402,8 @@
         else if (event.keyCode === 40) { serverEditorView.focus(serverEditorView.snapshot().index + 1, serverState.servers.length + 2); renderServerEditor(); }
         else if (event.keyCode === 13) { activateServerEditorRow(); }
       } else if (settingsSnapshot.languageKind) {
-        if (event.keyCode === 38) { settingsView.focusLanguage(settingsSnapshot.languageIndex - 1, orderedEditorLanguages().length); renderLanguageEditor(); }
-        else if (event.keyCode === 40) { settingsView.focusLanguage(settingsSnapshot.languageIndex + 1, orderedEditorLanguages().length); renderLanguageEditor(); }
+        if (event.keyCode === 38) { moveEditorFocus(-1); }
+        else if (event.keyCode === 40) { moveEditorFocus(1); }
         else if (event.keyCode === 37) { moveEditorLanguage(-1); }
         else if (event.keyCode === 39) { moveEditorLanguage(1); }
         else if (event.keyCode === 13) { toggleEditorLanguage(); }
@@ -377,9 +412,9 @@
         renderNavigation();
         updateSettingsFocus();
       } else if (event.keyCode === 38) {
-        settingsView.focusList(settingsSnapshot.index - 1, settingsRows().length); renderAppSettings();
+        settingsView.focusList(settingsSnapshot.index - 1, settingsRows(), -1); renderAppSettings();
       } else if (event.keyCode === 40) {
-        settingsView.focusList(settingsSnapshot.index + 1, settingsRows().length); renderAppSettings();
+        settingsView.focusList(settingsSnapshot.index + 1, settingsRows(), 1); renderAppSettings();
       } else if (event.keyCode === 37) {
         changeSetting(-1);
       } else if (event.keyCode === 39) {
@@ -397,6 +432,12 @@
 
     if (appView === 'player') {
       event.preventDefault();
+      if (mediaInfoView.snapshot().open) {
+        if (event.keyCode === 27 || event.keyCode === 461) { closeAdvancedMediaInfo(); }
+        else if (direction === 'up') { mediaInfoView.scroll(-1); }
+        else if (direction === 'down') { mediaInfoView.scroll(1); }
+        return;
+      }
       if (handleResumeChoiceKey(event, direction)) { return; }
       if (handlePlayerErrorKey(event, direction)) { return; }
       if (handleSubtitleEditorKey(event, direction)) { return; }
@@ -422,7 +463,9 @@
         }
         return;
       }
-      if (playerControlsMode === 'full' && event.keyCode === 40 && playerZone === 'buttons' && playerButtonIndex === 1 && playerChapters().length) {
+      if (!settingsOpen && playerControlsMode === 'full' && event.keyCode === 40 &&
+          (playerZone === 'buttons' || playerZone === 'chapter-hint') &&
+          playerChapters().length) {
         openChapterDrawer();
         return;
       }
@@ -504,7 +547,7 @@
         if (playerZone === 'timeline') { return; }
         if (playerButtonIndex === 0) { switchPlayerEpisode(-1); }
         else if (playerButtonIndex === 2) { switchPlayerEpisode(1); }
-        else if (playerButtonIndex === 3) { setSettingsOpen(true); }
+        else if (playerButtonIndex === 4) { setSettingsOpen(true); }
         else { togglePlayback(); }
       } else if (event.keyCode === 412 || event.keyCode === 417) {
         showPlayerControls();
@@ -514,6 +557,13 @@
     }
 
     if (appView === 'detail') {
+      if (mediaInfoView.snapshot().open) {
+        event.preventDefault();
+        if (event.keyCode === 27 || event.keyCode === 461) { closeAdvancedMediaInfo(); }
+        else if (direction === 'up') { mediaInfoView.scroll(-1); }
+        else if (direction === 'down') { mediaInfoView.scroll(1); }
+        return;
+      }
       if (detailPresentationSnapshot().mediaInfoDialogOpen) {
         event.preventDefault();
         if (event.keyCode === 27 || event.keyCode === 461) { closeDetailMediaInfo(); }
@@ -563,6 +613,8 @@
           toggleCurrentWatchlist();
         } else if (detailActionIndex === 3) {
           refreshCurrentMetadata();
+        } else if (detailActionIndex === 4) {
+          openAdvancedMediaInfo('detail');
         } else {
           openPlayer();
         }
@@ -648,6 +700,7 @@
     if (options.focus === 'first') { document.getElementById('content').scrollTop = 0; }
     updateFocus();
     completeStartup();
+    scheduleAdjacentLibraryPrefetch();
   }
 
   function loadHomeRows() {
@@ -699,7 +752,7 @@
     if (!authState.setupComplete && serverState.activeUri) {
       authState.setupComplete = true;
       authState.mode = 'offline';
-      authState = AuthStore.save(root.localStorage, authState);
+      authState = AuthStore.save(credentialStorage, authState);
     }
     if (!selected && configuredServer) { selected = serverForUri(configuredServer.uri) || configuredServer; }
     if (!selected && serverState.servers.length) { selected = serverState.servers[0]; }
@@ -767,9 +820,9 @@
       detailZone = 'episodes';
       detailEpisodeIndex = Number(button.getAttribute('data-episode-position'));
       updateDetailFocus();
-    } else if (button.id === 'detail-play' || button.id === 'detail-watched' || button.id === 'detail-watchlist' || button.id === 'detail-refresh-metadata') {
+    } else if (button.id === 'detail-play' || button.id === 'detail-watched' || button.id === 'detail-watchlist' || button.id === 'detail-refresh-metadata' || button.id === 'detail-file-info') {
       detailZone = 'play';
-      detailActionIndex = button.id === 'detail-play' ? 0 : (button.id === 'detail-watched' ? 1 : (button.id === 'detail-watchlist' ? 2 : 3));
+      detailActionIndex = button.id === 'detail-play' ? 0 : (button.id === 'detail-watched' ? 1 : (button.id === 'detail-watchlist' ? 2 : (button.id === 'detail-refresh-metadata' ? 3 : 4)));
       updateDetailFocus();
     } else if (button.id === 'detail-audio' || button.id === 'detail-subtitles' || button.id === 'detail-version') {
       detailZone = button.id === 'detail-audio' ? 'audio' : (button.id === 'detail-subtitles' ? 'subtitles' : 'version');
@@ -781,8 +834,11 @@
       detailZone = 'media-info';
       updateDetailFocus();
     } else if (button.hasAttribute('data-setting-index')) {
-      settingsView.focusList(Number(button.getAttribute('data-setting-index')), settingsRows().length);
+      settingsView.focusList(Number(button.getAttribute('data-setting-index')), settingsRows());
       renderAppSettings();
+    } else if (button.id === 'privacy-dialog-close') {
+      clearLogicalFocus();
+      button.className = 'privacy-dialog-close is-focused';
     } else if (button.hasAttribute('data-language-index')) {
       settingsView.focusLanguage(Number(button.getAttribute('data-language-index')), orderedEditorLanguages().length);
       renderLanguageEditor();
@@ -985,7 +1041,7 @@
       if (button) { settingsView.focusLanguage(Number(button.getAttribute('data-language-index')), orderedEditorLanguages().length); }
     } else if (appView === 'settings') {
       button = firstVisibleButton(container, '[data-setting-index]');
-      if (button) { settingsView.focusList(Number(button.getAttribute('data-setting-index')), settingsRows().length); }
+      if (button) { settingsView.focusList(Number(button.getAttribute('data-setting-index')), settingsRows()); }
     }
   }
 
@@ -1086,6 +1142,8 @@
     if (button.hasAttribute('data-choice-index') && choiceDialogView.snapshot().open) {
       choiceDialogView.focus(Number(button.getAttribute('data-choice-index')));
       closeChoiceDialog(true);
+    } else if (button.id === 'privacy-dialog-close' && privacyDialogOpen) {
+      closePrivacyPolicy();
     } else if (accentColor && button.hasAttribute('data-setting-index')) {
       selectAccentColor(accentColor);
     } else if (button.hasAttribute('data-resume-index') && resumeChoiceVisible) {
@@ -1157,6 +1215,7 @@
 
   applyCardScale();
   applyAccentColor();
+  applyAnimationPreference();
   translateStaticUi();
   renderNavigation();
   updateClock();
@@ -1193,6 +1252,7 @@
   document.getElementById('detail-watched').onclick = toggleCurrentWatched;
   document.getElementById('detail-watchlist').onclick = toggleCurrentWatchlist;
   document.getElementById('detail-refresh-metadata').onclick = refreshCurrentMetadata;
+  document.getElementById('detail-file-info').onclick = function () { openAdvancedMediaInfo('detail'); };
   document.getElementById('detail-audio').onclick = function () { openDetailChoice('audio'); };
   document.getElementById('detail-subtitles').onclick = function () { openDetailChoice('subtitles'); };
   document.getElementById('detail-version').onclick = function () { openDetailChoice('version'); };
@@ -1204,6 +1264,7 @@
   };
   document.getElementById('player-next').onclick = function () { switchPlayerEpisode(1); };
   document.getElementById('player-settings-button').onclick = function () { setSettingsOpen(true); };
+  document.getElementById('player-media-info').onclick = function () { openAdvancedMediaInfo('player'); };
   document.getElementById('player-error-retry').onclick = retryPlaybackFromError;
   document.getElementById('player-error-settings').onclick = function () { hidePlayerError(); setSettingsOpen(true); };
   document.getElementById('player-error-back').onclick = function () { hidePlayerError(); closePlayer(); };
@@ -1302,20 +1363,29 @@
   document.getElementById('player-video').addEventListener('timeupdate', updateSubtitleEditorPlayback, false);
   document.getElementById('player-video').addEventListener('ended', function () { if (playerStreamSwitching) { return; } sendPlayerTimeline('stopped'); setText('player-status', t('status.ended')); startAutoplayCountdown(); }, false);
   document.getElementById('player-video').addEventListener('error', function () { if (appView === 'player') { setText('player-status', t('status.playbackError')); recoverPlaybackError(); } }, false);
-  root.addEventListener('offline', function () {
-    homePoller.stop();
-    if (appView === 'player' && currentPlayback) { setText('player-status', t('player.waitingNetwork')); }
-  }, false);
-  root.addEventListener('online', function () {
-    if (appView === 'player' && currentPlayback && playerRecoveryState.status === 'waiting-network') {
+  networkState.subscribe(function (snapshot) {
+    var transition = networkTransition.update(snapshot, activeServer);
+    var localWasAvailable = transition.localWasAvailable;
+    var cloudRecovered = transition.cloudRecovered;
+    var localAvailable = networkState.allowsLocal();
+    networkSnapshot = snapshot;
+    renderNetworkPresentation();
+    if (!localAvailable) {
+      homePoller.stop();
+      if (appView === 'player' && currentPlayback) { setText('player-status', t('player.waitingNetwork')); }
+      return;
+    }
+    if (!localWasAvailable && appView === 'player' && currentPlayback && playerRecoveryState.status === 'waiting-network') {
       playerRecoveryState = PlaybackRecovery.online(playerRecoveryState);
       hidePlayerError();
       applyCurrentPlaybackAttempt(true);
       return;
     }
-    recoverActiveViewAfterNetwork();
-    homePoller.schedule();
-  }, false);
+    if (!localWasAvailable || cloudRecovered) {
+      recoverActiveViewAfterNetwork();
+      homePoller.schedule();
+    }
+  });
   document.addEventListener('visibilitychange', function () {
     var video = document.getElementById('player-video');
     if (document.hidden) {
@@ -1334,3 +1404,4 @@
   DeviceCapabilities.detect(root, function (capabilities) { playbackCapabilities = capabilities; });
   bootstrapPlex();
 }(this, /** @type {*} */ (document)));
+});

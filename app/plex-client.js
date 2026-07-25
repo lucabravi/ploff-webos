@@ -2,11 +2,11 @@
   'use strict';
 
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./media-profile'), require('./media-preferences'));
+    module.exports = factory(require('./media-profile'), require('./media-preferences'), require('./version-selection'));
   } else {
-    root.PloffClient = factory(root.PloffMediaProfile, root.PloffMediaPreferences);
+    root.PloffClient = factory(root.PloffMediaProfile, root.PloffMediaPreferences, root.PloffVersionSelection);
   }
-}(this, function (MediaProfile, MediaPreferences) {
+}(this, function (MediaProfile, MediaPreferences, VersionSelection) {
   'use strict';
 
   var transcodeSessionCounter = 0;
@@ -702,6 +702,7 @@
           height: Number(media.height || 0),
           bitrate: Number(media.bitrate || 0),
           summary: profile && profile.summary || '',
+          profile: profile,
           audioTracks: profile && profile.audioTracks || [],
           subtitleTracks: profile && profile.subtitleTracks || [],
           streams: (entry.streams || []).map(trackFromAttributes)
@@ -719,6 +720,7 @@
     var streamOffset = resumePosition;
     var options = { audioStreamID: '', subtitleStreamID: '', subtitleSize: 100, offset: streamOffset, videoQuality: 'original', playbackMode: 'auto' };
     var playback;
+    var mediaProfile = MediaProfile ? MediaProfile.fromNodes(video, media, part, streams || []) : null;
 
     (streams || []).forEach(function (stream) {
       var track = trackFromAttributes(stream);
@@ -750,7 +752,8 @@
       resumePosition: resumePosition,
       offsetBase: streamOffset,
       originalContainer: media.container || part.container || '',
-      originalVideoCodec: media.videoCodec || ''
+      originalVideoCodec: media.videoCodec || '',
+      mediaProfile: mediaProfile
     };
     playback.sourceUrl = hlsUrlFor(playback, baseUrl, token, options);
     playback.hlsUrl = playback.sourceUrl;
@@ -1456,6 +1459,7 @@
       var versions;
       var selectedMediaIndex;
       var selectedPartIndex;
+      var selectedVersion;
       var streamNodes;
       var streams = [];
       var markerNodes;
@@ -1486,8 +1490,16 @@
           versionGroups.push(group);
         }
         versions = playbackVersionsFromAttributes(versionGroups);
-        selectedMediaIndex = preferences && isFinite(Number(preferences.mediaIndex)) ? Number(preferences.mediaIndex) : 0;
-        selectedPartIndex = preferences && isFinite(Number(preferences.partIndex)) ? Number(preferences.partIndex) : 0;
+        selectedVersion = VersionSelection && VersionSelection.select(versions, {
+          affinity: preferences && preferences.versionAffinity,
+          capabilities: preferences && preferences.playbackCapabilities,
+          explicitMediaIndex: preferences && preferences.mediaIndex,
+          explicitPartIndex: preferences && preferences.partIndex,
+          mode: preferences && preferences.playbackMode,
+          priorities: preferences && preferences.videoVersionPriorities
+        });
+        selectedMediaIndex = selectedVersion ? selectedVersion.mediaIndex : (preferences && isFinite(Number(preferences.mediaIndex)) ? Number(preferences.mediaIndex) : 0);
+        selectedPartIndex = selectedVersion ? selectedVersion.partIndex : (preferences && isFinite(Number(preferences.partIndex)) ? Number(preferences.partIndex) : 0);
         media = mediaNodes[selectedMediaIndex] || mediaNodes[0];
         partNodes = media ? media.getElementsByTagName('Part') : [];
         part = partNodes[selectedPartIndex] || partNodes[0];
@@ -1704,7 +1716,10 @@
   }
 
   function buildSubtitleStreamUrl(config, track) {
-    return buildUrl(config.apiBaseUrl, '/library/streams/' + encodeURIComponent(String(track.id || '')) + '.vtt', {
+    var path = track && track.key
+      ? String(track.key)
+      : '/library/streams/' + encodeURIComponent(String(track && track.id || '')) + '.vtt';
+    return buildUrl(config.apiBaseUrl, path, {
       encoding: 'utf-8',
       format: 'webvtt'
     }, config.token || '');
@@ -1728,7 +1743,7 @@
   }
 
   function loadSubtitleText(config, playback, track, callback) {
-    var url = track && track.external
+    var url = track && (track.external || track.key)
       ? buildSubtitleStreamUrl(config, track)
       : buildSubtitleTranscodeUrl(config, playback, track || {});
     return request(url, config.requestTimeout || 8000, function (error, responseText) {
@@ -1737,7 +1752,7 @@
   }
 
   function buildSubtitleOffsetUrl(config, streamId, offsetMs) {
-    return buildUrl(config.apiBaseUrl, '/library/streams/' + encodeURIComponent(String(streamId || '')) + '.vtt', {
+    return buildUrl(config.apiBaseUrl, '/library/streams/' + encodeURIComponent(String(streamId || '')), {
       offset: Math.round(Number(offsetMs || 0))
     }, config.token || '');
   }

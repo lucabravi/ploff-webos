@@ -1,12 +1,15 @@
 {
   "id": "io.github.rhapsodos.ploff",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "vendor": "Rhapsodos",
   "type": "web",
   "main": "index.html",
   "title": "Ploff",
+  "appDescription": "A lightweight client for Plex",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
+  "splashBackground": "splashBackground.png",
+  "iconColor": "#0b0c0e",
   "bgColor": "#0b0c0e",
   "resolution": "1920x1080",
   "disableBackHistoryAPI": true

@@ -89,7 +89,7 @@
     replaceStoredServer(promoted);
     if (AuthStore && authState.mode === 'plex') {
       authState = AuthStore.setActiveProfileConnection(authState, promoted.machineIdentifier, promoted.uri);
-      authState = AuthStore.save(root.localStorage, authState);
+      authState = AuthStore.save(credentialStorage, authState);
     }
     renderActiveProfile();
     if (appView === 'settings') { renderAppSettings(); }
@@ -102,7 +102,7 @@
     if (!activeServer || !PlexAuth || !PlexAuth.findReachableConnection || serverFailoverRequest) { callback(false, error); return; }
     if (currentUri) { serverFailoverFailedUris[currentUri] = true; }
     candidates = serverConnectionAddresses(activeServer).map(function (address) { return address.uri; }).filter(function (uri) {
-      return !serverFailoverFailedUris[uri];
+      return !serverFailoverFailedUris[uri] && NetworkPolicy.allowsFailover(networkSnapshot, activeServer.connectionRoutes, uri, ServerStore.normalizeUri, ServerDiscovery.isLocalCandidate);
     });
     if (!candidates.length) { callback(false, error); return; }
     serverFailoverRequest = PlexAuth.findReachableConnection(root, config.token || '', candidates, activeServer.machineIdentifier, authOptions, function (connectionError, uri) {
@@ -232,6 +232,44 @@
     initial.style.display = profile.thumb ? 'none' : 'flex';
   }
 
+  var serverActivityVisualState = 'idle';
+  var serverActivityVisualTarget = 'idle';
+  var serverActivityTransitionTimer = null;
+
+  function serverActivityDesiredVisualState(homeRefreshing) {
+    if (serverActivities.length) { return 'active'; }
+    return homeRefreshing ? 'home-refreshing' : 'idle';
+  }
+
+  function updateServerActivityVisualState(target) {
+    serverActivityVisualTarget = target;
+    if (target === 'idle') {
+      if (serverActivityVisualState === 'idle' || serverActivityVisualState === 'stopping') { return serverActivityVisualState; }
+      root.clearTimeout(serverActivityTransitionTimer);
+      serverActivityVisualState = 'stopping';
+      serverActivityTransitionTimer = root.setTimeout(function () {
+        serverActivityTransitionTimer = null;
+        if (serverActivityVisualTarget !== 'idle' || serverActivityVisualState !== 'stopping') { return; }
+        serverActivityVisualState = 'idle';
+        renderServerActivities();
+      }, interfaceAnimationDuration(900));
+      return serverActivityVisualState;
+    }
+    if (serverActivityVisualState === 'idle' || serverActivityVisualState === 'stopping') {
+      root.clearTimeout(serverActivityTransitionTimer);
+      serverActivityVisualState = 'starting';
+      serverActivityTransitionTimer = root.setTimeout(function () {
+        serverActivityTransitionTimer = null;
+        if (serverActivityVisualState !== 'starting') { return; }
+        serverActivityVisualState = serverActivityVisualTarget === 'idle' ? 'idle' : serverActivityVisualTarget;
+        renderServerActivities();
+      }, interfaceAnimationDuration(520));
+    } else if (serverActivityVisualState === 'active' || serverActivityVisualState === 'home-refreshing') {
+      serverActivityVisualState = target;
+    }
+    return serverActivityVisualState;
+  }
+
   function renderServerActivities() {
     var button = document.getElementById('server-activity');
     var panel = document.getElementById('server-activity-panel');
@@ -239,13 +277,18 @@
     var index;
     var activity;
     var row;
+    var networkLabel = networkStatusLabel(networkSnapshot);
     var title = serverActivities.length ? (serverActivities[0].title || t('activity.working')) : '';
     var homeRefreshing = homeRefreshVisualActive && !serverActivities.length;
+    var desiredVisualState = serverActivityDesiredVisualState(homeRefreshing);
+    var visualState = updateServerActivityVisualState(desiredVisualState);
     if (serverActivities.length > 1) { title += ' ' + t('activity.more', { count: serverActivities.length - 1 }); }
-    button.className = 'server-activity ' + (serverActivities.length ? 'is-active' : (homeRefreshing ? 'is-home-refreshing' : 'is-idle')) + (focused ? ' is-focused' : '');
+    button.className = 'server-activity ' + networkStatusClass(networkSnapshot) + ' is-' + visualState +
+      (desiredVisualState === 'home-refreshing' ? ' is-home-refreshing-source' : '') + (focused ? ' is-focused' : '');
     button.setAttribute('data-nav-index', navigationItems.length);
-    button.setAttribute('aria-label', t('activity.label') + (title ? ': ' + title : ''));
-    button.setAttribute('title', t('activity.label'));
+    button.setAttribute('aria-label', t('activity.label') + ': ' + networkLabel + (title ? ' \u00b7 ' + title : ''));
+    button.setAttribute('aria-busy', desiredVisualState === 'idle' ? 'false' : 'true');
+    button.setAttribute('title', t('activity.label') + ': ' + networkLabel);
     setText('server-activity-title', title);
     if (appView === 'detail') {
       if (title) { showDetailMetadataStatus(title, false); }
@@ -253,6 +296,7 @@
       else if (!detailMetadataStatusTemporary) { hideDetailMetadataStatus(); }
     }
     panel.innerHTML = '';
+    panel.appendChild(element('div', 'activity-network-status', t('settings.networkStatus') + ': ' + networkLabel));
     if (!serverActivities.length) {
       panel.appendChild(element('div', 'activity-empty', t('activity.idle')));
       return;

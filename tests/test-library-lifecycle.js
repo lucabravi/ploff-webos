@@ -86,6 +86,15 @@ assert.strictEqual(incremental.requests[0].data.limit, 30, 'non-grid rows must r
 incremental.requests[0].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'three' }], totalSize: 4 });
 assert.deepStrictEqual(incremental.grid.items.map(function (item) { return item.ratingKey; }), ['one', 'two', 'three'], 'incremental pages must append rather than replace current items');
 
+var refresh = createFixture();
+refresh.grid.items = [{ ratingKey: 'cached-one' }, { ratingKey: 'cached-two' }];
+refresh.grid.totalSize = 2;
+refresh.lifecycle.load(refresh.context(), false, true);
+assert.strictEqual(refresh.requests[0].data.start, 0, 'a silent cached refresh must restart from the first server page');
+assert.strictEqual(refresh.grid.items[0].ratingKey, 'cached-one', 'a silent cached refresh must preserve visible data while the request is pending');
+refresh.requests[0].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'fresh-one' }], totalSize: 1 });
+assert.deepStrictEqual(refresh.grid.items.map(function (item) { return item.ratingKey; }), ['fresh-one'], 'a silent cached refresh must replace stale items in place');
+
 var recommendations = createFixture();
 recommendations.lifecycle.load(recommendations.context({ viewKey: 'recommended' }), true);
 assert.strictEqual(recommendations.requests[0].kind, 'recommendations', 'recommendation tabs must use their dedicated adapter');

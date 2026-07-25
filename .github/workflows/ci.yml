@@ -7,12 +7,13 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -20,10 +21,21 @@ jobs:
           node-version: 20
           cache: npm
       - name: Scan repository history for secrets
+        if: github.event_name != 'pull_request'
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Scan pull request history for secrets
+        if: github.event_name == 'pull_request'
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/repo" \
+            --workdir /repo \
+            zricethezav/gitleaks:v8.24.3 \
+            git --redact --no-banner --exit-code 1 .
       - name: Install verification tools
         run: npm ci
+      - name: Audit high and critical dependency vulnerabilities
+        run: npm run check:deps
       - name: Run lint, type checks, tests, and repository checks
         run: npm run verify

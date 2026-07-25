@@ -23,6 +23,7 @@
   var SUBTITLE_SOURCE_PREFERENCES = ['external', 'internal'];
   var VIDEO_QUALITIES = ['original', '12000', '8000', '4000'];
   var PLAYBACK_MODES = ['auto', 'direct', 'transcode'];
+  var VIDEO_VERSION_PRIORITIES = ['resolution', 'hdr', 'quality', 'directPlay'];
   var WHEEL_BEHAVIORS = ['items', 'page'];
   var CARD_SCALES = [70, 80, 90, 100, 110, 120, 130];
   var ACCENT_COLORS = ['cyan', 'amber', 'blue', 'green', 'pink', 'purple', 'red', 'white'];
@@ -46,9 +47,11 @@
       lanVideoQuality: 'original',
       remoteVideoQuality: '8000',
       playbackMode: 'auto',
+      videoVersionPriorities: VIDEO_VERSION_PRIORITIES.slice(),
       wheelBehavior: 'items',
       cardScale: 100,
       accentColor: 'cyan',
+      interfaceAnimations: true,
       searchT9Input: true,
       showMediaInfo: false,
       showWatchlist: true,
@@ -83,6 +86,15 @@
     return contains(allowed, value) ? value : fallback;
   }
 
+  function priorityList(value, allowed) {
+    var source = Object.prototype.toString.call(value) === '[object Array]' ? value : [];
+    var result = [];
+    source.concat(allowed).forEach(function (item) {
+      if (contains(allowed, item) && !contains(result, item)) { result.push(item); }
+    });
+    return result;
+  }
+
   function validate(source) {
     var fallback = defaults();
     var value = source || {};
@@ -106,9 +118,11 @@
       lanVideoQuality: enumValue(String(value.lanVideoQuality || ''), VIDEO_QUALITIES, legacyVideoQuality || fallback.lanVideoQuality),
       remoteVideoQuality: enumValue(String(value.remoteVideoQuality || ''), VIDEO_QUALITIES, legacyVideoQuality || fallback.remoteVideoQuality),
       playbackMode: enumValue(value.playbackMode, PLAYBACK_MODES, fallback.playbackMode),
+      videoVersionPriorities: priorityList(value.videoVersionPriorities, VIDEO_VERSION_PRIORITIES),
       wheelBehavior: enumValue(value.wheelBehavior, WHEEL_BEHAVIORS, fallback.wheelBehavior),
       cardScale: enumValue(Number(value.cardScale), CARD_SCALES, fallback.cardScale),
       accentColor: enumValue(String(value.accentColor || ''), ACCENT_COLORS, fallback.accentColor),
+      interfaceAnimations: value.interfaceAnimations !== false,
       searchT9Input: value.searchT9Input === undefined ? fallback.searchT9Input : value.searchT9Input === true,
       showMediaInfo: value.showMediaInfo === true,
       showWatchlist: value.showWatchlist !== false,

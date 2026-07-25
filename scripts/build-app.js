@@ -17,6 +17,7 @@ var SOURCE_FILES = [
   '50-detail.js',
   '60-player-controls.js',
   '65-player-subtitles-playback.js',
+  '69-playlist-queue.js',
   '70-input-bootstrap.js'
 ];
 

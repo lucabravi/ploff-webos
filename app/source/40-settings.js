@@ -45,6 +45,16 @@
     return config.apiBaseUrl ? label + ' \u00b7 ' + connectionRouteLabel() : label;
   }
 
+  function networkStatusLabel(snapshot) {
+    var status = String((snapshot || networkSnapshot || {}).status || 'unknown');
+    return t('network.' + (/^(online|local-only|offline|unknown)$/.test(status) ? status : 'unknown'));
+  }
+
+  function networkStatusClass(snapshot) {
+    var status = String((snapshot || networkSnapshot || {}).status || 'unknown');
+    return 'is-network-' + (/^(online|local-only|offline|unknown)$/.test(status) ? status : 'unknown');
+  }
+
   function playbackPreferenceLabel(value) {
     if (value === 'transcode') { return t('settings.forceTranscode'); }
     if (value === 'direct') { return t('settings.directOnly'); }
@@ -61,12 +71,23 @@
     document.documentElement.style.setProperty('--accent', value);
   }
 
+  function applyAnimationPreference() {
+    var className = document.body.className.replace(/\s*animations-disabled/g, '');
+    document.body.className = className + (appSettings.interfaceAnimations ? '' : ' animations-disabled');
+  }
+
+  function interfaceAnimationDuration(milliseconds) {
+    return appSettings.interfaceAnimations ? milliseconds : 0;
+  }
+
   var settingsCatalog = SettingsCatalog.create({
     t: t,
     languageName: function (language, code) { return I18n.languageName(language, code); },
     nativeLanguageName: I18n.nativeLanguageName,
     activeServerLabel: activeServerSettingsLabel,
     activeProfileTitle: activeProfileTitle,
+    networkStatusLabel: networkStatusLabel,
+    plexConnected: function () { return !!authState.ownerToken; },
     videoQualityLabel: videoQualityLabel,
     playbackPreferenceLabel: playbackPreferenceLabel,
     accentColorLabel: accentColorLabel,
@@ -99,6 +120,7 @@
     document.documentElement.lang = appSettings.uiLanguage;
     applyCardScale();
     applyAccentColor();
+    applyAnimationPreference();
     translateStaticUi();
   }
 
@@ -115,6 +137,10 @@
   function renderAppSettings() {
     var viewState = settingsView.snapshot();
     var serverViewState = serverEditorView.snapshot();
+    if (viewState.zone === 'list') {
+      settingsView.focusList(viewState.index, settingsRows());
+      viewState = settingsView.snapshot();
+    }
     settingsView.render({
       title: t('settings.title'), notice: t('settings.globalNotice'), rows: settingsRows(),
       sectionLabel: settingsSectionLabel, zone: viewState.zone, index: viewState.index,
@@ -127,6 +153,90 @@
   function updateSettingsFocus() {
     var viewState = settingsView.snapshot();
     settingsView.focus({ zone: viewState.zone, index: viewState.index, navIndex: state.navIndex });
+  }
+
+  function appendPrivacyParagraph(container, key) {
+    container.appendChild(element('p', '', t(key)));
+  }
+
+  function openPrivacyPolicy() {
+    var content = document.getElementById('privacy-dialog-content');
+    privacyDialogOpen = true;
+    setText('privacy-dialog-title', t('settings.privacyPolicy'));
+    content.innerHTML = '';
+    content.scrollTop = 0;
+    appendPrivacyParagraph(content, 'privacy.summary');
+    appendPrivacyParagraph(content, 'privacy.storage');
+    appendPrivacyParagraph(content, 'privacy.transmission');
+    appendPrivacyParagraph(content, 'privacy.controls');
+    appendPrivacyParagraph(content, 'privacy.contact');
+    setText('privacy-dialog-close', t('state.back'));
+    document.getElementById('privacy-dialog').className = 'privacy-dialog';
+    document.getElementById('privacy-dialog-close').className = 'privacy-dialog-close is-focused';
+    if (!pointerSelectionActive) { document.getElementById('privacy-dialog-close').focus(); }
+  }
+
+  function closePrivacyPolicy() {
+    privacyDialogOpen = false;
+    document.getElementById('privacy-dialog').className = 'privacy-dialog is-hidden';
+    document.getElementById('privacy-dialog-close').className = 'privacy-dialog-close';
+    updateSettingsFocus();
+  }
+
+  function scrollPrivacyPolicy(direction) {
+    var content = document.getElementById('privacy-dialog-content');
+    content.scrollTop += direction * 120;
+  }
+
+  function reloadApplication() {
+    if (root.location && typeof root.location.reload === 'function') { root.location.reload(); }
+  }
+
+  function reloadAfterCredentialWrite() {
+    if (root.PloffCredentialVault) {
+      root.PloffCredentialVault.whenIdle(reloadApplication);
+      return;
+    }
+    reloadApplication();
+  }
+
+  function disconnectPlexAccount() {
+    authState = AuthStore.save(credentialStorage, AuthStore.disconnect(authState));
+    reloadAfterCredentialWrite();
+  }
+
+  function deleteAllLocalData() {
+    if (LocalData) { LocalData.clear(root.localStorage); }
+    if (credentialStorage && credentialStorage.removeItem) { credentialStorage.removeItem(AuthStore.STORAGE_KEY); }
+    reloadAfterCredentialWrite();
+  }
+
+  function activateSettingsAction(row) {
+    if (row.key === 'diagnostics') { openDiagnostics(); return true; }
+    if (row.key === 'privacy') { openPrivacyPolicy(); return true; }
+    if (row.key === 'disconnectPlex') {
+      if (!authState.ownerToken) {
+        openChoiceDialog(t('setup.disconnectPlex'), [{ value: 'cancel', label: t('settings.notConnected') }], 'cancel', null, function () { updateSettingsFocus(); });
+        return true;
+      }
+      openChoiceDialog(t('settings.disconnectConfirm'), [
+        { value: 'cancel', label: t('common.cancel') },
+        { value: 'disconnect', label: t('setup.disconnectPlex') }
+      ], 'cancel', function (choice) {
+        if (choice.value === 'disconnect') { disconnectPlexAccount(); }
+      }, function () { updateSettingsFocus(); });
+      return true;
+    }
+    if (row.key === 'deleteLocalData') {
+      openChoiceDialog(t('settings.deleteLocalDataConfirm'), [
+        { value: 'cancel', label: t('common.cancel') },
+        { value: 'delete', label: t('settings.deleteLocalData') }
+      ], 'cancel', function (choice) {
+        if (choice.value === 'delete') { deleteAllLocalData(); }
+      }, function () { updateSettingsFocus(); });
+      return true;
+    }
+    return false;
   }
 
   function afterSettingChange(row) {
@@ -151,8 +261,8 @@
 
   function changeSetting(direction) {
     var row = settingsRows()[settingsView.snapshot().index];
-    if (row.action && row.key === 'diagnostics') { openDiagnostics(); return; }
-    if (row.editor) { openLanguageEditor(row.key); return; }
+    if (row.action) { activateSettingsAction(row); return; }
+    if (row.editor || row.priorityEditor) { openLanguageEditor(row.key); return; }
     if (row.serverEditor) { openServerEditor(); return; }
     if (row.profileEditor) { openProfileManager(); return; }
     if (row.choices && row.choices.length) {
@@ -162,8 +272,8 @@
 
   function openAppSettingChoice() {
     var row = settingsRows()[settingsView.snapshot().index];
-    if (row.action && row.key === 'diagnostics') { openDiagnostics(); return; }
-    if (row.editor) { openLanguageEditor(row.key); return; }
+    if (row.action) { activateSettingsAction(row); return; }
+    if (row.editor || row.priorityEditor) { openLanguageEditor(row.key); return; }
     if (row.serverEditor) { openServerEditor(); return; }
     if (row.profileEditor) { openProfileManager(); return; }
     if (!row.choices || !row.choices.length) { return; }
@@ -182,7 +292,13 @@
 
   function orderedEditorLanguages() {
     var enabled = appSettings[settingsView.snapshot().languageKind] || [];
+    if (settingsView.snapshot().languageKind === 'videoVersionPriorities') { return enabled.slice(); }
     return enabled.concat(languageCatalog.filter(function (code) { return enabled.indexOf(code) === -1; }));
+  }
+
+  function editorItemDisabled(code) {
+    return settingsView.snapshot().languageKind === 'videoVersionPriorities' &&
+      !VersionSelection.isPrioritySupported(code, playbackCapabilities);
   }
 
   function renderLanguageEditor(selectedCode) {
@@ -199,13 +315,27 @@
     for (index = 0; index < languages.length; index += 1) {
       rank = enabled.indexOf(languages[index]);
       rendered.push({
-        code: languages[index], label: I18n.languageName(appSettings.uiLanguage, languages[index]),
-        rank: rank === -1 ? 0 : rank + 1
+        code: languages[index],
+        label: viewState.languageKind === 'videoVersionPriorities'
+          ? t('settings.versionPriority.' + languages[index])
+          : I18n.languageName(appSettings.uiLanguage, languages[index]),
+        rank: rank === -1 ? 0 : rank + 1,
+        disabled: editorItemDisabled(languages[index])
       });
+    }
+    if (rendered[viewState.languageIndex] && rendered[viewState.languageIndex].disabled) {
+      for (index = 0; index < rendered.length; index += 1) {
+        if (!rendered[index].disabled) {
+          settingsView.focusLanguage(index, rendered.length);
+          viewState = settingsView.snapshot();
+          break;
+        }
+      }
     }
     settingsView.renderLanguages({
       title: settingsRows()[viewState.index].label,
-      hint: t('settings.languageEditorHint'), index: viewState.languageIndex, languages: rendered
+      hint: t(viewState.languageKind === 'videoVersionPriorities' ? 'settings.priorityEditorHint' : 'settings.languageEditorHint'),
+      index: viewState.languageIndex, languages: rendered
     });
   }
 

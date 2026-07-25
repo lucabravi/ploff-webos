@@ -64,7 +64,7 @@
       if (group.isAborted()) { return; }
       localError = error || null;
       localItems = error ? [] : items;
-      if (!watchlistAccountToken()) {
+      if (!networkState.allowsCloud() || !watchlistAccountToken()) {
         callback(localError, localItems, true);
         return;
       }
@@ -123,10 +123,14 @@
     },
     onOpenResult: function (item) { openDetail(item); },
     onBack: function () {
-      posterLoader.cancelScope('search');
-      revealHome({ focus: 'preserve' });
+      transitionToHome('preserve');
     },
     onBackdrop: scheduleSearchBackdrop,
+    onFocus: function (focus) {
+      var snapshot = searchView.snapshot();
+      var item = focus && focus.zone === 'results' ? snapshot.results[focus.index] : null;
+      scheduleTheme(item);
+    },
     clearFocus: clearLogicalFocus,
     pointerSelectionActive: function () { return pointerSelectionActive; },
     prioritizePoster: prioritizePoster,

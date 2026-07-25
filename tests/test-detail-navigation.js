@@ -3,7 +3,7 @@
 var assert = require('assert');
 var DetailNavigation = require('../app/detail-navigation');
 var navigation = DetailNavigation.create();
-var context = { hasSeries: true, seasonCount: 5, episodeCount: 12, choiceZones: ['audio', 'subtitles', 'version'], summaryOverflowing: true, mediaInfoOverflowing: true };
+var context = { hasSeries: true, seasonCount: 5, episodeCount: 12, choiceZones: ['audio', 'subtitles', 'version'], summaryOverflowing: true, mediaInfoOverflowing: true, actionCount: 5 };
 
 navigation.set({ zone: 'seasons', seasonIndex: 4 });
 assert.strictEqual(navigation.navigate('right', context).state.seasonIndex, 4, 'season focus must clamp at the final tab');
@@ -23,6 +23,8 @@ assert.strictEqual(navigation.navigate('right', context).state.episodeIndex, 11,
 assert.strictEqual(navigation.navigate('left', context).effect, 'episode-preview', 'episode movement must request its deferred metadata preview');
 assert.strictEqual(navigation.navigate('up', context).state.zone, 'media-info', 'Up from episodes must return through media info');
 
+navigation.set({ zone: 'play', actionIndex: 4 });
+assert.strictEqual(navigation.navigate('right', context).state.actionIndex, 4, 'the media details action must clamp at the final action');
 navigation.set({ zone: 'play', actionIndex: 0 });
 assert.strictEqual(navigation.navigate('up', context).state.zone, 'summary', 'an expandable summary must be reachable above actions');
 assert.strictEqual(navigation.navigate('down', context).state.zone, 'play', 'Down must close the summary focus path back to Play');

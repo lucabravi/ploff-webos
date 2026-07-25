@@ -610,6 +610,7 @@ var playbackVersions = PlexClient.playbackVersionsFromAttributes([
 ]);
 assert.strictEqual(playbackVersions.length, 2, 'every Plex Media/Part version must be retained');
 assert.strictEqual(playbackVersions[1].partKey, '/library/parts/p1/file.mkv', 'a media version must retain its direct-play part URL');
+assert.strictEqual(playbackVersions[1].profile.fileName, '4k.mkv', 'a media version must retain a safe technical profile without the original path');
 assert.deepStrictEqual(playbackVersions.map(function (version) {
   return [version.mediaIndex, version.partIndex, version.partId, version.videoCodec, version.videoDynamicRange];
 }), [
@@ -910,13 +911,14 @@ assert.strictEqual(guidXhr.aborted, true, 'local GUID resolution must be abortab
 global.XMLHttpRequest = previousGuidXhr;
 assert.ok(/\/library\/parts\/99\?audioStreamID=10&subtitleStreamID=20&allParts=1/.test(PlexClient.buildStreamSelectionUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '99', '10', '20')), 'track selection must update the Plex media part');
 var subtitleTrack = { id: '20', index: 4, codec: 'srt', format: 'srt', key: '/library/streams/20', external: true };
-assert.ok(/\/library\/streams\/20\.vtt\?/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external subtitle preview must use the Plex stream endpoint');
+assert.ok(/\/library\/streams\/20\?/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external subtitle preview must preserve the exact Plex stream key');
+assert.ok(!/\/library\/streams\/20\.vtt\?/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external subtitle preview must not append an unsupported extension to a Plex stream key');
 assert.ok(/encoding=utf-8/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)) && /format=webvtt/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external text must request UTF-8 WebVTT');
 var embeddedSubtitleUrl = PlexClient.buildSubtitleTranscodeUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, { id: '21', index: 5, codec: 'srt', external: false });
 assert.ok(/\/video\/:\/transcode\/universal\/subtitles\?/.test(embeddedSubtitleUrl), 'embedded subtitle preview must use the universal subtitle endpoint');
 assert.ok(/subtitleStreamID=21/.test(embeddedSubtitleUrl) && /mediaIndex=0/.test(embeddedSubtitleUrl) && /partIndex=0/.test(embeddedSubtitleUrl), 'embedded subtitle conversion must target the exact playback stream and part');
 assert.ok(/format=webvtt/.test(embeddedSubtitleUrl) && /advancedSubtitles=text/.test(embeddedSubtitleUrl), 'embedded text conversion must request a browser-readable text format');
-assert.ok(/\/library\/streams\/20\.vtt\?offset=-300/.test(PlexClient.buildSubtitleOffsetUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '20', -300)), 'external subtitle offsets must retain their signed millisecond value');
+assert.ok(/\/library\/streams\/20\?offset=-300/.test(PlexClient.buildSubtitleOffsetUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '20', -300)), 'external subtitle offsets must use the writable stream resource and retain their signed millisecond value');
 
 var previousSubtitleXhr = global.XMLHttpRequest;
 var subtitleXhrs = [];
@@ -936,15 +938,20 @@ subtitleXhrs[0].status = 200; subtitleXhrs[0].readyState = 4; subtitleXhrs[0].re
 assert.strictEqual(subtitleText, 'WEBVTT\n', 'subtitle fetch must return the Plex text unchanged');
 subtitleRequest.abort();
 assert.strictEqual(subtitleXhrs[0].aborted, undefined, 'completed subtitle requests must not be aborted retroactively');
+PlexClient.loadSubtitleText({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+  id: '22', codec: 'srt', key: '/library/streams/22'
+}, function () {});
+assert.ok(/\/library\/streams\/22\?/.test(subtitleXhrs[1].url), 'a subtitle stream key must be used exactly even when Plex omits the external flag');
+subtitleXhrs[1].status = 200; subtitleXhrs[1].readyState = 4; subtitleXhrs[1].responseText = 'WEBVTT\n'; subtitleXhrs[1].onreadystatechange();
 var offsetSaved = false;
 PlexClient.setSubtitleOffset({ apiBaseUrl: '/plex-api', token: 'token' }, '20', -300, function (error) { offsetSaved = !error; });
-assert.strictEqual(subtitleXhrs[1].method, 'PUT', 'subtitle offset persistence must use PUT');
-subtitleXhrs[1].status = 200; subtitleXhrs[1].readyState = 4; subtitleXhrs[1].responseText = ''; subtitleXhrs[1].onreadystatechange();
+assert.strictEqual(subtitleXhrs[2].method, 'PUT', 'subtitle offset persistence must use PUT');
+subtitleXhrs[2].status = 200; subtitleXhrs[2].readyState = 4; subtitleXhrs[2].responseText = ''; subtitleXhrs[2].onreadystatechange();
 assert.strictEqual(offsetSaved, true, 'successful Plex offset writes must complete');
 var identity = null;
 PlexClient.loadServerIdentity({ apiBaseUrl: '/plex-api', token: 'token' }, function (error, value) { assert.ifError(error); identity = value; });
-assert.strictEqual(subtitleXhrs[2].url, '/plex-api/identity', 'server diagnostics must use the public identity endpoint without disclosing a token');
-subtitleXhrs[2].status = 200; subtitleXhrs[2].readyState = 4; subtitleXhrs[2].responseText = '<MediaContainer friendlyName="Mac Mini" version="1.41.7" machineIdentifier="abcdef" />'; subtitleXhrs[2].onreadystatechange();
+assert.strictEqual(subtitleXhrs[3].url, '/plex-api/identity', 'server diagnostics must use the public identity endpoint without disclosing a token');
+subtitleXhrs[3].status = 200; subtitleXhrs[3].readyState = 4; subtitleXhrs[3].responseText = '<MediaContainer friendlyName="Mac Mini" version="1.41.7" machineIdentifier="abcdef" />'; subtitleXhrs[3].onreadystatechange();
 assert.deepStrictEqual(identity, { name: 'Mac Mini', version: '1.41.7', machineIdentifier: 'abcdef' }, 'server identity parsing must retain only diagnostic fields');
 global.XMLHttpRequest = previousSubtitleXhr;
 assert.ok(

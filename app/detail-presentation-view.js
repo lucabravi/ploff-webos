@@ -55,7 +55,7 @@
       renderChoice('detail-audio', !!choices.audio);
       renderChoice('detail-subtitles', !!choices.subtitles);
       renderChoice('detail-version', !!choices.versions);
-      if (mediaInfoButton) { mediaInfoButton.className = 'detail-media-info-button' + (data.mediaInfoVisible ? '' : ' is-hidden'); }
+      if (mediaInfoButton) { mediaInfoButton.className = 'detail-media-info-button is-measuring' + (data.mediaInfoVisible ? '' : ' is-hidden'); }
       values.root.setTimeout(function () { updateMediaInfoOverflow(!!data.mediaInfoVisible); }, 0);
     }
     function clear() {
@@ -104,9 +104,9 @@
       var content = node('detail-media-info');
       if (!button || !content) { return false; }
       state.mediaInfoOverflowing = !!visible && content.getBoundingClientRect().bottom > button.getBoundingClientRect().bottom - 2;
-      button.disabled = !state.mediaInfoOverflowing;
+      button.disabled = !visible;
       button.className = 'detail-media-info-button' + (visible ? '' : ' is-hidden') + (state.mediaInfoOverflowing ? ' is-overflowing' : '') + (zone() === 'media-info' && state.mediaInfoOverflowing ? ' is-focused' : '');
-      button.setAttribute('aria-label', state.mediaInfoOverflowing ? t('detail.readFullMediaInfo') : '');
+      button.setAttribute('aria-label', visible ? t('detail.readFullMediaInfo') : '');
       if (!state.mediaInfoOverflowing && zone() === 'media-info' && values.onInvalidZone) { values.onInvalidZone('media-info'); }
       return state.mediaInfoOverflowing;
     }

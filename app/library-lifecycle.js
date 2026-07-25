@@ -69,7 +69,7 @@
       state.error = error || null;
       snapshotBefore = grid().snapshot();
       if (!error && page && context.library && (context.container || String(page.libraryKey || '') === keyFor(context.library))) {
-        grid().setItems(snapshotBefore.items.concat(copyArray(page.items)), Number(page.totalSize || 0));
+        grid().setItems(context.replace ? copyArray(page.items) : snapshotBefore.items.concat(copyArray(page.items)), Number(page.totalSize || 0));
       }
       notifyStatus();
       notifyRender('page', context, error);
@@ -85,7 +85,7 @@
       notifyRender('recommendations', context, error);
     }
 
-    function load(context, shouldReset) {
+    function load(context, shouldReset, replaceExisting) {
       var generation;
       var start;
       var limit;
@@ -93,7 +93,8 @@
       if (shouldReset) { reset(); }
       if (state.loading) { return snapshot(); }
       generation = state.generation;
-      start = grid().snapshot().items.length;
+      context.replace = !!replaceExisting;
+      start = replaceExisting ? 0 : grid().snapshot().items.length;
       limit = context.usesGridScroll ? 60 : 30;
       state.loading = true;
       notifyStatus();
@@ -132,6 +133,11 @@
       state.continueAvailable = null;
       state.container = null;
       state.containerParentState = null;
+      return snapshot();
+    }
+
+    function setContinueAvailable(value) {
+      state.continueAvailable = value === true || value === false ? value : null;
       return snapshot();
     }
 
@@ -205,6 +211,7 @@
       load: load,
       probeContinue: probeContinue,
       prepareLibrary: prepareLibrary,
+      setContinueAvailable: setContinueAvailable,
       clearContainer: clearContainer,
       openContainer: openContainer,
       closeContainer: closeContainer,

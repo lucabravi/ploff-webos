@@ -48,6 +48,21 @@ files are small enough for this to remain inexpensive, while avoiding dynamic
 loading and network dependencies on older webOS browsers. The registry uses
 English only as a safe fallback for a key introduced by a future app version.
 
+## Credential Storage
+
+The packaged TV app keeps authentication state behind `credential-vault.js`.
+On webOS it registers a private, app-owned DB8 kind and exposes an in-memory
+storage adapter to the synchronous application core. This keeps Plex account
+and profile credentials out of browser `localStorage` without making the
+composition root asynchronous.
+
+At first startup after upgrading, an existing `ploff.auth.v1` record is moved
+from `localStorage` into DB8 and the plaintext record is removed. DB8 writes are
+serialized so disconnect and profile changes cannot complete out of order. If
+private DB8 is unavailable, the adapter fails closed to session memory; local
+browser development retains the normal storage adapter because DB8 is a webOS
+platform API.
+
 ## Configuration
 
 `app/config.js` contains neutral publishable defaults. Packaging explicitly

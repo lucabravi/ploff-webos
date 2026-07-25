@@ -81,8 +81,11 @@
         viewport: String(root.innerWidth || 0) + 'x' + String(root.innerHeight || 0),
         known: playbackCapabilities.known,
         uhd: playbackCapabilities.uhd,
-        hdr10: playbackCapabilities.hdr10
+        hdr10: playbackCapabilities.hdr10,
+        dolbyVision: playbackCapabilities.dolbyVision,
+        hdrKnown: playbackCapabilities.hdrKnown
       },
+      network: networkSnapshot,
       playback: currentPlaybackDiagnostics(),
       error: values.error || lastDiagnosticsError
     });
@@ -110,7 +113,7 @@
     },
     onClose: function () {
       appView = 'settings';
-      settingsView.focusList(settingsRows().length - 1, settingsRows().length);
+      settingsView.focusList(settingsRows().length - 1, settingsRows());
       document.getElementById('app-settings-view').className = 'app-settings-view';
       renderNavigation();
       renderAppSettings();

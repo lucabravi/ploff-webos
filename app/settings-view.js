@@ -38,9 +38,25 @@
 
     function focusNavigation() { state.zone = 'nav'; return snapshot(); }
 
-    function focusList(index, count) {
+    function focusList(index, rowsOrCount, direction) {
+      var rows = Array.isArray(rowsOrCount) ? rowsOrCount : null;
+      var count = rows ? rows.length : rowsOrCount;
+      var candidate = clamp(index, count);
+      var step = Number(direction || 0);
+      if (rows && rows[candidate] && rows[candidate].readOnly) {
+        step = step || 1;
+        while (candidate >= 0 && candidate < count && rows[candidate].readOnly) {
+          candidate += step;
+        }
+        if (candidate < 0 || candidate >= count) {
+          candidate = clamp(index - step, count);
+          while (candidate >= 0 && candidate < count && rows[candidate].readOnly) {
+            candidate -= step;
+          }
+        }
+      }
       state.zone = 'list';
-      state.index = clamp(index, count);
+      state.index = clamp(candidate, count);
       return snapshot();
     }
 
@@ -100,7 +116,7 @@
       var section = '';
       var index;
       var row;
-      var button;
+      var rowElement;
       var value;
       var editor;
       values.setText('app-settings-title', state.title);
@@ -112,19 +128,24 @@
           section = row.section;
           container.appendChild(values.element('div', 'app-settings-section', state.sectionLabel(section)));
         }
-        button = values.element('button', 'app-setting-row' +
+        rowElement = values.element(row.readOnly ? 'div' : 'button', 'app-setting-row' +
+          (row.readOnly ? ' is-read-only' : '') +
           (index === 0 && state.serverEditorOpen ? ' has-inline-editor' : ''));
-        button.type = 'button';
-        button.setAttribute('data-setting-index', index);
-        if (row.serverEditor) { button.setAttribute('aria-expanded', state.serverEditorOpen ? 'true' : 'false'); }
-        button.appendChild(values.element('span', 'app-setting-label', row.label));
+        if (!row.readOnly) {
+          rowElement.type = 'button';
+          rowElement.setAttribute('data-setting-index', index);
+        } else {
+          rowElement.setAttribute('aria-readonly', 'true');
+        }
+        if (row.serverEditor) { rowElement.setAttribute('aria-expanded', state.serverEditorOpen ? 'true' : 'false'); }
+        rowElement.appendChild(values.element('span', 'app-setting-label', row.label));
         value = values.element('span', 'app-setting-value', row.value);
         if (row.palette) {
           value.className += ' app-setting-palette-value';
           renderPalette(value, state.accentColor);
         }
-        button.appendChild(value);
-        container.appendChild(button);
+        rowElement.appendChild(value);
+        container.appendChild(rowElement);
         if (state.index === 0 && state.serverEditorOpen && index === 0) {
           editor = values.element('div', 'server-editor-inline');
           editor.id = 'server-editor';
@@ -149,8 +170,11 @@
       values.setText('language-editor-hint', state.hint);
       list.innerHTML = '';
       for (index = 0; index < languages.length; index += 1) {
-        row = values.element('button', 'language-editor-row' + (index === state.index ? ' is-focused' : ''));
+        row = values.element('button', 'language-editor-row' +
+          (languages[index].disabled ? ' is-disabled' : '') +
+          (index === state.index && !languages[index].disabled ? ' is-focused' : ''));
         row.type = 'button';
+        row.disabled = languages[index].disabled === true;
         row.setAttribute('data-language-index', index);
         row.appendChild(values.element('span', '', languages[index].label));
         row.appendChild(values.element('span', 'language-editor-rank', languages[index].rank ? String(languages[index].rank) : ''));

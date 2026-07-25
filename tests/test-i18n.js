@@ -83,8 +83,14 @@ assert.strictEqual(I18n.t('it', 'settings.showMediaInfo'), 'Mostra info media', 
 assert.strictEqual(I18n.t('en', 'diagnostics.unknownCapabilities'), 'Unknown', 'unknown device capabilities must not be mislabeled as HD');
 assert.strictEqual(I18n.t('en', 'diagnostics.localAddress'), 'Local address', 'server diagnostics must label local addresses');
 assert.strictEqual(I18n.t('it', 'diagnostics.remoteAddress'), 'Indirizzo remoto', 'server diagnostics must label remote addresses in Italian');
+assert.strictEqual(I18n.t('en', 'network.local-only'), 'Local network only', 'network state must have concise portable English copy');
+assert.strictEqual(I18n.t('it', 'network.offline'), 'TV offline', 'offline network state must be explicit in Italian');
+assert.strictEqual(I18n.t('en', 'settings.networkStatus'), 'Network status', 'network state must be visible in Plex settings');
+assert.strictEqual(I18n.t('it', 'diagnostics.internetAvailable'), 'Internet disponibile', 'network diagnostics must label Internet availability');
 assert.strictEqual(I18n.t('en', 'setup.disconnectPlex'), 'Disconnect Plex');
 assert.strictEqual(I18n.t('it', 'setup.disconnectPlex'), 'Disconnetti Plex');
+assert.strictEqual(I18n.t('en', 'settings.privacyPolicy'), 'Privacy policy', 'privacy controls must be available in portable English');
+assert.strictEqual(I18n.t('it', 'settings.deleteLocalData'), 'Elimina tutti i dati locali', 'local-data deletion must be translated in Italian');
 assert.strictEqual(I18n.t('en', 'profile.offline'), 'Offline Profile', 'offline mode must have portable English profile copy');
 assert.strictEqual(I18n.t('it', 'profile.offline'), 'Profilo Offline', 'offline mode must have Italian profile copy');
 assert.strictEqual(I18n.t('en', 'media.season', { number: 4 }), 'Season 4', 'generated season labels must be localized in English');

@@ -11,7 +11,10 @@
   function create(options) {
     var values = options || {};
     var documentRef = values.document;
-    var state = { context: null, seasonIndex: 0, episodeIndex: 0, panTimers: [], panToken: 0 };
+    var state = {
+      context: null, seasonIndex: 0, episodeIndex: 0, panTimers: [], panToken: 0,
+      renderedWindowStart: -1, renderedWindowEnd: -1
+    };
 
     function node(id) { return documentRef && documentRef.getElementById ? documentRef.getElementById(id) : null; }
     function element(tagName, className, text) {
@@ -32,6 +35,13 @@
       var start = Math.max(0, state.episodeIndex - 2);
       start = Math.min(start, Math.max(0, episodes.length - 5));
       return { start: start, end: Math.min(episodes.length, start + 5) };
+    }
+    function bufferedRange(visibleRange) {
+      var episodes = state.context && state.context.episodes || [];
+      return {
+        start: Math.max(0, visibleRange.start - 2),
+        end: Math.min(episodes.length, visibleRange.end + 2)
+      };
     }
     function snapshot() {
       return { context: state.context, seasonIndex: state.seasonIndex, episodeIndex: state.episodeIndex, window: windowRange() };
@@ -103,13 +113,14 @@
       var preview = values.ProgressiveImages.previewSize(width, height, 128);
       return { source: source, previewWidth: preview.width, previewHeight: preview.height, width: width, height: height, priority: priority, scope: 'detail' };
     }
-    function updateCard(card, episode) {
+    function updateCard(card, episode, position, visibleRange) {
       var progress = clamp(Number(episode && episode.progress || 0), 0, 100);
       var track = card.querySelector('.episode-progress-track');
       var value = card.querySelector('.episode-progress-value');
       var focused = card.className.indexOf('is-focused') !== -1;
-      var current = card.className.indexOf('is-current') !== -1;
-      card.className = 'episode-card' + (episode.viewed ? ' is-viewed' : '') + (current ? ' is-current' : '') + (focused ? ' is-focused' : '');
+      var current = Number(position) === state.episodeIndex;
+      var buffered = visibleRange && (Number(position) < visibleRange.start || Number(position) >= visibleRange.end);
+      card.className = 'episode-card' + (episode.viewed ? ' is-viewed' : '') + (current ? ' is-current' : '') + (focused ? ' is-focused' : '') + (buffered ? ' is-buffered' : '');
       if (track && value) {
         track.className = 'episode-progress-track' + (!episode.viewed && progress > 0 ? '' : ' is-hidden');
         value.style.width = progress + '%';
@@ -119,6 +130,9 @@
       var container = node('episode-strip');
       var episodes = state.context && state.context.episodes || [];
       var range = windowRange();
+      var preloadRange = bufferedRange(range);
+      var existing = {};
+      var desired = [];
       var jobs = [];
       var index;
       var episode;
@@ -129,32 +143,62 @@
       var label;
       if (!container) { return; }
       stopTitlePan();
-      if (values.posterLoader && values.posterLoader.cancelScope) { values.posterLoader.cancelScope('detail-episodes'); }
-      container.innerHTML = '';
-      for (index = range.start; index < range.end; index += 1) {
+      Array.prototype.slice.call(container.querySelectorAll('.episode-card[data-episode-position]')).forEach(function (existingCard) {
+        existing[String(existingCard.getAttribute('data-episode-key') || '')] = existingCard;
+      });
+      for (index = preloadRange.start; index < preloadRange.end; index += 1) {
         episode = episodes[index];
-        card = element('button', 'episode-card' + (episode.viewed ? ' is-viewed' : '') + (index === state.episodeIndex ? ' is-current' : ''));
-        card.type = 'button';
+        card = existing[key(episode)] || null;
+        if (!card) {
+          card = element('button', 'episode-card');
+          card.type = 'button';
+          image = element('img', 'episode-image'); image.alt = ''; card.appendChild(image);
+          track = element('span', 'episode-progress-track'); progress = element('span', 'episode-progress-value'); track.appendChild(progress); card.appendChild(track);
+          label = element('span', 'episode-label'); label.appendChild(element('span', 'episode-label-text')); card.appendChild(label);
+          card.onclick = function () { if (values.onEpisodeActivate) { values.onEpisodeActivate(Number(this.getAttribute('data-episode-position'))); } };
+          jobs.push({ target: image, specification: imageSpecification(image, episode.image, index === state.episodeIndex ? 0 : 1) });
+        }
         card.setAttribute('data-episode-position', index);
-        image = element('img', 'episode-image'); image.alt = ''; card.appendChild(image);
-        track = element('span', 'episode-progress-track'); progress = element('span', 'episode-progress-value'); track.appendChild(progress); card.appendChild(track);
-        label = element('span', 'episode-label'); label.appendChild(element('span', 'episode-label-text', 'E' + pad(episode.index) + ' - ' + episode.title)); card.appendChild(label);
-        card.onclick = function () { if (values.onEpisodeActivate) { values.onEpisodeActivate(Number(this.getAttribute('data-episode-position'))); } };
-        container.appendChild(card);
-        updateCard(card, episode);
-        jobs.push({ target: image, specification: imageSpecification(image, episode.image, index === state.episodeIndex ? 0 : 1) });
+        card.setAttribute('data-episode-key', key(episode));
+        card.querySelector('.episode-label-text').textContent = 'E' + pad(episode.index) + ' - ' + episode.title;
+        updateCard(card, episode, index, range);
+        desired.push(card);
+        delete existing[key(episode)];
       }
-      if (values.posterLoader) { values.posterLoader.loadBatch(jobs); }
+      Object.keys(existing).forEach(function (existingKey) { container.removeChild(existing[existingKey]); });
+      desired.forEach(function (desiredCard) { container.appendChild(desiredCard); });
+      state.renderedWindowStart = range.start;
+      state.renderedWindowEnd = range.end;
+      if (values.posterLoader && jobs.length) { values.posterLoader.loadBatch(jobs); }
       markOverflowingTitles();
+    }
+    function refreshSelection() {
+      var range = windowRange();
+      var cards;
+      var index;
+      var position;
+      if (range.start !== state.renderedWindowStart || range.end !== state.renderedWindowEnd) {
+        renderEpisodes();
+        return;
+      }
+      stopTitlePan();
+      cards = documentRef.querySelectorAll('.episode-card[data-episode-position]');
+      for (index = 0; index < cards.length; index += 1) {
+        position = Number(cards[index].getAttribute('data-episode-position'));
+        if (state.context && state.context.episodes[position]) {
+          updateCard(cards[index], state.context.episodes[position], position, range);
+        }
+      }
     }
     function render() { renderSeasons(); renderEpisodes(); }
     function refreshPlaybackCards() {
       var cards = documentRef.querySelectorAll('.episode-card[data-episode-position]');
+      var range = windowRange();
       var index;
       var position;
       for (index = 0; index < cards.length; index += 1) {
         position = Number(cards[index].getAttribute('data-episode-position'));
-        if (state.context && state.context.episodes[position]) { updateCard(cards[index], state.context.episodes[position]); }
+        if (state.context && state.context.episodes[position]) { updateCard(cards[index], state.context.episodes[position], position, range); }
       }
     }
     function reconcilePlayback(freshEpisodes) {
@@ -209,6 +253,7 @@
       stopTitlePan();
       if (values.posterLoader && values.posterLoader.cancelScope) { values.posterLoader.cancelScope('detail-episodes'); }
       state.context = null; state.seasonIndex = 0; state.episodeIndex = 0;
+      state.renderedWindowStart = -1; state.renderedWindowEnd = -1;
       if (node('season-tabs')) { node('season-tabs').innerHTML = ''; }
       if (node('episode-strip')) { node('episode-strip').innerHTML = ''; }
     }
@@ -217,7 +262,7 @@
       snapshot: snapshot, setContext: setContext, setEpisodes: setEpisodes,
       setSeasonIndex: setSeasonIndex, setEpisodeIndex: setEpisodeIndex,
       currentSeason: currentSeason, currentEpisode: currentEpisode,
-      render: render, renderSeasons: renderSeasons, renderEpisodes: renderEpisodes,
+      render: render, renderSeasons: renderSeasons, renderEpisodes: renderEpisodes, refreshSelection: refreshSelection,
       refreshPlaybackCards: refreshPlaybackCards, reconcilePlayback: reconcilePlayback,
       startTitlePan: startTitlePan, stopTitlePan: stopTitlePan, reset: reset
     };

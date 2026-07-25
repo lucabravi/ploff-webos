@@ -23,6 +23,7 @@
 - [First launch](#first-launch)
 - [Compatibility notes](#compatibility-notes)
 - [Security](#security)
+- [Privacy](PRIVACY.md)
 - [Development](#development)
 - [Project structure and documentation](#project-structure-and-documentation)
 - [Contributing](#contributing)
@@ -212,8 +213,11 @@ local playback remain available offline.
 
 ## Security
 
-- Plex account tokens and cached Plex Home profiles are stored in the TV
-  application's local storage; they are **not encrypted** by Ploff.
+- Plex account tokens and cached Plex Home profiles are stored in a private,
+  app-owned webOS DB8 kind. They are never written to browser `localStorage`
+  by the packaged TV app.
+- If private DB8 storage is unavailable, credentials remain in memory for the
+  current session only.
 - Generated IPK files never contain a Plex address or credentials.
 - Local HTTP connections remain supported for older TVs, but an untrusted LAN
   could observe metadata and authenticated media URLs. Prefer Plex HTTPS
@@ -221,7 +225,7 @@ local playback remain available offline.
   devices.
 
 See [SECURITY.md](SECURITY.md) for the full threat model and private reporting
-instructions.
+instructions, and [PRIVACY.md](PRIVACY.md) for the data-handling policy.
 
 ## Development
 

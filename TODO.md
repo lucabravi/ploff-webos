@@ -12,6 +12,22 @@ features should use progressive disclosure and remain optional.
 
 ## Planned
 
+- [ ] Complete the LG Content Store submission workspace, current UX Scenario,
+      App Self-Checklist, Data Safety disclosure, and Seller Lounge registration.
+- [x] Add an offline-readable privacy policy and full local-data deletion
+      action to the app.
+- [x] Move packaged-app Plex credentials out of browser `localStorage` into a
+      private, app-owned webOS DB8 kind with session-only failure fallback.
+- [ ] Publish the privacy policy at a stable public URL for Store submission.
+- [ ] Prepare a dedicated Plex QA environment for LG review: a continuously
+      available remote HTTPS server, a separate reviewer account/profile, and
+      only fictional, original, public-domain, or otherwise licensed media.
+- [ ] Document the LG reviewer flow for Plex linking, remote server selection,
+      manual-address fallback, playback, seek, resume, audio, subtitles,
+      chapters, watched state, and logout; keep all credentials exclusively in
+      the private Seller Lounge submission.
+- [ ] Complete Store-specific icons, splash artwork, manifest metadata, and
+      Beanviser performance validation.
 - [ ] Add real TV screenshots for onboarding, Home, media details, and the
       player, plus a short remote-navigation demo.
 - [ ] Search and select additional subtitles.

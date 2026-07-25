@@ -28,6 +28,8 @@ for path in \
   app/locales/pt.js \
   app/locales/ja.js \
   app/locales/ko.js \
+  app/local-data.js \
+  app/credential-vault.js \
   app/media-labels.js \
   app/ploff-logo.svg \
   app/plex-link-qr.png \
@@ -35,10 +37,13 @@ for path in \
   webos-shell-app/logo.svg \
   webos-shell-app/icon.png \
   webos-shell-app/largeIcon.png \
+  webos-shell-app/splashBackground.png \
   scripts/package-tv-shell.sh \
   scripts/inspect-ipk.sh \
   scripts/check-shell-assets.js \
+  scripts/check-lg-ux.js \
   scripts/build-app.js \
+  scripts/check-release-signoff.js \
   scripts/preview-local.sh \
   scripts/docker-installer.sh \
   scripts/install-webos.sh; do
@@ -59,6 +64,7 @@ for fragment in \
   50-detail.js \
   60-player-controls.js \
   65-player-subtitles-playback.js \
+  69-playlist-queue.js \
   70-input-bootstrap.js; do
   test -f "app/source/$fragment" || { echo "missing: app/source/$fragment" >&2; exit 1; }
 done
@@ -94,6 +100,15 @@ grep -q 'npm run build:app' README.md
 grep -q 'Generated bundle entry' app/app.js
 grep -q 'npm run verify' .github/workflows/ci.yml
 grep -q 'npm run verify' .github/workflows/release.yml
+grep -q 'npm run check:deps' .github/workflows/ci.yml
+grep -q 'npm run check:deps' .github/workflows/release.yml
+grep -q 'check-release-signoff.js.*GITHUB_REF_NAME' .github/workflows/release.yml
+grep -q '"check:deps": "npm audit --audit-level=high"' package.json
+grep -q 'Physical-TV Release Signoff' docs/testing.md
+test -f docs/store-submission/lg-ux-compliance.md
+grep -q '"check:lg-ux": "node scripts/check-lg-ux.js"' package.json
+grep -q 'npm run check:lg-ux' docs/store-submission/lg-ux-compliance.md
+test -f docs/release-signoff/TEMPLATE.md
 grep -q 'package-tv-shell.sh' README.md
 grep -q 'install-webos.sh' README.md
 grep -qi 'chapter' README.md
@@ -110,6 +125,7 @@ grep -q 's/?v=' scripts/package-tv-shell.sh
 grep -q 'APP_VERSION=' scripts/package-tv-shell.sh
 ! grep -q 'cp .*config.local.js.*config.js' scripts/package-tv-shell.sh
 grep -q 'webos-shell-app/icon.png' scripts/package-tv-shell.sh
+grep -q 'webos-shell-app/splashBackground.png' scripts/package-tv-shell.sh
 grep -q 'ares-device --system-info' scripts/docker-installer.sh
 ! grep -q 'living-room-tv' scripts/install-webos.sh
 package_line=$(grep -n '"$SCRIPT_DIR/package-tv-shell.sh"' scripts/install-webos.sh | head -n 1 | cut -d: -f1)
@@ -126,7 +142,7 @@ grep -q 'SHA256SUMS' .github/workflows/release.yml
 grep -q 'cd dist && sha256sum' .github/workflows/release.yml
 grep -q '@webos-tools/cli@3.2.5' .github/workflows/release.yml
 grep -q 'gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e' .github/workflows/ci.yml
-grep -q "branches:.*\\*\\*" .github/workflows/ci.yml
+grep -q "branches:.*\*\*" .github/workflows/ci.yml
 grep -q '^## Installation$' README.md
 grep -q '^### Docker (recommended)$' README.md
 grep -q '<summary><strong>Manual installation</strong></summary>' README.md

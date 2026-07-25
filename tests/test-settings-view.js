@@ -51,6 +51,8 @@ assert.deepStrictEqual(view.snapshot(), { open: true, zone: 'nav', index: 0, lan
 view.focusList(3, 2);
 assert.strictEqual(view.snapshot().zone, 'list', 'focusing a settings row must leave navbar focus');
 assert.strictEqual(view.snapshot().index, 1, 'settings row focus must clamp to the available row count');
+view.focusList(1, [{ key: 'server' }, { key: 'network', readOnly: true }, { key: 'language' }], 1);
+assert.strictEqual(view.snapshot().index, 2, 'read-only settings rows must be skipped by keyboard focus');
 view.openLanguages('audioLanguages');
 view.focusLanguage(4, 2);
 assert.strictEqual(view.snapshot().languageKind, 'audioLanguages', 'language editor ownership must remain inside the settings view');
@@ -59,20 +61,23 @@ view.closeLanguages();
 assert.strictEqual(view.snapshot().languageKind, '', 'closing the language editor must clear its private state');
 
 view.render({
-  title: 'Settings', notice: 'Global', zone: 'list', index: 1, serverEditorOpen: false,
+  title: 'Settings', notice: 'Global', zone: 'list', index: 2, serverEditorOpen: false,
   credit: 'Made by Rhapsodos93', accentColor: 'cyan',
   rows: [
     { key: 'plexServer', section: 'plex', label: 'Server', value: 'Plex', serverEditor: true },
+    { key: 'networkStatus', section: 'plex', label: 'Network', value: 'Online', readOnly: true },
     { key: 'accentColor', section: 'interface', label: 'Color', value: 'Cyan', palette: true }
   ],
   sectionLabel: function (section) { return section.toUpperCase(); }
 });
 
 assert.strictEqual(nodes['app-settings-title'].textContent, 'Settings', 'settings renderer must update its title');
-assert.strictEqual(nodes['app-settings-list'].children.length, 5, 'settings renderer must include section labels, rows, and credit');
-assert.strictEqual(nodes['app-settings-list'].children[2].className, 'app-settings-section', 'a new settings section must render before its first row');
-assert.strictEqual(nodes['app-settings-list'].children[3].className, 'app-setting-row is-focused', 'settings focus must be derived from the supplied snapshot');
-assert.strictEqual(nodes['app-settings-list'].children[3].children[1].children[0].children.length, 2, 'accent settings must render every configured color swatch');
+assert.strictEqual(nodes['app-settings-list'].children.length, 6, 'settings renderer must include section labels, rows, and credit');
+assert.strictEqual(nodes['app-settings-list'].children[3].className, 'app-settings-section', 'a new settings section must render before its first row');
+assert.strictEqual(nodes['app-settings-list'].children[4].className, 'app-setting-row is-focused', 'settings focus must be derived from the supplied snapshot');
+assert.strictEqual(nodes['app-settings-list'].children[2].tagName, 'div', 'read-only settings rows must not render as buttons');
+assert.strictEqual(nodes['app-settings-list'].children[2].attributes['data-setting-index'], undefined, 'read-only settings rows must not enter pointer focus navigation');
+assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0].children.length, 2, 'accent settings must render every configured color swatch');
 assert.strictEqual(keptVisible.length, 1, 'remote focus must keep the selected setting visible');
 
 view.render({
@@ -90,5 +95,15 @@ view.renderLanguages({
 assert.strictEqual(nodes['language-editor-list'].children.length, 2, 'language editor must render every language');
 assert.strictEqual(nodes['language-editor-list'].children[1].className, 'language-editor-row is-focused', 'language editor focus must be snapshot-driven');
 assert.strictEqual(nodes['language-editor-list'].children[1].children[1].textContent, '2', 'language priority rank must remain visible');
+
+view.renderLanguages({
+  title: 'Version priority', hint: 'Reorder', index: 0,
+  languages: [
+    { code: 'hdr', label: 'HDR', rank: 1, disabled: true },
+    { code: 'resolution', label: 'Resolution', rank: 2, disabled: false }
+  ]
+});
+assert.strictEqual(nodes['language-editor-list'].children[0].disabled, true, 'unsupported version criteria must render as non-selectable');
+assert.ok(/is-disabled/.test(nodes['language-editor-list'].children[0].className), 'unsupported version criteria must expose their disabled visual state');
 
 console.log('Settings view checks passed');

@@ -103,10 +103,10 @@
       updateProgress(target, item);
     }
 
-    function queuePoster(target, item, priority, jobs) {
+    function queuePoster(target, item, priority, jobs, scope) {
       var image = target.getElementsByTagName('img')[0];
       if (!image || !values.renderedPosterSpecification) { return; }
-      jobs.push({ target: image, specification: values.renderedPosterSpecification(image, item.image, priority, 'library', metrics().width, metrics().imageHeight) });
+      jobs.push({ target: image, specification: values.renderedPosterSpecification(image, item.image, priority, scope || 'library', metrics().width, metrics().imageHeight) });
     }
 
     function applyCatalogFocus(target, index, item, visibleStart, visibleEnd, jobs) {
@@ -249,6 +249,45 @@
         if (usedSections.indexOf(container.children[rowIndex]) === -1) { container.removeChild(container.children[rowIndex]); }
       }
       if (values.posterLoader && values.posterLoader.loadBatch) { values.posterLoader.loadBatch(jobs); }
+    }
+
+    function buildDetachedRecommendations(rows, maximumCards) {
+      var grid;
+      var recommendations;
+      var limit = Math.max(0, Number(maximumCards || 0));
+      var count = 0;
+      var rowIndex;
+      var column;
+      var rowData;
+      var section;
+      var title;
+      var row;
+      var target;
+      var jobs = [];
+      if (!documentRef || !documentRef.createDocumentFragment || !limit) { return null; }
+      grid = documentRef.createDocumentFragment();
+      recommendations = documentRef.createDocumentFragment();
+      rows = array(rows);
+      for (rowIndex = 0; rowIndex < rows.length && count < limit; rowIndex += 1) {
+        rowData = rows[rowIndex] || {};
+        section = element('section', 'library-recommendation-section');
+        section.setAttribute('data-library-recommendation-key', recommendationKey(rowData, rowIndex));
+        title = element('h3', 'library-recommendation-title');
+        updateText(title, values.recommendationTitle ? values.recommendationTitle(rowData) : rowData.title);
+        section.appendChild(title);
+        row = element('div', 'library-recommendation-row');
+        for (column = 0; column < array(rowData.items).length && count < limit; column += 1) {
+          target = card(column, rowData.items[column], rowIndex);
+          target.className = 'library-card library-recommendation-card' + (rowData.items[column].viewed ? ' is-viewed' : '');
+          row.appendChild(target);
+          queuePoster(target, rowData.items[column], 3, jobs, 'library-prefetch');
+          count += 1;
+        }
+        section.appendChild(row);
+        recommendations.appendChild(section);
+      }
+      if (values.posterLoader && values.posterLoader.loadBatch) { values.posterLoader.loadBatch(jobs); }
+      return { grid: grid, recommendations: recommendations };
     }
 
     function render() { if (state.mode === 'recommended') { renderRecommendations(); } else { renderCatalog(); renderRecommendations(); } return snapshot(); }
@@ -396,11 +435,28 @@
       return render();
     }
 
+    function restore(value) {
+      var saved = value || {};
+      state.mode = saved.mode === 'recommended' ? 'recommended' : 'catalog';
+      state.usesGridScroll = saved.usesGridScroll !== false;
+      state.items = array(saved.items).slice();
+      state.recommendations = array(saved.recommendations).map(function (row) {
+        return { title: row.title, identifier: row.identifier, key: row.key, items: array(row.items).slice() };
+      });
+      state.totalSize = Number(saved.totalSize || state.items.length);
+      state.focus.recommendationRow = clamp(Number(saved.focus && saved.focus.recommendationRow || 0), 0, Math.max(0, state.recommendations.length - 1));
+      state.focus.index = clamp(Number(saved.focus && saved.focus.index || 0), 0, Math.max(0,
+        state.mode === 'recommended'
+          ? array(state.recommendations[state.focus.recommendationRow] && state.recommendations[state.focus.recommendationRow].items).length - 1
+          : state.items.length - 1));
+      return render();
+    }
+
     function snapshot() {
       return { mode: state.mode, items: state.items.slice(), recommendations: state.recommendations.slice(), totalSize: state.totalSize, focus: { zone: 'grid', index: state.focus.index, recommendationRow: state.focus.recommendationRow }, layout: state.layout, window: state.window };
     }
 
-    return { focusedItem: focusedItem, focusCatalog: focusCatalog, focusRecommendations: focusRecommendations, handleDirection: handleDirection, onScroll: onScroll, pointerFocus: pointerFocus, refreshFocus: refreshFocus, render: render, reset: reset, restoreFocus: restoreFocus, setContentActive: setContentActive, setItems: setItems, setMode: setMode, setRecommendations: setRecommendations, snapshot: snapshot };
+    return { buildDetachedRecommendations: buildDetachedRecommendations, focusedItem: focusedItem, focusCatalog: focusCatalog, focusRecommendations: focusRecommendations, handleDirection: handleDirection, onScroll: onScroll, pointerFocus: pointerFocus, refreshFocus: refreshFocus, render: render, reset: reset, restore: restore, restoreFocus: restoreFocus, setContentActive: setContentActive, setItems: setItems, setMode: setMode, setRecommendations: setRecommendations, snapshot: snapshot };
   }
 
   return { create: create };

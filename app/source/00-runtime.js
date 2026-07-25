@@ -1,4 +1,5 @@
 // Generated bundle entry: edit app/source fragments, then run npm run build:app.
+this.PloffCredentialVault.prepare(this, this.localStorage, function (credentialStorage) {
 /**
  * The legacy shell deliberately avoids framework-specific DOM types. Runtime
  * element kinds are fixed by app/index.html and covered by shell tests.
@@ -33,6 +34,7 @@
   var ChapterState = root.PloffChapterState;
   var PlayerChaptersView = root.PloffPlayerChaptersView;
   var PlaybackStrategy = root.PloffPlaybackStrategy;
+  var VersionSelection = root.PloffVersionSelection;
   var PlaybackRecovery = root.PloffPlaybackRecovery;
   var PlaybackClock = root.PloffPlaybackClock;
   var PlayerSeekController = root.PloffPlayerSeekController;
@@ -49,9 +51,15 @@
   var ViewState = root.PloffViewState;
   var CardLayout = root.PloffCardLayout;
   var DeviceCapabilities = root.PloffDeviceCapabilities;
+  var DeviceLocale = root.PloffDeviceLocale;
   var MediaPreferences = root.PloffMediaPreferences;
   var MediaProfile = root.PloffMediaProfile;
+  var MediaInfo = root.PloffMediaInfo;
+  var MediaInfoView = root.PloffMediaInfoView;
   var MediaLabels = root.PloffMediaLabels;
+  var NetworkState = root.PloffNetworkState;
+  var NetworkPolicy = root.PloffNetworkPolicy;
+  var NetworkTransition = root.PloffNetworkTransition;
   var WatchlistClient = root.PloffWatchlistClient;
   var WatchlistState = root.PloffWatchlistState;
   var WatchlistView = root.PloffWatchlistView;
@@ -59,6 +67,7 @@
   var ProgressiveImages = root.PloffProgressiveImages;
   var I18n = root.PloffI18n;
   var Settings = root.PloffSettings;
+  var LocalData = root.PloffLocalData;
   var SettingsCatalog = root.PloffSettingsCatalog;
   var SettingsView = root.PloffSettingsView;
   var ServerEditorView = root.PloffServerEditorView;
@@ -76,6 +85,9 @@
   var formatTime = PlayerTimelinePolicy.formatTime;
   var formatLongTime = PlayerTimelinePolicy.formatLongTime;
   var config = root.PloffConfig || {};
+  var networkState = NetworkState.create(root);
+  var networkSnapshot = networkState.snapshot();
+  var networkTransition = NetworkTransition.create(networkSnapshot, function (server) { resumeRemoteConnectionVerification(server); });
   var startupStartedAt = new Date().getTime();
   var startupComplete = false;
   var startupTimer = null;
@@ -83,7 +95,7 @@
   var configuredToken = config.token || '';
   var configuredServer = ServerStore ? ServerStore.fromConfig(config) : null;
   var serverState = ServerStore ? ServerStore.load(root.localStorage) : { version: 1, activeUri: '', servers: [] };
-  var authState = AuthStore ? AuthStore.load(root.localStorage) : { version: 1, setupComplete: false, mode: 'offline', ownerToken: '', activeProfileId: '', profiles: [] };
+  var authState = AuthStore ? AuthStore.load(credentialStorage) : { version: 1, setupComplete: false, mode: 'offline', ownerToken: '', activeProfileId: '', profiles: [] };
   var authOptions = {
     baseUrl: config.accountBaseUrl || 'https://plex.tv',
     clientIdentifier: PlexAuth ? PlexAuth.clientIdentifier(root.localStorage) : '',
@@ -127,14 +139,14 @@
     white: '#ffffff'
   };
   var setupUiLanguages = [
-    { code: 'en', label: 'English' },
-    { code: 'it', label: 'Italiano' },
-    { code: 'es', label: 'Espa\u00f1ol' },
-    { code: 'fr', label: 'Fran\u00e7ais' },
-    { code: 'de', label: 'Deutsch' },
-    { code: 'pt', label: 'Portugu\u00eas' },
-    { code: 'ja', label: '\u65e5\u672c\u8a9e' },
-    { code: 'ko', label: '\ud55c\uad6d\uc5b4' }
+    { code: 'en', label: 'English', changeLabel: 'Change language' },
+    { code: 'it', label: 'Italiano', changeLabel: 'Cambia lingua' },
+    { code: 'es', label: 'Espa\u00f1ol', changeLabel: 'Cambiar idioma' },
+    { code: 'fr', label: 'Fran\u00e7ais', changeLabel: 'Changer de langue' },
+    { code: 'de', label: 'Deutsch', changeLabel: 'Sprache \u00e4ndern' },
+    { code: 'pt', label: 'Portugu\u00eas', changeLabel: 'Mudar idioma' },
+    { code: 'ja', label: '\u65e5\u672c\u8a9e', changeLabel: '\u8a00\u8a9e\u3092\u5909\u66f4' },
+    { code: 'ko', label: '\ud55c\uad6d\uc5b4', changeLabel: '\uc5b8\uc5b4 \ubcc0\uacbd' }
   ];
   var backgroundAudio = BackgroundAudio.create(document.getElementById('theme-audio'), root, 20);
   var themeLookupTimer = null;
@@ -159,6 +171,12 @@
   var resultOverscanRows = 3;
   var libraryGridView = null;
   var libraryLifecycle = null;
+  var libraryViewCache = {};
+  var libraryDomCacheOrder = [];
+  var libraryPrefetchTimer = null;
+  var libraryPrefetchQueue = [];
+  var libraryPrefetchActive = false;
+  var libraryPrefetchAnchor = -1;
   var activeLibrary = null;
   var libraryTabIndex = 0;
   var libraryZone = 'tabs';
@@ -198,6 +216,7 @@
   var seriesContext = null;
   var detailZone = 'play';
   var detailPresentationView = null;
+  var mediaInfoView = MediaInfoView.create({ document: document, t: t });
   var detailSeasonIndex = 0;
   var detailEpisodeIndex = 0;
   var detailEpisodeView = null;
@@ -212,6 +231,7 @@
   var choiceDialogView = ChoiceDialogView.create({ document: document });
   var choiceDialogApply = null;
   var choiceDialogReturnFocus = null;
+  var privacyDialogOpen = false;
   var detailMediaProfileRequest = null;
   var detailMediaProfileTimer = null;
   var detailMediaProfileToken = 0;
@@ -219,6 +239,8 @@
   var detailMediaProfileLoading = false;
   var detailMediaLoadingLabelTimer = null;
   var detailMediaLoadingLabelVisible = false;
+  var detailTransitionTimer = null;
+  var detailTransitionEndTimer = null;
   var currentPlayback = null;
   var episodeResolver = EpisodeNavigation.createResolver(function (season, callback) {
     PlexClient.loadSeasonEpisodes(config, season.ratingKey, '', callback);
@@ -231,7 +253,10 @@
   var resumeChoiceState = null;
   var resumeChoiceVisible = false;
   var activeViewState = null;
-  var playbackCapabilities = { directPlay: false, codecs: [], containers: [], known: false, uhd: false, hdr10: false };
+  var playbackCapabilities = {
+    directPlay: false, codecs: [], containers: [], known: false,
+    uhd: false, hdr10: false, dolbyVision: false, hdrKnown: false
+  };
 
   var playerStreamSwitching = false;
   var playbackClock = PlaybackClock.create(2);
@@ -267,6 +292,8 @@
   var subtitleEditorIndex = 0;
   var subtitleEditorRequest = null;
   var subtitleEditorGeneration = 0;
+  var subtitlePanelTransitionTimer = null;
+  var subtitlePreviewTimer = null;
   var failedSubtitleStreams = {};
   var playerTimelineSuppressed = false;
   var pendingPlaybackRestore = null;
@@ -276,6 +303,7 @@
   var estimatedEndTimer = null;
   var detailActionIndex = 0;
   var detailRefreshPending = false;
+  var pendingDetailProgress = null;
   var detailMetadataStatusTimer = null;
   var detailMetadataStatusTemporary = false;
   var detailPlayPending = false;
@@ -357,7 +385,7 @@
   homePoller = HomeState.createPoller(root, {
     interval: 10000,
     canRefresh: function () {
-      return appView === 'home' && !document.hidden && !!config.apiBaseUrl && (!root.navigator || root.navigator.onLine !== false);
+      return appView === 'home' && !document.hidden && !!config.apiBaseUrl && networkState.allowsLocal();
     },
     isLoading: function () { return homeRefreshCoordinator.isLoading(); },
     refresh: function () { homeRefreshCoordinator.refresh(); }

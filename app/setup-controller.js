@@ -65,10 +65,13 @@
       statusKey: '',
       returnView: '',
       profileBusy: false,
+      profileLoading: false,
       loginPurpose: '',
       servers: [],
       selectedLanguage: '',
       languageSelectable: false,
+      canChangeLanguage: false,
+      scanAttempted: false,
       profilePin: ''
     };
 
@@ -84,9 +87,11 @@
         statusKey: state.statusKey,
         returnView: state.returnView,
         profileBusy: state.profileBusy,
+        profileLoading: state.profileLoading,
         loginPurpose: state.loginPurpose,
         servers: copyList(state.servers),
         selectedLanguage: state.selectedLanguage,
+        canChangeLanguage: state.canChangeLanguage,
         profilePinLength: state.profilePin.length,
         destroyed: destroyed
       };
@@ -153,12 +158,13 @@
       return candidate;
     }
 
-    function beginScan() {
+    function beginScan(background) {
       var requestToken;
       if (destroyed || !values.scan) { return; }
       requestToken = token('scan');
       reserveRequest('scan', requestToken);
-      state.stage = 'servers';
+      state.scanAttempted = true;
+      if (!background) { state.stage = 'servers'; }
       state.statusKey = '';
       publish();
       retainRequest('scan', requestToken, values.scan(snapshot(), function (error, servers) {
@@ -234,13 +240,15 @@
       reserveRequest('profiles', requestToken);
       state.stage = 'profiles';
       state.profileBusy = false;
-      state.statusKey = 'setup.loginWaiting';
+      state.profileLoading = true;
+      state.statusKey = '';
       publish();
       retainRequest('profiles', requestToken, values.loadProfiles(ownerToken, function (error, profiles) {
         var previousProfileCount;
         var previousFocus;
         if (!current(requestToken, 'profiles')) { return; }
         delete pending.profiles;
+        state.profileLoading = false;
         previousProfileCount = state.profiles.length;
         previousFocus = state.focusIndex;
         state.profiles = error ? [] : copyList(profiles);
@@ -282,6 +290,7 @@
 
     function finishSetup() {
       state.profileBusy = false;
+      state.profileLoading = false;
       state.statusKey = '';
       if (values.finish) { values.finish(snapshot()); }
       publish();
@@ -331,15 +340,21 @@
       state.statusKey = '';
       state.returnView = String(next.returnView || '');
       state.profileBusy = false;
+      state.profileLoading = false;
       state.loginPurpose = '';
       state.servers = copyList(next.servers);
       state.selectedLanguage = String(next.language || '');
       state.languageSelectable = next.firstRun === true || next.languageExplicit === false;
+      state.canChangeLanguage = state.languageSelectable;
+      state.scanAttempted = false;
       state.profilePin = '';
       if (next.stage) {
         setStage(String(next.stage), '', Number(next.focusIndex) || 0);
         if (next.stage === 'servers' && next.scan !== false) { beginScan(); }
-      } else if (state.languageSelectable) { setStage('language', '', Number(next.focusIndex) || 0); }
+      } else if (state.languageSelectable) {
+        setStage('language', '', Number(next.focusIndex) || 0);
+        if (next.prefetchScan === true) { beginScan(true); }
+      }
       else { setStage('servers', ''); beginScan(); }
       return snapshot();
     }
@@ -353,8 +368,12 @@
         if (values.selectLanguage) { values.selectLanguage(state.selectedLanguage, snapshot()); }
         state.languageSelectable = false;
         setStage('servers', '');
-        beginScan();
+        if (!pending.scan && !state.scanAttempted) { beginScan(); }
       } else if (action === 'scan') { beginScan(); }
+      else if (action === 'change-language' && state.canChangeLanguage) {
+        state.languageSelectable = true;
+        setStage('language', '');
+      }
       else if (action === 'servers') { setStage('servers', ''); }
       else if (action === 'manual') { setStage('manual', ''); }
       else if (action === 'connect-manual') { requestManualProbe(payload); }
@@ -396,6 +415,15 @@
     function back() {
       var nextStage;
       if (destroyed) { return snapshot(); }
+      if (state.stage === 'language') {
+        setStage('language', '', 0);
+        return snapshot();
+      }
+      if (state.stage === 'servers' && state.canChangeLanguage) {
+        state.languageSelectable = true;
+        setStage('language', '');
+        return snapshot();
+      }
       invalidate();
       if (state.returnView) { cancel(); return snapshot(); }
       if (state.stage === 'manual' || state.stage === 'access') { nextStage = 'servers'; }
@@ -403,10 +431,9 @@
       else if (state.stage === 'login') { nextStage = state.loginPurpose === 'servers' ? 'servers' : 'access'; }
       else if (state.stage === 'profiles') { nextStage = 'access'; }
       else if (state.stage === 'profile-pin') { nextStage = 'profiles'; }
-      else if (state.stage === 'servers' && state.languageSelectable) { nextStage = 'language'; }
-      else if (state.stage === 'language') { cancel(); return snapshot(); }
       else { nextStage = 'servers'; }
       state.profileBusy = false;
+      state.profileLoading = false;
       if (state.stage === 'profile-pin') { state.profilePin = ''; }
       state.statusKey = '';
       setStage(nextStage, '');
@@ -462,6 +489,7 @@
       if (destroyed) { return; }
       invalidate();
       state.profileBusy = false;
+      state.profileLoading = false;
       state.statusKey = '';
       if (values.cancel) { values.cancel(snapshot()); }
       publish();
@@ -472,6 +500,7 @@
       invalidate();
       destroyed = true;
       state.profileBusy = false;
+      state.profileLoading = false;
       publish();
     }
 

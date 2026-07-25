@@ -169,4 +169,13 @@ empty.view.setItems(items(4), 4);
 empty.view.reset();
 assert.strictEqual(empty.cancelled[empty.cancelled.length - 1], 'library', 'reset must cancel obsolete library poster work');
 
+var restored = fixture();
+restored.view.restore({
+  mode: 'catalog', usesGridScroll: true, items: items(8), recommendations: [], totalSize: 20,
+  focus: { index: 5, recommendationRow: 0 }
+});
+assert.strictEqual(restored.view.snapshot().items.length, 8, 'restoring a cached library must expose its items immediately');
+assert.strictEqual(restored.view.snapshot().totalSize, 20, 'restoring a cached library must retain its server total');
+assert.strictEqual(restored.view.snapshot().focus.index, 5, 'restoring a cached library must retain its focused item');
+
 console.log('Library grid view checks passed');
