@@ -8,6 +8,33 @@
 }(this, function () {
   'use strict';
 
+  /**
+   * @typedef {Object} MediaProfileRecord
+   * @property {*=} ratingKey
+   * @property {*=} partId
+   * @property {string} container
+   * @property {string} resolution
+   * @property {number} width
+   * @property {number} height
+   * @property {number} size
+   * @property {string} formattedSize
+   * @property {string} fileName
+   * @property {number} duration
+   * @property {number} bitrate
+   * @property {string} videoCodec
+   * @property {*} videoDynamicRange
+   * @property {string} audioCodec
+   * @property {number} audioChannels
+   * @property {string} videoProfile
+   * @property {string} videoFrameRate
+   * @property {Object<string, *>} videoDetails
+   * @property {Array<*>} audioTracks
+   * @property {Array<*>} subtitleTracks
+   * @property {string} summary
+   * @property {number=} mediaIndex
+   * @property {number=} partIndex
+   */
+
   var LANGUAGE_ALIASES = { eng: 'en', ita: 'it', jpn: 'ja', fre: 'fr', fra: 'fr', ger: 'de', deu: 'de', spa: 'es', por: 'pt', kor: 'ko', chi: 'zh', zho: 'zh', rus: 'ru' };
 
   function normalizedLanguage(stream) {
@@ -15,14 +42,14 @@
     return LANGUAGE_ALIASES[value] || value;
   }
 
-  function track(stream) {
+  function trackFromAttributes(stream) {
     var tag = normalizedLanguage(stream);
     return {
       id: stream.id || '',
-      language: stream.language || stream.title || stream.languageCode || tag || '',
+      language: stream.language || stream.languageCode || 'Sconosciuta',
       languageTag: tag,
-      languageCode: tag,
-      codec: String(stream.codec || '').toUpperCase(),
+      languageCode: LANGUAGE_ALIASES[String(stream.languageCode || '').toLowerCase()] || tag,
+      codec: stream.codec || '',
       channels: Number(stream.channels || 0),
       forced: stream.forced === '1',
       selected: stream.selected === '1',
@@ -36,6 +63,13 @@
       extendedDisplayTitle: String(stream.extendedDisplayTitle || ''),
       channelLayout: String(stream.audioChannelLayout || stream.channelLayout || '')
     };
+  }
+
+  function profileTrack(stream) {
+    var result = trackFromAttributes(stream);
+    result.language = stream.language || stream.title || stream.languageCode || result.languageTag || '';
+    result.codec = String(result.codec || '').toUpperCase();
+    return result;
   }
 
   function channelLabel(item) {
@@ -83,18 +117,28 @@
     return Math.round(value / 1024) + ' KB';
   }
 
+  function detailedSize(bytes, unavailableLabel) {
+    var value = Number(bytes || 0);
+    if (!isFinite(value) || value <= 0) { return String(unavailableLabel || ''); }
+    if (value >= 1073741824) { return (value / 1073741824).toFixed(2) + ' GB'; }
+    if (value >= 1048576) { return (value / 1048576).toFixed(1) + ' MB'; }
+    return Math.round(value / 1024) + ' KB';
+  }
+
+  /** @returns {MediaProfileRecord} */
   function fromNodes(videoAttrs, mediaAttrs, partAttrs, streams) {
     var video = videoAttrs || {};
     var media = mediaAttrs || {};
     var part = partAttrs || {};
     var audioTracks = [];
     var subtitleTracks = [];
+    /** @type {MediaProfileRecord} */
     var result;
     var summary = [];
     var videoDetails = {};
     (streams || []).forEach(function (stream) {
-      if (stream.streamType === '2') { audioTracks.push(track(stream)); }
-      else if (stream.streamType === '3') { subtitleTracks.push(track(stream)); }
+      if (stream.streamType === '2') { audioTracks.push(profileTrack(stream)); }
+      else if (stream.streamType === '3') { subtitleTracks.push(profileTrack(stream)); }
       else if (stream.streamType === '1' && !videoDetails.codec) {
         videoDetails = {
           codec: String(stream.codec || media.videoCodec || '').toUpperCase(),
@@ -117,7 +161,7 @@
       height: Number(media.height || 0),
       size: Number(part.size || 0),
       formattedSize: formattedSize(part.size),
-      fileName: String(part.file || part.key || '').split(/[\\/]/).pop(),
+      fileName: String(part.file || part.key || '').split(/[\\/]/).pop() || '',
       duration: Number(part.duration || media.duration || video.duration || 0),
       bitrate: Number(media.bitrate || 0),
       videoCodec: String(media.videoCodec || '').toUpperCase(),
@@ -176,10 +220,12 @@
 
   return {
     choiceState: choiceState,
+    detailedSize: detailedSize,
     formattedSize: formattedSize,
     fromNodes: fromNodes,
     fromVersions: fromVersions,
     subtitleLanguages: subtitleLanguages,
-    trackDisplayLabel: trackDisplayLabel
+    trackDisplayLabel: trackDisplayLabel,
+    trackFromAttributes: trackFromAttributes
   };
 }));

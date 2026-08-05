@@ -8,6 +8,13 @@
 }(this, function () {
   'use strict';
 
+  /**
+   * @typedef {Object} ResolvedWatchlistItem
+   * @property {*=} cloudRatingKey
+   * @property {string=} cloudGuid
+   * @property {boolean=} inWatchlist
+   */
+
   function available(mode, accountToken) {
     return mode === 'plex' && !!accountToken;
   }
@@ -45,6 +52,7 @@
         active += 1;
         (function (current) {
           resolver(current.guid, function (error, localItem) {
+            /** @type {ResolvedWatchlistItem} */
             var merged;
             active -= 1;
             completed += 1;

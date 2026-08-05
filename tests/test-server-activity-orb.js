@@ -7,7 +7,7 @@ var path = require('path');
 var root = path.join(__dirname, '..');
 var index = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
 var styles = fs.readFileSync(path.join(root, 'app/styles.css'), 'utf8');
-var server = fs.readFileSync(path.join(root, 'app/source/42-server.js'), 'utf8');
+var shellFeature = fs.readFileSync(path.join(root, 'app/coordinator/shell-feature-controller.js'), 'utf8');
 
 assert.ok(index.indexOf('server-activity-spinner processing-orb') !== -1, 'the Plex activity control must render the processing orb');
 assert.ok(index.indexOf('server-activity-fluid-filter') !== -1, 'the fluid SVG filter must be present');
@@ -32,15 +32,15 @@ assert.ok(styles.indexOf('.server-activity.is-idle.is-network-local-only .server
 assert.ok(styles.indexOf('.server-activity.is-idle.is-network-offline .server-activity-spinner:before { border-color:#f05d5e;') !== -1, 'the idle fallback ring must preserve the offline color');
 assert.ok(styles.indexOf('.server-activity.is-idle.is-network-unknown .server-activity-spinner:before { border-color:#737a84;') !== -1, 'the idle fallback ring must preserve the unknown color');
 assert.ok(styles.indexOf('.server-activity.is-idle .processing-orb-ring { display:none !important; }') !== -1, 'idle mode must avoid stacking the SVG ring over the CSS fallback');
-assert.ok(server.indexOf("var serverActivityVisualState = 'idle'") !== -1, 'activity rendering must track the visual state');
-assert.ok(server.indexOf('interfaceAnimationDuration(520)') !== -1, 'the refactored start transition must respect interface animation settings');
+assert.ok(shellFeature.indexOf("var serverActivityVisualState = 'idle'") !== -1, 'activity rendering must track the visual state');
+assert.ok(shellFeature.indexOf('activityAnimationDuration(520)') !== -1, 'the refactored start transition must respect interface animation settings');
 assert.ok(styles.indexOf('server-activity-orb-start .52s cubic-bezier(.16,.78,.18,1)') !== -1, 'the shell must use the selected 520ms three-act startup');
 assert.ok(styles.indexOf('server-activity-visual-start .4s cubic-bezier(.18,.75,.18,1) .09s') !== -1, 'the fluid field must enter after the ring');
 assert.ok(styles.indexOf('server-activity-aura-start .34s cubic-bezier(.16,.78,.18,1) .06s') !== -1, 'the aura must ignite between the ring and the fluid field');
 assert.ok(styles.indexOf('opacity .28s ease .08s') !== -1, 'the activity title must follow the refactored staggered entrance');
 assert.ok(styles.indexOf('32% { transform:scale(.88)') !== -1 && styles.indexOf('74% { transform:scale(1.045)') !== -1, 'the startup shell must use the refactored restrained overshoot');
-assert.ok(server.indexOf('interfaceAnimationDuration(900)') !== -1, 'the stop transition must respect interface animation settings');
-assert.ok(server.indexOf("button.setAttribute('aria-busy'") !== -1, 'activity state must remain accessible');
+assert.ok(shellFeature.indexOf('activityAnimationDuration(900)') !== -1, 'the stop transition must respect interface animation settings');
+assert.ok(shellFeature.indexOf("button.setAttribute('aria-busy'") !== -1, 'activity state must remain accessible');
 assert.ok(index.indexOf('processing-orb-legacy') !== -1, 'legacy Chromium must receive a CSS-only activity visual');
 assert.ok(index.indexOf('legacy-orbit legacy-orbit-a') !== -1 && index.indexOf('legacy-orbit legacy-orbit-b') !== -1 && index.indexOf('legacy-orb-core') !== -1, 'the legacy activity visual must retain a core and two orbiting energy layers');
 assert.ok(styles.indexOf('.server-activity.is-active .processing-orb-legacy') !== -1, 'active activity state must enable the CSS orb');

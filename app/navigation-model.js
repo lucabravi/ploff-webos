@@ -44,6 +44,22 @@
     return { items: result, index: target };
   }
 
+  function visibleItems(items, settings) {
+    var values = settings || {};
+    return (items || []).filter(function (item) {
+      if (item.kind === 'watchlist') { return !!values.showWatchlist; }
+      if (item.kind === 'playlists') { return !!values.showPlaylists; }
+      return true;
+    });
+  }
+
+  function restoreVisibleIndex(previousItems, nextItems, index) {
+    var active = (previousItems || [])[index];
+    var nextIndex = (nextItems || []).indexOf(active);
+    if (nextIndex >= 0) { return nextIndex; }
+    return Math.max(0, Math.min(Number(index) || 0, Math.max(0, (nextItems || []).length - 1)));
+  }
+
   function load(storage) {
     try {
       var value = storage && storage.getItem(STORAGE_KEY);
@@ -55,7 +71,8 @@
 
   function save(storage, keys) {
     var value = Object.prototype.toString.call(keys) === '[object Array]' ? keys.map(String) : [];
-    if (storage && storage.setItem) { storage.setItem(STORAGE_KEY, JSON.stringify(value)); }
+    try { if (storage && storage.setItem) { storage.setItem(STORAGE_KEY, JSON.stringify(value)); } }
+    catch (_error) {}
     return value;
   }
 
@@ -82,6 +99,8 @@
     libraryKeys: libraryKeys,
     load: load,
     moveLibrary: moveLibrary,
-    save: save
+    restoreVisibleIndex: restoreVisibleIndex,
+    save: save,
+    visibleItems: visibleItems
   };
 }));

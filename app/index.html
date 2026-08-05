@@ -171,7 +171,19 @@
   <main id="content" class="content"></main>
 
   <section id="library-view" class="library-view is-hidden">
-    <h1 id="library-global-title" class="library-global-title"></h1>
+    <div id="library-global-header" class="library-global-header">
+      <h1 id="library-global-title" class="library-global-title"></h1>
+      <div id="library-container-stats" class="library-container-stats is-hidden" aria-live="polite">
+        <div class="library-container-stat">
+          <span id="library-container-watched-label" class="library-container-stat-label"></span>
+          <strong id="library-container-watched-value" class="library-container-stat-value"></strong>
+        </div>
+        <div class="library-container-stat">
+          <span id="library-container-remaining-label" class="library-container-stat-label"></span>
+          <strong id="library-container-remaining-value" class="library-container-stat-value"></strong>
+        </div>
+      </div>
+    </div>
     <nav id="library-subnav" class="library-subnav">
       <div id="library-tabs" class="library-tabs"></div>
       <div class="library-actions">
@@ -187,7 +199,7 @@
     <div id="library-recommended" class="library-recommended is-hidden"></div>
     <div id="library-grid" class="library-grid"><div id="library-grid-content" class="library-grid-content"></div></div>
     <div id="library-filter-shade" class="library-filter-shade is-hidden"></div>
-    <aside id="library-filter-drawer" class="library-filter-drawer is-hidden" role="dialog" aria-modal="true">
+    <aside id="library-filter-drawer" class="library-filter-drawer is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="library-filter-title" aria-describedby="library-filter-hint">
       <h2 id="library-filter-title"></h2>
       <p id="library-filter-hint" class="library-filter-hint"></p>
       <div id="library-filter-rows" class="library-filter-rows"></div>
@@ -215,10 +227,11 @@
     <h1 id="app-settings-title" class="app-settings-title">Settings</h1>
     <p id="app-settings-notice" class="app-settings-notice"></p>
     <div id="app-settings-list" class="app-settings-list"></div>
-    <div id="language-editor" class="language-editor is-hidden">
+    <div id="language-editor" class="language-editor is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="language-editor-title" aria-describedby="language-editor-hint">
       <h2 id="language-editor-title"></h2>
       <p id="language-editor-hint"></p>
       <div id="language-editor-list" class="language-editor-list"></div>
+      <div class="language-editor-actions"><button id="language-editor-back" type="button"></button></div>
     </div>
   </section>
   <section id="diagnostics-view" class="diagnostics-view is-hidden" aria-live="polite">
@@ -254,48 +267,20 @@
           <button id="detail-subtitles" class="detail-choice" type="button"><span id="detail-subtitles-label" class="detail-choice-label">Subtitles</span><span id="detail-subtitles-value" class="detail-choice-value"></span></button>
           <button id="detail-version" class="detail-choice" type="button"><span id="detail-version-label" class="detail-choice-label">Version</span><span id="detail-version-value" class="detail-choice-value"></span></button>
         </div>
-        <button id="detail-media-info-button" class="detail-media-info-button is-hidden" type="button" disabled>
-        <div id="detail-media-info" class="detail-media-info">
-          <div id="detail-media-info-label" class="detail-media-info-title">Media info</div>
-          <div class="detail-media-info-row">
-            <span id="detail-media-info-video-label" class="detail-media-info-row-label">Video</span>
-            <span id="detail-media-info-video" class="detail-media-info-row-value"></span>
-          </div>
-          <div class="detail-media-info-row">
-            <span id="detail-media-info-audio-label" class="detail-media-info-row-label">Audio</span>
-            <span id="detail-media-info-audio" class="detail-media-info-row-value"></span>
-          </div>
-          <div class="detail-media-info-row">
-            <span id="detail-media-info-bitrate-label" class="detail-media-info-row-label">Bitrate</span>
-            <span id="detail-media-info-bitrate" class="detail-media-info-row-value"></span>
-          </div>
-          <div class="detail-media-info-row">
-            <span id="detail-media-info-subtitle-languages-label" class="detail-media-info-row-label">Subtitle languages</span>
-            <span id="detail-media-info-subtitle-languages" class="detail-media-info-row-value"></span>
-          </div>
-        </div>
-        <span class="detail-media-info-more" aria-hidden="true"></span>
-        </button>
       </div>
     </div>
     <img id="detail-poster" class="detail-poster" alt="">
     <div id="episode-strip" class="episode-strip"></div>
   </section>
-    <div id="detail-summary-dialog" class="detail-summary-dialog is-hidden" role="dialog" aria-modal="true" aria-labelledby="detail-summary-dialog-title">
+    <div id="detail-summary-dialog" class="detail-summary-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="detail-summary-dialog-title" aria-describedby="detail-summary-dialog-hint">
       <div class="detail-summary-dialog-panel">
         <h2 id="detail-summary-dialog-title"></h2>
         <div id="detail-summary-dialog-text" class="detail-summary-dialog-text"></div>
         <div id="detail-summary-dialog-hint" class="detail-summary-dialog-hint"></div>
+        <button id="detail-summary-dialog-close" class="detail-summary-dialog-close" type="button"></button>
       </div>
     </div>
-    <div id="detail-media-info-dialog" class="detail-summary-dialog is-hidden" role="dialog" aria-modal="true" aria-labelledby="detail-media-info-dialog-title">
-      <div class="detail-summary-dialog-panel">
-        <h2 id="detail-media-info-dialog-title"></h2>
-        <div id="detail-media-info-dialog-text" class="detail-summary-dialog-text detail-media-info-dialog-text"></div>
-        <div id="detail-media-info-dialog-hint" class="detail-summary-dialog-hint"></div>
-      </div>
-    </div>
-    <div id="media-info-dialog" class="media-info-dialog is-hidden" role="dialog" aria-modal="true" aria-labelledby="media-info-dialog-title">
+    <div id="media-info-dialog" class="media-info-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="media-info-dialog-title" aria-describedby="media-info-dialog-hint">
       <div class="media-info-dialog-panel">
         <h2 id="media-info-dialog-title"></h2>
         <div id="media-info-dialog-content" class="media-info-dialog-content"></div>
@@ -303,13 +288,48 @@
         <button id="media-info-dialog-close" class="media-info-dialog-close" type="button"></button>
       </div>
     </div>
-    <div id="choice-dialog" class="choice-dialog is-hidden" role="dialog" aria-modal="true" aria-labelledby="choice-dialog-title">
+    <div id="choice-dialog" class="choice-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="choice-dialog-title">
       <div class="choice-dialog-panel">
         <h3 id="choice-dialog-title"></h3>
         <div id="choice-dialog-list" class="choice-dialog-list"></div>
+        <div class="choice-dialog-actions"><button id="choice-dialog-cancel" type="button"></button></div>
       </div>
     </div>
-    <div id="privacy-dialog" class="privacy-dialog is-hidden" role="dialog" aria-modal="true" aria-labelledby="privacy-dialog-title">
+    <div id="up-next-layout-dialog" class="up-next-layout-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="up-next-layout-title">
+      <div class="up-next-layout-panel">
+        <h3 id="up-next-layout-title"></h3>
+        <div class="up-next-layout-options">
+          <button type="button" class="up-next-layout-option" data-up-next-layout="compact">
+            <span class="up-next-layout-preview is-compact" aria-hidden="true"><span class="preview-brand">Ploff</span><span class="preview-card"><i id="up-next-preview-compact-heading">UP NEXT</i><b>S1 E5</b><em></em></span><span class="preview-timeline"></span></span>
+            <strong id="up-next-layout-compact-label"></strong>
+          </button>
+          <button type="button" class="up-next-layout-option" data-up-next-layout="bottom-panel">
+            <span class="up-next-layout-preview is-bottom" aria-hidden="true"><span class="preview-brand">Ploff</span><span class="preview-card"><i id="up-next-preview-bottom-heading">UP NEXT</i><b id="up-next-preview-bottom-episode">S1 E5 - NEXT EPISODE</b></span><span class="preview-timeline"></span></span>
+            <strong id="up-next-layout-bottom-label"></strong>
+          </button>
+        </div>
+        <div class="up-next-layout-actions"><button id="up-next-layout-cancel" type="button"></button><button id="up-next-layout-apply" type="button"></button></div>
+      </div>
+    </div>
+    <div id="update-dialog" class="update-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="update-dialog-title" aria-describedby="update-status update-release-hint">
+      <div class="update-dialog-panel">
+        <h2 id="update-dialog-title"></h2>
+        <div class="update-dialog-body">
+          <div class="update-dialog-copy">
+            <dl class="update-dialog-details">
+              <div><dt id="update-installed-label"></dt><dd id="update-installed-value"></dd></div>
+              <div><dt id="update-latest-label"></dt><dd id="update-latest-value"></dd></div>
+              <div><dt id="update-last-check-label"></dt><dd id="update-last-check-value"></dd></div>
+            </dl>
+            <p id="update-status" class="update-dialog-status"></p>
+            <p id="update-release-hint" class="update-dialog-hint"></p>
+          </div>
+          <img class="update-dialog-qr" src="ploff-release-qr.png" alt="" aria-hidden="true">
+        </div>
+        <div class="update-dialog-actions"><button id="update-check" class="is-primary" data-update-index="0" type="button"></button><button id="update-close" data-update-index="1" type="button"></button></div>
+      </div>
+    </div>
+    <div id="privacy-dialog" class="privacy-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="privacy-dialog-title" aria-describedby="privacy-dialog-content">
       <div class="privacy-dialog-panel">
         <h2 id="privacy-dialog-title"></h2>
         <div id="privacy-dialog-content" class="privacy-dialog-content"></div>
@@ -317,6 +337,7 @@
       </div>
     </div>
   <section id="player-view" class="player-view is-hidden">
+    <img id="autoplay-backdrop" class="player-up-next-backdrop" alt="" aria-hidden="true">
     <video id="player-video" class="player-video" playsinline autoplay></video>
     <div id="subtitle-preview-overlay" class="subtitle-preview-overlay is-hidden" aria-live="off"></div>
     <div id="player-loading" class="player-loading is-hidden"><span class="player-loading-spinner"></span></div>
@@ -329,7 +350,7 @@
         <button id="player-error-back" type="button"></button>
       </div>
     </div>
-    <div id="resume-choice" class="resume-choice is-hidden" role="dialog" aria-modal="true">
+    <div id="resume-choice" class="resume-choice is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="resume-choice-title">
       <h3 id="resume-choice-title"></h3>
       <div class="resume-choice-actions">
         <button id="resume-choice-resume" data-resume-index="0" type="button"></button>
@@ -337,6 +358,18 @@
         <button id="resume-choice-cancel" data-resume-index="2" type="button"></button>
       </div>
     </div>
+    <div id="queue-gap-dialog" class="queue-gap-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="queue-gap-title" aria-describedby="queue-gap-body">
+      <div class="queue-gap-panel">
+        <h3 id="queue-gap-title"></h3>
+        <p id="queue-gap-body"></p>
+        <div class="queue-gap-target">
+          <img id="queue-gap-image" class="queue-gap-image" alt="">
+          <div class="queue-gap-target-copy"><strong id="queue-gap-target-title"></strong><span id="queue-gap-target-meta"></span></div>
+        </div>
+        <div class="queue-gap-actions"><button id="queue-gap-stay" type="button"></button><button id="queue-gap-continue" type="button"></button></div>
+      </div>
+    </div>
+    <div id="player-end-pause" class="player-end-pause is-hidden" role="status" aria-live="polite" aria-hidden="true"></div>
     <button id="player-skip-marker" class="player-skip-marker is-hidden" type="button"></button>
     <div id="player-controls" class="player-controls is-hidden">
       <div class="player-heading">
@@ -366,7 +399,7 @@
       <h3 id="player-chapters-title"></h3>
       <div id="player-chapters-list" class="player-chapters-list"></div>
     </section>
-    <div id="player-settings" class="player-settings is-hidden">
+    <div id="player-settings" class="player-settings is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="player-settings-title">
       <h3 id="player-settings-title">Settings</h3>
       <button class="setting-row is-cycle" data-setting="audio" type="button"><span id="setting-audio-label">Audio</span><span id="setting-audio"></span></button>
       <button class="setting-row is-cycle" data-setting="subtitles" type="button"><span id="setting-subtitles-label">Subtitles</span><span id="setting-subtitles"></span></button>
@@ -382,8 +415,9 @@
         <div class="playback-info-row"><span id="playback-info-hdr-label">HDR</span><span id="playback-info-hdr"></span></div>
         <div class="playback-info-row"><span id="playback-info-mode-label">Playback</span><span id="playback-info-mode"></span></div>
       </button>
+      <button id="player-settings-close" class="setting-row player-settings-close" data-setting="close" type="button"></button>
     </div>
-    <div id="subtitle-editor" class="subtitle-editor is-hidden" role="dialog" aria-modal="true">
+    <div id="subtitle-editor" class="subtitle-editor is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="subtitle-editor-title" aria-describedby="subtitle-editor-status">
       <h3 id="subtitle-editor-title"></h3>
       <p id="subtitle-editor-status" class="subtitle-editor-status"></p>
       <button class="subtitle-editor-row" data-subtitle-editor="track" type="button"><span id="subtitle-editor-track-label"></span><span id="subtitle-editor-track"></span></button>
@@ -402,17 +436,23 @@
           <button data-subtitle-editor="loop" type="button"><span id="subtitle-editor-loop-label"></span></button>
         </div>
         <div class="subtitle-editor-action-group subtitle-editor-commit-group">
-          <button data-subtitle-editor="apply" type="button"><span id="subtitle-editor-apply-label"></span></button>
           <button data-subtitle-editor="cancel" type="button"><span id="subtitle-editor-cancel-label"></span></button>
+          <button class="is-primary" data-subtitle-editor="apply" type="button"><span id="subtitle-editor-apply-label"></span></button>
         </div>
       </div>
     </div>
-    <div id="autoplay-prompt" class="autoplay-prompt is-hidden">
-      <h3 id="autoplay-title"></h3>
-      <div class="autoplay-actions">
-        <button id="autoplay-play" type="button">Play</button>
-        <button id="autoplay-cancel" type="button">Cancel</button>
+    <div id="autoplay-prompt" class="autoplay-prompt is-hidden" role="dialog" aria-modal="true" aria-labelledby="autoplay-title" aria-hidden="true">
+      <img id="autoplay-image" class="autoplay-image" alt="">
+      <div class="autoplay-copy">
+        <span id="autoplay-series" class="autoplay-series"></span>
+        <h3 id="autoplay-title"></h3>
+        <span id="autoplay-countdown" class="autoplay-countdown"></span>
       </div>
+      <div class="autoplay-actions">
+        <button id="autoplay-cancel" type="button">Cancel</button>
+        <button id="autoplay-play" type="button">Play</button>
+      </div>
+      <div class="autoplay-progress"><span id="autoplay-progress"></span></div>
     </div>
   </section>
   <section id="view-state" class="view-state is-hidden" aria-live="polite">
@@ -443,6 +483,7 @@
   <script src="player-chapters-view.js?v=dev"></script>
   <script src="playback-strategy.js?v=dev"></script>
   <script src="version-selection.js?v=dev"></script>
+  <script src="playback-queue-model.js?v=dev"></script>
   <script src="playback-recovery.js?v=dev"></script>
   <script src="playback-clock.js?v=dev"></script>
   <script src="player-seek-controller.js?v=dev"></script>
@@ -462,9 +503,11 @@
   <script src="device-locale.js?v=dev"></script>
   <script src="media-preferences.js?v=dev"></script>
   <script src="media-profile.js?v=dev"></script>
+  <script src="media-choice-model.js?v=dev"></script>
   <script src="media-info.js?v=dev"></script>
   <script src="media-info-view.js?v=dev"></script>
   <script src="media-labels.js?v=dev"></script>
+  <script src="plex-http.js?v=dev"></script>
   <script src="watchlist-client.js?v=dev"></script>
   <script src="watchlist-state.js?v=dev"></script>
   <script src="watchlist-view.js?v=dev"></script>
@@ -479,17 +522,20 @@
   <script src="locales/pt.js?v=dev"></script>
   <script src="locales/ja.js?v=dev"></script>
   <script src="locales/ko.js?v=dev"></script>
+  <script src="release-status.js?v=dev"></script>
   <script src="settings.js?v=dev"></script>
   <script src="local-data.js?v=dev"></script>
   <script src="settings-catalog.js?v=dev"></script>
   <script src="settings-view.js?v=dev"></script>
   <script src="t9-input.js?v=dev"></script>
+  <script src="search-text.js?v=dev"></script>
   <script src="search-view.js?v=dev"></script>
   <script src="server-editor-view.js?v=dev"></script>
   <script src="setup-scan-indicator.js?v=dev"></script>
   <script src="setup-focus.js?v=dev"></script>
   <script src="setup-view.js?v=dev"></script>
   <script src="setup-auth-session.js?v=dev"></script>
+  <script src="server-store.js?v=dev"></script>
   <script src="setup-controller.js?v=dev"></script>
   <script src="library-filter-view.js?v=dev"></script>
   <script src="library-grid-view.js?v=dev"></script>
@@ -499,14 +545,25 @@
   <script src="detail-presentation-view.js?v=dev"></script>
   <script src="detail-preference-state.js?v=dev"></script>
   <script src="choice-dialog-view.js?v=dev"></script>
+  <script src="up-next-layout-dialog.js?v=dev"></script>
+  <script src="up-next-state.js?v=dev"></script>
+  <script src="up-next-timing.js?v=dev"></script>
+  <script src="up-next-view.js?v=dev"></script>
   <script src="credential-vault.js?v=dev"></script>
   <script src="auth-store.js?v=dev"></script>
   <script src="plex-auth.js?v=dev"></script>
-  <script src="server-store.js?v=dev"></script>
   <script src="server-discovery.js?v=dev"></script>
   <script src="background-audio.js?v=dev"></script>
+  <script src="application-events.js?v=dev"></script>
+  <script src="application-session.js?v=dev"></script>
+  <script src="input-target-router.js?v=dev"></script>
+  <script src="plex-url.js?v=dev"></script>
+  <script src="plex-search-parser.js?v=dev"></script>
+  <script src="plex-playback-urls.js?v=dev"></script>
   <script src="plex-client.js?v=dev"></script>
   <script src="progressive-images.js?v=dev"></script>
+  <script src="queue-gap-view.js?v=dev"></script>
+  <!-- Deterministic bundle of independent UMD coordinators; the minimal bootstrap is last. -->
   <script src="app.js?v=dev"></script>
 </body>
 </html>

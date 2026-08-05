@@ -1,0 +1,10 @@
+'use strict';
+var assert = require('assert');
+var Timing = require('../app/up-next-timing');
+assert.strictEqual(Timing.initial(5), 5, 'uses the configured post-playback delay');
+assert.strictEqual(Timing.initial(0), 0, 'zero keeps automatic next-item playback disabled');
+assert.strictEqual(Timing.next(5), 4, 'ticks once per stopped-playback second');
+assert.strictEqual(Timing.next(1), 0, 'the final tick reaches zero');
+assert.strictEqual(Timing.complete(0), true, 'zero confirms the next queue item');
+assert.strictEqual(Timing.complete(1), false, 'positive seconds keep the prompt open');
+console.log('Up Next timing checks passed');

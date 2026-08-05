@@ -7,6 +7,18 @@ assert.deepStrictEqual(ProgressiveImages.previewSize(248, 370, 96), { width: 64,
 assert.deepStrictEqual(ProgressiveImages.previewSize(338, 190, 96), { width: 96, height: 54 }, 'landscape previews must preserve the final card aspect ratio');
 assert.deepStrictEqual(ProgressiveImages.previewSize(310, 124, 128), { width: 128, height: 51 }, 'episode previews must scale to the exact rendered aspect ratio');
 assert.deepStrictEqual(ProgressiveImages.previewSize(300, 132, 96), { width: 96, height: 42 }, 'chapter previews must scale to the exact rendered aspect ratio');
+assert.deepStrictEqual(ProgressiveImages.renderedSize({ getBoundingClientRect: function () { return { width: 248.9, height: 370.8 }; } }, 100, 100), { width: 248, height: 370 }, 'full image requests must never exceed fractional rendered CSS dimensions');
+assert.deepStrictEqual(ProgressiveImages.renderedSize({ clientWidth: 164.9, clientHeight: 104.4 }, 100, 100), { width: 164, height: 104 }, 'client-size fallback must also round down to the visible image box');
+assert.deepStrictEqual(ProgressiveImages.ARTWORK_QUALITY_STEPS, [70, 80, 85, 90, 100], 'artwork quality must use the approved high-resolution scale');
+assert.deepStrictEqual(ProgressiveImages.BACKDROP_QUALITY_STEPS, [50, 60, 70, 85, 100], 'backdrop quality must use its independent wider scale');
+assert.strictEqual(ProgressiveImages.supportedArtworkQuality(90), 90, 'supported artwork quality must be preserved');
+assert.strictEqual(ProgressiveImages.supportedArtworkQuality(50), 70, 'artwork quality below the new range must clamp to the nearest supported step');
+assert.strictEqual(ProgressiveImages.supportedBackdropQuality(50), 50, 'supported backdrop quality must preserve the minimum step');
+assert.deepStrictEqual(ProgressiveImages.qualitySize(248, 370, 85), { width: 211, height: 315 }, 'quality must scale Plex request dimensions without changing rendered geometry');
+assert.deepStrictEqual(ProgressiveImages.qualitySize(1920, 1080, 50), { width: 960, height: 540 }, 'backdrop request dimensions must support the lowest quality step');
+assert.strictEqual(ProgressiveImages.qualityForScope({ artworkQuality: 80, backdropQuality: 100 }, 'library'), 80, 'normal artwork scopes must use artwork quality');
+assert.strictEqual(ProgressiveImages.qualityForScope({ artworkQuality: 80, backdropQuality: 100 }, 'backdrop'), 100, 'the global backdrop must use backdrop quality');
+assert.strictEqual(ProgressiveImages.qualityForScope({ artworkQuality: 80, backdropQuality: 70 }, 'up-next-backdrop'), 70, 'derived backdrop scopes must use backdrop quality');
 
 function imageTarget(name) {
   var value = '';
@@ -40,7 +52,7 @@ function harness(options) {
       previewConcurrency: options && options.previewConcurrency || 4,
       fullConcurrency: options && options.fullConcurrency || 2,
       isAttached: function (target) { return target.attached !== false; },
-      urlFor: function (source, width, height) { return source + '@' + width + 'x' + height; }
+      urlFor: options && options.urlFor || function (source, width, height) { return source + '@' + width + 'x' + height; }
     })
   };
 }
@@ -74,6 +86,7 @@ assert.strictEqual(poster.src, 'one@64x96', 'the visible preview must remain unt
 progressive.preloads[0].onload();
 assert.strictEqual(poster.src, 'one@154x224', 'completed full artwork must replace the preview');
 assert.ok(/is-full/.test(poster.className) && !/is-preview/.test(poster.className), 'the final image must leave preview state');
+assert.strictEqual(poster.__plexProgressiveJob, null, 'completed artwork must release its job and callback graph from the live card');
 var recreatedPoster = imageTarget('recreated-poster');
 load(progressive.loader, recreatedPoster, 'one', 1);
 assert.strictEqual(recreatedPoster.src, 'one@154x224', 'recreated cards must reuse a known full image URL without flashing a preview');
@@ -216,5 +229,129 @@ load(queuedReplacement.loader, replacementPoster, 'new-artwork', 1, 'search');
 assert.strictEqual(replacementPoster.src, '', 'a recycled card must hide old artwork while its replacement preview is queued');
 busyPoster.onload();
 assert.strictEqual(replacementPoster.src, 'new-artwork@64x96', 'the queued replacement must paint only its new artwork');
+
+var destroyedLoader = harness({ previewConcurrency: 1, fullConcurrency: 1 });
+var destroyedPreview = imageTarget('destroyed-preview');
+var destroyedQueued = imageTarget('destroyed-queued');
+load(destroyedLoader.loader, destroyedPreview, 'destroyed-active', 0, 'home');
+load(destroyedLoader.loader, destroyedQueued, 'destroyed-queued', 1, 'library');
+var latePreview = destroyedPreview.onload;
+destroyedLoader.loader.destroy();
+assert.strictEqual(destroyedPreview.__plexProgressiveJob, null, 'destroy must release an active artwork job from its live card');
+assert.strictEqual(destroyedQueued.__plexProgressiveJob, null, 'destroy must release a queued artwork job from its live card');
+assert.strictEqual(typeof destroyedQueued.onload, 'undefined', 'destroy must not promote queued previews while cancelling active work');
+assert.strictEqual(destroyedPreview.src, '', 'destroy must clear incomplete visible previews');
+assert.strictEqual(destroyedQueued.src, '', 'destroy must clear queued image work');
+latePreview();
+assert.strictEqual(destroyedLoader.preloads.length, 0, 'late callbacks after destroy must not start full downloads');
+assert.strictEqual(destroyedLoader.loader.load(imageTarget('ignored'), { source: 'ignored' }), null, 'destroyed loaders must reject new work');
+destroyedLoader.loader.destroy();
+
+
+(function imageScopesReachUrlConstruction() {
+  var calls = [];
+  var scoped = harness({
+    urlFor: function (source, width, height, scope) {
+      calls.push([source, width, height, scope]);
+      return source + '@' + width + 'x' + height;
+    }
+  });
+  var target = imageTarget('scoped');
+  scoped.loader.load(target, { source: 'scoped', previewWidth: 64, previewHeight: 36, width: 640, height: 360, priority: 0, scope: 'up-next-backdrop' });
+  assert.deepStrictEqual(calls, [
+    ['scoped', 640, 360, 'up-next-backdrop'],
+    ['scoped', 64, 36, 'up-next-backdrop']
+  ], 'preview and full URL construction must receive the semantic image scope');
+}());
+
+(function posterUrlsAreConstructedOncePerJob() {
+  var urlCalls = 0;
+  var measured = harness({
+    urlFor: function (source, width, height) {
+      urlCalls += 1;
+      return source + '@' + width + 'x' + height;
+    }
+  });
+  var measuredPoster = imageTarget('measured');
+  load(measured.loader, measuredPoster, 'measured', 1);
+  measuredPoster.onload();
+  measured.preloads[0].onload();
+  assert.strictEqual(urlCalls, 2, 'one image job must construct its preview and full URLs only once');
+}());
+
+(function cancellingAllArtworkDoesNotPromoteQueuedRequests() {
+  var cancelled = harness({ previewConcurrency: 1, fullConcurrency: 1 });
+  var active = imageTarget('cancel-all-active');
+  var queued = imageTarget('cancel-all-queued');
+  load(cancelled.loader, active, 'cancel-all-active', 0);
+  load(cancelled.loader, queued, 'cancel-all-queued', 1);
+  cancelled.loader.cancelAll();
+  assert.deepStrictEqual(queued.starts, [], 'bulk cancellation must not briefly start queued artwork that is being cancelled');
+}());
+
+
+(function individualArtworkLoadsDoNotResortWholeQueues() {
+  var originalSort = Array.prototype.sort;
+  var sortCalls = 0;
+  var ordered = harness({ previewConcurrency: 1, fullConcurrency: 1 });
+  var index;
+  Array.prototype.sort = function (compareValues) {
+    sortCalls += 1;
+    return originalSort.call(this, compareValues);
+  };
+  try {
+    for (index = 0; index < 20; index += 1) {
+      load(ordered.loader, imageTarget('ordered-' + index), 'ordered-' + index, index % 3);
+    }
+  } finally {
+    Array.prototype.sort = originalSort;
+  }
+  ordered.loader.cancelAll();
+  assert.strictEqual(sortCalls, 0, 'individual image jobs must enter priority order without sorting the complete queues');
+}());
+
+
+(function previewOnlyArtworkPromotesWithoutRestartingPreview() {
+  var tiered = harness({ previewConcurrency: 1, fullConcurrency: 1 });
+  var tieredPoster = imageTarget('tiered-preview');
+  tiered.loader.load(tieredPoster, {
+    source: 'tiered', previewWidth: 64, previewHeight: 96, width: 154, height: 224,
+    priority: 3, scope: 'library', previewOnly: true
+  });
+  assert.strictEqual(tieredPoster.src, 'tiered@64x96', 'preview-only artwork must start its SD request normally');
+  tieredPoster.onload();
+  assert.strictEqual(tiered.preloads.length, 0, 'preview-only artwork must not start a full-image download');
+  assert.strictEqual(tieredPoster.__plexProgressiveJob, null, 'completed preview-only artwork must release its job graph');
+  var startsBeforePromotion = tieredPoster.starts.length;
+  tiered.loader.prioritize(tieredPoster, 1);
+  assert.strictEqual(tieredPoster.starts.length, startsBeforePromotion, 'promoting a completed preview must not restart or repaint the SD image');
+  assert.strictEqual(tiered.preloads.length, 1, 'promoting a completed preview must start exactly one full-image request');
+  assert.strictEqual(tiered.preloads[0].src, 'tiered@154x224', 'promoted artwork must retain the exact rendered full dimensions');
+}());
+
+(function activePreviewOnlyArtworkCanBePromoted() {
+  var tiered = harness({ previewConcurrency: 1, fullConcurrency: 1 });
+  var target = imageTarget('active-tiered-preview');
+  tiered.loader.load(target, {
+    source: 'active-tiered', previewWidth: 64, previewHeight: 96, width: 154, height: 224,
+    priority: 3, scope: 'library', previewOnly: true
+  });
+  tiered.loader.prioritize(target, 1);
+  target.onload();
+  assert.strictEqual(tiered.preloads.length, 1, 'promoting an active preview-only job must continue directly to full artwork');
+  assert.deepStrictEqual(target.starts, ['active-tiered@64x96'], 'active promotion must not duplicate the preview request');
+}());
+
+(function individualArtworkCancellationReleasesDetachedWork() {
+  var cancellable = harness({ previewConcurrency: 1, fullConcurrency: 1 });
+  var target = imageTarget('individual-cancel');
+  load(cancellable.loader, target, 'individual-cancel', 2, 'library');
+  var lateLoad = target.onload;
+  cancellable.loader.cancel(target);
+  assert.strictEqual(target.__plexProgressiveJob, null, 'individual cancellation must release the job from its card');
+  assert.strictEqual(target.src, '', 'individual cancellation must clear an incomplete preview');
+  lateLoad();
+  assert.strictEqual(cancellable.preloads.length, 0, 'late preview completion after individual cancellation must not start full artwork');
+}());
 
 console.log('Progressive image checks passed');

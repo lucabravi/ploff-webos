@@ -1,8 +1,8 @@
 (function (root, factory) {
   'use strict';
-  if (typeof module === 'object' && module.exports) { module.exports = factory(); }
-  else { root.PloffSetupController = factory(); }
-}(this, function () {
+  if (typeof module === 'object' && module.exports) { module.exports = factory(require('./server-store')); }
+  else { root.PloffSetupController = factory(root.PloffServerStore); }
+}(this, function (ServerStore) {
   'use strict';
 
   function array(value) {
@@ -23,14 +23,6 @@
     return array(values).map(function (value) { return copyObject(value); });
   }
 
-  function sameServer(left, right) {
-    if (!left || !right) { return false; }
-    if (left.machineIdentifier && right.machineIdentifier) {
-      return String(left.machineIdentifier) === String(right.machineIdentifier);
-    }
-    return String(left.uri || '') === String(right.uri || '');
-  }
-
   function mergeServers(current, incoming) {
     var result = copyList(current);
     var additions = array(incoming);
@@ -38,7 +30,7 @@
     var existing;
     for (index = 0; index < additions.length; index += 1) {
       if (!additions[index]) { continue; }
-      existing = result.filter(function (server) { return sameServer(server, additions[index]); })[0];
+      existing = result.filter(function (server) { return ServerStore.same(server, additions[index]); })[0];
       if (existing) {
         Object.keys(additions[index]).forEach(function (key) { existing[key] = additions[index][key]; });
       } else {
@@ -72,7 +64,9 @@
       languageSelectable: false,
       canChangeLanguage: false,
       scanAttempted: false,
-      profilePin: ''
+      profilePin: '',
+      accountToken: '',
+      profileSelectionAfterAccountServer: false
     };
 
     function snapshot() {
@@ -111,9 +105,15 @@
       if (values.authSession && values.authSession.cancel) { values.authSession.cancel(); }
     }
 
+    function clearAccountRouting() {
+      state.accountToken = '';
+      state.profileSelectionAfterAccountServer = false;
+    }
+
     function invalidate() {
       var name;
       generation += 1;
+      clearAccountRouting();
       for (name in pending) {
         if (Object.prototype.hasOwnProperty.call(pending, name)) { abortRequest(name); }
       }
@@ -153,7 +153,7 @@
       var candidate = value || {};
       var index;
       for (index = 0; index < state.servers.length; index += 1) {
-        if (sameServer(state.servers[index], candidate)) { return state.servers[index]; }
+        if (ServerStore.same(state.servers[index], candidate)) { return state.servers[index]; }
       }
       return candidate;
     }
@@ -246,12 +246,14 @@
       retainRequest('profiles', requestToken, values.loadProfiles(ownerToken, function (error, profiles) {
         var previousProfileCount;
         var previousFocus;
+        var nextProfiles;
         if (!current(requestToken, 'profiles')) { return; }
         delete pending.profiles;
         state.profileLoading = false;
         previousProfileCount = state.profiles.length;
         previousFocus = state.focusIndex;
-        state.profiles = error ? [] : copyList(profiles);
+        nextProfiles = error ? [] : copyList(profiles);
+        state.profiles = nextProfiles;
         if (previousFocus >= previousProfileCount) {
           state.focusIndex = state.profiles.length + (previousFocus - previousProfileCount);
         } else {
@@ -265,7 +267,11 @@
     function routeAuthenticated(result, purpose) {
       var auth = result || {};
       if (!auth.token) { state.statusKey = 'setup.loginUnavailable'; publish(); return; }
-      if (purpose === 'servers') { loadAccountServers(auth.token); }
+      if (purpose === 'servers') {
+        state.accountToken = String(auth.token);
+        state.profileSelectionAfterAccountServer = true;
+        loadAccountServers(auth.token);
+      }
       else { loadProfiles(auth.token); }
     }
 
@@ -348,6 +354,7 @@
       state.canChangeLanguage = state.languageSelectable;
       state.scanAttempted = false;
       state.profilePin = '';
+      clearAccountRouting();
       if (next.stage) {
         setStage(String(next.stage), '', Number(next.focusIndex) || 0);
         if (next.stage === 'servers' && next.scan !== false) { beginScan(); }
@@ -374,8 +381,8 @@
         state.languageSelectable = true;
         setStage('language', '');
       }
-      else if (action === 'servers') { setStage('servers', ''); }
-      else if (action === 'manual') { setStage('manual', ''); }
+      else if (action === 'servers') { clearAccountRouting(); setStage('servers', ''); }
+      else if (action === 'manual') { clearAccountRouting(); setStage('manual', ''); }
       else if (action === 'connect-manual') { requestManualProbe(payload); }
       else if (action === 'select-server' || action === 'server') {
         selected = typeof payload === 'number' ? state.servers[payload] : payload;
@@ -383,7 +390,13 @@
           state.selectedServer = copyObject(serverFor(selected));
           state.preferredConnectionUri = state.selectedServer.uri || '';
           state.enteredConnectionUri = '';
-          setStage('access', '');
+          if (state.profileSelectionAfterAccountServer && state.accountToken) {
+            state.profileSelectionAfterAccountServer = false;
+            loadProfiles(state.accountToken);
+            state.accountToken = '';
+          } else {
+            setStage('access', '');
+          }
         }
       } else if (action === 'use-local-connection') { chooseConnection(state.selectedServer && state.selectedServer.uri); }
       else if (action === 'use-entered-connection') { chooseConnection(state.enteredConnectionUri); }
@@ -420,6 +433,7 @@
         return snapshot();
       }
       if (state.stage === 'servers' && state.canChangeLanguage) {
+        clearAccountRouting();
         state.languageSelectable = true;
         setStage('language', '');
         return snapshot();
@@ -451,11 +465,11 @@
       return state.focusIndex;
     }
 
-    function setFocus(index, count) {
+    function setFocus(index, count, notify) {
       var limit = Math.max(0, Number(count) || 0);
       if (destroyed) { return state.focusIndex; }
       state.focusIndex = limit ? Math.max(0, Math.min(limit - 1, Number(index) || 0)) : 0;
-      publish();
+      if (notify !== false) { publish(); }
       return state.focusIndex;
     }
 

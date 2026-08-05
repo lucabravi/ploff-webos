@@ -3,7 +3,7 @@
 var assert = require('assert');
 var DetailNavigation = require('../app/detail-navigation');
 var navigation = DetailNavigation.create();
-var context = { hasSeries: true, seasonCount: 5, episodeCount: 12, choiceZones: ['audio', 'subtitles', 'version'], summaryOverflowing: true, mediaInfoOverflowing: true, actionCount: 5 };
+var context = { hasSeries: true, seasonCount: 5, episodeCount: 12, choiceZones: ['audio', 'subtitles', 'version'], summaryOverflowing: true, actionCount: 5 };
 
 navigation.set({ zone: 'seasons', seasonIndex: 4 });
 assert.strictEqual(navigation.navigate('right', context).state.seasonIndex, 4, 'season focus must clamp at the final tab');
@@ -15,13 +15,12 @@ assert.strictEqual(navigation.navigate('down', context).state.zone, 'audio', 'Do
 assert.strictEqual(navigation.navigate('right', context).effect, 'cycle-audio-right', 'Left and Right must cycle the active preference');
 assert.strictEqual(navigation.navigate('down', context).state.zone, 'subtitles', 'preference controls must be navigated vertically');
 assert.strictEqual(navigation.navigate('down', context).state.zone, 'version', 'the last enabled preference must remain in order');
-assert.strictEqual(navigation.navigate('down', context).state.zone, 'media-info', 'media info must follow preferences when it overflows');
-assert.strictEqual(navigation.navigate('down', context).state.zone, 'episodes', 'episodes must follow expanded media info');
+assert.strictEqual(navigation.navigate('down', context).state.zone, 'episodes', 'episodes must follow the final preference');
 
 navigation.set({ zone: 'episodes', episodeIndex: 11 });
 assert.strictEqual(navigation.navigate('right', context).state.episodeIndex, 11, 'episode focus must clamp at the final episode');
 assert.strictEqual(navigation.navigate('left', context).effect, 'episode-preview', 'episode movement must request its deferred metadata preview');
-assert.strictEqual(navigation.navigate('up', context).state.zone, 'media-info', 'Up from episodes must return through media info');
+assert.strictEqual(navigation.navigate('up', context).state.zone, 'version', 'Up from episodes must return to the final preference');
 
 navigation.set({ zone: 'play', actionIndex: 4 });
 assert.strictEqual(navigation.navigate('right', context).state.actionIndex, 4, 'the media details action must clamp at the final action');

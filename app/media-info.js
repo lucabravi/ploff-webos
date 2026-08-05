@@ -1,11 +1,11 @@
 (function (root, factory) {
   'use strict';
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(require('./media-profile'));
   } else {
-    root.PloffMediaInfo = factory();
+    root.PloffMediaInfo = factory(root.PloffMediaProfile);
   }
-}(this, function () {
+}(this, function (MediaProfile) {
   'use strict';
 
   function basename(value) {
@@ -38,21 +38,8 @@
     return null;
   }
 
-  function trackLabel(track) {
-    var item = track || {};
-    var language = String(item.language || item.title || item.languageTag || item.languageCode || '').trim();
-    var details = [];
-    var channels = Number(item.channels || 0);
-    if (item.displayTitle || item.extendedDisplayTitle) { return String(item.extendedDisplayTitle || item.displayTitle); }
-    if (item.codec || item.format) { details.push(String(item.codec || item.format).toUpperCase()); }
-    if (item.channelLayout) { details.push(String(item.channelLayout)); }
-    else if (channels === 1) { details.push('Mono'); }
-    else if (channels === 2) { details.push('Stereo'); }
-    else if (channels === 6) { details.push('5.1'); }
-    else if (channels === 8) { details.push('7.1'); }
-    else if (channels) { details.push(channels + ' ch'); }
-    if (item.external) { details.push('External'); }
-    return language + (details.length ? ' (' + details.join(' ') + ')' : '');
+  function trackLabel(track, externalLabel) {
+    return MediaProfile.trackDisplayLabel(track, externalLabel || 'External');
   }
 
   function add(rows, label, value) {
@@ -70,6 +57,7 @@
     var subtitleRows = [];
     var audio = selectedTrack(item.audioTracks, settings.audioStreamID);
     var subtitle = selectedTrack(item.subtitleTracks, settings.subtitleStreamID);
+    var externalLabel = t('detail.external');
     var sections = [];
 
     add(fileRows, t('mediaDetails.fileName'), basename(item.fileName));
@@ -89,15 +77,15 @@
     add(videoRows, t('mediaDetails.colorRange'), details.colorRange || item.videoColorRange);
     if (videoRows.length) { sections.push({ title: t('mediaDetails.video'), column: 'left', rows: videoRows }); }
 
-    add(audioRows, t('mediaDetails.selectedTrack'), trackLabel(audio));
+    add(audioRows, t('mediaDetails.selectedTrack'), trackLabel(audio, externalLabel));
     if (audioRows.length) { sections.push({ title: t('mediaDetails.audio'), column: 'right', rows: audioRows }); }
 
-    add(subtitleRows, t('mediaDetails.selectedTrack'), subtitle ? trackLabel(subtitle) : t('mediaDetails.off'));
+    add(subtitleRows, t('mediaDetails.selectedTrack'), subtitle ? trackLabel(subtitle, externalLabel) : t('mediaDetails.off'));
     if (subtitleRows.length) { sections.push({ title: t('mediaDetails.subtitles'), column: 'right', rows: subtitleRows }); }
 
     if (!sections.length) { sections.push({ title: t('mediaDetails.file'), column: 'left', rows: [{ label: t('mediaDetails.status'), value: t('player.unavailable') }] }); }
     return { sections: sections };
   }
 
-  return { basename: basename, create: create, durationLabel: durationLabel, trackLabel: trackLabel };
+  return { basename: basename, create: create, durationLabel: durationLabel, selectedTrack: selectedTrack, trackLabel: trackLabel };
 }));

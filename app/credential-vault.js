@@ -10,6 +10,8 @@
   var KIND = 'io.github.rhapsodos.ploff.auth:1';
   var OWNER = 'io.github.rhapsodos.ploff';
   var SLOT = 'primary';
+  var PREPARE_TIMEOUT = 5000;
+  var CALL_TIMEOUT = 5000;
   var pending = null;
   var writing = false;
   var idleCallbacks = [];
@@ -17,25 +19,49 @@
   var serviceRoot = null;
 
   function call(method, parameters, onSuccess, onFailure) {
-    var request;
+    var callRoot = serviceRoot;
+    var operation = { request: null, timer: null, settled: false };
+
+    function clearTimer() {
+      if (operation.timer !== null && callRoot && callRoot.clearTimeout) { callRoot.clearTimeout(operation.timer); }
+      operation.timer = null;
+    }
+
+    function closeOperation() {
+      operation.settled = true;
+      operation.timer = null;
+      if (activeRequest === operation) { activeRequest = null; }
+    }
+
+    function settle(callback, payload) {
+      if (operation.settled) { return; }
+      clearTimer();
+      closeOperation();
+      callback(payload || {});
+    }
+
+    function timeout() {
+      var request;
+      if (operation.settled) { return; }
+      request = operation.request;
+      closeOperation();
+      try { if (request && request.cancel) { request.cancel(); } }
+      catch (_cancelError) {}
+      onFailure({ timeout: true });
+    }
+
+    if (!callRoot || !callRoot.webOS || !callRoot.webOS.service) { onFailure({ unavailable: true }); return; }
+    activeRequest = operation;
     try {
-      activeRequest = true;
-      request = serviceRoot.webOS.service.request(DB_URI, {
+      operation.request = callRoot.webOS.service.request(DB_URI, {
         method: method,
         parameters: parameters,
-        onSuccess: function (response) {
-          activeRequest = null;
-          onSuccess(response || {});
-        },
-        onFailure: function (error) {
-          activeRequest = null;
-          onFailure(error || {});
-        }
-      });
-      if (activeRequest) { activeRequest = request || true; }
+        onSuccess: function (response) { settle(onSuccess, response); },
+        onFailure: function (error) { settle(onFailure, error); }
+      }) || null;
+      if (!operation.settled && callRoot.setTimeout) { operation.timer = callRoot.setTimeout(timeout, CALL_TIMEOUT); }
     } catch (error) {
-      activeRequest = null;
-      onFailure(error);
+      settle(onFailure, error);
     }
   }
 
@@ -77,6 +103,11 @@
   }
 
   function queue(payload) {
+    if (!serviceRoot) {
+      pending = null;
+      finishIdle();
+      return;
+    }
     pending = payload || '';
     writeNext();
   }
@@ -86,7 +117,8 @@
     return {
       getItem: function (key) {
         if (key === AUTH_KEY) { return payload || null; }
-        return baseStorage && baseStorage.getItem ? baseStorage.getItem(key) : null;
+        try { return baseStorage && baseStorage.getItem ? baseStorage.getItem(key) : null; }
+        catch (_error) { return null; }
       },
       setItem: function (key, value) {
         if (key === AUTH_KEY) {
@@ -94,7 +126,8 @@
           queue(payload);
           return;
         }
-        if (baseStorage && baseStorage.setItem) { baseStorage.setItem(key, value); }
+        try { if (baseStorage && baseStorage.setItem) { baseStorage.setItem(key, value); } }
+        catch (_error) {}
       },
       removeItem: function (key) {
         if (key === AUTH_KEY) {
@@ -102,7 +135,8 @@
           queue('');
           return;
         }
-        if (baseStorage && baseStorage.removeItem) { baseStorage.removeItem(key); }
+        try { if (baseStorage && baseStorage.removeItem) { baseStorage.removeItem(key); } }
+        catch (_error) {}
       }
     };
   }
@@ -115,11 +149,33 @@
   function prepare(rootObject, baseStorage, callback) {
     var legacyPayload = '';
     var completed = false;
+    var fallbackTimer = null;
+
+    function clearFallbackTimer() {
+      if (fallbackTimer !== null && rootObject && rootObject.clearTimeout) { rootObject.clearTimeout(fallbackTimer); }
+      fallbackTimer = null;
+    }
 
     function done(storage, mode) {
       if (completed) { return; }
       completed = true;
+      clearFallbackTimer();
       callback(storage, mode);
+    }
+
+    function removeLegacy() {
+      try { if (baseStorage && baseStorage.removeItem) { baseStorage.removeItem(AUTH_KEY); } }
+      catch (_removeError) {}
+    }
+
+    function fallback() {
+      var storage;
+      if (completed) { return; }
+      activeRequest = null;
+      serviceRoot = null;
+      storage = privateStorage(baseStorage, legacyPayload);
+      removeLegacy();
+      done(storage, 'session');
     }
 
     try { legacyPayload = String(baseStorage && baseStorage.getItem(AUTH_KEY) || ''); } catch (ignore) {}
@@ -129,6 +185,7 @@
     }
 
     serviceRoot = rootObject;
+    if (rootObject.setTimeout) { fallbackTimer = rootObject.setTimeout(fallback, PREPARE_TIMEOUT); }
     call('putKind', {
       id: KIND,
       owner: OWNER,
@@ -138,6 +195,7 @@
     }, load, load);
 
     function load() {
+      if (completed) { return; }
       call('find', {
         query: {
           from: KIND,
@@ -145,18 +203,17 @@
           limit: 1
         }
       }, function (response) {
-        var results = response.results || [];
-        var storedPayload = results.length ? String(results[0].payload || '') : '';
-        var storage = privateStorage(baseStorage, storedPayload || legacyPayload);
-        if (baseStorage && baseStorage.removeItem) { baseStorage.removeItem(AUTH_KEY); }
+        var results;
+        var storedPayload;
+        var storage;
+        if (completed) { return; }
+        results = response.results || [];
+        storedPayload = results.length ? String(results[0].payload || '') : '';
+        storage = privateStorage(baseStorage, storedPayload || legacyPayload);
+        removeLegacy();
         if (!storedPayload && legacyPayload) { queue(legacyPayload); }
         done(storage, 'db8-private');
-      }, function () {
-        var storage = privateStorage(baseStorage, legacyPayload);
-        if (baseStorage && baseStorage.removeItem) { baseStorage.removeItem(AUTH_KEY); }
-        serviceRoot = null;
-        done(storage, 'session');
-      });
+      }, fallback);
     }
   }
 
@@ -168,6 +225,8 @@
   return {
     AUTH_KEY: AUTH_KEY,
     KIND: KIND,
+    CALL_TIMEOUT: CALL_TIMEOUT,
+    PREPARE_TIMEOUT: PREPARE_TIMEOUT,
     prepare: prepare,
     whenIdle: whenIdle
   };

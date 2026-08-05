@@ -22,7 +22,8 @@ var nodes = {
   'app-settings-notice': node('p'),
   'language-editor-list': node('div'),
   'language-editor-title': node('h2'),
-  'language-editor-hint': node('p')
+  'language-editor-hint': node('p'),
+  'language-editor-back': node('button')
 };
 var serverRenders = 0;
 var keptVisible = [];
@@ -81,6 +82,54 @@ assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0
 assert.strictEqual(keptVisible.length, 1, 'remote focus must keep the selected setting visible');
 
 view.render({
+  title: 'Settings', notice: '', zone: 'list', index: 0, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan',
+  rows: [{
+    key: 'artworkQuality', section: 'interface', label: 'Quality', value: '85%', currentValue: 85, stepper: true,
+    choices: [{ value: 40, label: '40%' }, { value: 55, label: '55%' }, { value: 70, label: '70%' }, { value: 85, label: '85%' }, { value: 100, label: '100%' }]
+  }],
+  sectionLabel: function () { return 'INTERFACE'; }
+});
+var stepperRow = nodes['app-settings-list'].children[1];
+var stepperValue = stepperRow.children[1];
+var stepperTrack = stepperValue.children[0];
+assert.strictEqual(stepperRow.attributes.role, 'slider', 'stepped settings must expose slider semantics');
+assert.strictEqual(stepperRow.attributes['aria-valuenow'], '85', 'slider semantics must expose the exact current step');
+assert.strictEqual(stepperRow.attributes['aria-valuetext'], '85%', 'slider semantics must retain the localized visible value');
+assert.strictEqual(stepperTrack.children.length, 6, 'the step bar must contain one fill and one marker per value');
+assert.strictEqual(stepperTrack.children[0].style.width, '75%', 'the fill must stop at the selected fourth of five steps');
+assert.strictEqual(stepperValue.children[1].textContent, '85%', 'the current value must render to the right of the bar');
+
+view.render({
+  title: 'Settings', notice: '', zone: 'list', index: 0, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan',
+  rows: [{
+    key: 'lanVideoQuality', section: 'playback', label: 'LAN quality', value: 'Original', currentValue: 'original', stepper: true,
+    choices: [{ value: '4000', label: '4 Mbps' }, { value: '8000', label: '8 Mbps' }, { value: '12000', label: '12 Mbps' }, { value: 'original', label: 'Original' }]
+  }],
+  sectionLabel: function () { return 'PLAYBACK'; }
+});
+stepperRow = nodes['app-settings-list'].children[1];
+stepperValue = stepperRow.children[1];
+stepperTrack = stepperValue.children[0];
+assert.strictEqual(stepperRow.attributes['aria-valuemin'], '0', 'semantic step scales must expose an indexed numeric minimum');
+assert.strictEqual(stepperRow.attributes['aria-valuemax'], '3', 'semantic step scales must expose an indexed numeric maximum');
+assert.strictEqual(stepperRow.attributes['aria-valuenow'], '3', 'Original must expose the final indexed slider step');
+assert.strictEqual(stepperRow.attributes['aria-valuetext'], 'Original', 'semantic sliders must retain their visible localized value');
+assert.strictEqual(stepperTrack.children[0].style.width, '100%', 'Original must fill the stepped bar to its rightmost endpoint');
+assert.strictEqual(stepperValue.children[1].textContent, 'Original', 'Original must render to the right of the bar');
+
+view.render({
+  title: 'Settings', notice: '', zone: 'list', index: 0, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan',
+  rows: [{ key: 'appVersion', section: 'support', label: 'Ploff 1.0.5', value: 'Version 1.0.6 available', action: true, versionRow: true }],
+  sectionLabel: function () { return 'SUPPORT'; }
+});
+assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-setting-row is-version is-focused', 'the final application version action must use its discreet shared treatment');
+assert.strictEqual(nodes['app-settings-list'].children[1].children[0].textContent, 'Ploff 1.0.5', 'the application version must remain visible in the clickable row');
+assert.strictEqual(nodes['app-settings-list'].children[1].children[1].textContent, 'Version 1.0.6 available', 'an available update must remain visible beside the installed version');
+
+view.render({
   title: 'Settings', notice: '', zone: 'list', index: 0, serverEditorOpen: true, serverDiscoveryActive: true,
   credit: '', accentColor: 'cyan', rows: [{ key: 'plexServer', section: 'plex', label: 'Server', value: 'Plex', serverEditor: true }],
   sectionLabel: function () { return 'PLEX'; }
@@ -89,15 +138,22 @@ assert.strictEqual(serverRenders, 1, 'an open inline server editor must delegate
 assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-setting-row has-inline-editor', 'the server setting must expose its expanded state');
 
 view.renderLanguages({
-  title: 'Audio priority', hint: 'Choose', index: 1,
+  title: 'Audio priority', hint: 'Choose', backLabel: 'Back', index: 1,
   languages: [{ code: 'ja', label: 'Japanese', rank: 1 }, { code: 'it', label: 'Italian', rank: 2 }]
 });
 assert.strictEqual(nodes['language-editor-list'].children.length, 2, 'language editor must render every language');
 assert.strictEqual(nodes['language-editor-list'].children[1].className, 'language-editor-row is-focused', 'language editor focus must be snapshot-driven');
 assert.strictEqual(nodes['language-editor-list'].children[1].children[1].textContent, '2', 'language priority rank must remain visible');
+assert.strictEqual(nodes['language-editor-back'].textContent, 'Back', 'language editor must expose a visible Back action');
+assert.strictEqual(nodes['language-editor-back'].attributes['data-language-index'], '2', 'Back must participate in the same focus model as language rows');
+var firstLanguageNode = nodes['language-editor-list'].children[0];
+view.focusLanguage(0, 3);
+view.updateLanguageFocus();
+assert.strictEqual(nodes['language-editor-list'].children[0], firstLanguageNode, 'language pointer focus must preserve the existing row until click dispatch');
+assert.strictEqual(firstLanguageNode.className, 'language-editor-row is-focused', 'language pointer focus must update classes on the existing row');
 
 view.renderLanguages({
-  title: 'Version priority', hint: 'Reorder', index: 0,
+  title: 'Version priority', hint: 'Reorder', backLabel: 'Back', index: 0,
   languages: [
     { code: 'hdr', label: 'HDR', rank: 1, disabled: true },
     { code: 'resolution', label: 'Resolution', rank: 2, disabled: false }

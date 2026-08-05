@@ -18,16 +18,20 @@
   var VOLUMES = [10, 20, 30];
   var DELAYS = [200, 500, 1000, 2000];
   var AUTOPLAY_DELAYS = [0, 3, 5, 10, 15];
+  var UP_NEXT_LAYOUTS = ['compact', 'bottom-panel'];
   var SKIP_PROMPT_DURATIONS = [3, 5, 10];
   var SUBTITLE_MODES = ['off', 'always', 'audio-mismatch', 'forced'];
   var SUBTITLE_SOURCE_PREFERENCES = ['external', 'internal'];
-  var VIDEO_QUALITIES = ['original', '12000', '8000', '4000'];
+  var VIDEO_QUALITIES = ['4000', '8000', '12000', 'original'];
   var PLAYBACK_MODES = ['auto', 'direct', 'transcode'];
   var VIDEO_VERSION_PRIORITIES = ['resolution', 'hdr', 'quality', 'directPlay'];
   var WHEEL_BEHAVIORS = ['items', 'page'];
   var CARD_SCALES = [70, 80, 90, 100, 110, 120, 130];
+  var ARTWORK_QUALITIES = [70, 80, 85, 90, 100];
+  var BACKDROP_QUALITIES = [50, 60, 70, 85, 100];
   var ACCENT_COLORS = ['cyan', 'amber', 'blue', 'green', 'pink', 'purple', 'red', 'white'];
 
+  /** @returns {PloffSettingsRecord} */
   function defaults() {
     return {
       version: 1,
@@ -37,6 +41,7 @@
       backgroundVolume: 20,
       backgroundDelay: 500,
       autoplayDelay: 5,
+      upNextLayout: 'compact',
       skipPromptDuration: 5,
       audioLanguages: [],
       subtitleLanguages: [],
@@ -50,10 +55,11 @@
       videoVersionPriorities: VIDEO_VERSION_PRIORITIES.slice(),
       wheelBehavior: 'items',
       cardScale: 100,
+      artworkQuality: 90,
+      backdropQuality: 85,
       accentColor: 'cyan',
       interfaceAnimations: true,
       searchT9Input: true,
-      showMediaInfo: false,
       showWatchlist: true,
       showPlaylists: true
     };
@@ -86,6 +92,23 @@
     return contains(allowed, value) ? value : fallback;
   }
 
+  function nearestNumericValue(value, allowed, fallback) {
+    var numeric = Number(value);
+    var nearest = fallback;
+    var distance = Infinity;
+    var index;
+    var currentDistance;
+    if (!isFinite(numeric)) { return fallback; }
+    for (index = 0; index < allowed.length; index += 1) {
+      currentDistance = Math.abs(allowed[index] - numeric);
+      if (currentDistance < distance) {
+        nearest = allowed[index];
+        distance = currentDistance;
+      }
+    }
+    return nearest;
+  }
+
   function priorityList(value, allowed) {
     var source = Object.prototype.toString.call(value) === '[object Array]' ? value : [];
     var result = [];
@@ -95,6 +118,7 @@
     return result;
   }
 
+  /** @returns {PloffSettingsRecord} */
   function validate(source) {
     var fallback = defaults();
     var value = source || {};
@@ -108,6 +132,7 @@
       backgroundVolume: enumValue(Number(value.backgroundVolume), VOLUMES, fallback.backgroundVolume),
       backgroundDelay: enumValue(Number(value.backgroundDelay), DELAYS, fallback.backgroundDelay),
       autoplayDelay: value.autoplayDelay === undefined && value.autoplayNext === false ? 0 : enumValue(Number(value.autoplayDelay), AUTOPLAY_DELAYS, fallback.autoplayDelay),
+      upNextLayout: enumValue(value.upNextLayout, UP_NEXT_LAYOUTS, fallback.upNextLayout),
       skipPromptDuration: enumValue(Number(value.skipPromptDuration), SKIP_PROMPT_DURATIONS, fallback.skipPromptDuration),
       audioLanguages: languageList(value.audioLanguages),
       subtitleLanguages: languageList(value.subtitleLanguages),
@@ -121,10 +146,11 @@
       videoVersionPriorities: priorityList(value.videoVersionPriorities, VIDEO_VERSION_PRIORITIES),
       wheelBehavior: enumValue(value.wheelBehavior, WHEEL_BEHAVIORS, fallback.wheelBehavior),
       cardScale: enumValue(Number(value.cardScale), CARD_SCALES, fallback.cardScale),
+      artworkQuality: value.artworkQuality === undefined ? fallback.artworkQuality : nearestNumericValue(value.artworkQuality, ARTWORK_QUALITIES, fallback.artworkQuality),
+      backdropQuality: value.backdropQuality === undefined ? fallback.backdropQuality : nearestNumericValue(value.backdropQuality, BACKDROP_QUALITIES, fallback.backdropQuality),
       accentColor: enumValue(String(value.accentColor || ''), ACCENT_COLORS, fallback.accentColor),
       interfaceAnimations: value.interfaceAnimations !== false,
       searchT9Input: value.searchT9Input === undefined ? fallback.searchT9Input : value.searchT9Input === true,
-      showMediaInfo: value.showMediaInfo === true,
       showWatchlist: value.showWatchlist !== false,
       showPlaylists: value.showPlaylists !== false
     };
@@ -164,13 +190,17 @@
   function save(storage, value) {
     var validated = validate(value);
     if (storage && storage.setItem) {
-      storage.setItem(STORAGE_KEY, JSON.stringify(validated));
+      try { storage.setItem(STORAGE_KEY, JSON.stringify(validated)); }
+      catch (_error) {}
     }
     return validated;
   }
 
   return {
     ACCENT_COLORS: ACCENT_COLORS.slice(),
+    ARTWORK_QUALITIES: ARTWORK_QUALITIES.slice(),
+    BACKDROP_QUALITIES: BACKDROP_QUALITIES.slice(),
+    VIDEO_QUALITIES: VIDEO_QUALITIES.slice(),
     STORAGE_KEY: STORAGE_KEY,
     defaults: defaults,
     languageList: languageList,

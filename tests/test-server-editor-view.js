@@ -2,7 +2,12 @@
 
 var assert = require('assert');
 var ServerEditorView = require('../app/server-editor-view');
-var nodes = { list: { innerHTML: '', children: [], appendChild: function (node) { this.children.push(node); } } };
+var list = { children: [], appendChild: function (node) { this.children.push(node); } };
+Object.defineProperty(list, 'innerHTML', {
+  get: function () { return ''; },
+  set: function () { this.children = []; }
+});
+var nodes = { list: list };
 var view = ServerEditorView.create({
   document: { getElementById: function () { return nodes.list; } },
   t: function (key) { return key; },
@@ -27,5 +32,11 @@ assert.strictEqual(nodes.list.children.length, 4, 'server editor must include sc
 assert.strictEqual(nodes.list.children[2].textContent, '\u2713 One', 'active server must retain its checkmark');
 assert.strictEqual(nodes.list.children[2].className, 'server-editor-row is-focused', 'stored server focus must remain index-based');
 assert.strictEqual(nodes.list.children[3].addresses[0].uri, 'http://two:32400', 'each server must retain its rendered route list');
+var pointerTarget = nodes.list.children[3];
+view.focus(3, 4);
+view.updateFocus();
+assert.strictEqual(nodes.list.children[3], pointerTarget, 'pointer focus must preserve the server row DOM target until click completes');
+assert.strictEqual(nodes.list.children[2].className, 'server-editor-row', 'pointer focus must clear the previous server row in place');
+assert.strictEqual(pointerTarget.className, 'server-editor-row is-focused', 'pointer focus must update the server row class without rebuilding the editor');
 
 console.log('Server editor view checks passed');

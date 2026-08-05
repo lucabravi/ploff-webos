@@ -95,6 +95,51 @@
       container.insertBefore(palette, container.firstChild);
     }
 
+    function stepperIndex(row) {
+      var choices = row.choices || [];
+      var index;
+      for (index = 0; index < choices.length; index += 1) {
+        if (String(choices[index].value) === String(row.currentValue)) { return index; }
+        if (String(choices[index].label) === String(row.value)) { return index; }
+      }
+      return 0;
+    }
+
+    function numericStepperAria(row, currentIndex) {
+      var choices = row.choices || [];
+      var index;
+      for (index = 0; index < choices.length; index += 1) {
+        if (!/^[-+]?\d+(?:\.\d+)?$/.test(String(choices[index].value))) {
+          return { min: 0, max: Math.max(0, choices.length - 1), now: currentIndex };
+        }
+      }
+      return {
+        min: choices.length ? choices[0].value : 0,
+        max: choices.length ? choices[choices.length - 1].value : 0,
+        now: choices.length ? choices[currentIndex].value : 0
+      };
+    }
+
+    function renderStepper(container, row, currentIndex) {
+      var choices = row.choices || [];
+      var index;
+      var track = values.element('span', 'app-setting-stepper-track');
+      var fill = values.element('span', 'app-setting-stepper-fill');
+      var marker;
+      var position = choices.length > 1 ? currentIndex * 100 / (choices.length - 1) : 100;
+      fill.style = fill.style || {};
+      fill.style.width = position + '%';
+      track.appendChild(fill);
+      for (index = 0; index < choices.length; index += 1) {
+        marker = values.element('span', 'app-setting-stepper-marker' + (index <= currentIndex ? ' is-active' : ''));
+        marker.style = marker.style || {};
+        marker.style.left = (choices.length > 1 ? index * 100 / (choices.length - 1) : 100) + '%';
+        track.appendChild(marker);
+      }
+      container.appendChild(track);
+      container.appendChild(values.element('span', 'app-setting-stepper-current', row.value));
+    }
+
     function focusSettings(state) {
       var target = state.zone === 'nav'
         ? values.navTarget(state.navIndex)
@@ -119,6 +164,8 @@
       var rowElement;
       var value;
       var editor;
+      var currentIndex;
+      var ariaValues;
       values.setText('app-settings-title', state.title);
       values.setText('app-settings-notice', state.notice);
       container.innerHTML = '';
@@ -130,6 +177,7 @@
         }
         rowElement = values.element(row.readOnly ? 'div' : 'button', 'app-setting-row' +
           (row.readOnly ? ' is-read-only' : '') +
+          (row.versionRow ? ' is-version' : '') +
           (index === 0 && state.serverEditorOpen ? ' has-inline-editor' : ''));
         if (!row.readOnly) {
           rowElement.type = 'button';
@@ -139,8 +187,18 @@
         }
         if (row.serverEditor) { rowElement.setAttribute('aria-expanded', state.serverEditorOpen ? 'true' : 'false'); }
         rowElement.appendChild(values.element('span', 'app-setting-label', row.label));
-        value = values.element('span', 'app-setting-value', row.value);
-        if (row.palette) {
+        value = values.element('span', 'app-setting-value' + (row.stepper ? ' app-setting-stepper-value' : ''), row.stepper ? '' : row.value);
+        if (row.stepper && row.choices && row.choices.length) {
+          currentIndex = stepperIndex(row);
+          rowElement.setAttribute('role', 'slider');
+          rowElement.setAttribute('aria-valuetext', row.value);
+          rowElement.setAttribute('aria-orientation', 'horizontal');
+          ariaValues = numericStepperAria(row, currentIndex);
+          rowElement.setAttribute('aria-valuemin', ariaValues.min);
+          rowElement.setAttribute('aria-valuemax', ariaValues.max);
+          rowElement.setAttribute('aria-valuenow', ariaValues.now);
+          renderStepper(value, row, currentIndex);
+        } else if (row.palette) {
           value.className += ' app-setting-palette-value';
           renderPalette(value, state.accentColor);
         }
@@ -161,11 +219,26 @@
       else { focusSettings(state); }
     }
 
+    function updateLanguageFocus() {
+      var list = values.document.getElementById('language-editor-list');
+      var back = values.document.getElementById('language-editor-back');
+      var index;
+      var row;
+      if (!list || !back) { return snapshot(); }
+      for (index = 0; index < list.children.length; index += 1) {
+        row = list.children[index];
+        row.className = String(row.className || '').replace(/\s?is-focused/g, '') + (index === state.languageIndex && !row.disabled ? ' is-focused' : '');
+      }
+      back.className = state.languageIndex === list.children.length ? 'is-focused' : '';
+      return snapshot();
+    }
+
     function renderLanguages(state) {
       var list = values.document.getElementById('language-editor-list');
       var languages = state.languages || [];
       var index;
       var row;
+      var back = values.document.getElementById('language-editor-back');
       values.setText('language-editor-title', state.title);
       values.setText('language-editor-hint', state.hint);
       list.innerHTML = '';
@@ -180,9 +253,15 @@
         row.appendChild(values.element('span', 'language-editor-rank', languages[index].rank ? String(languages[index].rank) : ''));
         list.appendChild(row);
       }
-      if (!values.isPointerSelectionActive() && list.children[state.index]) {
-        list.children[state.index].focus();
-        values.keepFocusVisible(list, list.children[state.index]);
+      back.textContent = state.backLabel || '';
+      back.setAttribute('data-language-index', languages.length);
+      back.className = state.index === languages.length ? 'is-focused' : '';
+      if (!values.isPointerSelectionActive()) {
+        if (state.index === languages.length) { back.focus(); }
+        else if (list.children[state.index]) {
+          list.children[state.index].focus();
+          values.keepFocusVisible(list, list.children[state.index]);
+        }
       }
     }
 
@@ -190,7 +269,7 @@
       open: open, close: close, snapshot: snapshot,
       focusNavigation: focusNavigation, focusList: focusList,
       openLanguages: openLanguages, closeLanguages: closeLanguages, focusLanguage: focusLanguage,
-      render: render, renderLanguages: renderLanguages, focus: focusSettings
+      render: render, renderLanguages: renderLanguages, updateLanguageFocus: updateLanguageFocus, focus: focusSettings
     };
   }
 

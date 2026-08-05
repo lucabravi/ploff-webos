@@ -3,6 +3,20 @@
 var assert = require('assert');
 var ServerStore = require('../app/server-store');
 
+
+assert.strictEqual(ServerStore.same(
+  { uri: 'http://192.168.50.10:32400/' },
+  { uri: 'http://192.168.50.10:32400' }
+), true, 'server identity must normalize equivalent URIs');
+assert.strictEqual(ServerStore.same(
+  { machineIdentifier: 'machine-a', uri: 'http://old.example' },
+  { machineIdentifier: 'machine-a', uri: 'http://new.example' }
+), true, 'matching machine identifiers must survive connection changes');
+assert.strictEqual(ServerStore.same(
+  { machineIdentifier: 'machine-a', uri: 'http://same.example' },
+  { machineIdentifier: 'machine-b', uri: 'http://same.example' }
+), false, 'distinct machine identifiers must not collapse because a URI matches');
+assert.strictEqual(ServerStore.same({}, {}), false, 'empty server records must not share an identity');
 var configured = ServerStore.fromConfig({ apiBaseUrl: 'http://192.168.50.10:32400/', serverName: 'Living Room' });
 assert.deepStrictEqual(configured, {
   name: 'Living Room',
@@ -91,5 +105,8 @@ assert.strictEqual(saved.activeUri, 'http://192.168.0.8:32400', 'active server U
 assert.deepStrictEqual(ServerStore.load(storage), saved, 'server state must round-trip through localStorage');
 storageValue = '{broken';
 assert.deepStrictEqual(ServerStore.load(storage), { version: 1, activeUri: '', servers: [] }, 'invalid server state must fail closed');
+assert.doesNotThrow(function () {
+  ServerStore.save({ setItem: function () { throw new Error('quota'); } }, merged, 'http://192.168.0.8:32400');
+}, 'server selection must remain usable when persistence is unavailable');
 
 console.log('Server store checks passed');

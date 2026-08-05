@@ -8,19 +8,15 @@ function node(id) {
     id: id, className: '', textContent: '', innerText: '', disabled: false, attributes: {}, scrollTop: 0,
     clientHeight: 100, scrollHeight: 100, bottom: 100,
     setAttribute: function (key, value) { this.attributes[key] = String(value); },
+    focus: function () { this.focused = true; },
     getBoundingClientRect: function () { return { bottom: this.bottom }; }
   };
 }
 var ids = [
   'detail-title', 'detail-subtitle', 'detail-facts', 'detail-summary', 'detail-summary-button', 'detail-summary-dialog',
-  'detail-summary-dialog-title', 'detail-summary-dialog-text', 'detail-summary-dialog-hint', 'detail-media-info-button',
-  'detail-media-info', 'detail-media-info-video', 'detail-media-info-audio', 'detail-media-info-bitrate',
+  'detail-summary-dialog-title', 'detail-summary-dialog-text', 'detail-summary-dialog-hint', 'detail-summary-dialog-close',
   'detail-audio', 'detail-audio-label', 'detail-audio-value', 'detail-subtitles', 'detail-subtitles-label',
-  'detail-subtitles-value', 'detail-version', 'detail-version-value', 'detail-media-info-label',
-  'detail-media-info-video-label', 'detail-media-info-audio-label', 'detail-media-info-bitrate-label',
-  'detail-media-info-subtitle-languages-label',
-  'detail-media-info-subtitle-languages', 'detail-media-info-dialog', 'detail-media-info-dialog-title',
-  'detail-media-info-dialog-text', 'detail-media-info-dialog-hint'
+  'detail-subtitles-value', 'detail-version', 'detail-version-value'
 ];
 var nodes = {};
 ids.forEach(function (id) { nodes[id] = node(id); });
@@ -40,15 +36,13 @@ assert.ok(documentRef.body.className.indexOf('is-movie-detail') !== -1, 'movie m
 
 nodes['detail-audio'].className = 'detail-choice is-focused';
 view.renderMediaControls({
-  labels: { audio: 'Audio', subtitles: 'Subtitles', mediaInfo: 'Media info', subtitleLanguages: 'Subtitle languages', video: 'Video', bitrate: 'Bitrate' },
+  labels: { audio: 'Audio', subtitles: 'Subtitles' },
   choices: { audio: true, subtitles: false, versions: true },
-  values: { audio: 'Automatic - Japanese', subtitles: 'Off', version: 'Automatic - 1080p', video: 'HEVC · 1920x1080', mediaAudio: 'AAC · 2 ch', bitrate: '8 Mbps', subtitleLanguages: 'Italian' },
-  mediaInfoVisible: true
+  values: { audio: 'Automatic - Japanese', subtitles: 'Off', version: 'Automatic - 1080p' }
 });
 assert.strictEqual(nodes['detail-audio-value'].textContent, 'Automatic - Japanese', 'media controls must render resolved audio text');
 assert.ok(nodes['detail-audio'].className.indexOf('is-focused') !== -1 && nodes['detail-audio'].className.indexOf('is-cyclable') !== -1, 'rerendering controls must preserve focus and expose available choices');
 assert.strictEqual(nodes['detail-subtitles'].disabled, true, 'single-value controls must be disabled');
-assert.strictEqual(nodes['detail-media-info-button'].className.indexOf('is-hidden'), -1, 'enabled media information must remain visible');
 
 nodes['detail-summary'].scrollHeight = 160;
 nodes['detail-summary'].clientHeight = 100;
@@ -57,23 +51,12 @@ assert.strictEqual(view.updateSummaryOverflow(), true, 'overflowing summaries mu
 assert.strictEqual(nodes['detail-summary-button'].disabled, false, 'overflowing summary control must be enabled');
 assert.strictEqual(view.openSummary(), true, 'an overflowing summary must open its dialog');
 assert.strictEqual(view.snapshot().summaryDialogOpen, true, 'summary dialog state must be private and observable');
+assert.strictEqual(nodes['detail-summary-dialog-close'].textContent, 'common.close', 'the summary dialog must expose a visible localized close action');
+assert.strictEqual(nodes['detail-summary-dialog'].attributes['aria-hidden'], 'false', 'opening the summary must expose it to accessibility APIs');
 view.closeSummary();
 assert.strictEqual(view.snapshot().summaryDialogOpen, false, 'closing a summary must clear dialog state');
+assert.strictEqual(nodes['detail-summary-dialog'].attributes['aria-hidden'], 'true', 'closing the summary must hide it from accessibility APIs');
 
-nodes['detail-media-info'].bottom = 180;
-nodes['detail-media-info-button'].bottom = 120;
-zone = 'media-info';
-assert.strictEqual(view.updateMediaInfoOverflow(true), true, 'clipped media information must become interactive');
-nodes['detail-media-info-video'].innerText = 'HEVC';
-nodes['detail-media-info-audio'].innerText = 'AAC';
-nodes['detail-media-info-bitrate'].innerText = '8 Mbps';
-nodes['detail-media-info-subtitle-languages'].innerText = 'English, Italian';
-assert.strictEqual(view.openMediaInfo(), true, 'clipped media information must open its dialog');
-assert.ok(nodes['detail-media-info-dialog-text'].textContent.indexOf('HEVC') !== -1, 'media dialog must contain the current technical values');
-
-nodes['detail-media-info'].bottom = 100;
-view.updateMediaInfoOverflow(true);
-assert.strictEqual(invalid[invalid.length - 1], 'media-info', 'a focus zone that no longer overflows must return control to the shell');
 view.clear();
 assert.strictEqual(nodes['detail-title'].textContent, '', 'clear must remove stale title metadata before a new media opens');
 

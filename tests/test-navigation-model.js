@@ -26,6 +26,11 @@ assert.deepStrictEqual(NavigationModel.moveLibrary(items, 1, -1).items, items, '
 assert.deepStrictEqual(NavigationModel.moveLibrary(items, 3, 1).items, items, 'Watchlist, Search, and Settings must remain fixed');
 assert.deepStrictEqual(NavigationModel.libraryKeys(moved.items), ['4', '2', '1'], 'only library keys must be persisted');
 
+var visible = NavigationModel.visibleItems(items, { showWatchlist: false, showPlaylists: false });
+assert.deepStrictEqual(visible.map(function (item) { return item.kind; }), ['home', 'library', 'library', 'library', 'search', 'settings'], 'hidden optional navbar entries are filtered by preference');
+assert.strictEqual(NavigationModel.restoreVisibleIndex(items, visible, 3), 3, 'navbar focus stays on the same item when it remains visible');
+assert.strictEqual(NavigationModel.restoreVisibleIndex(items, visible, 4), 4, 'navbar focus clamps when its active item becomes hidden');
+
 var stored = {};
 var storage = {
   getItem: function (key) { return stored[key] || null; },
@@ -33,6 +38,9 @@ var storage = {
 };
 NavigationModel.save(storage, ['4', '2', '1']);
 assert.deepStrictEqual(NavigationModel.load(storage), ['4', '2', '1'], 'the library order must survive a storage round trip');
+assert.doesNotThrow(function () {
+  NavigationModel.save({ setItem: function () { throw new Error('quota'); } }, ['1', '2']);
+}, 'navbar reordering must remain usable when persistence is unavailable');
 
 var previewTimers = [];
 var clearedPreviewTimers = [];

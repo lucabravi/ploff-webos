@@ -227,14 +227,58 @@ assert.strictEqual(backFixture.view.snapshot().open, true, 'clearing a query wit
 assert.deepStrictEqual(backFixture.callbacks, [], 'clearing a query must not notify the cross-view router');
 assert.ok(backFixture.posterCancellations.length > 0, 'clearing a query must cancel obsolete poster work');
 backFixture.view.back();
-assert.strictEqual(backFixture.view.snapshot().open, false, 'a second Back on an empty query must close search');
+assert.strictEqual(backFixture.view.snapshot().focus.zone, 'nav', 'a second Back on an empty query must focus the current navbar entry');
+assert.strictEqual(backFixture.view.snapshot().open, true, 'moving to the navbar must keep Search open');
+assert.deepStrictEqual(backFixture.callbacks, [], 'moving to the navbar must not notify the cross-view router');
+backFixture.view.back();
+assert.strictEqual(backFixture.view.snapshot().open, false, 'Back from the Search navbar entry must close Search');
 assert.deepStrictEqual(backFixture.callbacks, ['back'], 'closing search must notify the coordinator once');
 assert.strictEqual(backFixture.posterCancellations[backFixture.posterCancellations.length - 1], 'search', 'closing search must cancel its poster scope');
 
 view.back();
-assert.strictEqual(view.snapshot().open, false, 'Back must close the search view');
-assert.deepStrictEqual(fixture.callbacks, ['two', 'back'], 'Back must notify the coordinator once');
+assert.strictEqual(view.snapshot().focus.zone, 'nav', 'Back from Search results must focus the current navbar entry');
+view.back();
+assert.strictEqual(view.snapshot().open, false, 'Back from the navbar must close the search view');
+assert.deepStrictEqual(fixture.callbacks, ['two', 'back'], 'leaving Search must notify the coordinator once');
 assert.ok(fixture.document.getElementById('search-view').className.indexOf('is-hidden') !== -1, 'Back must hide the view');
+view.resume();
+assert.strictEqual(view.snapshot().open, true, 'resume must reactivate retained search state');
+assert.ok(fixture.document.getElementById('search-view').className.indexOf('is-hidden') === -1, 'resume must reveal the retained Search surface');
 assert.ok(fixture.statuses.length > 0, 'search lifecycle must publish status changes');
+
+
+(function testSearchReusesStableLayoutMeasurementsAndPosterProfile() {
+  var measureCalls = 0;
+  var posterSizes = [];
+  var profile = {
+    metrics: { width: 100, imageHeight: 150, columnStep: 112, rowStep: 194 },
+    poster: { width: 100, height: 150, previewWidth: 64, previewHeight: 96 }
+  };
+  var cached = createView({
+    cardProfile: function () { return profile; },
+    cardMetrics: function () { throw new Error('cached Search layout must not request standalone metrics'); },
+    measureLayout: function (container, count, width, height) {
+      measureCalls += 1;
+      return SearchModel.measureLayout(container.clientWidth - 12, container.clientHeight - 12, width, height, count);
+    },
+    fixedPosterSpecification: function (source, size, priority, scope) {
+      posterSizes.push(size);
+      return { source: source, width: size.width, height: size.height, priority: priority, scope: scope };
+    },
+    posterLoader: { loadBatch: function () {}, cancelScope: function () {} }
+  });
+  cached.view.open(false);
+  cached.view.setResults(null, [
+    { ratingKey: 'one', title: 'One', image: 'one.jpg' },
+    { ratingKey: 'two', title: 'Two', image: 'two.jpg' }
+  ]);
+  assert.strictEqual(measureCalls, 1, 'the first Search result render must measure its grid once');
+  cached.view.refreshResults();
+  assert.strictEqual(measureCalls, 1, 'unchanged Search dimensions and result count must reuse the cached layout');
+  assert.strictEqual(posterSizes[0], profile.poster, 'Search poster work must use the shared fixed poster profile');
+  cached.document.getElementById('search-results').clientWidth = 420;
+  cached.view.refreshResults();
+  assert.strictEqual(measureCalls, 2, 'changing Search container dimensions must invalidate the measurement cache');
+}());
 
 console.log('Search view checks passed');
