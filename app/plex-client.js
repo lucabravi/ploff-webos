@@ -2,78 +2,145 @@
   'use strict';
 
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./media-profile'), require('./media-preferences'), require('./version-selection'));
+    module.exports = factory(require('./media-profile'), require('./media-preferences'), require('./version-selection'), require('./plex-url'), require('./plex-search-parser'), require('./plex-playback-urls'), require('./plex-http'));
   } else {
-    root.PloffClient = factory(root.PloffMediaProfile, root.PloffMediaPreferences, root.PloffVersionSelection);
+    root.PloffClient = factory(root.PloffMediaProfile, root.PloffMediaPreferences, root.PloffVersionSelection, root.PloffPlexUrl, root.PloffPlexSearchParser, root.PloffPlexPlaybackUrls, root.PloffPlexHttp);
   }
-}(this, function (MediaProfile, MediaPreferences, VersionSelection) {
+}(this, function (MediaProfile, MediaPreferences, VersionSelection, PlexUrl, PlexSearchParser, PlexPlaybackUrls, PlexHttp) {
   'use strict';
+
+  /**
+   * @typedef {Object} RecentGroupRecord
+   * @property {string} key
+   * @property {number} count
+   * @property {number} viewedCount
+   * @property {Object<string, *>} seasonItem
+   */
+
+  /**
+   * @typedef {Object} MediaCardRecord
+   * @property {string} title
+   * @property {string} meta
+   * @property {string} image
+   * @property {string} art
+   * @property {string=} titleKey
+   * @property {string=} metaKey
+   * @property {Object<string, *>=} metaParameters
+   * @property {string=} libraryTitle
+   * @property {(number|string)=} year
+   * @property {string=} genre
+   * @property {number=} seasonCount
+   * @property {string=} guid
+   * @property {string=} ratingKey
+   * @property {string=} type
+   * @property {string=} themeLookupKey
+   * @property {string=} detail
+   * @property {string=} detailKey
+   * @property {Object<string, *>=} detailParameters
+   * @property {number=} seasonIndex
+   * @property {number=} episodeIndex
+   * @property {number=} rating
+   * @property {boolean=} viewed
+   * @property {number=} duration
+   * @property {number=} viewOffset
+   * @property {number=} progress
+   * @property {string=} themeKey
+   * @property {string=} themeUrl
+   * @property {RecentGroupRecord=} recentGroup
+   */
+
+  /**
+   * @typedef {Object} DetailRecord
+   * @property {string} ratingKey
+   * @property {string} type
+   * @property {string} showRatingKey
+   * @property {string} seasonRatingKey
+   * @property {number} seasonIndex
+   * @property {number} episodeIndex
+   * @property {boolean} viewed
+   * @property {number} viewOffset
+   * @property {number} duration
+   * @property {string} title
+   * @property {string} subtitle
+   * @property {string} facts
+   * @property {string} summary
+   * @property {string} image
+   * @property {string} art
+   * @property {string=} guid
+   * @property {string=} watchlistGuid
+   * @property {string=} themeKey
+   * @property {string=} themeUrl
+   */
+
+  /**
+   * @typedef {Object} PlaybackOptionsRecord
+   * @property {*} audioStreamID
+   * @property {*} subtitleStreamID
+   * @property {number} subtitleSize
+   * @property {number} offset
+   * @property {string} videoQuality
+   * @property {string} playbackMode
+   * @property {number=} mediaIndex
+   * @property {number=} partIndex
+   * @property {string=} delivery
+   * @property {boolean=} localSubtitleOverlay
+   * @property {string=} videoResolution
+   */
+
+  /**
+   * @typedef {Object} PlaybackSessionRecord
+   * @property {string} ratingKey
+   * @property {string} key
+   * @property {string} title
+   * @property {number} duration
+   * @property {*} session
+   * @property {*} partId
+   * @property {boolean} directPlay
+   * @property {string} fileName
+   * @property {number} fileSize
+   * @property {string} playbackMode
+   * @property {Array<*>} markers
+   * @property {Array<*>} chapters
+   * @property {Array<*>} audioTracks
+   * @property {Array<*>} subtitleTracks
+   * @property {PlaybackOptionsRecord} options
+   * @property {number} resumePosition
+   * @property {number} offsetBase
+   * @property {*} originalContainer
+   * @property {*} originalVideoCodec
+   * @property {*} mediaProfile
+   * @property {string=} sourceUrl
+   * @property {string=} hlsUrl
+   * @property {Array<*>=} mediaVersions
+   * @property {number=} mediaIndex
+   * @property {number=} partIndex
+   * @property {string=} partKey
+   * @property {string=} transcodeSession
+   */
 
   var transcodeSessionCounter = 0;
   var recommendationCache = {};
-
-  function trimSlash(value, fromStart) {
-    return fromStart ? value.replace(/^\/+/, '') : value.replace(/\/+$/, '');
-  }
-
-  function buildUrl(baseUrl, path, parameters, token) {
-    var url = trimSlash(baseUrl || '', false) + '/' + trimSlash(path || '', true);
-    var query = [];
-    var key;
-
-    for (key in parameters) {
-      if (Object.prototype.hasOwnProperty.call(parameters, key)) {
-        query.push(encodeURIComponent(key) + '=' + encodeURIComponent(parameters[key]));
-      }
-    }
-    if (token) {
-      query.push('X-Plex-Token=' + encodeURIComponent(token));
-    }
-    return url + (query.length ? (url.indexOf('?') === -1 ? '?' : (/[?&]$/.test(url) ? '' : '&')) + query.join('&') : '');
-  }
+  var recommendationCacheOrder = [];
+  var RECOMMENDATION_CACHE_LIMIT = 4;
+  var buildUrl = PlexUrl.buildUrl;
+  var assetUrl = PlexUrl.assetUrl;
+  var posterUrl = PlexUrl.posterUrl;
+  var playbackModeFromDecisions = PlexPlaybackUrls.playbackModeFromDecisions;
+  var playbackModeFromXml = PlexPlaybackUrls.playbackModeFromXml;
+  var buildStreamSelectionUrl = PlexPlaybackUrls.buildStreamSelectionUrl;
+  var buildSubtitleStreamUrl = PlexPlaybackUrls.buildSubtitleStreamUrl;
+  var buildSubtitleTranscodeUrl = PlexPlaybackUrls.buildSubtitleTranscodeUrl;
+  var buildSubtitleOffsetUrl = PlexPlaybackUrls.buildSubtitleOffsetUrl;
 
   function pad(value) {
     var text = String(value || '0');
     return text.length < 2 ? '0' + text : text;
   }
 
-  function assetUrl(baseUrl, path, token) {
-    if (!path) {
-      return '';
-    }
-    if (/^https?:\/\//i.test(path)) {
-      return path;
-    }
-    return buildUrl(baseUrl, path, {}, token);
+  function setDynamicProperty(target, key, value) {
+    target[key] = value;
   }
 
-  function replaceQueryParameter(url, name, value) {
-    var pattern = new RegExp('([?&])' + name + '=[^&]*', 'i');
-    if (pattern.test(url)) { return url.replace(pattern, '$1' + name + '=' + value); }
-    return url + (url.indexOf('?') === -1 ? '?' : '&') + name + '=' + value;
-  }
-
-  function posterUrl(config, sourceUrl, width, height) {
-    var baseUrl = String(config.apiBaseUrl || '').replace(/\/$/, '');
-    var source = String(sourceUrl || '');
-    var targetWidth = Math.max(16, Math.min(1920, Math.round(Number(width || 0))));
-    var targetHeight = Math.max(16, Math.min(1080, Math.round(Number(height || 0))));
-    if (!source) { return ''; }
-    if (baseUrl && source.indexOf(baseUrl) === 0) {
-      source = source.slice(baseUrl.length) || '/';
-    }
-    if (source.indexOf('/composite/') !== -1) {
-      source = replaceQueryParameter(source, 'width', targetWidth);
-      source = replaceQueryParameter(source, 'height', targetHeight);
-    }
-    return buildUrl(baseUrl, '/photo/:/transcode', {
-      width: targetWidth,
-      height: targetHeight,
-      minSize: 1,
-      upscale: 0,
-      url: source
-    }, config.token || '');
-  }
 
   function themeFromAttributes(attributes, baseUrl, token) {
     var type = attributes.type || '';
@@ -92,6 +159,7 @@
     return { key: key, url: assetUrl(baseUrl, path, token) };
   }
 
+  /** @returns {MediaCardRecord} */
   function mediaFromAttributes(attributes, baseUrl, token) {
     var type = attributes.type || '';
     var title = attributes.title || 'Untitled';
@@ -100,6 +168,7 @@
     var art = assetUrl(baseUrl, attributes.art || attributes.thumb, token);
     var duration = Number(attributes.duration || 0);
     var offset = Number(attributes.viewOffset || 0);
+    /** @type {MediaCardRecord} */
     var item;
     var detail = '';
     var theme = themeFromAttributes(attributes, baseUrl, token);
@@ -168,6 +237,10 @@
     if (detail) {
       item.detail = detail;
     }
+    if (type === 'episode') {
+      item.seasonIndex = Number(attributes.parentIndex || 0);
+      item.episodeIndex = Number(attributes.index || 0);
+    }
     if (detailKey) { item.detailKey = detailKey; }
     if (detailParameters) { item.detailParameters = detailParameters; }
     if (attributes.audienceRating || attributes.rating) {
@@ -177,6 +250,8 @@
         (Number(attributes.leafCount || 0) > 0 && Number(attributes.viewedLeafCount || 0) >= Number(attributes.leafCount || 0))) {
       item.viewed = true;
     }
+    if (duration > 0) { setDynamicProperty(item, 'duration', duration); }
+    if (offset > 0) { setDynamicProperty(item, 'viewOffset', offset); }
     if (duration > 0 && offset > 0) {
       item.progress = Math.max(0, Math.min(100, Math.round(offset / duration * 100)));
     }
@@ -221,19 +296,20 @@
     return result;
   }
 
-  function parseAttributes(xmlText) {
+  function parseXmlDocument(xmlText, errorMessage) {
     var parser = new DOMParser();
     var documentNode = parser.parseFromString(xmlText, 'application/xml');
-    var error = documentNode.getElementsByTagName('parsererror');
-    var candidates;
+    if (documentNode.getElementsByTagName('parsererror').length) {
+      throw new Error(errorMessage || 'Invalid Plex XML response');
+    }
+    return documentNode;
+  }
+
+  function attributesFromDocument(documentNode) {
+    var candidates = documentNode.documentElement.childNodes;
     var items = [];
     var index;
     var node;
-
-    if (error.length) {
-      throw new Error('Invalid Plex XML response');
-    }
-    candidates = documentNode.documentElement.childNodes;
     for (index = 0; index < candidates.length; index += 1) {
       node = candidates[index];
       if (node.nodeType === 1 && (node.nodeName === 'Video' || node.nodeName === 'Directory' || node.nodeName === 'Playlist')) {
@@ -243,55 +319,37 @@
     return items;
   }
 
+  function pageNextStart(start, itemCount) {
+    return Math.max(0, Number(start) || 0) + Math.max(0, Number(itemCount) || 0);
+  }
+
+  function pageTotal(rootAttributes, start, itemCount) {
+    var total = Number(rootAttributes && rootAttributes.totalSize);
+    var absoluteEnd = pageNextStart(start, itemCount);
+    if (!isFinite(total) || total < 0) { total = Number(rootAttributes && rootAttributes.size); }
+    if (!isFinite(total) || total < 0) { total = 0; }
+    return Math.max(total, absoluteEnd);
+  }
+
+  function pageHasMore(rootAttributes, start, itemCount, requestedSize) {
+    var total = Number(rootAttributes && rootAttributes.totalSize);
+    var absoluteEnd = pageNextStart(start, itemCount);
+    if (isFinite(total) && total >= absoluteEnd) { return itemCount > 0 && absoluteEnd < total; }
+    return itemCount >= Math.max(1, Number(requestedSize) || 1);
+  }
+
+  function parseAttributes(xmlText) {
+    return attributesFromDocument(parseXmlDocument(xmlText));
+  }
+
   function parseItems(xmlText, baseUrl, token) {
     return parseAttributes(xmlText).map(function (attributes) {
       return mediaFromAttributes(attributes, baseUrl, token);
     });
   }
 
-  function normalizedSearchText(value) {
-    return String(value || '').toLowerCase()
-      .replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e')
-      .replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o')
-      .replace(/[ùúûü]/g, 'u').replace(/[ç]/g, 'c')
-      .replace(/[^a-z0-9]+/g, ' ').replace(/^\s+|\s+$/g, '');
-  }
-
-  function searchAttributesMatch(attributes, query) {
-    var terms = normalizedSearchText(query).split(/\s+/).filter(function (term) { return !!term; });
-    var searchable;
-    if (!terms.length) { return true; }
-    searchable = normalizedSearchText([
-      attributes.title,
-      attributes.originalTitle,
-      attributes.titleSort
-    ].join(' '));
-    return terms.every(function (term) { return searchable.indexOf(term) !== -1; });
-  }
-
-  function searchItemsFromAttributes(attributesList, baseUrl, token, query) {
-    var seen = {};
-    var items = [];
-    var attributes;
-    var item;
-    var index;
-    for (index = 0; index < attributesList.length; index += 1) {
-      attributes = attributesList[index];
-      if ((attributes.type !== 'movie' && attributes.type !== 'show') || !attributes.ratingKey || seen[attributes.ratingKey] || !searchAttributesMatch(attributes, query)) { continue; }
-      seen[attributes.ratingKey] = true;
-      item = mediaFromAttributes(attributes, baseUrl, token);
-      item.libraryTitle = attributes.librarySectionTitle || '';
-      items.push(item);
-    }
-    items.sort(function (left, right) {
-      var leftTitle = left.title.toLowerCase();
-      var rightTitle = right.title.toLowerCase();
-      if (leftTitle < rightTitle) { return -1; }
-      if (leftTitle > rightTitle) { return 1; }
-      return 0;
-    });
-    return items;
-  }
+  var searchParser = PlexSearchParser.create({ mediaFromAttributes: mediaFromAttributes });
+  var searchItemsFromAttributes = searchParser.searchItemsFromAttributes;
 
   function searchItemsFromXml(xmlText, baseUrl, token, query) {
     var parser = new DOMParser();
@@ -312,7 +370,7 @@
         }
       }
     }
-    return searchItemsFromAttributes(attributesList, baseUrl, token, query);
+    return searchParser.searchItemsFromAttributes(attributesList, baseUrl, token, query);
   }
 
   function groupRecentAttributes(items) {
@@ -357,6 +415,51 @@
     return grouped;
   }
 
+  function recentSeasonAttributes(item, count, viewedCount) {
+    var season = item.type === 'season';
+    return {
+      type: 'season',
+      ratingKey: season ? item.ratingKey : item.parentRatingKey,
+      title: season ? item.title : item.parentTitle,
+      parentTitle: season ? item.parentTitle : item.grandparentTitle,
+      parentRatingKey: season ? item.parentRatingKey : item.grandparentRatingKey,
+      index: season ? item.index : item.parentIndex,
+      leafCount: String(count),
+      viewedLeafCount: String(viewedCount),
+      thumb: season ? (item.thumb || item.art) : (item.parentThumb || item.grandparentThumb || item.thumb),
+      art: season ? (item.art || item.thumb) : (item.grandparentArt || item.art),
+      theme: season ? item.theme : (item.grandparentTheme || item.theme),
+      librarySectionTitle: item.librarySectionTitle
+    };
+  }
+
+  function recentCardFromAttributes(attributes, baseUrl, token) {
+    var card = mediaFromAttributes(attributes, baseUrl, token);
+    var key;
+    var count;
+    var viewedCount;
+    var seasonAttributes;
+    if (attributes.type !== 'episode' && attributes.type !== 'season') { return card; }
+    key = attributes.type === 'season'
+      ? String(attributes.ratingKey || '')
+      : String(attributes.parentRatingKey || (attributes.grandparentTitle || '') + '|' + (attributes.parentIndex || ''));
+    if (!key) { return card; }
+    count = attributes.type === 'season' ? Math.max(1, Number(attributes.leafCount || 1)) : 1;
+    viewedCount = attributes.type === 'season'
+      ? Math.max(0, Number(attributes.viewedLeafCount || 0))
+      : (Number(attributes.viewCount || 0) > 0 ? 1 : 0);
+    seasonAttributes = recentSeasonAttributes(attributes, count, viewedCount);
+    card.recentGroup = {
+      key: key,
+      count: count,
+      viewedCount: viewedCount,
+      seasonItem: mediaFromAttributes(seasonAttributes, baseUrl, token)
+    };
+    return card;
+  }
+
+
+  /** @returns {DetailRecord} */
   function detailFromAttributes(attributes, baseUrl, token) {
     var type = attributes.type || '';
     var title = attributes.title || 'Untitled';
@@ -364,6 +467,7 @@
     var facts = [];
     var minutes;
     var theme = themeFromAttributes(attributes, baseUrl, token);
+    /** @type {DetailRecord} */
     var result;
 
     if (type === 'episode') {
@@ -457,6 +561,9 @@
     var viewOffset = Math.max(0, Number(attributes.viewOffset || 0));
     return {
       ratingKey: attributes.ratingKey || '',
+      type: 'episode',
+      seasonIndex: Number(attributes.parentIndex || 0),
+      episodeIndex: Number(attributes.index || 0),
       index: Number(attributes.index || 0),
       title: attributes.title || 'Episodio ' + Number(attributes.index || 0),
       image: assetUrl(baseUrl, attributes.thumb || attributes.art, token),
@@ -469,28 +576,7 @@
   }
 
   function trackFromAttributes(stream) {
-    var languageAliases = { eng: 'en', ita: 'it', jpn: 'ja', fre: 'fr', fra: 'fr', ger: 'de', deu: 'de', spa: 'es', por: 'pt', kor: 'ko', chi: 'zh', zho: 'zh', rus: 'ru' };
-    var tag = String(stream.languageTag || stream.languageCode || '').toLowerCase().replace(/_/g, '-').split('-')[0];
-    tag = languageAliases[tag] || tag;
-    return {
-      id: stream.id || '',
-      language: stream.language || stream.languageCode || 'Sconosciuta',
-      languageTag: tag,
-      languageCode: languageAliases[String(stream.languageCode || '').toLowerCase()] || tag,
-      codec: stream.codec || '',
-      forced: stream.forced === '1',
-      selected: stream.selected === '1',
-      title: stream.title || '',
-      index: Number(stream.index || 0),
-      key: String(stream.key || ''),
-      external: stream.external === '1' || !!stream.key,
-      format: String(stream.format || stream.codec || '').toLowerCase(),
-      offset: Number(stream.offset || 0),
-      displayTitle: String(stream.displayTitle || ''),
-      extendedDisplayTitle: String(stream.extendedDisplayTitle || ''),
-      channels: Number(stream.channels || 0),
-      channelLayout: String(stream.audioChannelLayout || stream.channelLayout || '')
-    };
+    return MediaProfile.trackFromAttributes(stream);
   }
 
   function firstTrackByLanguage(tracks, priorities, forcedOnly, sourcePreference) {
@@ -528,6 +614,7 @@
     return null;
   }
 
+  /** @returns {PlaybackOptionsRecord} */
   function resolvePlaybackOptions(playback, preferences) {
     var current = playback.options || {};
     var settings = preferences || {};
@@ -538,6 +625,7 @@
     var mode = settings.subtitleMode || 'audio-mismatch';
     var suppress = settings.subtitleSuppressedForAudio || [];
     var preferredSubtitleLanguage = settings.subtitleLanguages && settings.subtitleLanguages.length ? settings.subtitleLanguages[0] : '';
+    /** @type {PlaybackOptionsRecord} */
     var result;
 
     audio = audio || firstTrackByLanguage(audioTracks, settings.audioLanguages || [], false) || selectedTrack(audioTracks) || audioTracks[0] || null;
@@ -712,13 +800,16 @@
     return versions;
   }
 
+  /** @returns {PlaybackSessionRecord} */
   function playbackFromAttributes(video, media, part, baseUrl, token, session, streams, markers, chapters) {
     var ratingKey = video.ratingKey || '';
     var audioTracks = [];
     var subtitleTracks = [];
     var resumePosition = Math.floor(Number(video.viewOffset || 0) / 1000);
     var streamOffset = resumePosition;
+    /** @type {PlaybackOptionsRecord} */
     var options = { audioStreamID: '', subtitleStreamID: '', subtitleSize: 100, offset: streamOffset, videoQuality: 'original', playbackMode: 'auto' };
+    /** @type {PlaybackSessionRecord} */
     var playback;
     var mediaProfile = MediaProfile ? MediaProfile.fromNodes(video, media, part, streams || []) : null;
 
@@ -775,7 +866,8 @@
   function homeDefinitions(sections, config) {
     return [{
       title: 'Continua a guardare',
-      path: config && config.continuePath || '/hubs/continueWatching/items'
+      path: config && config.continuePath || '/hubs/continueWatching/items',
+      showLibraryBadge: true
     }].concat(sectionDefinitions(sections));
   }
 
@@ -872,26 +964,81 @@
     return rows;
   }
 
+  function mergeRecommendedItems(itemLists, limit) {
+    var lists = (itemLists || []).map(function (items) { return items || []; });
+    var positions = lists.map(function () { return 0; });
+    var seen = {};
+    var result = [];
+    var progressed = true;
+    var index;
+    var item;
+    while (progressed && result.length < limit) {
+      progressed = false;
+      for (index = 0; index < lists.length && result.length < limit; index += 1) {
+        while (positions[index] < lists[index].length) {
+          item = lists[index][positions[index]];
+          positions[index] += 1;
+          progressed = true;
+          if (!item || !item.ratingKey || seen[item.ratingKey]) { continue; }
+          seen[item.ratingKey] = true;
+          result.push(item);
+          break;
+        }
+      }
+    }
+    return result;
+  }
+
+  function touchRecommendationCache(key) {
+    var index = recommendationCacheOrder.indexOf(key);
+    var evicted;
+    if (index !== -1) { recommendationCacheOrder.splice(index, 1); }
+    recommendationCacheOrder.push(key);
+    while (recommendationCacheOrder.length > RECOMMENDATION_CACHE_LIMIT) {
+      evicted = recommendationCacheOrder.shift();
+      delete recommendationCache[evicted];
+    }
+  }
+
+  function cachedRecommendations(key, currentTime) {
+    var cached = recommendationCache[key];
+    var index;
+    if (!cached) { return null; }
+    if (currentTime < cached.savedAt || currentTime - cached.savedAt >= 300000) {
+      delete recommendationCache[key];
+      index = recommendationCacheOrder.indexOf(key);
+      if (index !== -1) { recommendationCacheOrder.splice(index, 1); }
+      return null;
+    }
+    touchRecommendationCache(key);
+    return cached.items.slice(0);
+  }
+
+  function storeRecommendations(key, items, currentTime) {
+    recommendationCache[key] = { savedAt: currentTime, items: items.slice(0) };
+    touchRecommendationCache(key);
+  }
+
   function loadRecommendedItems(config, sections, callback) {
     var libraries = (sections || []).filter(function (section) {
       return section.key && (section.type === 'movie' || section.type === 'show');
     });
     var cacheKey = String(config.apiBaseUrl || '') + '|' + String(config.token || '') + '|' + libraries.map(function (section) { return section.key; }).join(',');
-    var cached = recommendationCache[cacheKey];
+    var cached = cachedRecommendations(cacheKey, new Date().getTime());
     var pending = libraries.length;
     var requests = [];
+    var itemLists = libraries.map(function () { return []; });
     var items = [];
-    var seen = {};
     var aborted = false;
-    if (cached && new Date().getTime() - cached.savedAt < 300000) {
-      callback(null, cached.items.slice(0));
+    if (cached) {
+      callback(null, cached);
       return { abort: function () { aborted = true; } };
     }
     if (!pending) {
       callback(null, []);
       return { abort: function () { aborted = true; } };
     }
-    libraries.forEach(function (section) {
+    libraries.forEach(function (section, libraryIndex) {
       requests.push(request(buildUrl(config.apiBaseUrl, '/hubs/sections/' + section.key, {
         'X-Plex-Container-Start': 0,
         'X-Plex-Container-Size': config.itemLimit || 12
@@ -899,15 +1046,16 @@
         if (aborted) { return; }
         if (!error) {
           try {
-            recommendationItemsFromXml(xmlText, config.apiBaseUrl, config.token || '').forEach(function (item) {
-              if (!seen[item.ratingKey]) { seen[item.ratingKey] = true; items.push(item); }
+            itemLists[libraryIndex] = recommendationItemsFromXml(xmlText, config.apiBaseUrl, config.token || '');
+            itemLists[libraryIndex].forEach(function (item) {
+              if (!item.libraryTitle) { item.libraryTitle = section.title || ''; }
             });
           } catch (parseError) {}
         }
         pending -= 1;
         if (!pending) {
-          items = items.slice(0, config.itemLimit || 12);
-          recommendationCache[cacheKey] = { savedAt: new Date().getTime(), items: items };
+          items = mergeRecommendedItems(itemLists, config.itemLimit || 12);
+          storeRecommendations(cacheKey, items, new Date().getTime());
           callback(null, items);
         }
       }));
@@ -954,7 +1102,7 @@
   function loadAccountProfile(config, callback) {
     var base = config.accountBaseUrl || 'https://plex.tv';
     var url = buildUrl(base, '/api/v2/user', {}, config.token || '');
-    request(url, config.requestTimeout || 8000, function (error, jsonText) {
+    return request(url, config.requestTimeout || 8000, function (error, jsonText) {
       if (error) { callback(error); return; }
       try { callback(null, accountProfileFromJson(jsonText)); }
       catch (parseError) { callback(parseError); }
@@ -963,7 +1111,7 @@
 
   function loadNavigation(config, callback) {
     var url = buildUrl(config.apiBaseUrl, config.sectionsPath || '/library/sections', {}, config.token || '');
-    request(url, config.requestTimeout || 8000, function (error, xmlText) {
+    return request(url, config.requestTimeout || 8000, function (error, xmlText) {
       if (error) { callback(error); return; }
       try { callback(null, navigationDefinitions(parseAttributes(xmlText))); }
       catch (parseError) { callback(parseError); }
@@ -971,7 +1119,7 @@
   }
 
   function loadLibrary(config, navigation, callback) {
-    loadRows(config, [{
+    return loadRows(config, [{
       title: navigation.title,
       path: '/library/sections/' + navigation.key + '/all'
     }], callback);
@@ -992,41 +1140,15 @@
   }
 
   function requestWithMethod(url, method, timeout, callback, headers) {
-    var xhr = new XMLHttpRequest();
-    var nativeAbort = xhr.abort;
-    var finished = false;
-    var header;
-    function finish(error, text) {
-      if (finished) { return; }
-      finished = true;
-      callback(error || null, text || '', xhr);
-    }
-    try {
-      xhr.open(method, url, true);
-      xhr.timeout = timeout;
-      for (header in (headers || {})) {
-        if (Object.prototype.hasOwnProperty.call(headers, header) && xhr.setRequestHeader) {
-          xhr.setRequestHeader(header, headers[header]);
-        }
-      }
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState !== 4) { return; }
-        if (xhr.status >= 200 && xhr.status < 300) { finish(null, xhr.responseText); }
-        else { finish(new Error('Plex request failed with status ' + xhr.status)); }
-      };
-      xhr.ontimeout = function () { finish(new Error('Plex request timed out')); };
-      xhr.onerror = function () { finish(new Error('Plex request failed')); };
-      xhr.send();
-    } catch (error) {
-      setTimeout(function () { finish(error); }, 0);
-    }
-    return {
-      abort: function () {
-        if (finished) { return; }
-        finished = true;
-        if (nativeAbort) { nativeAbort.call(xhr); }
-      }
-    };
+    return PlexHttp.request({ XMLHttpRequest: XMLHttpRequest, setTimeout: setTimeout }, {
+      method: method,
+      url: url,
+      timeout: timeout,
+      headers: headers || {},
+      statusError: function (status) { return new Error('Plex request failed with status ' + status); },
+      networkError: 'Plex request failed',
+      timeoutError: 'Plex request timed out'
+    }, callback);
   }
 
   function request(url, timeout, callback) {
@@ -1163,30 +1285,31 @@
     };
   }
 
-  function loadLibraryPage(config, library, view, options, start, size, callback) {
-    if (view === 'playlists') { return loadLibraryPlaylists(config, library, start, size, callback); }
-    var url = buildLibraryBrowseUrl(config, library, view, options, start, size);
-    return request(url, config.requestTimeout || 8000, function (error, xmlText) {
-      var parser;
+  function loadPagedContainer(config, options, callback) {
+    var settings = options || {};
+    var start = Math.max(0, Number(settings.start || 0));
+    var size = Math.max(1, Number(settings.size || 1));
+    return request(settings.url, config.requestTimeout || 8000, function (error, xmlText) {
       var documentNode;
       var rootAttributes;
       var attributes;
+      var pageItemCount;
+      var items;
       if (error) { callback(error); return; }
       try {
-        parser = new DOMParser();
-        documentNode = parser.parseFromString(xmlText, 'application/xml');
-        if (documentNode.getElementsByTagName('parsererror').length) { throw new Error('Invalid Plex library response'); }
+        documentNode = parseXmlDocument(xmlText, settings.errorMessage);
         rootAttributes = attributesFromNode(documentNode.documentElement);
-        attributes = parseAttributes(xmlText);
-        if (view === 'recent') { attributes = groupRecentAttributes(attributes); }
+        attributes = attributesFromDocument(documentNode);
+        pageItemCount = attributes.length;
+        if (settings.filter) { attributes = attributes.filter(settings.filter); }
+        if (settings.transform) { attributes = settings.transform(attributes); }
+        items = settings.map ? attributes.map(settings.map) : attributes;
         callback(null, {
-          items: attributes.map(function (item) {
-            return view === 'collections'
-              ? containerFromAttributes(item, config.apiBaseUrl, config.token || '', view)
-              : mediaFromAttributes(item, config.apiBaseUrl, config.token || '');
-          }),
-          totalSize: Number(rootAttributes.totalSize || rootAttributes.size || attributes.length),
-          libraryKey: String(library.key)
+          items: items,
+          totalSize: pageTotal(rootAttributes, start, pageItemCount),
+          nextStart: pageNextStart(start, pageItemCount),
+          hasMore: pageHasMore(rootAttributes, start, pageItemCount, size),
+          libraryKey: String(settings.libraryKey || '')
         });
       } catch (parseError) {
         callback(parseError);
@@ -1194,57 +1317,68 @@
     });
   }
 
-  function loadLibraryPlaylists(config, library, start, size, callback) {
-    var aborted = false;
-    var listRequest = request(buildLibraryBrowseUrl(config, library, 'playlists', {}, start, size), config.requestTimeout || 8000, function (error, xmlText) {
-      var attributes;
-      if (aborted) { return; }
-      if (error) { callback(error); return; }
-      try { attributes = parseAttributes(xmlText).filter(function (item) { return !!(item.key || item.ratingKey); }); }
-      catch (parseError) { callback(parseError); return; }
-      callback(null, {
-        items: attributes.map(function (item) { return containerFromAttributes(item, config.apiBaseUrl, config.token || '', 'playlists'); }),
-        totalSize: attributes.length,
-        libraryKey: String(library.key)
-      });
-    });
-    return {
-      abort: function () {
-        aborted = true;
-        if (listRequest && listRequest.abort) { listRequest.abort(); }
-      }
+  function loadLibraryPage(config, library, view, options, start, size, callback) {
+    var mapItem;
+    if (view === 'playlists') { return loadLibraryPlaylists(config, library, start, size, callback); }
+    mapItem = function (item) {
+      if (view === 'collections') { return containerFromAttributes(item, config.apiBaseUrl, config.token || '', view); }
+      return view === 'recent'
+        ? recentCardFromAttributes(item, config.apiBaseUrl, config.token || '')
+        : mediaFromAttributes(item, config.apiBaseUrl, config.token || '');
     };
+    return loadPagedContainer(config, {
+      url: buildLibraryBrowseUrl(config, library, view, options, start, size),
+      start: start,
+      size: size,
+      errorMessage: 'Invalid Plex library response',
+      transform: view === 'recent' ? groupRecentAttributes : null,
+      map: mapItem,
+      libraryKey: library.key
+    }, callback);
+  }
+
+  function loadLibraryPlaylists(config, library, start, size, callback) {
+    return loadPagedContainer(config, {
+      url: buildLibraryBrowseUrl(config, library, 'playlists', {}, start, size),
+      start: start,
+      size: size,
+      errorMessage: 'Invalid Plex playlist response',
+      filter: function (item) { return !!(item.key || item.ratingKey); },
+      map: function (item) { return containerFromAttributes(item, config.apiBaseUrl, config.token || '', 'playlists'); },
+      libraryKey: library.key
+    }, callback);
   }
 
   function loadLibraryContainerPage(config, container, start, size, callback) {
-    var url = buildUrl(config.apiBaseUrl, container.containerKey, {
-      'X-Plex-Container-Start': Math.max(0, Number(start || 0)),
-      'X-Plex-Container-Size': Math.max(1, Number(size || 60))
-    }, config.token || '');
-    return request(url, config.requestTimeout || 8000, function (error, xmlText) {
-      var parser;
-      var documentNode;
-      var rootAttributes;
-      var attributes;
-      if (error) { callback(error); return; }
-      try {
-        parser = new DOMParser();
-        documentNode = parser.parseFromString(xmlText, 'application/xml');
-        rootAttributes = attributesFromNode(documentNode.documentElement);
-        attributes = parseAttributes(xmlText);
-        callback(null, {
-          items: attributes.map(function (item) { return mediaFromAttributes(item, config.apiBaseUrl, config.token || ''); }),
-          totalSize: Number(rootAttributes.totalSize || rootAttributes.size || attributes.length),
-          libraryKey: ''
-        });
-      } catch (parseError) { callback(parseError); }
-    });
+    return loadPagedContainer(config, {
+      url: buildUrl(config.apiBaseUrl, container.containerKey, {
+        'X-Plex-Container-Start': Math.max(0, Number(start || 0)),
+        'X-Plex-Container-Size': Math.max(1, Number(size || 60))
+      }, config.token || ''),
+      start: start,
+      size: size,
+      map: function (item) { return mediaFromAttributes(item, config.apiBaseUrl, config.token || ''); }
+    }, callback);
   }
 
   function loadRows(config, definitions, callback) {
     var rows = [];
     var remaining = definitions.length;
     var firstError = null;
+    var requests = [];
+    var aborted = false;
+
+    function abort() {
+      if (aborted) { return; }
+      aborted = true;
+      requests.forEach(function (entry) { if (entry && entry.abort) { entry.abort(); } });
+      requests = [];
+    }
+
+    if (!remaining) {
+      callback(null, []);
+      return { abort: abort };
+    }
 
     definitions.forEach(function (definition, index) {
       var url = buildUrl(config.apiBaseUrl, definition.path, {
@@ -1252,18 +1386,19 @@
         'X-Plex-Container-Size': definition.groupRecent ? (config.recentItemLimit || 30) : (config.itemLimit || 12)
       }, config.token || '');
 
-      request(url, config.requestTimeout || 8000, function (error, xmlText) {
+      requests.push(request(url, config.requestTimeout || 8000, function (error, xmlText) {
+        var attributes;
+        if (aborted) { return; }
         if (error) {
           firstError = firstError || error;
         } else {
           try {
-            var attributes = parseAttributes(xmlText);
-            if (definition.groupRecent) {
-              attributes = groupRecentAttributes(attributes);
-            }
+            attributes = parseAttributes(xmlText);
+            if (definition.groupRecent) { attributes = groupRecentAttributes(attributes); }
             rows[index] = {
               title: definition.title,
               shape: 'poster',
+              showLibraryBadge: definition.showLibraryBadge === true,
               items: attributes.slice(0, config.itemLimit || 12).map(function (item) {
                 return mediaFromAttributes(item, config.apiBaseUrl, config.token || '');
               })
@@ -1275,10 +1410,13 @@
         remaining -= 1;
         if (remaining === 0) {
           rows = rows.filter(function (row) { return !!row; });
+          requests = [];
           callback(rows.length ? null : firstError, rows);
         }
-      });
+      }));
     });
+
+    return { abort: abort };
   }
 
   function loadHome(config, callback) {
@@ -1288,54 +1426,87 @@
       {},
       config.token || ''
     );
+    var requests = [];
+    var aborted = false;
+    var finished = false;
+    var baseComplete = false;
+    var recommendationsComplete = false;
+    var recommendationDeadlineReached = false;
+    var recommendationDeadline = null;
+    var baseError = null;
+    var baseRows = [];
+    var recommendedItems = [];
 
-    request(sectionsUrl, config.requestTimeout || 8000, function (error, xmlText) {
+    function track(requestHandle) {
+      if (!requestHandle) { return; }
+      if (aborted && requestHandle.abort) { requestHandle.abort(); }
+      else { requests.push(requestHandle); }
+    }
+
+    function finish() {
+      if (aborted || finished || !baseComplete || (!recommendationsComplete && !recommendationDeadlineReached)) { return; }
+      finished = true;
+      if (recommendationDeadline !== null) { clearTimeout(recommendationDeadline); }
+      recommendationDeadline = null;
+      requests = [];
+      if (recommendedItems.length) {
+        baseRows.splice(1, 0, { title: 'Recommended for You', recommendation: true, showLibraryBadge: true, shape: 'poster', items: recommendedItems });
+      }
+      callback(baseRows.length ? null : baseError, baseRows);
+    }
+
+    function fail(error) {
+      if (aborted || finished) { return; }
+      finished = true;
+      requests = [];
+      callback(error);
+    }
+
+    function abort() {
+      var active;
+      if (aborted || finished) { return; }
+      aborted = true;
+      finished = true;
+      if (recommendationDeadline !== null) { clearTimeout(recommendationDeadline); }
+      recommendationDeadline = null;
+      active = requests;
+      requests = [];
+      active.forEach(function (entry) { if (entry && entry.abort) { entry.abort(); } });
+    }
+
+    track(request(sectionsUrl, config.requestTimeout || 8000, function (error, xmlText) {
       var sections;
       var definitions;
-      var baseComplete = false;
-      var recommendationsComplete = false;
-      var recommendationDeadlineReached = false;
-      var finished = false;
-      var recommendationDeadline = null;
-      var baseError = null;
-      var baseRows = [];
-      var recommendedItems = [];
-      function finish() {
-        if (finished || !baseComplete || (!recommendationsComplete && !recommendationDeadlineReached)) { return; }
-        finished = true;
-        clearTimeout(recommendationDeadline);
-        if (recommendedItems.length) {
-          baseRows.splice(1, 0, { title: 'Recommended for You', recommendation: true, shape: 'poster', items: recommendedItems });
-        }
-        callback(baseRows.length ? null : baseError, baseRows);
-      }
-      if (error) {
-        callback(error);
-        return;
-      }
+      if (aborted || finished) { return; }
+      if (error) { fail(error); return; }
       try {
         sections = parseAttributes(xmlText);
         definitions = homeDefinitions(sections, config);
       } catch (parseError) {
-        callback(parseError);
+        fail(parseError);
         return;
       }
-      loadRows(config, definitions, function (rowsError, rows) {
+      recommendationDeadline = setTimeout(function () {
+        if (aborted || finished) { return; }
+        recommendationDeadlineReached = true;
+        finish();
+      }, 400);
+      track(loadRows(config, definitions, function (rowsError, rows) {
+        if (aborted || finished) { return; }
         baseError = rowsError;
         baseRows = rows || [];
         baseComplete = true;
         finish();
-      });
-      loadRecommendedItems(config, sections, function (recommendationError, items) {
+      }));
+      track(loadRecommendedItems(config, sections, function (recommendationError, items) {
+        if (aborted || finished) { return; }
         recommendedItems = recommendationError ? [] : (items || []);
         recommendationsComplete = true;
         finish();
-      });
-      recommendationDeadline = setTimeout(function () {
-        recommendationDeadlineReached = true;
-        finish();
-      }, 400);
-    });
+      }));
+    }));
+
+    return { abort: abort };
   }
 
   function loadMetadata(config, ratingKey, callback) {
@@ -1345,7 +1516,7 @@
       { includeGuids: 1 },
       config.token || ''
     );
-    request(url, config.requestTimeout || 8000, function (error, xmlText) {
+    return request(url, config.requestTimeout || 8000, function (error, xmlText) {
       var attributes;
       if (error) {
         callback(error);
@@ -1365,7 +1536,7 @@
 
   function loadSeasonEpisodes(config, seasonKey, selectedKey, callback) {
     var url = buildUrl(config.apiBaseUrl, '/library/metadata/' + seasonKey + '/children', {}, config.token || '');
-    request(url, config.requestTimeout || 8000, function (error, xmlText) {
+    return request(url, config.requestTimeout || 8000, function (error, xmlText) {
       var episodes;
       var selectedFound = false;
       if (error) {
@@ -1402,21 +1573,33 @@
   function loadSeriesContext(config, detail, callback) {
     var showKey = detail.showRatingKey || (detail.type === 'show' ? detail.ratingKey : '');
     var seasonKey = detail.seasonRatingKey;
+    var currentRequest = null;
+    var aborted = false;
     var url;
+
+    function abort() {
+      if (aborted) { return; }
+      aborted = true;
+      if (currentRequest && currentRequest.abort) { currentRequest.abort(); }
+      currentRequest = null;
+    }
 
     if (!showKey) {
       callback(null, null);
-      return;
+      return { abort: abort };
     }
     url = buildUrl(config.apiBaseUrl, '/library/metadata/' + showKey + '/children', {}, config.token || '');
-    request(url, config.requestTimeout || 8000, function (error, xmlText) {
+    currentRequest = request(url, config.requestTimeout || 8000, function (error, xmlText) {
       var seasons;
+      var seasonAttributes;
+      if (aborted) { return; }
+      currentRequest = null;
       if (error) {
         callback(error);
         return;
       }
       try {
-        var seasonAttributes = parseAttributes(xmlText).filter(function (attributes) {
+        seasonAttributes = parseAttributes(xmlText).filter(function (attributes) {
           return !!attributes.ratingKey;
         });
         seasonKey = preferredSeasonKeyFromAttributes(seasonAttributes, seasonKey);
@@ -1431,14 +1614,57 @@
         callback(null, { seasons: seasons, episodes: [] });
         return;
       }
-      loadSeasonEpisodes(config, seasonKey, detail.type === 'episode' ? detail.ratingKey : '', function (episodeError, episodes) {
-        if (episodeError) {
-          callback(episodeError);
-        } else {
-          callback(null, { seasons: seasons, episodes: episodes });
-        }
+      currentRequest = loadSeasonEpisodes(config, seasonKey, detail.type === 'episode' ? detail.ratingKey : '', function (episodeError, episodes) {
+        if (aborted) { return; }
+        currentRequest = null;
+        if (episodeError) { callback(episodeError); }
+        else { callback(null, { seasons: seasons, episodes: episodes }); }
       });
     });
+    return { abort: abort };
+  }
+
+  function mediaDocumentFromXml(xmlText, errorMessage) {
+    var documentNode = parseXmlDocument(xmlText, errorMessage);
+    var videoNode = documentNode.getElementsByTagName('Video')[0] || null;
+    var mediaNodes = videoNode ? videoNode.getElementsByTagName('Media') : [];
+    var mediaEntries = [];
+    var groups = [];
+    var mediaIndex;
+    var partIndex;
+    var streamIndex;
+    for (mediaIndex = 0; mediaIndex < mediaNodes.length; mediaIndex += 1) {
+      var mediaEntry = {
+        node: mediaNodes[mediaIndex],
+        media: attributesFromNode(mediaNodes[mediaIndex]),
+        parts: []
+      };
+      var group = { media: mediaEntry.media, parts: [] };
+      var partNodes = mediaNodes[mediaIndex].getElementsByTagName('Part');
+      for (partIndex = 0; partIndex < partNodes.length; partIndex += 1) {
+        var streams = [];
+        var streamNodes = partNodes[partIndex].getElementsByTagName('Stream');
+        for (streamIndex = 0; streamIndex < streamNodes.length; streamIndex += 1) {
+          streams.push(attributesFromNode(streamNodes[streamIndex]));
+        }
+        var partEntry = {
+          node: partNodes[partIndex],
+          part: attributesFromNode(partNodes[partIndex]),
+          streams: streams
+        };
+        mediaEntry.parts.push(partEntry);
+        group.parts.push({ part: partEntry.part, streams: streams });
+      }
+      mediaEntries.push(mediaEntry);
+      groups.push(group);
+    }
+    return {
+      documentNode: documentNode,
+      videoNode: videoNode,
+      video: videoNode ? attributesFromNode(videoNode) : {},
+      mediaEntries: mediaEntries,
+      groups: groups
+    };
   }
 
   function loadPlayback(config, ratingKey, session, preferences, callback) {
@@ -1446,50 +1672,40 @@
       callback = preferences;
       preferences = null;
     }
+    var currentRequest = null;
+    var aborted = false;
     var url = buildUrl(config.apiBaseUrl, '/library/metadata/' + ratingKey, { includeMarkers: 1, includeChapters: 1 }, config.token || '');
-    request(url, config.requestTimeout || 8000, function (error, xmlText) {
-      var parser;
-      var documentNode;
-      var video;
-      var media;
-      var part;
-      var mediaNodes;
-      var partNodes;
-      var versionGroups = [];
+
+    function abort() {
+      if (aborted) { return; }
+      aborted = true;
+      if (currentRequest && currentRequest.abort) { currentRequest.abort(); }
+      currentRequest = null;
+    }
+
+    currentRequest = request(url, config.requestTimeout || 8000, function (error, xmlText) {
+      var parsed;
       var versions;
       var selectedMediaIndex;
       var selectedPartIndex;
       var selectedVersion;
-      var streamNodes;
-      var streams = [];
+      var mediaEntry;
+      var partEntry;
       var markerNodes;
       var markers = [];
       var chapterNodes;
       var chapters = [];
-      var streamIndex;
+      var index;
+      var playback;
+      if (aborted) { return; }
+      currentRequest = null;
       if (error) {
         callback(error);
         return;
       }
       try {
-        parser = new DOMParser();
-        documentNode = parser.parseFromString(xmlText, 'application/xml');
-        video = documentNode.getElementsByTagName('Video')[0];
-        mediaNodes = video ? video.getElementsByTagName('Media') : [];
-        for (streamIndex = 0; streamIndex < mediaNodes.length; streamIndex += 1) {
-          var group = { media: attributesFromNode(mediaNodes[streamIndex]), parts: [] };
-          partNodes = mediaNodes[streamIndex].getElementsByTagName('Part');
-          for (var partNodeIndex = 0; partNodeIndex < partNodes.length; partNodeIndex += 1) {
-            var versionStreams = [];
-            var versionStreamNodes = partNodes[partNodeIndex].getElementsByTagName('Stream');
-            for (var versionStreamIndex = 0; versionStreamIndex < versionStreamNodes.length; versionStreamIndex += 1) {
-              versionStreams.push(attributesFromNode(versionStreamNodes[versionStreamIndex]));
-            }
-            group.parts.push({ part: attributesFromNode(partNodes[partNodeIndex]), streams: versionStreams });
-          }
-          versionGroups.push(group);
-        }
-        versions = playbackVersionsFromAttributes(versionGroups);
+        parsed = mediaDocumentFromXml(xmlText, 'Invalid Plex playback response');
+        versions = playbackVersionsFromAttributes(parsed.groups);
         selectedVersion = VersionSelection && VersionSelection.select(versions, {
           affinity: preferences && preferences.versionAffinity,
           capabilities: preferences && preferences.playbackCapabilities,
@@ -1500,92 +1716,70 @@
         });
         selectedMediaIndex = selectedVersion ? selectedVersion.mediaIndex : (preferences && isFinite(Number(preferences.mediaIndex)) ? Number(preferences.mediaIndex) : 0);
         selectedPartIndex = selectedVersion ? selectedVersion.partIndex : (preferences && isFinite(Number(preferences.partIndex)) ? Number(preferences.partIndex) : 0);
-        media = mediaNodes[selectedMediaIndex] || mediaNodes[0];
-        partNodes = media ? media.getElementsByTagName('Part') : [];
-        part = partNodes[selectedPartIndex] || partNodes[0];
-        if (!video || !media || !part) {
+        mediaEntry = parsed.mediaEntries[selectedMediaIndex] || parsed.mediaEntries[0];
+        partEntry = mediaEntry ? mediaEntry.parts[selectedPartIndex] || mediaEntry.parts[0] : null;
+        if (!parsed.videoNode || !mediaEntry || !partEntry) {
           throw new Error('Plex playback media is incomplete');
         }
-        streamNodes = part.getElementsByTagName('Stream');
-        for (streamIndex = 0; streamIndex < streamNodes.length; streamIndex += 1) {
-          streams.push(attributesFromNode(streamNodes[streamIndex]));
+        markerNodes = parsed.documentNode.getElementsByTagName('Marker');
+        for (index = 0; index < markerNodes.length; index += 1) {
+          markers.push(attributesFromNode(markerNodes[index]));
         }
-        markerNodes = documentNode.getElementsByTagName('Marker');
-        for (streamIndex = 0; streamIndex < markerNodes.length; streamIndex += 1) {
-          markers.push(attributesFromNode(markerNodes[streamIndex]));
+        chapterNodes = parsed.documentNode.getElementsByTagName('Chapter');
+        for (index = 0; index < chapterNodes.length; index += 1) {
+          chapters.push(attributesFromNode(chapterNodes[index]));
         }
-        chapterNodes = documentNode.getElementsByTagName('Chapter');
-        for (streamIndex = 0; streamIndex < chapterNodes.length; streamIndex += 1) {
-          chapters.push(attributesFromNode(chapterNodes[streamIndex]));
-        }
-        var playback = playbackFromAttributes(
-          attributesFromNode(video),
-          attributesFromNode(media),
-          attributesFromNode(part),
+        playback = playbackFromAttributes(
+          parsed.video,
+          mediaEntry.media,
+          partEntry.part,
           config.apiBaseUrl,
           config.token || '',
           session,
-          streams,
+          partEntry.streams,
           markers,
           chaptersFromAttributes(chapters, config.apiBaseUrl, config.token || '')
         );
         playback.mediaVersions = versions;
-        playback.mediaIndex = mediaNodes.length && media === mediaNodes[selectedMediaIndex] ? selectedMediaIndex : 0;
-        playback.partIndex = partNodes.length && part === partNodes[selectedPartIndex] ? selectedPartIndex : 0;
-        playback.partKey = part.getAttribute('key') || '';
+        playback.mediaIndex = parsed.mediaEntries[selectedMediaIndex] === mediaEntry ? selectedMediaIndex : 0;
+        playback.partIndex = mediaEntry.parts[selectedPartIndex] === partEntry ? selectedPartIndex : 0;
+        playback.partKey = partEntry.part.key || '';
         playback.options.mediaIndex = playback.mediaIndex;
         playback.options.partIndex = playback.partIndex;
         if (preferences) {
           playback.options = resolvePlaybackOptions(playback, preferences);
         }
-        function ready() { callback(null, playback); }
+        function ready() {
+          if (!aborted) { callback(null, playback); }
+        }
         if (preferences && playback.partId) {
-          setStreamSelection(config, playback, playback.options, function () { ready(); });
+          currentRequest = setStreamSelection(config, playback, playback.options, function () {
+            if (aborted) { return; }
+            currentRequest = null;
+            ready();
+          });
         } else {
           ready();
         }
       } catch (parseError) {
-        callback(parseError);
+        if (!aborted) { callback(parseError); }
       }
     });
+    return { abort: abort };
   }
 
   function loadMediaProfile(config, ratingKey, callback) {
     var url = buildUrl(config.apiBaseUrl, '/library/metadata/' + ratingKey, {}, config.token || '');
     return request(url, config.requestTimeout || 8000, function (error, xmlText) {
-      var parser;
-      var documentNode;
-      var video;
-      var media;
-      var part;
-      var mediaNodes;
-      var partNodes;
-      var groups = [];
+      var parsed;
       var profiles;
-      var streamNodes;
-      var streams = [];
-      var index;
       if (error) { callback(error); return; }
       try {
-        parser = new DOMParser();
-        documentNode = parser.parseFromString(xmlText, 'application/xml');
-        video = documentNode.getElementsByTagName('Video')[0];
-        mediaNodes = video ? video.getElementsByTagName('Media') : [];
-        media = mediaNodes[0];
-        part = media ? media.getElementsByTagName('Part')[0] : null;
-        if (!video || !media || !part || !MediaProfile) { throw new Error('Plex media profile is incomplete'); }
-        for (index = 0; index < mediaNodes.length; index += 1) {
-          var group = { media: attributesFromNode(mediaNodes[index]), parts: [] };
-          partNodes = mediaNodes[index].getElementsByTagName('Part');
-          for (var partIndex = 0; partIndex < partNodes.length; partIndex += 1) {
-            streams = [];
-            streamNodes = partNodes[partIndex].getElementsByTagName('Stream');
-            for (var streamIndex = 0; streamIndex < streamNodes.length; streamIndex += 1) { streams.push(attributesFromNode(streamNodes[streamIndex])); }
-            group.parts.push({ part: attributesFromNode(partNodes[partIndex]), streams: streams });
-          }
-          groups.push(group);
+        parsed = mediaDocumentFromXml(xmlText, 'Invalid Plex media profile response');
+        if (!parsed.videoNode || !parsed.mediaEntries.length || !parsed.mediaEntries[0].parts.length || !MediaProfile) {
+          throw new Error('Plex media profile is incomplete');
         }
-        profiles = MediaProfile.fromVersions(attributesFromNode(video), groups);
+        profiles = MediaProfile.fromVersions(parsed.video, parsed.groups);
         if (!profiles.length) { throw new Error('Plex media profile has no playable versions'); }
         profiles[0].versions = profiles;
         callback(null, profiles[0]);
@@ -1642,40 +1836,6 @@
     return hlsUrlFor(playback, config.apiBaseUrl, config.token || '', options);
   }
 
-  function playbackModeFromDecisions(videoDecision, audioDecision) {
-    var videoTranscodes = videoDecision === 'transcode' || videoDecision === 'burn';
-    var audioTranscodes = audioDecision === 'transcode';
-    if (videoTranscodes && audioTranscodes) { return 'transcode-audio-video'; }
-    if (videoTranscodes) { return 'transcode-video'; }
-    if (audioTranscodes) { return 'transcode-audio'; }
-    if (videoDecision === 'copy' && (audioDecision === 'copy' || !audioDecision)) { return 'direct-stream'; }
-    return 'unknown';
-  }
-
-  function playbackModeFromXml(xmlText, fallbackMode) {
-    var parser = new DOMParser();
-    var documentNode = parser.parseFromString(xmlText, 'application/xml');
-    var sessionNode = documentNode.getElementsByTagName('TranscodeSession')[0];
-    var mediaNode = documentNode.getElementsByTagName('Media')[0];
-    var streamNodes = documentNode.getElementsByTagName('Stream');
-    var videoDecision = sessionNode ? sessionNode.getAttribute('videoDecision') || '' : '';
-    var audioDecision = sessionNode ? sessionNode.getAttribute('audioDecision') || '' : '';
-    var index;
-    var streamType;
-    if (mediaNode) {
-      videoDecision = videoDecision || mediaNode.getAttribute('videoDecision') || '';
-      audioDecision = audioDecision || mediaNode.getAttribute('audioDecision') || '';
-    }
-    for (index = 0; index < streamNodes.length; index += 1) {
-      streamType = streamNodes[index].getAttribute('streamType');
-      if (streamType === '1' && !videoDecision) { videoDecision = streamNodes[index].getAttribute('decision') || ''; }
-      if (streamType === '2' && !audioDecision) { audioDecision = streamNodes[index].getAttribute('decision') || ''; }
-    }
-    if (!videoDecision && fallbackMode === 'transcode') { videoDecision = 'transcode'; }
-    if (!audioDecision && fallbackMode === 'transcode') { audioDecision = 'transcode'; }
-    return playbackModeFromDecisions(videoDecision, audioDecision);
-  }
-
   function buildDecisionUrl(config, playback, options) {
     return buildPlaybackUrl(config, playback, options).replace('/start.m3u8?', '/decision?');
   }
@@ -1686,9 +1846,9 @@
     if (options.delivery === 'direct-play') {
       playback.playbackMode = 'direct-play';
       callback(null, playback.sourceUrl, playback.playbackMode);
-      return;
+      return null;
     }
-    request(buildDecisionUrl(config, playback, options), config.requestTimeout || 8000, function (error, xmlText) {
+    return request(buildDecisionUrl(config, playback, options), config.requestTimeout || 8000, function (error, xmlText) {
       if (!error) {
         try { playback.playbackMode = playbackModeFromXml(xmlText, options.playbackMode); }
         catch (parseError) { playback.playbackMode = options.playbackMode === 'transcode' ? 'transcode-audio-video' : 'unknown'; }
@@ -1697,49 +1857,14 @@
     });
   }
 
-  function buildStreamSelectionUrl(config, partId, audioStreamID, subtitleStreamID) {
-    return buildUrl(config.apiBaseUrl, '/library/parts/' + partId, {
-      audioStreamID: audioStreamID,
-      subtitleStreamID: subtitleStreamID || 0,
-      allParts: 1
-    }, config.token || '');
-  }
-
   function setStreamSelection(config, playback, options, callback) {
-    if (!playback.partId) { callback(new Error('Plex media part ID is missing')); return; }
-    requestWithMethod(
+    if (!playback.partId) { callback(new Error('Plex media part ID is missing')); return null; }
+    return requestWithMethod(
       buildStreamSelectionUrl(config, playback.partId, options.audioStreamID, options.subtitleStreamID),
       'PUT',
       config.requestTimeout || 8000,
       function (error) { callback(error || null); }
     );
-  }
-
-  function buildSubtitleStreamUrl(config, track) {
-    var path = track && track.key
-      ? String(track.key)
-      : '/library/streams/' + encodeURIComponent(String(track && track.id || '')) + '.vtt';
-    return buildUrl(config.apiBaseUrl, path, {
-      encoding: 'utf-8',
-      format: 'webvtt'
-    }, config.token || '');
-  }
-
-  function buildSubtitleTranscodeUrl(config, playback, track) {
-    var options = playback.options || {};
-    return buildUrl(config.apiBaseUrl, '/video/:/transcode/universal/subtitles', {
-      path: playback.key,
-      mediaIndex: options.mediaIndex === undefined ? Number(playback.mediaIndex || 0) : Number(options.mediaIndex),
-      partIndex: options.partIndex === undefined ? Number(playback.partIndex || 0) : Number(options.partIndex),
-      subtitleStreamID: track.id,
-      protocol: 'http',
-      format: 'webvtt',
-      advancedSubtitles: 'text',
-      transcodeSessionId: String(playback.session || 'ploff') + '-subtitle-' + String(track.id || ''),
-      'X-Plex-Product': 'Ploff',
-      'X-Plex-Version': '0.1',
-      'X-Plex-Client-Identifier': 'ploff-webos'
-    }, config.token || '');
   }
 
   function loadSubtitleText(config, playback, track, callback) {
@@ -1749,12 +1874,6 @@
     return request(url, config.requestTimeout || 8000, function (error, responseText) {
       callback(error || null, error ? '' : responseText);
     });
-  }
-
-  function buildSubtitleOffsetUrl(config, streamId, offsetMs) {
-    return buildUrl(config.apiBaseUrl, '/library/streams/' + encodeURIComponent(String(streamId || '')), {
-      offset: Math.round(Number(offsetMs || 0))
-    }, config.token || '');
   }
 
   function setSubtitleOffset(config, streamId, offsetMs, callback) {
@@ -1797,7 +1916,7 @@
   }
 
   function setWatched(config, ratingKey, watched, callback) {
-    request(buildWatchedUrl(config, ratingKey, watched), config.requestTimeout || 8000, function (error) {
+    return request(buildWatchedUrl(config, ratingKey, watched), config.requestTimeout || 8000, function (error) {
       callback(error || null);
     });
   }
@@ -1811,16 +1930,33 @@
   }
 
   function resetProgress(config, ratingKey, callback) {
-    request(buildProgressUrl(config, ratingKey, 0), config.requestTimeout || 8000, function (error) {
+    return request(buildProgressUrl(config, ratingKey, 0), config.requestTimeout || 8000, function (error) {
       callback(error || null);
     });
   }
 
   function setWatchedAndReset(config, ratingKey, watched, callback) {
-    setWatched(config, ratingKey, watched, function (watchedError) {
+    var currentRequest = null;
+    var aborted = false;
+
+    function abort() {
+      if (aborted) { return; }
+      aborted = true;
+      if (currentRequest && currentRequest.abort) { currentRequest.abort(); }
+      currentRequest = null;
+    }
+
+    currentRequest = setWatched(config, ratingKey, watched, function (watchedError) {
+      if (aborted) { return; }
+      currentRequest = null;
       if (watchedError) { callback(watchedError); return; }
-      resetProgress(config, ratingKey, callback);
+      currentRequest = resetProgress(config, ratingKey, function (resetError) {
+        if (aborted) { return; }
+        currentRequest = null;
+        callback(resetError || null);
+      });
     });
+    return { abort: abort };
   }
 
   function buildLibraryRefreshUrl(config, libraryKey, force) {
@@ -1891,6 +2027,7 @@
     recommendationHubPriority: recommendationHubPriority,
     recommendationItemsFromXml: recommendationItemsFromXml,
     recommendationRowsFromXml: recommendationRowsFromXml,
+    mergeRecommendedItems: mergeRecommendedItems,
     homeDefinitions: homeDefinitions,
     loadMetadata: loadMetadata,
     loadActivities: loadActivities,

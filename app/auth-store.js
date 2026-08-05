@@ -113,7 +113,8 @@
 
   function save(storage, value) {
     var state = validate(value);
-    if (storage && storage.setItem) { storage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    try { if (storage && storage.setItem) { storage.setItem(STORAGE_KEY, JSON.stringify(state)); } }
+    catch (_error) {}
     return state;
   }
 

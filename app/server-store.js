@@ -8,6 +8,27 @@
 }(this, function () {
   'use strict';
 
+  /**
+   * @typedef {Object} ConnectionRoute
+   * @property {string} uri
+   * @property {boolean} local
+   * @property {boolean} relay
+   */
+
+  /**
+   * @typedef {Object} ServerRecord
+   * @property {string} name
+   * @property {string} uri
+   * @property {string} machineIdentifier
+   * @property {string} version
+   * @property {string} source
+   * @property {Array<string>=} connections
+   * @property {Array<ConnectionRoute>=} connectionRoutes
+   * @property {boolean=} owned
+   * @property {string=} remoteLinkStatus
+   * @property {number=} remoteLinkCheckedAt
+   */
+
   var STORAGE_KEY = 'ploff.servers.v1';
 
   function normalizeUri(value) {
@@ -15,9 +36,14 @@
     return /^https?:\/\//i.test(uri) ? uri : '';
   }
 
+  /**
+   * @param {*} server
+   * @returns {ServerRecord|null}
+   */
   function normalize(server) {
     var value = server || {};
     var uri = normalizeUri(value.uri || value.apiBaseUrl);
+    /** @type {ServerRecord} */
     var normalized;
     var connections;
     var connectionRoutes;
@@ -45,6 +71,19 @@
       normalized.remoteLinkCheckedAt = Number(value.remoteLinkCheckedAt);
     }
     return normalized;
+  }
+
+  function same(left, right) {
+    var leftValue = left || {};
+    var rightValue = right || {};
+    var leftMachine = String(leftValue.machineIdentifier || '');
+    var rightMachine = String(rightValue.machineIdentifier || '');
+    var leftUri;
+    var rightUri;
+    if (leftMachine && rightMachine) { return leftMachine === rightMachine; }
+    leftUri = normalizeUri(leftValue.uri || leftValue.apiBaseUrl);
+    rightUri = normalizeUri(rightValue.uri || rightValue.apiBaseUrl);
+    return !!leftUri && leftUri === rightUri;
   }
 
   function normalizeConnectionRoutes(values) {
@@ -145,10 +184,13 @@
   }
 
   function merge(first, second) {
+    /** @type {Array<ServerRecord>} */
     var result = [];
     var listIndex;
     var itemIndex;
+    /** @type {Array<*>} */
     var source;
+    /** @type {ServerRecord|null} */
     var candidate;
     var match;
     for (listIndex = 0; listIndex < 2; listIndex += 1) {
@@ -203,7 +245,8 @@
 
   function save(storage, servers, activeUri) {
     var state = validate({ servers: servers, activeUri: activeUri });
-    if (storage && storage.setItem) { storage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    try { if (storage && storage.setItem) { storage.setItem(STORAGE_KEY, JSON.stringify(state)); } }
+    catch (_error) {}
     return state;
   }
 
@@ -217,6 +260,7 @@
     normalize: normalize,
     normalizeUri: normalizeUri,
     preferConnection: preferConnection,
+    same: same,
     save: save,
     validate: validate,
     withRemoteConnections: withRemoteConnections

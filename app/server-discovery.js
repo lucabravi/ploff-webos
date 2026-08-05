@@ -8,7 +8,8 @@
 }(this, function () {
   'use strict';
 
-  var SERVICE_URI = 'luna://io.github.rhapsodos.ploff.discovery/discover';
+  var SERVICE_URI = 'luna://io.github.rhapsodos.ploff.discovery';
+  var SERVICE_METHOD = 'discover';
 
   function normalizeCandidate(value) {
     var uri = String(value || '').replace(/^\s+|\s+$/g, '').replace(/\/+$/, '');
@@ -80,19 +81,33 @@
   }
 
   function probe(rootObject, uri, name, timeout, callback) {
-    var xhr;
+    var xhr = null;
+    var nativeAbort = null;
     var finished = false;
+    function release() {
+      if (!xhr) { return; }
+      xhr.onreadystatechange = null;
+      xhr.onerror = null;
+      xhr.ontimeout = null;
+    }
+    function closeRequest() {
+      release();
+      xhr = null;
+      nativeAbort = null;
+    }
     function done(server) {
       if (finished) { return; }
       finished = true;
+      closeRequest();
       callback(server || null);
     }
     try {
       xhr = new rootObject.XMLHttpRequest();
+      nativeAbort = xhr.abort;
       xhr.open('GET', uri + '/identity', true);
       xhr.timeout = timeout;
       xhr.onreadystatechange = function () {
-        if (xhr.readyState !== 4) { return; }
+        if (!xhr || xhr.readyState !== 4) { return; }
         if (xhr.status >= 200 && xhr.status < 300) { done(identityFromXml(xhr.responseText, uri, name)); }
         else { done(null); }
       };
@@ -102,6 +117,15 @@
     } catch (error) {
       done(null);
     }
+    return {
+      abort: function () {
+        if (finished) { return; }
+        finished = true;
+        release();
+        try { if (nativeAbort) { nativeAbort.call(xhr); } }
+        finally { closeRequest(); }
+      }
+    };
   }
 
   function discoverWithService(rootObject, callback) {
@@ -115,7 +139,7 @@
     if (rootObject.webOS && rootObject.webOS.service && rootObject.webOS.service.request) {
       try {
         rootObject.webOS.service.request(SERVICE_URI, {
-          method: '', parameters: {},
+          method: SERVICE_METHOD, parameters: {},
           onSuccess: function (response) { done(response && response.servers); },
           onFailure: function () { done([]); }
         });
@@ -131,7 +155,7 @@
           catch (error) { done([]); return; }
           done(response && response.servers);
         };
-        bridge.call(SERVICE_URI, '{}');
+        bridge.call(SERVICE_URI + '/' + SERVICE_METHOD, '{}');
         rootObject.setTimeout(function () { done([]); }, 3500);
       } catch (bridgeError) { done([]); }
       return;

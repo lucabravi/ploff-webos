@@ -58,6 +58,7 @@ global.XMLHttpRequest = function () {
   this.abort = function () { this.aborted = true; };
 };
 var obsoleteSearchCallbacks = 0;
+var lateSearchCompletion;
 var searchRequest = PlexClient.search(
   { apiBaseUrl: '/plex-api', token: 'token', searchItemLimit: 40 },
   'rent & blue',
@@ -72,12 +73,13 @@ assert.strictEqual(fakeXhrs.length, 1, 'search must use the server search hub in
 assert.strictEqual(fakeXhrs[0].method, 'GET', 'search must use GET requests');
 assert.ok(/\/hubs\/search\?/.test(fakeXhrs[0].url) && /query=rent%20%26%20blue/.test(fakeXhrs[0].url), 'local search must use Plex’s ranked search hub');
 assert.ok(/limit=40/.test(fakeXhrs[0].url), 'local hub search must remain bounded');
+lateSearchCompletion = fakeXhrs[0].onreadystatechange;
 searchRequest.abort();
 assert.strictEqual(fakeXhrs[0].aborted, true, 'search cancellation must abort the hub request');
 fakeXhrs[0].status = 200;
 fakeXhrs[0].readyState = 4;
 fakeXhrs[0].responseText = '<MediaContainer><Hub><Directory type="show" ratingKey="1" title="Example Show" librarySectionTitle="TV" /></Hub></MediaContainer>';
-fakeXhrs[0].onreadystatechange();
+lateSearchCompletion();
 assert.strictEqual(obsoleteSearchCallbacks, 0, 'an aborted search must ignore a response that arrives after newer input');
 global.XMLHttpRequest = previousXhr;
 
@@ -95,14 +97,20 @@ global.XMLHttpRequest = function () {
   };
 };
 var guardedCallbacks = 0;
+var guardedReady;
+var guardedTimeout;
+var guardedError;
 var completedRequest = PlexClient.loadServerIdentity({ apiBaseUrl: '/plex-api', token: 'token' }, function () { guardedCallbacks += 1; });
 var completedXhr = guardedXhr;
+guardedReady = guardedXhr.onreadystatechange;
+guardedTimeout = guardedXhr.ontimeout;
+guardedError = guardedXhr.onerror;
 guardedXhr.status = 200;
 guardedXhr.readyState = 4;
 guardedXhr.responseText = '<MediaContainer friendlyName="Server" version="1.0" machineIdentifier="machine" />';
-guardedXhr.onreadystatechange();
-guardedXhr.ontimeout();
-guardedXhr.onerror();
+guardedReady();
+guardedTimeout();
+guardedError();
 assert.strictEqual(guardedCallbacks, 1, 'a Plex request must complete only once when ready-state and terminal events overlap');
 completedRequest.abort();
 assert.strictEqual(completedXhr.aborted, undefined, 'aborting an already completed Plex request must be a no-op');
@@ -209,7 +217,7 @@ assert.deepStrictEqual(
     { key: '4', title: 'Anime', type: 'show' }
   ], {}),
   [
-    { title: 'Continua a guardare', path: '/hubs/continueWatching/items' },
+    { title: 'Continua a guardare', path: '/hubs/continueWatching/items', showLibraryBadge: true },
     { title: 'Recentemente aggiunto in Film', path: '/library/sections/2/recentlyAdded', groupRecent: true },
     { title: 'Recentemente aggiunto in Anime', path: '/library/sections/4/recentlyAdded', groupRecent: true }
   ],
@@ -252,6 +260,73 @@ var recommendationRows = PlexClient.recommendationRowsFromXml('<xml/>', '/plex-a
 assert.deepStrictEqual(recommendationRows.map(function (row) { return [row.identifier, row.items.map(function (item) { return item.ratingKey; })]; }), [
   ['tv.startwatching.4', ['100']]
 ], 'library recommendations must preserve Plex hubs while removing completed and non-recommendation rows');
+assert.deepStrictEqual(
+  PlexClient.mergeRecommendedItems([
+    [{ ratingKey: 'movie-1' }, { ratingKey: 'movie-2' }, { ratingKey: 'shared' }],
+    [{ ratingKey: 'show-1' }, { ratingKey: 'shared' }, { ratingKey: 'show-2' }]
+  ], 6).map(function (item) { return item.ratingKey; }),
+  ['movie-1', 'show-1', 'movie-2', 'shared', 'show-2'],
+  'home recommendations must alternate available media libraries so an early movie library cannot crowd out shows'
+);
+var previousRecommendationXhr = global.XMLHttpRequest;
+var recommendationXhr;
+var loadedRecommendations;
+global.XMLHttpRequest = function () {
+  recommendationXhr = this;
+  this.open = function () {};
+  this.send = function () {};
+  this.abort = function () {};
+};
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/recommendation-source', token: 'token', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function (error, items) {
+  assert.ifError(error);
+  loadedRecommendations = items;
+});
+recommendationXhr.status = 200;
+recommendationXhr.readyState = 4;
+recommendationXhr.responseText = '<xml/>';
+recommendationXhr.onreadystatechange();
+assert.strictEqual(loadedRecommendations[0].libraryTitle, 'Anime', 'Home recommendations inherit their requested section title when Plex omits librarySectionTitle');
+
+var boundedRecommendationXhrs = [];
+global.XMLHttpRequest = function () {
+  boundedRecommendationXhrs.push(this);
+  this.open = function () {};
+  this.send = function () {};
+  this.abort = function () {};
+};
+function completeRecommendationRequest(index) {
+  boundedRecommendationXhrs[index].status = 200;
+  boundedRecommendationXhrs[index].readyState = 4;
+  boundedRecommendationXhrs[index].responseText = '<xml/>';
+  boundedRecommendationXhrs[index].onreadystatechange();
+}
+['a', 'b', 'c', 'd', 'e'].forEach(function (identity, index) {
+  PlexClient.loadRecommendedItems({ apiBaseUrl: '/bounded-' + identity, token: identity, itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function () {});
+  completeRecommendationRequest(index);
+});
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/bounded-a', token: 'a', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function () {});
+assert.strictEqual(boundedRecommendationXhrs.length, 6, 'Home recommendation caching must evict old server/profile identities instead of growing for the lifetime of the app');
+completeRecommendationRequest(5);
+var nativeRecommendationDate = global.Date;
+var recommendationNow = 10000;
+global.Date = function () { return { getTime: function () { return recommendationNow; } }; };
+var rollbackRecommendationXhrs = [];
+global.XMLHttpRequest = function () {
+  rollbackRecommendationXhrs.push(this);
+  this.open = function () {};
+  this.send = function () {};
+  this.abort = function () {};
+};
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/clock-rollback', token: 'clock', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function () {});
+rollbackRecommendationXhrs[0].status = 200;
+rollbackRecommendationXhrs[0].readyState = 4;
+rollbackRecommendationXhrs[0].responseText = '<xml/>';
+rollbackRecommendationXhrs[0].onreadystatechange();
+recommendationNow = 5000;
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/clock-rollback', token: 'clock', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function () {});
+assert.strictEqual(rollbackRecommendationXhrs.length, 2, 'a backward system clock change must invalidate recommendation cache timestamps from the future');
+global.Date = nativeRecommendationDate;
+global.XMLHttpRequest = previousRecommendationXhr;
 global.DOMParser = function () {
   this.parseFromString = function () {
     return {
@@ -311,11 +386,15 @@ assert.deepStrictEqual(
     metaKey: 'media.season',
     metaParameters: { number: 4 },
     detail: 'E02 - La decisione',
+    seasonIndex: 4,
+    episodeIndex: 2,
     image: '/plex-api/library/metadata/42/thumb/1?X-Plex-Token=token',
     art: '/plex-api/library/metadata/42/art/1?X-Plex-Token=token',
+    viewOffset: 720000,
+    duration: 1440000,
     progress: 50
   },
-  'episode metadata must retain series, season, episode, artwork and progress'
+  'episode metadata must retain series, season, episode, artwork, duration and progress'
 );
 
 assert.strictEqual(
@@ -454,15 +533,43 @@ assert.deepStrictEqual(
 );
 
 assert.deepStrictEqual(
+  PlexClient.mediaFromAttributes({
+    ratingKey: 'playlist-s2e1',
+    type: 'episode',
+    grandparentTitle: 'The Quintessential Quintuplets',
+    parentTitle: 'Season 2',
+    parentIndex: '2',
+    index: '1',
+    title: 'Episode One'
+  }, '/plex-api', ''),
+  {
+    title: 'The Quintessential Quintuplets',
+    meta: 'Season 2',
+    image: '',
+    art: '',
+    metaKey: 'media.season',
+    metaParameters: { number: 2 },
+    ratingKey: 'playlist-s2e1',
+    type: 'episode',
+    themeLookupKey: 'episode:playlist-s2e1',
+    detail: 'E01 - Episode One',
+    seasonIndex: 2,
+    episodeIndex: 1
+  },
+  'playlist episode cards must retain Plex season and episode coordinates for queue labels'
+);
+
+assert.deepStrictEqual(
   PlexClient.episodeFromAttributes({
-    ratingKey: '44', index: '3', title: 'La decisione', thumb: '/episode', viewCount: '1',
+    ratingKey: '44', parentIndex: '2', index: '3', title: 'La decisione', thumb: '/episode', viewCount: '1',
     viewOffset: '360000', duration: '1440000'
   }, '/plex-api', '', '44'),
   {
-    ratingKey: '44', index: 3, title: 'La decisione', image: '/plex-api/episode', viewed: true,
+    ratingKey: '44', type: 'episode', seasonIndex: 2, episodeIndex: 3, index: 3,
+    title: 'La decisione', image: '/plex-api/episode', viewed: true,
     viewOffset: 360000, duration: 1440000, progress: 25, selected: true
   },
-  'episode rows must expose selection, watched state and playback progress'
+  'episode rows must retain playable identity and coordinates alongside selection, watched state and playback progress'
 );
 
 assert.strictEqual(

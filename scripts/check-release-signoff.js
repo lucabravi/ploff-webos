@@ -1,6 +1,7 @@
 'use strict';
 
 var childProcess = require('child_process');
+var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
 
@@ -8,19 +9,45 @@ function fail(message) {
   throw new Error(message);
 }
 
-function releaseMatrixCount(contents) {
+function releaseMatrixItems(contents) {
   var marker = 'Before a release, verify these cases on a target webOS TV:';
   var start = contents.indexOf(marker);
   var lines;
-  var count = 0;
+  var items = [];
+  var current = '';
+  var expectedNumber = 1;
   var index;
+  var match;
   if (start === -1) { fail('release matrix not found in docs/testing.md'); }
   lines = contents.slice(start + marker.length).split(/\r?\n/);
   for (index = 0; index < lines.length; index += 1) {
-    if (/^\d+\.\s+\S/.test(lines[index])) { count += 1; }
+    match = lines[index].match(/^(\d+)\.\s+(\S.*)$/);
+    if (match) {
+      if (current) { items.push(current); }
+      if (Number(match[1]) !== expectedNumber) {
+        fail('release matrix items must be numbered sequentially from 1');
+      }
+      current = match[1] + '. ' + match[2].replace(/^\s+|\s+$/g, '');
+      expectedNumber += 1;
+    } else if (current && /^\s+\S/.test(lines[index])) {
+      current += ' ' + lines[index].replace(/^\s+|\s+$/g, '');
+    } else if (current) {
+      items.push(current);
+      current = '';
+      break;
+    }
   }
-  if (!count) { fail('release matrix has no numbered checks'); }
-  return count;
+  if (current) { items.push(current); }
+  if (!items.length) { fail('release matrix has no numbered checks'); }
+  return items;
+}
+
+function releaseMatrixCount(contents) {
+  return releaseMatrixItems(contents).length;
+}
+
+function releaseMatrixDigest(contents) {
+  return crypto.createHash('sha256').update(releaseMatrixItems(contents).join('\n'), 'utf8').digest('hex');
 }
 
 function field(contents, name) {
@@ -48,11 +75,12 @@ function validateDate(value) {
   }
 }
 
-function validateSignoff(contents, tag, expectedChecks) {
+function validateSignoff(contents, tag, expectedChecks, expectedDigest) {
   var checked = [];
   var lines = contents.split(/\r?\n/);
   var index;
   var match;
+  var actualDigest;
   if (contents.indexOf('# Physical-TV release signoff: ' + tag) === -1) {
     fail('release signoff heading does not match ' + tag);
   }
@@ -62,6 +90,11 @@ function validateSignoff(contents, tag, expectedChecks) {
   field(contents, 'Tester');
   if (field(contents, 'Result').toUpperCase() !== 'PASS') {
     fail('release signoff result must be PASS');
+  }
+  actualDigest = field(contents, 'Matrix SHA-256').toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(actualDigest)) { fail('release signoff matrix SHA-256 must contain 64 hexadecimal characters'); }
+  if (!expectedDigest || actualDigest !== String(expectedDigest).toLowerCase()) {
+    fail('release signoff matrix SHA-256 does not match docs/testing.md');
   }
   for (index = 0; index < lines.length; index += 1) {
     if (/^- \[ \]\s+\d+\./.test(lines[index])) {
@@ -109,7 +142,12 @@ function check(root, tag) {
   if (!fs.existsSync(signoffPath)) { fail('missing physical-TV release signoff: ' + relativePath); }
   if (!isTracked(root, relativePath)) { fail('physical-TV release signoff is not tracked by git: ' + relativePath); }
   matrix = fs.readFileSync(path.join(root, 'docs', 'testing.md'), 'utf8');
-  validateSignoff(fs.readFileSync(signoffPath, 'utf8'), tag, releaseMatrixCount(matrix));
+  validateSignoff(
+    fs.readFileSync(signoffPath, 'utf8'),
+    tag,
+    releaseMatrixCount(matrix),
+    releaseMatrixDigest(matrix)
+  );
   return relativePath;
 }
 
@@ -125,5 +163,6 @@ if (require.main === module) {
 module.exports = {
   check: check,
   releaseMatrixCount: releaseMatrixCount,
+  releaseMatrixDigest: releaseMatrixDigest,
   validateSignoff: validateSignoff
 };

@@ -39,11 +39,13 @@ function find(root, selector, result) {
   return output;
 }
 
-function fixture() {
+function fixture(rootOverride, viewOptions) {
   var roots = {};
   var posterBatches = [];
   var cancelled = [];
+  var cancelledTargets = [];
   var focusEvents = [];
+  var metricCalls = 0;
   ['library-grid', 'library-grid-content', 'library-recommended'].forEach(function (id) { roots[id] = node('div'); roots[id].id = id; });
   roots['library-grid'].clientWidth = 320;
   roots['library-grid'].clientHeight = 160;
@@ -55,21 +57,29 @@ function fixture() {
     querySelector: function (selector) { var ids = Object.keys(roots); var index; var found; for (index = 0; index < ids.length; index += 1) { found = find(roots[ids[index]], selector); if (found.length) { return found[0]; } } return null; },
     querySelectorAll: function (selector) { var output = []; Object.keys(roots).forEach(function (id) { find(roots[id], selector, output); }); return output; }
   };
+  viewOptions = viewOptions || {};
   var view = LibraryGridView.create({
-    root: { clearTimeout: function () {}, setTimeout: function (callback) { callback(); return 1; } },
+    root: rootOverride || { clearTimeout: function () {}, setTimeout: function (callback) { callback(); return 1; } },
     document: documentRef, SearchModel: SearchModel,
     moveGridDown: LibraryContainers.moveGridDown,
     element: function (tagName, className, text) { return node(tagName, className, text); },
-    cardMetrics: function () { return { width: 100, imageHeight: 70, columnStep: 100, rowStep: 80 }; },
+    cardMetrics: function () { metricCalls += 1; return { width: 100, imageHeight: 70, columnStep: 100, rowStep: 80 }; },
     mediaTitle: function (item) { return item.title; }, mediaCardMeta: function (item) { return item.meta || ''; }, mediaCardDetail: function (item) { return item.detail || ''; },
     mediaKey: function (item) { return item.ratingKey; },
+    presentationVersion: viewOptions.presentationVersion,
+    showLibraryBadge: viewOptions.showLibraryBadge,
     recommendationTitle: function (row) { return row.title; },
-    renderedPosterSpecification: function (image, source, priority, scope) { image.setAttribute('data-poster', source || ''); return { source: source, priority: priority, scope: scope }; },
-    posterLoader: { loadBatch: function (jobs) { posterBatches.push(jobs); }, cancelScope: function (scope) { cancelled.push(scope); } },
+    renderedPosterSpecification: function (image, source, priority, scope, width, height) { image.setAttribute('data-poster', source || ''); return { source: source, priority: priority, scope: scope, width: width, height: height }; },
+    posterLoader: {
+      cancel: function (target) { cancelledTargets.push(target); },
+      loadBatch: function (jobs) { posterBatches.push(jobs); },
+      cancelScope: function (scope) { cancelled.push(scope); },
+      prioritize: function () {}
+    },
     clearFocus: function () {}, pointerSelectionActive: function () { return false; }, onFocus: function (focus) { focusEvents.push(focus); },
     overscanRows: 3
   });
-  return { view: view, roots: roots, batches: posterBatches, cancelled: cancelled, focusEvents: focusEvents };
+  return { view: view, roots: roots, batches: posterBatches, cancelled: cancelled, cancelledTargets: cancelledTargets, focusEvents: focusEvents, metricCalls: function () { return metricCalls; } };
 }
 
 function items(count, prefix) {
@@ -78,12 +88,33 @@ function items(count, prefix) {
   return result;
 }
 
+var playlist = fixture(null, {
+  presentationVersion: function () { return 'en|playlist'; },
+  showLibraryBadge: function () { return true; }
+});
+playlist.view.setMode('catalog', true);
+playlist.view.setItems([{ ratingKey: 'mixed', title: 'Mixed', image: '/mixed.jpg', libraryTitle: 'Anime', rating: 8.4 }], 1);
+assert.strictEqual(playlist.roots['library-grid-content'].children[0].querySelector('.library-source-badge').textContent, 'Anime', 'playlist contents display the source library badge');
+assert.strictEqual(playlist.roots['library-grid-content'].children[0].querySelector('.library-rating-badge').textContent, '♥ 8.4', 'source and rating badges may coexist on opposite card corners');
+
 var catalog = fixture();
 catalog.view.setMode('catalog', true);
 catalog.view.setItems(items(40), 60);
 assert.deepStrictEqual(catalog.view.snapshot().window, { start: 0, end: 15, visibleStartRow: 0, offsetRows: 0 }, 'catalog must render the visible rows plus a three-row overscan buffer');
 assert.strictEqual(catalog.roots['library-grid-content'].children.length, 15, 'catalog DOM must be virtualized to the buffered window');
 assert.strictEqual(catalog.batches[catalog.batches.length - 1][0].specification.priority, 0, 'focused poster must be scheduled before visible and buffered posters');
+assert.deepStrictEqual({ width: catalog.batches[catalog.batches.length - 1][0].specification.width, height: catalog.batches[catalog.batches.length - 1][0].specification.height }, { width: 100, height: 70 }, 'catalog poster specifications must receive the measured card dimensions');
+assert.strictEqual(catalog.metricCalls(), 1, 'one catalog render must read card metrics once');
+var initialCatalogJobs = catalog.batches[catalog.batches.length - 1];
+assert.strictEqual(initialCatalogJobs.filter(function (job) { return job.specification.previewOnly !== true; }).length, 9, 'visible cards and one neighboring row must be eligible for full artwork');
+assert.strictEqual(initialCatalogJobs.filter(function (job) { return job.specification.previewOnly === true; }).length, 6, 'farther overscan rows must request preview-only artwork');
+var catalogFocusBatches = catalog.batches.length;
+var catalogFocusEvents = catalog.focusEvents.length;
+catalog.view.handleDirection('right');
+catalog.view.refreshFocus();
+assert.strictEqual(catalog.batches.length, catalogFocusBatches, 'catalog focus movement must not rebuild poster batches');
+assert.strictEqual(catalog.focusEvents.length, catalogFocusEvents + 1, 'one catalog movement must publish one focus change even when the outer controller refreshes focus');
+assert.strictEqual(catalog.view.navigationSnapshot().itemCount, 40, 'navigation snapshots must expose catalog counts without copying the full item array');
 
 var firstCard = catalog.roots['library-grid-content'].children[0];
 catalog.view.setItems([items(1, 'new')[0]].concat(items(40).slice(1)), 60);
@@ -102,8 +133,47 @@ catalog.roots['library-grid'].scrollTop = 160;
 catalog.view.onScroll();
 assert.strictEqual(catalog.view.snapshot().window.visibleStartRow, 2, 'scroll synchronization must update the catalog visible row');
 assert.strictEqual(catalog.roots['library-grid-content'].style.height, '1120px', 'catalog content must retain its full measured scroll height');
+var sameWindowBatches = catalog.batches.length;
+catalog.roots['library-grid'].scrollTop = 161;
+catalog.view.onScroll();
+assert.strictEqual(catalog.batches.length, sameWindowBatches, 'scroll events inside the same virtual row must not reconcile cards or requeue posters');
 catalog.view.restoreFocus(catalog.roots['library-grid-content'].querySelector('[data-library-index="6"]'));
 assert.strictEqual(catalog.view.snapshot().focus.index, 6, 'page-scroll restoration must recover focus from the visible catalog card');
+
+var frames = [];
+var cancelledFrames = [];
+var frameScheduled = fixture({
+  requestAnimationFrame: function (callback) { frames.push(callback); return frames.length; },
+  cancelAnimationFrame: function (identifier) { cancelledFrames.push(identifier); }
+});
+frameScheduled.view.setMode('catalog', true);
+frameScheduled.view.setItems(items(40), 40);
+frameScheduled.roots['library-grid'].scrollTop = 80;
+frameScheduled.view.onScroll();
+frameScheduled.roots['library-grid'].scrollTop = 160;
+frameScheduled.view.onScroll();
+assert.strictEqual(frames.length, 1, 'multiple scroll events in one frame must schedule one catalog synchronization');
+frames[0]();
+assert.strictEqual(frameScheduled.view.snapshot().window.visibleStartRow, 2, 'the scheduled frame must use the latest scroll position');
+frameScheduled.roots['library-grid'].scrollTop = 240;
+frameScheduled.view.onScroll();
+frameScheduled.view.reset();
+assert.deepStrictEqual(cancelledFrames, [2], 'reset must cancel a pending animation-frame synchronization');
+
+
+var artworkWindow = fixture();
+artworkWindow.view.setMode('catalog', true);
+artworkWindow.view.setItems(items(60), 60);
+artworkWindow.roots['library-grid'].scrollTop = 320;
+artworkWindow.view.onScroll();
+var cancelCount = artworkWindow.cancelledTargets.length;
+var batchCount = artworkWindow.batches.length;
+artworkWindow.roots['library-grid'].scrollTop = 400;
+artworkWindow.view.onScroll();
+var shiftedJobs = artworkWindow.batches[batchCount];
+assert.strictEqual(artworkWindow.cancelledTargets.length - cancelCount, 3, 'one-row scroll must cancel poster work for exactly the leaving row');
+assert.strictEqual(shiftedJobs.filter(function (job) { return job.specification.previewOnly === true; }).length, 3, 'the far entering row must remain preview-only');
+assert.strictEqual(shiftedJobs.filter(function (job) { return job.specification.previewOnly !== true; }).length, 3, 'the newly adjacent row must be promoted to full artwork');
 
 var finalRow = fixture();
 finalRow.view.setMode('catalog', true);

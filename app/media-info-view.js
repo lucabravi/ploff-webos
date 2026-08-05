@@ -55,7 +55,7 @@
       content.appendChild(right);
       if (title) { title.textContent = t('mediaDetails.title'); }
       if (hint) { hint.textContent = t('mediaDetails.closeHint'); }
-      if (close) { close.textContent = t('state.back'); }
+      if (close) { close.textContent = t('common.close'); }
     }
     function open(model, origin) {
       var dialog = node('media-info-dialog');
@@ -67,13 +67,14 @@
       content.scrollTop = 0;
       render(model);
       dialog.className = 'media-info-dialog';
+      dialog.setAttribute('aria-hidden', 'false');
       return true;
     }
     function close() {
       var dialog = node('media-info-dialog');
       state.open = false;
       state.origin = '';
-      if (dialog) { dialog.className = 'media-info-dialog is-hidden'; }
+      if (dialog) { dialog.className = 'media-info-dialog is-hidden'; dialog.setAttribute('aria-hidden', 'true'); }
     }
     function scroll(direction) {
       var content = node('media-info-dialog-content');

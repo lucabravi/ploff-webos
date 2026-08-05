@@ -51,6 +51,19 @@ assert.deepStrictEqual(accountServers, [{
   ]
 }], 'account discovery must keep only Plex servers and prefer local, direct remote, then Relay connections');
 
+var encodedAccountServer = PlexAuth.accountServersFromJson(JSON.stringify([{
+  name: 'Encoded Home Plex',
+  provides: 'server',
+  clientIdentifier: 'encoded-server',
+  connections: [{ uri: 'https://192-168-0-7.account-example.plex.direct:32400' }, { uri: 'https://remote.plex.example' }]
+}]))[0];
+assert.strictEqual(encodedAccountServer.uri, 'http://192.168.0.7:32400', 'account server selection must expose a decoded private Plex endpoint as the preferred URI');
+assert.deepStrictEqual(encodedAccountServer.connections, [
+  'http://192.168.0.7:32400',
+  'https://192-168-0-7.account-example.plex.direct:32400',
+  'https://remote.plex.example'
+], 'decoded local Plex endpoints must retain their original remote fallback');
+
 var requests = [];
 function FakeXHR() { requests.push(this); this.headers = {}; }
 FakeXHR.prototype.open = function (method, url) { this.method = method; this.url = url; };
@@ -59,6 +72,24 @@ FakeXHR.prototype.send = function () {};
 FakeXHR.prototype.abort = function () { this.aborted = true; };
 
 var root = { XMLHttpRequest: FakeXHR };
+
+requests = [];
+var decodedLocalConnection = '';
+PlexAuth.findReachableConnection(root, 'server-token', [
+  'https://192-168-0-7.account-example.plex.direct:32400',
+  'https://remote.plex.example'
+], 'server-id', { clientIdentifier: 'client-id', timeout: 3000 }, function (error, uri) {
+  assert.ifError(error);
+  decodedLocalConnection = uri;
+});
+assert.strictEqual(requests[0].url, 'http://192.168.0.7:32400/identity', 'Plex direct endpoints must probe their encoded local IP before the remote endpoint');
+requests[0].status = 200;
+requests[0].responseText = '<MediaContainer machineIdentifier="server-id" />';
+requests[0].readyState = 4;
+requests[0].onreadystatechange();
+assert.strictEqual(decodedLocalConnection, 'http://192.168.0.7:32400', 'a reachable encoded Plex endpoint must resolve to its local HTTP address');
+
+requests = [];
 var callbackError = null;
 PlexAuth.createPin(root, { clientIdentifier: 'client-id', timeout: 2500 }, function (error) { callbackError = error; });
 assert.strictEqual(requests[0].method, 'POST', 'PIN login must begin with a POST');

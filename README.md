@@ -81,9 +81,10 @@
 
 </details>
 
-Screenshots use a fictional demo library and contain no personal Plex data.
-All titles, descriptions, and artwork shown are fictional and were created for
-the demo to avoid using copyrighted media.
+The gallery is captured from the real Ploff interface at 1920x1080 using a
+fictional demo library. It contains no personal Plex data: all titles,
+descriptions, and artwork were created for the demo to avoid using copyrighted
+media.
 
 ## Features
 
@@ -91,7 +92,7 @@ the demo to avoid using copyrighted media.
 
 - Home, search, libraries, collections, playlists, and Watchlist, all built TV-first
 - Optional classic T9 numeric search input, for remotes without a pointer
-- Progressive artwork, adjustable card sizes, backdrops, and media themes
+- Progressive artwork, adjustable card sizes, independent artwork/backdrop download quality, and media themes
 
 ### Playback
 
@@ -112,6 +113,7 @@ the demo to avoid using copyrighted media.
 ### Interface
 
 - English, Italian, Spanish, French, German, Brazilian Portuguese, Japanese, and Korean
+- Lazy non-blocking update checks after Home loads, cached for 24 hours, with a manual Settings check and QR link to the latest GitHub release
 
 ## Requirements
 
@@ -241,13 +243,15 @@ npm run build:app
 `install-webos.sh` builds, installs, and launches the app. Generated packages
 always use neutral defaults and exclude `app/config.local.js`.
 
-Application code is maintained as responsibility-based fragments in
-`app/source/`; `app/app.js` is the generated ES5 bundle shipped to the TV.
+Application coordination is maintained as complete responsibility-based UMD
+modules in `app/coordinator/`, with focused support modules under `app/`;
+`app/app.js` is the generated ES5 bundle shipped to the TV. The legacy
+`app/source/` directory must not be reintroduced.
 
 ### Tests and verification
 
-Node.js is required only for development and tests, not when using the Docker
-installer.
+Node.js 20 or newer is required only for development and tests, not when using
+the Docker installer.
 
 ```sh
 npm ci
@@ -261,6 +265,16 @@ npm run verify
 3. The complete test suite
 4. Chrome 53 compatibility checks
 5. Publishable repository hygiene checks
+
+Before a release, or after changing asynchronous lifecycle and teardown code, run
+the extended gate:
+
+```sh
+npm run test:pre-release
+```
+
+It runs the complete verification suite followed by the forced-GC memory lifecycle
+stress test documented in `docs/testing.md`.
 
 ### Local preview
 
@@ -276,7 +290,9 @@ storage.
 
 ## Project Structure and Documentation
 
+- [docs/README.md](docs/README.md) — authoritative documentation index and historical records
 - [docs/architecture.md](docs/architecture.md) — runtime components and design rationale
+- [docs/features.md](docs/features.md) — current viewer-facing capabilities
 - [docs/playback-invariants.md](docs/playback-invariants.md) — TV-verified seek and resume behavior
 - [docs/testing.md](docs/testing.md) — release test matrix
 - [CHANGELOG.md](CHANGELOG.md) — release history

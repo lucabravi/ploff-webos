@@ -1,11 +1,11 @@
 (function (root, factory) {
   'use strict';
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(require('./plex-http'));
   } else {
-    root.PloffWatchlistClient = factory();
+    root.PloffWatchlistClient = factory(root.PloffPlexHttp);
   }
-}(this, function () {
+}(this, function (PlexHttp) {
   'use strict';
 
   var DEFAULT_BASE = 'https://discover.provider.plex.tv';
@@ -20,39 +20,15 @@
   }
 
   function request(rootObject, options, method, requestUrl, callback) {
-    var xhr = new rootObject.XMLHttpRequest();
-    var nativeAbort = xhr.abort;
-    var complete = false;
-    function finish(error, text) {
-      if (complete) { return; }
-      complete = true;
-      callback(error, text || '');
-    }
-    try {
-      xhr.open(method, requestUrl, true);
-      xhr.timeout = Number(options.timeout || 6000);
-      if (xhr.setRequestHeader) {
-        xhr.setRequestHeader('X-Plex-Token', options.token || '');
-        xhr.setRequestHeader('Accept', 'application/json');
-      }
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState !== 4) { return; }
-        if (xhr.status >= 200 && xhr.status < 300) { finish(null, xhr.responseText); }
-        else { finish(new Error('Plex Watchlist request failed: ' + xhr.status)); }
-      };
-      xhr.onerror = function () { finish(new Error('Plex Watchlist request failed')); };
-      xhr.ontimeout = function () { finish(new Error('Plex Watchlist request timed out')); };
-      xhr.send();
-    } catch (error) {
-      (rootObject.setTimeout || setTimeout)(function () { finish(error); }, 0);
-    }
-    return {
-      abort: function () {
-        if (complete) { return; }
-        complete = true;
-        if (nativeAbort) { nativeAbort.call(xhr); }
-      }
-    };
+    return PlexHttp.request(rootObject, {
+      method: method,
+      url: requestUrl,
+      timeout: Number(options.timeout || 6000),
+      headers: { 'X-Plex-Token': options.token || '', Accept: 'application/json' },
+      statusError: function (status) { return new Error('Plex Watchlist request failed: ' + status); },
+      networkError: 'Plex Watchlist request failed',
+      timeoutError: 'Plex Watchlist request timed out'
+    }, function (error, text) { callback(error, text || ''); });
   }
 
   function featureList(value) {

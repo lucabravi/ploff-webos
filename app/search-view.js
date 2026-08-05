@@ -3,7 +3,8 @@
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(root, require('./search-model'), require('./search-session'), require('./t9-input'));
   } else {
-    root.PloffSearchView = factory(root, root.PloffSearchModel, root.PloffSearchSession, root.PloffT9Input);
+    var globalRoot = /** @type {any} */ (root);
+    globalRoot.PloffSearchView = factory(globalRoot, globalRoot.PloffSearchModel, globalRoot.PloffSearchSession, globalRoot.PloffT9Input);
   }
 }(typeof window !== 'undefined' ? window : this, function (root, SearchModel, SearchSession, T9Input) {
   'use strict';
@@ -53,7 +54,8 @@
       layout: { columns: 1, visibleRows: 1, totalRows: 0, cardWidth: 0, cardHeight: 0 },
       renderWindow: { start: 0, end: 0, visibleStartRow: 0, offsetRows: 0 },
       visibleStartRow: 0,
-      cardRenderToken: 0
+      cardRenderToken: 0,
+      measurementCache: null
     };
     var session;
     var t9Input;
@@ -188,7 +190,7 @@
       var caption = createElement('span', 'search-card-caption');
       card.type = 'button';
       card.appendChild(createElement('img', 'search-card-image'));
-      card.appendChild(createElement('span', 'search-library-badge'));
+      card.appendChild(createElement('span', 'search-library-badge media-library-badge'));
       caption.appendChild(createElement('span', 'search-card-title'));
       caption.appendChild(createElement('span', 'search-card-meta'));
       caption.appendChild(createElement('span', 'search-card-detail'));
@@ -215,11 +217,23 @@
       return { target: image, specification: posterSpecification(image, source, priority) };
     }
 
+    function cardProfile() {
+      var current = typeof values.cardProfile === 'function' ? values.cardProfile() : null;
+      var metrics;
+      if (current) { return current; }
+      metrics = typeof values.cardMetrics === 'function' ? values.cardMetrics() : {};
+      return { metrics: metrics, poster: { width: Number(values.cardWidth || metrics.width || 154), height: Number(values.imageHeight || values.cardHeight || metrics.imageHeight || 224) } };
+    }
+
     function posterSpecification(image, source, priority) {
       var specification;
-      var fallbackWidth = Number(values.cardWidth || 154);
-      var fallbackHeight = Number(values.imageHeight || values.cardHeight || 224);
-      if (values.renderedPosterSpecification) {
+      var profile = cardProfile();
+      var poster = profile.poster || {};
+      var fallbackWidth = Number(values.cardWidth || poster.width || 154);
+      var fallbackHeight = Number(values.imageHeight || values.cardHeight || poster.height || 224);
+      if (values.fixedPosterSpecification && profile.poster) {
+        specification = values.fixedPosterSpecification(source, profile.poster, priority, 'search');
+      } else if (values.renderedPosterSpecification) {
         specification = values.renderedPosterSpecification(image, source, priority, 'search', fallbackWidth, fallbackHeight);
       } else {
         specification = {
@@ -231,18 +245,26 @@
     }
 
     function measureResults(container) {
-      var metrics = typeof values.cardMetrics === 'function' ? values.cardMetrics() : {};
+      var profile = cardProfile();
+      var metrics = profile.metrics || {};
       var cardWidth = Number(values.cardWidth || metrics.columnStep || metrics.width || 154);
       var cardHeight = Number(values.cardHeight || metrics.rowStep || metrics.height || 224);
+      var width = Number(container.clientWidth || 0);
+      var height = Number(container.clientHeight || 0);
+      var cacheKey = [width, height, cardWidth, cardHeight, state.results.length].join(':');
       var measured;
+      if (state.measurementCache && state.measurementCache.key === cacheKey) {
+        return copyLayout(state.measurementCache.layout);
+      }
       if (values.measureLayout) {
         measured = values.measureLayout(container, state.results.length, cardWidth, cardHeight);
       } else {
-        measured = model.measureLayout(container.clientWidth - 12, container.clientHeight - 12, cardWidth, cardHeight, state.results.length);
+        measured = model.measureLayout(width - 12, height - 12, cardWidth, cardHeight, state.results.length);
       }
       measured = measured || { columns: 1, visibleRows: 1, totalRows: 0 };
       measured.cardWidth = Math.max(64, Number(measured.cardWidth || cardWidth));
       measured.cardHeight = Math.max(64, Number(measured.cardHeight || cardHeight));
+      state.measurementCache = { key: cacheKey, layout: copyLayout(measured) };
       return measured;
     }
 
@@ -275,6 +297,7 @@
         state.layout = { columns: 1, visibleRows: 1, totalRows: 0, cardWidth: Number(values.cardWidth || 154), cardHeight: Number(values.cardHeight || 224) };
         state.renderWindow = { start: 0, end: 0, visibleStartRow: 0, offsetRows: 0 };
         state.visibleStartRow = 0;
+        state.measurementCache = null;
         return;
       }
       state.layout = measureResults(container);
@@ -477,6 +500,13 @@
       return snapshot();
     }
 
+    function resume() {
+      state.open = true;
+      if (node(values.viewId || 'search-view')) { node(values.viewId || 'search-view').className = 'search-view'; }
+      updateFocus();
+      return snapshot();
+    }
+
     function back() {
       if (!state.open) { return false; }
       if (t9Input && t9Input.backspace()) { return true; }
@@ -484,6 +514,10 @@
         state.query = '';
         renderQuery();
         scheduleQuery();
+        return true;
+      }
+      if (state.focus.zone !== 'nav') {
+        focusNavigation(state.focus.navIndex);
         return true;
       }
       close(true);
@@ -595,6 +629,7 @@
       inputKeyCode: inputKeyCode,
       open: open,
       pointerFocus: pointerFocus,
+      resume: resume,
       refreshFocus: updateFocus,
       refreshResults: renderResults,
       render: function () {

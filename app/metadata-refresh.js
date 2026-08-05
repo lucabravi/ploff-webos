@@ -21,7 +21,8 @@
       if (index >= keys.length) { callback(null); return; }
       options.refresh(keys[index], function (refreshError, activityId) {
         if (refreshError) { callback(refreshError); return; }
-        options.wait(activityId, function () {
+        options.wait(activityId, function (waitError) {
+          if (waitError) { callback(waitError); return; }
           options.reload(keys[index], function (reloadError) {
             if (reloadError) { callback(reloadError); return; }
             next(index + 1);

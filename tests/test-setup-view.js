@@ -16,6 +16,9 @@ function node(tagName, className, text) {
     tagName: tagName || '', className: className || '', textContent: text || '', children: [], attributes: {},
     style: {}, value: '', type: '', maxLength: 0, placeholder: '', src: '', alt: '', focused: false,
     appendChild: function (child) { this.children.push(child); this.textContent += child.textContent || ''; return child; },
+    replaceChild: function (next, current) { var index = this.children.indexOf(current); if (index !== -1) { this.children[index] = next; } return current; },
+    removeChild: function (child) { var index = this.children.indexOf(child); if (index !== -1) { this.children.splice(index, 1); } return child; },
+    insertBefore: function (child, reference) { var index = this.children.indexOf(reference); if (index === -1) { this.children.push(child); } else { this.children.splice(index, 0, child); } return child; },
     setAttribute: function (key, attributeValue) { this.attributes[key] = String(attributeValue); },
     getAttribute: function (key) { return this.attributes[key]; },
     hasAttribute: function (key) { return Object.prototype.hasOwnProperty.call(this.attributes, key); },
@@ -31,9 +34,16 @@ function node(tagName, className, text) {
 var nodes = {};
 [
   'setup-step', 'setup-title', 'setup-message', 'setup-server-list', 'setup-profile-list',
-  'setup-login', 'setup-code', 'setup-login-status', 'setup-manual', 'setup-address', 'setup-actions'
+  'setup-login', 'setup-code', 'setup-login-status', 'setup-manual', 'setup-address', 'setup-actions', 'setup-title-spinner'
 ].forEach(function (id) { nodes[id] = node('div'); });
 
+var setupTimers = { intervals: {}, timeouts: {}, next: 1 };
+var setupRoot = {
+  setInterval: function (callback) { var id = setupTimers.next; setupTimers.next += 1; setupTimers.intervals[id] = callback; return id; },
+  clearInterval: function (id) { delete setupTimers.intervals[id]; },
+  setTimeout: function (callback) { var id = setupTimers.next; setupTimers.next += 1; setupTimers.timeouts[id] = callback; return id; },
+  clearTimeout: function (id) { delete setupTimers.timeouts[id]; }
+};
 var focusCalls = [];
 var scanCalls = [];
 var translations = {};
@@ -61,6 +71,7 @@ function element(tagName, className, text) {
 }
 
 var view = SetupView.create({
+  root: setupRoot,
   document: {
     getElementById: function (id) { return nodes[id]; }
   },
@@ -104,6 +115,17 @@ assert.deepStrictEqual(actions(), [
   { label: 'Change language', action: 'change-language', primary: false },
   { label: 'setup.cancel', action: 'cancel', primary: false }
 ], 'first-run servers stage must expose scan, manual, language, and return actions');
+var retainedLanguageAction = nodes['setup-actions'].children[2];
+var languageIntervalId = Object.keys(setupTimers.intervals)[0];
+setupTimers.intervals[languageIntervalId]();
+assert.strictEqual(retainedLanguageAction.textContent, 'Cambia lingua', 'language cycling must advance independently from focus');
+view.render({
+  stage: 'servers', focusIndex: 3, servers: [{ name: 'Local Plex', uri: 'http://plex.local:32400', version: '1.2' }],
+  profiles: [], statusKey: '', returnView: 'settings', canChangeLanguage: true
+});
+assert.strictEqual(nodes['setup-actions'].children[2], retainedLanguageAction, 'focus-only server renders must retain the cycling language action');
+assert.strictEqual(nodes['setup-actions'].children[2].textContent, 'Cambia lingua', 'focusing change language must not reset its label to English');
+assert.strictEqual(Object.keys(setupTimers.intervals).length, 1, 'focusing change language must not restart or duplicate its timer');
 
 presentation.serverDiscoveryActive = true;
 presentation.ownerToken = '';
@@ -158,6 +180,35 @@ assert.strictEqual(nodes['setup-profile-list'].children[0].children[0].children[
 assert.strictEqual(nodes['setup-profile-list'].children[1].children[0].children[0].textContent, 'B', 'profiles must render an initial when no avatar exists');
 assert.strictEqual(nodes['setup-profile-list'].children[1].className, 'setup-option is-active', 'injected active profile must be marked');
 assert.deepStrictEqual(actions().map(function (item) { return item.action; }), ['disconnect', 'offline', 'cancel'], 'profiles must expose account actions');
+var retainedProfileButton = nodes['setup-profile-list'].children[0];
+var retainedProfileAvatar = retainedProfileButton.children[0].children[0];
+view.render({
+  stage: 'profiles', focusIndex: 0, profiles: [
+    { id: 'profile-1', title: 'Alice', thumb: 'alice.jpg', protected: false },
+    { id: 'profile-2', title: 'Bob', protected: true }
+  ], servers: [], returnView: 'settings'
+});
+assert.strictEqual(nodes['setup-profile-list'].children[0], retainedProfileButton, 'presentation-equivalent profiles must retain their existing DOM nodes');
+assert.strictEqual(nodes['setup-title-spinner'].className, 'setup-title-spinner is-hidden', 'completed profile refreshes must hide the loading spinner');
+view.render({
+  stage: 'profiles', focusIndex: 0, profileLoading: true, profiles: [
+    { id: 'profile-1', title: 'Alice', thumb: 'alice.jpg', protected: false },
+    { id: 'profile-2', title: 'Bob', protected: true }
+  ], servers: [], returnView: 'settings'
+});
+assert.strictEqual(nodes['setup-title-spinner'].className, 'setup-title-spinner', 'profile refreshes must show the spinner without replacing the visible list');
+assert.strictEqual(nodes['setup-profile-list'].children[0], retainedProfileButton, 'showing the spinner must not rebuild cached profile buttons');
+assert.strictEqual(nodes['setup-profile-list'].children[0].children[0].children[0], retainedProfileAvatar, 'spinner-only renders must preserve the loaded avatar node');
+view.render({
+  stage: 'profiles', focusIndex: 0, profileLoading: false, profiles: [
+    { id: 'profile-1', title: 'Alice Updated', thumb: 'alice.jpg', protected: false },
+    { id: 'profile-2', title: 'Bob', protected: true }
+  ], servers: [], returnView: 'settings'
+});
+assert.strictEqual(nodes['setup-profile-list'].children[0], retainedProfileButton, 'changed profile data must update the existing button instead of flashing the whole list');
+assert.strictEqual(nodes['setup-profile-list'].children[0].children[0].children[1].textContent, 'Alice Updated', 'changed profile data must be rendered in place');
+assert.strictEqual(nodes['setup-profile-list'].children[0].children[0].children[0], retainedProfileAvatar, 'changing a title must not reload an unchanged avatar');
+assert.strictEqual(nodes['setup-title-spinner'].className, 'setup-title-spinner is-hidden', 'the spinner must disappear after the refreshed profiles are applied');
 
 view.render({ stage: 'access', focusIndex: 0, profiles: [], servers: [] });
 assert.strictEqual(nodes['setup-profile-list'].children.length, 0, 'changing setup stages must remove hidden profile buttons from the focus model');
@@ -172,5 +223,11 @@ assert.strictEqual(nodes['setup-address'].value, '\u2022\u2022\u2022', 'profile 
 assert.strictEqual(nodes['setup-address'].maxLength, 4, 'profile PIN must retain the controller maximum');
 assert.deepStrictEqual(actions().map(function (item) { return item.action; }), ['unlock-profile', 'offline', 'profiles'], 'profile PIN must expose unlock, offline, and back');
 assert.strictEqual(focusCalls[focusCalls.length - 1].index, 0, 'profile PIN must delegate its focus index');
+
+view.render({ stage: 'servers', focusIndex: 0, servers: [], profiles: [], canChangeLanguage: true });
+assert.strictEqual(Object.keys(setupTimers.intervals).length, 1, 'language action cycling must own one interval');
+view.destroy();
+assert.strictEqual(Object.keys(setupTimers.intervals).length, 0, 'destroy must stop the language cycling interval');
+assert.strictEqual(Object.keys(setupTimers.timeouts).length, 0, 'destroy must stop any pending language cycling animation');
 
 console.log('Setup view checks passed');

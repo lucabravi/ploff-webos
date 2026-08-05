@@ -8,6 +8,9 @@ function node(id) {
     id: id, className: 'is-hidden', textContent: '', innerHTML: '', scrollTop: 40, children: [],
     appendChild: function (child) { this.children.push(child); },
     removeChild: function (child) { this.children.splice(this.children.indexOf(child), 1); },
+    attributes: {},
+    setAttribute: function (key, value) { this.attributes[key] = String(value); },
+    getAttribute: function (key) { return this.attributes[key] || ''; },
     get firstChild() { return this.children[0]; }
   };
 }
@@ -27,7 +30,8 @@ assert.strictEqual(view.open({ sections: [
   { title: 'Subtitles', column: 'right', rows: [{ label: 'Track', value: 'English' }] }
 ] }), true, 'the media dialog must open with a model');
 assert.strictEqual(nodes['media-info-dialog'].className, 'media-info-dialog', 'opening must make the dialog visible');
-assert.strictEqual(nodes['media-info-dialog-close'].textContent, 'state.back', 'the media dialog must expose the shared localized Back command');
+assert.strictEqual(nodes['media-info-dialog-close'].textContent, 'common.close', 'the media dialog must expose the shared localized Close command');
+assert.strictEqual(nodes['media-info-dialog'].getAttribute('aria-hidden'), 'false', 'opening must expose dialog semantics');
 assert.strictEqual(nodes['media-info-dialog-content'].children.length, 2, 'the dialog must render independent technical columns');
 assert.strictEqual(nodes['media-info-dialog-content'].children[0].className, 'media-info-dialog-column media-info-dialog-column-left', 'file and video sections must stack in the left column');
 assert.strictEqual(nodes['media-info-dialog-content'].children[1].className, 'media-info-dialog-column media-info-dialog-column-right', 'audio and subtitle sections must stack in the right column');
@@ -37,5 +41,6 @@ view.scroll(1);
 assert.ok(nodes['media-info-dialog-content'].scrollTop > 40, 'the dialog must support remote scrolling');
 view.close();
 assert.strictEqual(nodes['media-info-dialog'].className, 'media-info-dialog is-hidden', 'closing must restore the hidden state');
+assert.strictEqual(nodes['media-info-dialog'].getAttribute('aria-hidden'), 'true', 'closing must hide dialog semantics');
 
 console.log('Media info view checks passed');

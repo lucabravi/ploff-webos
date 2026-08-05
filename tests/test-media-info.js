@@ -30,4 +30,10 @@ assert.ok(model.sections[3].rows.some(function (row) { return row.value === 'Ita
 assert.strictEqual(model.sections[3].column, 'right', 'subtitle details must follow audio in the right technical column');
 assert.ok(!JSON.stringify(model).match(/private\/var/), 'media details must not leak an original filesystem path');
 
+
+assert.strictEqual(MediaInfo.trackLabel({ language: 'Italiano', codec: 'SRT', external: true }, 'Esterno'), 'Italiano (SRT Esterno)', 'technical media information must reuse the localized shared track label');
+
+assert.strictEqual(MediaInfo.selectedTrack([{ id: 7, title: 'Seven' }], '7').title, 'Seven', 'track selection must normalize Plex stream identifiers');
+assert.strictEqual(MediaInfo.selectedTrack([{ id: '8' }], ''), null, 'empty track identifiers must select no track');
+
 console.log('Media info checks passed');
