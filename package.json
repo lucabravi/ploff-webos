@@ -30,9 +30,9 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "acorn": "8.17.0",
+    "acorn": "8.18.0",
     "eslint": "10.8.0",
-    "globals": "17.7.0",
+    "globals": "17.8.0",
     "typescript": "7.0.2"
   }
 }
