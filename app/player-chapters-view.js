@@ -19,11 +19,9 @@
       view.className = view.className.replace(/\s*has-chapters-open/g, '') + (open ? ' has-chapters-open' : '');
     }
     function loadImage(image, chapter, priority) {
-      var rect = image.getBoundingClientRect ? image.getBoundingClientRect() : null;
-      var width = Math.ceil(rect && rect.width || image.clientWidth || 300);
-      var height = Math.ceil(rect && rect.height || image.clientHeight || 132);
-      var preview = values.ProgressiveImages.previewSize(width, height, 96);
-      values.posterLoader.load(image, { source: chapter.thumb, previewWidth: preview.width, previewHeight: preview.height, width: width, height: height, priority: priority, scope: 'chapters' });
+      var size = values.ProgressiveImages.renderedSize(image, 300, 132);
+      var preview = values.ProgressiveImages.previewSize(size.width, size.height, 96);
+      values.posterLoader.load(image, { source: chapter.thumb, previewWidth: preview.width, previewHeight: preview.height, width: size.width, height: size.height, priority: priority, scope: 'chapters' });
     }
     function ensureVisible(card) {
       var list = node('player-chapters-list');

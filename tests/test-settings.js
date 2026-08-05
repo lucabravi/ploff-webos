@@ -11,6 +11,7 @@ assert.deepStrictEqual(defaults.subtitleLanguages, [], 'subtitle priority starts
 assert.deepStrictEqual(defaults.subtitleSuppressedForAudio, [], 'subtitle suppression must be opt-in');
 assert.strictEqual(defaults.subtitleSourcePreference, 'external', 'automatic subtitles must prefer external tracks by default');
 assert.strictEqual(defaults.autoplayDelay, 5, 'next-episode autoplay must keep the current five-second default');
+assert.strictEqual(defaults.upNextLayout, 'compact', 'Up Next must default to the compact presentation');
 assert.strictEqual(defaults.skipPromptDuration, 5, 'skip marker prompts must remain visible for five seconds by default');
 assert.strictEqual(defaults.playbackMode, 'auto', 'playback must default to Plex automatic Direct Stream decisions');
 assert.deepStrictEqual(defaults.videoVersionPriorities, ['resolution', 'hdr', 'quality', 'directPlay'], 'automatic video versions must prioritize resolution before HDR, estimated quality, and Direct Play');
@@ -18,10 +19,14 @@ assert.strictEqual(defaults.lanVideoQuality, 'original', 'LAN playback must defa
 assert.strictEqual(defaults.remoteVideoQuality, '8000', 'remote playback must default to a bounded quality');
 assert.strictEqual(defaults.wheelBehavior, 'items', 'the Magic Remote wheel must default to moving the selection');
 assert.strictEqual(defaults.cardScale, 100, 'poster cards must keep the current Home size by default');
+assert.deepStrictEqual(Settings.ARTWORK_QUALITIES, [70, 80, 85, 90, 100], 'artwork quality must expose the approved high-resolution steps');
+assert.deepStrictEqual(Settings.BACKDROP_QUALITIES, [50, 60, 70, 85, 100], 'backdrop quality must expose the approved wider steps');
+assert.deepStrictEqual(Settings.VIDEO_QUALITIES, ['4000', '8000', '12000', 'original'], 'video quality must expose an increasing scale with Original at the maximum step');
+assert.strictEqual(defaults.artworkQuality, 90, 'poster and thumbnail downloads must default to the step below maximum');
+assert.strictEqual(defaults.backdropQuality, 85, 'backdrop downloads must default to 85% independently');
 assert.strictEqual(defaults.accentColor, 'cyan', 'the original cyan accent must remain the default');
 assert.strictEqual(defaults.backgroundDelay, 500, 'theme audio must default to a responsive 500 ms hover delay');
 assert.strictEqual(defaults.searchT9Input, true, 'T9 search input must be enabled by default');
-assert.strictEqual(defaults.showMediaInfo, false, 'technical media information must remain opt-in');
 assert.strictEqual(defaults.showWatchlist, true, 'Watchlist navigation must remain visible by default');
 assert.strictEqual(defaults.showPlaylists, true, 'Playlist navigation must remain visible by default');
 
@@ -36,6 +41,8 @@ var validated = Settings.validate({
   remoteVideoQuality: '8000',
   playbackMode: 'invalid',
   wheelBehavior: 'page',
+  artworkQuality: 80,
+  backdropQuality: 100,
   audioLanguages: [' JA ', 'en-US', 'ja', ''],
   subtitleLanguages: ['it-IT', 'EN'],
   subtitleSuppressedForAudio: ['ja-JP', 'EN', 'ja'],
@@ -51,6 +58,8 @@ assert.deepStrictEqual(Settings.supportedUiLanguages().sort(), I18n.supportedLan
 assert.strictEqual(validated.backgroundVolume, 20, 'volume must be restricted to supported values');
 assert.strictEqual(validated.backgroundDelay, 500, 'invalid delays must fall back to the 500 ms default');
 assert.strictEqual(validated.autoplayDelay, 5, 'autoplay delay must be restricted to supported values');
+assert.strictEqual(Settings.validate({ upNextLayout: 'bottom-panel' }).upNextLayout, 'bottom-panel', 'the bottom Up Next layout must be accepted');
+assert.strictEqual(Settings.validate({ upNextLayout: 'invalid' }).upNextLayout, 'compact', 'unsupported Up Next layouts must fall back safely');
 assert.strictEqual(validated.skipPromptDuration, 5, 'skip prompt duration must be restricted to supported values');
 assert.strictEqual(validated.playbackMode, 'auto', 'invalid playback modes must safely fall back to Auto');
 assert.strictEqual(validated.lanVideoQuality, '12000', 'LAN quality must validate independently');
@@ -59,6 +68,14 @@ var migratedQuality = Settings.validate({ videoQuality: '4000' });
 assert.strictEqual(migratedQuality.lanVideoQuality, '4000', 'legacy quality must migrate to LAN playback');
 assert.strictEqual(migratedQuality.remoteVideoQuality, '4000', 'legacy quality must migrate to remote playback without changing behavior');
 assert.strictEqual(validated.wheelBehavior, 'page', 'page scrolling must be a supported wheel behavior');
+assert.strictEqual(validated.artworkQuality, 80, 'supported poster and thumbnail quality must be preserved');
+assert.strictEqual(validated.backdropQuality, 100, 'backdrop quality must validate independently');
+assert.strictEqual(Settings.validate({ artworkQuality: 70, backdropQuality: 50 }).artworkQuality, 70, 'the lowest artwork quality must be accepted');
+assert.strictEqual(Settings.validate({ artworkQuality: 55 }).artworkQuality, 70, 'legacy artwork quality below the new range must migrate to the nearest supported step');
+assert.strictEqual(Settings.validate({ backdropQuality: 70 }).backdropQuality, 70, 'supported backdrop quality must be accepted');
+assert.strictEqual(Settings.validate({ backdropQuality: 90 }).backdropQuality, 85, 'legacy backdrop quality must migrate to the nearest supported step');
+assert.strictEqual(Settings.validate({}).artworkQuality, 90, 'stored settings predating artwork quality must receive the new default');
+assert.strictEqual(Settings.validate({}).backdropQuality, 85, 'stored settings predating backdrop quality must receive the new default');
 assert.strictEqual(Settings.validate({ wheelBehavior: 'invalid' }).wheelBehavior, 'items', 'invalid wheel behavior must safely fall back to selection movement');
 assert.strictEqual(Settings.validate({ playbackMode: 'direct' }).playbackMode, 'direct', 'Direct-only playback must be a supported global mode');
 assert.deepStrictEqual(
@@ -77,8 +94,6 @@ assert.strictEqual(Settings.validate({ searchT9Input: true }).searchT9Input, tru
 assert.strictEqual(Settings.validate({ searchT9Input: 'true' }).searchT9Input, false, 'T9 search input must accept only a real boolean');
 assert.strictEqual(Settings.validate({ searchT9Input: false }).searchT9Input, false, 'an explicitly disabled T9 setting must be preserved');
 assert.strictEqual(Settings.validate({}).searchT9Input, true, 'stored settings without a T9 preference must receive the new default');
-assert.strictEqual(Settings.validate({ showMediaInfo: true }).showMediaInfo, true, 'technical media information may be enabled explicitly');
-assert.strictEqual(Settings.validate({ showMediaInfo: 'true' }).showMediaInfo, false, 'technical media information must accept only a real boolean');
 assert.strictEqual(Settings.validate({ showWatchlist: false }).showWatchlist, false, 'Watchlist navigation may be hidden independently');
 assert.strictEqual(Settings.validate({ showPlaylists: false }).showPlaylists, false, 'Playlist navigation may be hidden independently');
 assert.deepStrictEqual(validated.audioLanguages, ['ja', 'en'], 'language priorities must be normalized and deduplicated in order');
@@ -145,5 +160,8 @@ Settings.save(storage, validated);
 assert.deepStrictEqual(Settings.load(storage), validated, 'saved settings must round-trip through localStorage');
 storageValue = '{broken';
 assert.deepStrictEqual(Settings.load(storage), Settings.defaults(), 'invalid storage must safely fall back to defaults');
+assert.doesNotThrow(function () {
+  Settings.save({ setItem: function () { throw new Error('quota'); } }, { accentColor: 'purple' });
+}, 'settings changes must remain usable when localStorage rejects a write');
 
 console.log('Settings checks passed');

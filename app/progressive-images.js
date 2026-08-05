@@ -8,6 +8,59 @@
 }(this, function () {
   'use strict';
 
+  var ARTWORK_QUALITY_STEPS = [70, 80, 85, 90, 100];
+  var BACKDROP_QUALITY_STEPS = [50, 60, 70, 85, 100];
+  var QUALITY_STEPS = [50, 60, 70, 80, 85, 90, 100];
+
+  function qualityFromSteps(value, steps, fallback) {
+    var quality = Number(value);
+    var nearest = fallback;
+    var distance = Infinity;
+    var index;
+    var currentDistance;
+    if (!isFinite(quality)) { return fallback; }
+    for (index = 0; index < steps.length; index += 1) {
+      currentDistance = Math.abs(steps[index] - quality);
+      if (currentDistance < distance) {
+        nearest = steps[index];
+        distance = currentDistance;
+      }
+    }
+    return nearest;
+  }
+
+  function supportedQuality(value) {
+    return qualityFromSteps(value, QUALITY_STEPS, 90);
+  }
+
+  function supportedArtworkQuality(value) {
+    return qualityFromSteps(value, ARTWORK_QUALITY_STEPS, 90);
+  }
+
+  function supportedBackdropQuality(value) {
+    return qualityFromSteps(value, BACKDROP_QUALITY_STEPS, 85);
+  }
+
+  function qualitySize(width, height, quality) {
+    var factor = supportedQuality(quality) / 100;
+    return {
+      width: Math.max(1, Math.round(Math.max(1, Number(width || 1)) * factor)),
+      height: Math.max(1, Math.round(Math.max(1, Number(height || 1)) * factor))
+    };
+  }
+
+  function isBackdropScope(scope) {
+    var value = String(scope || '');
+    return value === 'backdrop' || /-backdrop$/.test(value);
+  }
+
+  function qualityForScope(settings, scope) {
+    var values = settings || {};
+    return isBackdropScope(scope)
+      ? supportedBackdropQuality(values.backdropQuality)
+      : supportedArtworkQuality(values.artworkQuality);
+  }
+
   function addClass(target, name) {
     var pattern = new RegExp('(^|\\s)' + name + '(?=\\s|$)');
     if (!pattern.test(target.className)) { target.className += ' ' + name; }
@@ -15,6 +68,16 @@
 
   function removeClass(target, name) {
     target.className = target.className.replace(new RegExp('(^|\\s)' + name + '(?=\\s|$)', 'g'), ' ').replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+  }
+
+  function renderedSize(target, fallbackWidth, fallbackHeight) {
+    var rect = target && target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+    var width = rect && rect.width ? rect.width : (target && target.clientWidth || fallbackWidth || 1);
+    var height = rect && rect.height ? rect.height : (target && target.clientHeight || fallbackHeight || 1);
+    return {
+      width: Math.max(1, Math.floor(Number(width) || 1)),
+      height: Math.max(1, Math.floor(Number(height) || 1))
+    };
   }
 
   function previewSize(width, height, maximumEdge) {
@@ -44,6 +107,8 @@
     var knownFullUrls = {};
     var knownFullUrlOrder = [];
     var knownFullUrlLimit = Math.max(1, Number(settings.knownFullUrlLimit || 1000));
+    var pumpPaused = false;
+    var destroyed = false;
 
     function rememberFullUrl(url) {
       var index;
@@ -72,7 +137,7 @@
     }
 
     function current(job) {
-      return !!job && !job.cancelled && job.target.__plexProgressiveJob === job;
+      return !destroyed && !!job && !job.cancelled && job.target.__plexProgressiveJob === job;
     }
 
     function attached(job) {
@@ -84,14 +149,51 @@
       return left.sequence - right.sequence;
     }
 
-    function sortQueues() {
-      previewQueue.sort(compare);
-      fullQueue.sort(compare);
+    function insertQueuedJob(queue, job) {
+      var low = 0;
+      var high = queue.length;
+      var middle;
+      while (low < high) {
+        middle = Math.floor((low + high) / 2);
+        if (compare(job, queue[middle]) < 0) { high = middle; }
+        else { low = middle + 1; }
+      }
+      queue.splice(low, 0, job);
+    }
+
+    function queuedJobArray(job) {
+      if (job && job.phase === 'queued-preview') { return previewQueue; }
+      if (job && job.phase === 'queued-full') { return fullQueue; }
+      return null;
+    }
+
+    function removeQueuedJob(job) {
+      var queue = queuedJobArray(job);
+      var index = queue ? queue.indexOf(job) : -1;
+      if (index !== -1) { queue.splice(index, 1); }
+    }
+
+    function reorderQueuedJob(job) {
+      var queue = queuedJobArray(job);
+      if (!queue) { return; }
+      removeQueuedJob(job);
+      insertQueuedJob(queue, job);
     }
 
     function removeJob(job) {
       var index = jobs.indexOf(job);
       if (index !== -1) { jobs.splice(index, 1); }
+    }
+
+    function releaseJob(job) {
+      var target = job && job.target;
+      if (!job) { return; }
+      if (target && target.__plexProgressiveJob === job) { target.__plexProgressiveJob = null; }
+      job.target = null;
+      job.onPreview = null;
+      job.preload = null;
+      job.finishPreview = null;
+      job.finishFull = null;
     }
 
     function clearTarget(target) {
@@ -102,16 +204,18 @@
       target.__plexProgressiveSource = '';
       target.__plexProgressiveState = '';
       target.__plexProgressiveFullUrl = '';
+      target.__plexProgressivePreviewUrl = '';
+      target.__plexProgressiveSpecification = null;
       if (target.removeAttribute) { target.removeAttribute('src'); }
       else { target.src = ''; }
     }
 
     function fullUrl(job) {
-      return settings.urlFor(job.source, job.width, job.height);
+      return job.fullUrl;
     }
 
     function previewUrl(job) {
-      return settings.urlFor(job.source, job.previewWidth, job.previewHeight);
+      return job.previewUrl;
     }
 
     function pumpFull() {
@@ -131,15 +235,15 @@
     }
 
     function pump() {
-      sortQueues();
+      if (pumpPaused || destroyed) { return; }
       pumpPreview();
       pumpFull();
     }
 
     function queueFull(job) {
-      if (!current(job)) { removeJob(job); return; }
+      if (!current(job)) { removeJob(job); releaseJob(job); return; }
       job.phase = 'queued-full';
-      fullQueue.push(job);
+      insertQueuedJob(fullQueue, job);
       pump();
     }
 
@@ -157,6 +261,7 @@
           if (success) {
             rememberPreviewUrl(previewUrl(job));
             target.__plexProgressiveState = 'preview';
+            target.__plexProgressivePreviewUrl = previewUrl(job);
             addClass(target, 'is-loaded');
             addClass(target, 'is-preview');
             removeClass(target, 'is-full');
@@ -165,9 +270,15 @@
               catch (callbackError) {}
             }
           }
-          queueFull(job);
+          if (job.previewOnly) {
+            job.phase = 'done';
+            removeJob(job);
+            releaseJob(job);
+            pump();
+          } else { queueFull(job); }
         } else {
           removeJob(job);
+          releaseJob(job);
           pump();
         }
       }
@@ -190,6 +301,7 @@
       if (!attached(job)) {
         job.phase = 'done';
         removeJob(job);
+        releaseJob(job);
         pump();
         return;
       }
@@ -213,6 +325,7 @@
         }
         job.phase = 'done';
         removeJob(job);
+        releaseJob(job);
         pump();
       }
       activeFull += 1;
@@ -227,9 +340,13 @@
 
     function cancelJob(job) {
       var clearIncompleteTarget;
+      var target;
       if (!job || job.cancelled) { return; }
+      target = job.target;
       clearIncompleteTarget = job.phase === 'queued-preview' || job.phase === 'loading-preview';
+      removeQueuedJob(job);
       job.cancelled = true;
+      if (clearIncompleteTarget && target && target.__plexProgressiveJob === job) { clearTarget(target); }
       if (job.finishPreview) { job.finishPreview(false); }
       else if (job.finishFull) {
         if (job.preload) {
@@ -241,7 +358,7 @@
         job.finishFull(false);
       }
       else { removeJob(job); }
-      if (clearIncompleteTarget && job.target.__plexProgressiveJob === job) { clearTarget(job.target); }
+      releaseJob(job);
     }
 
     function load(target, specification) {
@@ -252,28 +369,55 @@
       var width = Math.max(1, Number(spec.width || 154));
       var height = Math.max(1, Number(spec.height || 224));
       var requestedFullUrl;
+      var requestedPreviewUrl;
+      var requestedPriority;
+      var requestedPreviewOnly;
       var previous;
       var job;
-      if (!target || !ImageConstructor || !settings.urlFor) { return null; }
+      var storedSpecification;
+      requestedPreviewOnly = spec.previewOnly === true;
+      if (destroyed || !target || !ImageConstructor || !settings.urlFor) { return null; }
       previous = target.__plexProgressiveJob;
       if (!source) {
         cancelJob(previous);
         clearTarget(target);
         return null;
       }
-      requestedFullUrl = settings.urlFor(source, width, height);
+      requestedFullUrl = settings.urlFor(source, width, height, String(spec.scope || 'default'));
+      requestedPreviewUrl = settings.urlFor(source, previewWidth, previewHeight, String(spec.scope || 'default'));
+      storedSpecification = {
+        source: source,
+        previewWidth: previewWidth,
+        previewHeight: previewHeight,
+        width: width,
+        height: height,
+        priority: Math.max(0, Number(spec.priority || 0)),
+        scope: String(spec.scope || 'default'),
+        previewOnly: requestedPreviewOnly
+      };
+      target.__plexProgressiveSpecification = storedSpecification;
       if (target.__plexProgressiveSource === source && target.__plexProgressiveState === 'full' && target.__plexProgressiveFullUrl === requestedFullUrl) {
         return previous || null;
       }
+      if (requestedPreviewOnly && target.__plexProgressiveSource === source &&
+          (target.__plexProgressiveState === 'full' ||
+           target.__plexProgressiveState === 'preview' && target.__plexProgressivePreviewUrl === requestedPreviewUrl)) {
+        return previous || null;
+      }
       if (target.__plexProgressiveSource === source && previous && !previous.cancelled && previous.phase !== 'done' && fullUrl(previous) === requestedFullUrl) {
-        previous.priority = Math.min(previous.priority, Math.max(0, Number(spec.priority || 0)));
-        sortQueues();
-        pump();
+        requestedPriority = Math.max(0, Number(spec.priority || 0));
+        if (!requestedPreviewOnly) { previous.previewOnly = false; }
+        if (requestedPriority < previous.priority) {
+          previous.priority = requestedPriority;
+          reorderQueuedJob(previous);
+          pump();
+        }
         return previous;
       }
       cancelJob(previous);
       if (target.__plexProgressiveSource !== source) {
         clearTarget(target);
+        target.__plexProgressiveSpecification = storedSpecification;
       }
       if (knownFullUrls[requestedFullUrl]) {
         target.__plexProgressiveJob = null;
@@ -297,19 +441,30 @@
         previewHeight: previewHeight,
         width: width,
         height: height,
+        previewUrl: requestedPreviewUrl,
+        fullUrl: requestedFullUrl,
         priority: Math.max(0, Number(spec.priority || 0)),
         scope: String(spec.scope || 'default'),
         onPreview: typeof spec.onPreview === 'function' ? spec.onPreview : null,
         sequence: sequence += 1,
         phase: 'queued-preview',
-        cancelled: false
+        cancelled: false,
+        previewOnly: requestedPreviewOnly
       };
       target.__plexProgressiveJob = job;
       target.__plexProgressiveSource = source;
       jobs.push(job);
-      if (knownPreviewUrls[previewUrl(job)] && target.__plexProgressiveState !== 'full') {
+      if (target.__plexProgressiveState === 'preview' || target.__plexProgressiveState === 'full') {
+        if (job.previewOnly) {
+          job.phase = 'done';
+          removeJob(job);
+          releaseJob(job);
+          pump();
+        } else { queueFull(job); }
+      } else if (knownPreviewUrls[previewUrl(job)]) {
         target.src = previewUrl(job);
         target.__plexProgressiveState = 'preview';
+        target.__plexProgressivePreviewUrl = previewUrl(job);
         addClass(target, 'is-loaded');
         addClass(target, 'is-preview');
         removeClass(target, 'is-full');
@@ -317,44 +472,126 @@
           try { job.onPreview(target); }
           catch (previewCallbackError) {}
         }
-        queueFull(job);
-      } else if (target.__plexProgressiveState === 'preview' || target.__plexProgressiveState === 'full') { queueFull(job); }
-      else { previewQueue.push(job); pump(); }
+        if (job.previewOnly) {
+          job.phase = 'done';
+          removeJob(job);
+          releaseJob(job);
+          pump();
+        } else { queueFull(job); }
+      } else { insertQueuedJob(previewQueue, job); pump(); }
       return job;
     }
 
-    function prioritize(target) {
+    function prioritize(target, priority) {
       var job = target && target.__plexProgressiveJob;
-      if (!current(job)) { return; }
-      job.priority = 0;
-      sortQueues();
-      pump();
+      var specification = target && target.__plexProgressiveSpecification;
+      var nextPriority = Math.max(0, Number(priority === undefined ? 0 : priority));
+      if (specification && nextPriority < specification.priority) { specification.priority = nextPriority; }
+      if (current(job)) {
+        job.previewOnly = false;
+        if (nextPriority < job.priority) {
+          job.priority = nextPriority;
+          reorderQueuedJob(job);
+        }
+        pump();
+        return;
+      }
+      if (!specification || target.__plexProgressiveState !== 'preview') { return; }
+      load(target, {
+        source: specification.source,
+        previewWidth: specification.previewWidth,
+        previewHeight: specification.previewHeight,
+        width: specification.width,
+        height: specification.height,
+        priority: nextPriority,
+        scope: specification.scope,
+        previewOnly: false
+      });
+    }
+
+    function cancel(target) {
+      cancelJob(target && target.__plexProgressiveJob);
     }
 
     function loadBatch(entries) {
-      var batch = Object.prototype.toString.call(entries) === '[object Array]' ? entries.slice() : [];
+      var batch;
+      var index;
+      var wasPaused;
+      if (destroyed) { return; }
+      batch = Object.prototype.toString.call(entries) === '[object Array]' ? entries.slice() : [];
       batch.sort(function (left, right) {
         return Number(left && left.specification && left.specification.priority || 0) - Number(right && right.specification && right.specification.priority || 0);
       });
-      batch.forEach(function (entry) {
-        if (entry) { load(entry.target, entry.specification); }
-      });
-    }
-
-    function cancelScope(scope) {
-      jobs.slice().forEach(function (job) {
-        if (job.scope === scope) { cancelJob(job); }
-      });
+      wasPaused = pumpPaused;
+      pumpPaused = true;
+      try {
+        for (index = 0; index < batch.length; index += 1) {
+          if (batch[index]) { load(batch[index].target, batch[index].specification); }
+        }
+      } finally {
+        pumpPaused = wasPaused;
+      }
       pump();
     }
 
+    function cancelMatching(matches) {
+      var pending = jobs.slice();
+      var index;
+      var wasPaused = pumpPaused;
+      pumpPaused = true;
+      try {
+        for (index = 0; index < pending.length; index += 1) {
+          if (matches(pending[index])) { cancelJob(pending[index]); }
+        }
+      } finally {
+        pumpPaused = wasPaused;
+      }
+      pump();
+    }
+
+    function cancelScope(scope) {
+      cancelMatching(function (job) { return job.scope === scope; });
+    }
+
+    function cancelAll() {
+      cancelMatching(function () { return true; });
+      previewQueue = [];
+      fullQueue = [];
+    }
+
+    function destroy() {
+      if (destroyed) { return; }
+      destroyed = true;
+      cancelAll();
+      knownPreviewUrls = {};
+      knownPreviewUrlOrder = [];
+      knownFullUrls = {};
+      knownFullUrlOrder = [];
+    }
+
     return {
+      cancel: cancel,
+      cancelAll: cancelAll,
       cancelScope: cancelScope,
+      destroy: destroy,
       load: load,
       loadBatch: loadBatch,
       prioritize: prioritize
     };
   }
 
-  return { create: create, previewSize: previewSize };
+  return {
+    ARTWORK_QUALITY_STEPS: ARTWORK_QUALITY_STEPS.slice(),
+    BACKDROP_QUALITY_STEPS: BACKDROP_QUALITY_STEPS.slice(),
+    QUALITY_STEPS: QUALITY_STEPS.slice(),
+    create: create,
+    isBackdropScope: isBackdropScope,
+    previewSize: previewSize,
+    qualityForScope: qualityForScope,
+    qualitySize: qualitySize,
+    renderedSize: renderedSize,
+    supportedArtworkQuality: supportedArtworkQuality,
+    supportedBackdropQuality: supportedBackdropQuality,
+    supportedQuality: supportedQuality
+  };
 }));

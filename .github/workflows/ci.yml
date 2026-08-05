@@ -37,5 +37,5 @@ jobs:
         run: npm ci
       - name: Audit high and critical dependency vulnerabilities
         run: npm run check:deps
-      - name: Run lint, type checks, tests, and repository checks
+      - name: Run runtime compatibility, lint, type checks, tests, and repository checks
         run: npm run verify

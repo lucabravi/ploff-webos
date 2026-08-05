@@ -28,7 +28,7 @@
       overlay.className = 'subtitle-preview-overlay' + (lines.length ? '' : ' is-hidden');
     }
     function hideOverlay() { node('subtitle-preview-overlay').className = 'subtitle-preview-overlay is-hidden'; }
-    function setOpen(open) { node('subtitle-editor').className = 'subtitle-editor' + (open ? '' : ' is-hidden'); }
+    function setOpen(open) { var editor = node('subtitle-editor'); editor.className = 'subtitle-editor' + (open ? '' : ' is-hidden'); editor.setAttribute('aria-hidden', open ? 'false' : 'true'); }
     function render(model) {
       var data = model || {};
       var list = controls();
@@ -46,7 +46,7 @@
         name = list[index].getAttribute('data-subtitle-editor');
         baseClass = name === 'track' || name === 'size' ? 'subtitle-editor-row is-cycle' :
           (name === 'minus' || name === 'plus' ? 'subtitle-offset-button' :
-            (name === 'timeline' ? 'subtitle-editor-timeline-button' : 'subtitle-editor-action'));
+            (name === 'timeline' ? 'subtitle-editor-timeline-button' : 'subtitle-editor-action' + (name === 'apply' ? ' is-primary' : '')));
         list[index].className = baseClass + (index === data.index ? ' is-focused' : '') +
           (name === 'loop' && data.loop ? ' is-active' : '');
       }

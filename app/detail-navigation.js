@@ -32,7 +32,7 @@
       } else if (state.zone === 'episodes') {
         if (direction === 'left') { state.episodeIndex = clamp(state.episodeIndex - 1, 0, Math.max(0, Number(options.episodeCount || 0) - 1)); effect = 'episode-preview'; }
         else if (direction === 'right') { state.episodeIndex = clamp(state.episodeIndex + 1, 0, Math.max(0, Number(options.episodeCount || 0) - 1)); effect = 'episode-preview'; }
-        else if (direction === 'up') { state.zone = options.mediaInfoOverflowing ? 'media-info' : (choices.length ? choices[choices.length - 1] : 'play'); }
+        else if (direction === 'up') { state.zone = choices.length ? choices[choices.length - 1] : 'play'; }
       } else if (state.zone === 'play') {
         if (direction === 'left') { state.actionIndex = clamp(state.actionIndex - 1, 0, Math.max(0, Number(options.actionCount || 4) - 1)); }
         else if (direction === 'right') { state.actionIndex = clamp(state.actionIndex + 1, 0, Math.max(0, Number(options.actionCount || 4) - 1)); }
@@ -43,15 +43,12 @@
       } else if (state.zone === 'summary') {
         if (direction === 'down') { state.zone = 'play'; state.actionIndex = 0; }
         else if (direction === 'up' && options.hasSeries) { state.zone = 'seasons'; }
-      } else if (state.zone === 'media-info') {
-        if (direction === 'up') { state.zone = choices.length ? choices[choices.length - 1] : 'play'; }
-        else if (direction === 'down' && options.hasSeries) { state.zone = 'episodes'; }
       } else if (state.zone === 'audio' || state.zone === 'subtitles' || state.zone === 'version') {
         choiceIndex = choices.indexOf(state.zone);
         if (choiceIndex === -1) { state.zone = 'play'; }
         else if (direction === 'left' || direction === 'right') { effect = 'cycle-' + state.zone + '-' + direction; }
         else if (direction === 'up') { state.zone = choiceIndex > 0 ? choices[choiceIndex - 1] : 'play'; }
-        else if (direction === 'down') { state.zone = choiceIndex < choices.length - 1 ? choices[choiceIndex + 1] : (options.mediaInfoOverflowing ? 'media-info' : (options.hasSeries ? 'episodes' : state.zone)); }
+        else if (direction === 'down') { state.zone = choiceIndex < choices.length - 1 ? choices[choiceIndex + 1] : (options.hasSeries ? 'episodes' : state.zone); }
       }
       return { state: snapshot(), effect: effect };
     }

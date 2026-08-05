@@ -106,14 +106,15 @@
 
   function save(storage, identity, value) {
     var normalized = normalize(value);
-    if (storage && storage.setItem && normalized) {
-      storage.setItem(storageKey(identity), JSON.stringify(normalized));
-    }
+    try {
+      if (storage && storage.setItem && normalized) { storage.setItem(storageKey(identity), JSON.stringify(normalized)); }
+    } catch (_error) {}
     return normalized;
   }
 
   function clear(storage, identity) {
-    if (storage && storage.removeItem) { storage.removeItem(storageKey(identity)); }
+    try { if (storage && storage.removeItem) { storage.removeItem(storageKey(identity)); } }
+    catch (_error) {}
   }
 
   function preferredSource(tracks, preference) {

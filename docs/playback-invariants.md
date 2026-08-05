@@ -54,6 +54,12 @@ change the playback clock model without reproducing every case below.
 
 ## Automated guards
 
+- `tests/test-playback-controller.js` locks the native lifecycle as one UMD
+  boundary: all eleven regression cases below, non-zero track/version rebuilds,
+  stream namespace rotation, reporting suppression, buffering reconciliation,
+  subtitle Apply/Cancel rollback, stale callback rejection, and idempotent
+  teardown. It also asserts that no legacy coordinator mutates native time,
+  source, stream offset, or Plex timeline state.
 - `tests/test-player-seek-controller.js` locks normalization, Direct Play
   `seekable` handling, buffered HLS seeking, target verification, pre-offset
   rebuild, native-duration validation, tolerance, and clock recovery behavior.
@@ -95,3 +101,35 @@ change the playback clock model without reproducing every case below.
     decoder must never oscillate between two native positions.
 11. Chapter selection: content and timer start at the selected chapter, then
     both backward and forward seeks remain responsive.
+
+## Queue boundary
+
+- Queue providers resolve occurrence targets and presentation windows only. They
+  must never call native video methods, replace `video.src`, assign
+  `video.currentTime`, rebuild streams, or report Plex timelines.
+- Manual Previous/Next and Up Next may pass a target to Player only after the
+  provider returns `available` or the user confirms a `confirmation-required`
+  gap. `resolving`, `unavailable`, failed, aborted, and stale results leave the
+  current playback untouched.
+- Series queues select one immutable scope at origin creation: regular seasons
+  exclude Specials, and Specials queues never cross into regular seasons.
+- Series drawer positions are logical provider positions. Resolving or focusing a
+  distant position may load its season segment, but must not hydrate every future
+  season or remap an occurrence after an evicted segment changes remotely.
+- The queue drawer may focus and activate any visible occurrence, including episodes
+  or playlist entries before the currently playing item. Its bounds are the queue
+  boundaries, not the current playback position.
+- Playlist and collection pagination preserves the absolute occurrence identity.
+  Repeated rating keys must never be merged into one logical queue record, and a
+  compatibility queue must never replace that absolute identity with its local
+  resident-window index.
+- Moving to another episode in the same series generation invalidates any pending
+  adjacent decision calculated for the previous occurrence. The completed season
+  metadata may remain cached, but its stale callback must not publish a target.
+- At the native end of the last queue occurrence, the automatic transition may
+  publish Home as a terminal semantic target. Confirming it closes playback before
+  entering Home; it must never be routed as a media item or touch the native video
+  outside `PlaybackController`.
+- Dismissing the terminal Home countdown preserves the completed frame and shows
+  the centered Pause overlay only while playback remains at the end. Rewinding or
+  leaving Player clears that overlay.

@@ -15,6 +15,21 @@
       viewState.index = limit ? Math.max(0, Math.min(limit - 1, Number(index) || 0)) : 0;
       return snapshot();
     }
+    function setFocused(target, focused) {
+      var className;
+      if (!target) { return; }
+      className = (' ' + String(target.className || '') + ' ').replace(/\sis-focused\s/g, ' ').replace(/\s+/g, ' ').replace(/^\s|\s$/g, '');
+      target.className = className + (focused ? (className ? ' ' : '') + 'is-focused' : '');
+    }
+    function updateFocus() {
+      var list = values.document.getElementById('server-editor-list');
+      var index;
+      if (!list) { return snapshot(); }
+      for (index = 0; index < list.children.length; index += 1) {
+        setFocused(list.children[index], index === viewState.index);
+      }
+      return snapshot();
+    }
     function row(label, className, index, action) {
       var button = values.element('button', className, label);
       button.type = 'button';
@@ -45,7 +60,7 @@
         values.keepFocusVisible(list, list.children[state.index]);
       }
     }
-    return { open: open, close: close, focus: focus, snapshot: snapshot, render: render };
+    return { open: open, close: close, focus: focus, updateFocus: updateFocus, snapshot: snapshot, render: render };
   }
   return { create: create };
 }));

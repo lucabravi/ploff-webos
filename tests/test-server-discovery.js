@@ -43,11 +43,48 @@ Discovery.probe({
 }, 'http://192.168.50.10:32400', 'Configured Plex', 1000, function (server) { failedProbe = server; });
 assert.strictEqual(failedProbe, null, 'a synchronous WebView request failure must degrade to an unavailable discovery candidate');
 
+var activeProbeXhr = null;
+var activeProbeCallbacks = 0;
+var activeProbe = Discovery.probe({
+  XMLHttpRequest: function () {
+    activeProbeXhr = this;
+    this.open = function () {};
+    this.send = function () {};
+    this.abort = function () { this.aborted = true; };
+  }
+}, 'http://192.168.50.11:32400', 'Cancelable Plex', 1000, function () { activeProbeCallbacks += 1; });
+assert.strictEqual(typeof activeProbe.abort, 'function', 'manual probes must expose the cancellation handle expected by their feature owner');
+activeProbe.abort();
+assert.strictEqual(activeProbeXhr.aborted, true, 'cancelling a manual probe must abort its native XHR');
+assert.strictEqual(activeProbeXhr.onreadystatechange, null, 'cancelled probes must release their ready-state callback');
+assert.strictEqual(activeProbeXhr.onerror, null, 'cancelled probes must release their network callback');
+assert.strictEqual(activeProbeXhr.ontimeout, null, 'cancelled probes must release their timeout callback');
+assert.strictEqual(activeProbeCallbacks, 0, 'cancelled probes must not report an unavailable server after their owner has left');
+
 var failedServiceDiscovery = 'pending';
 Discovery.discover({
   XMLHttpRequest: function () {},
   webOS: { service: { request: function () { throw new Error('service unavailable'); } } }
 }, {}, function (servers) { failedServiceDiscovery = servers; });
 assert.deepStrictEqual(failedServiceDiscovery, [], 'an unavailable webOS discovery service must leave manual and account setup usable');
+
+var serviceRequest = null;
+var serviceDiscovery = 'pending';
+Discovery.discover({
+  XMLHttpRequest: function () {},
+  webOS: {
+    service: {
+      request: function (service, options) {
+        serviceRequest = { service: service, method: options.method };
+        options.onSuccess({ servers: [{ name: 'Local Plex', uri: 'http://192.168.0.7:32400' }] });
+      }
+    }
+  }
+}, {}, function (servers) { serviceDiscovery = servers; });
+assert.deepStrictEqual(serviceRequest, {
+  service: 'luna://io.github.rhapsodos.ploff.discovery',
+  method: 'discover'
+}, 'the official webOS service API must receive the base Luna service and method separately');
+assert.strictEqual(serviceDiscovery.length, 1, 'successful webOS GDM discovery must return local Plex servers');
 
 console.log('Server discovery checks passed');

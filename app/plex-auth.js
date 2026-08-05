@@ -1,11 +1,11 @@
 (function (root, factory) {
   'use strict';
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(require('./plex-http'));
   } else {
-    root.PloffPlexAuth = factory();
+    root.PloffPlexAuth = factory(root.PloffPlexHttp);
   }
-}(this, function () {
+}(this, function (PlexHttp) {
   'use strict';
 
   var CLIENT_ID_KEY = 'ploff.clientIdentifier.v1';
@@ -68,6 +68,36 @@
     return /^https?:\/\//i.test(uri) ? uri : '';
   }
 
+  function decodedLocalPlexUri(value) {
+    var uri = normalizedConnectionUri(value);
+    var match = uri.match(/^https?:\/\/([^/:]+)(:\d+)?(\/.*)?$/i);
+    var host;
+    var encodedAddress;
+    var parts;
+    var index;
+    var first;
+    var second;
+    var localAddress = false;
+    if (!match) { return ''; }
+    host = match[1];
+    if (!/(?:\.plex\.direct|\.plex\.tv)$/i.test(host)) { return ''; }
+    encodedAddress = host.match(/^(\d{1,3}(?:-\d{1,3}){3})\./);
+    if (!encodedAddress) { return ''; }
+    parts = encodedAddress[1].split('-').map(function (part) { return Number(part); });
+    for (index = 0; index < parts.length; index += 1) {
+      if (!isFinite(parts[index]) || parts[index] < 0 || parts[index] > 255) { return ''; }
+    }
+    first = parts[0];
+    second = parts[1];
+    localAddress = first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168);
+    if (!localAddress) { return ''; }
+    return 'http://' + parts.join('.') + (match[2] || ':32400') + (match[3] || '');
+  }
+
   function orderedConnectionRoutes(values) {
     var source = Object.prototype.toString.call(values) === '[object Array]' ? values : [];
     var ranked = [];
@@ -75,11 +105,24 @@
     var index;
     var connection;
     var uri;
+    var localUri;
     var rank;
     for (index = 0; index < source.length; index += 1) {
       connection = typeof source[index] === 'string' ? { uri: source[index] } : (source[index] || {});
       uri = normalizedConnectionUri(connection.uri);
-      if (!uri || seen[uri]) { continue; }
+      if (!uri) { continue; }
+      localUri = decodedLocalPlexUri(uri);
+      if (localUri && !seen[localUri]) {
+        seen[localUri] = true;
+        ranked.push({
+          uri: localUri,
+          local: true,
+          relay: false,
+          rank: 0,
+          index: index - 0.5
+        });
+      }
+      if (seen[uri]) { continue; }
       seen[uri] = true;
       rank = connection.local === true ? 0 : (connection.relay === true ? 2 : 1);
       ranked.push({
@@ -164,42 +207,23 @@
   }
 
   function requestXml(rootObject, method, url, options, token, callback, accept) {
-    var xhr = new rootObject.XMLHttpRequest();
-    var nativeAbort = xhr.abort;
-    var headers = baseHeaders(options);
-    var finished = false;
+    var source = baseHeaders(options);
+    var headers = {};
     var name;
-    function done(error, body) {
-      if (finished) { return; }
-      finished = true;
-      callback(error || null, body || '');
+    for (name in source) {
+      if (Object.prototype.hasOwnProperty.call(source, name) && source[name]) { headers[name] = source[name]; }
     }
-    try {
-      xhr.open(method, url, true);
-      xhr.timeout = Number(options && options.timeout || 5000);
-      for (name in headers) {
-        if (Object.prototype.hasOwnProperty.call(headers, name) && headers[name]) { xhr.setRequestHeader(name, headers[name]); }
-      }
-      if (accept) { xhr.setRequestHeader('Accept', accept); }
-      if (token) { xhr.setRequestHeader('X-Plex-Token', token); }
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState !== 4) { return; }
-        if (xhr.status >= 200 && xhr.status < 300) { done(null, xhr.responseText); }
-        else { done(new Error('Plex authentication failed with status ' + xhr.status)); }
-      };
-      xhr.onerror = function () { done(new Error('Plex authentication network error')); };
-      xhr.ontimeout = function () { done(new Error('Plex authentication timed out')); };
-      xhr.send();
-    } catch (error) {
-      (rootObject.setTimeout || setTimeout)(function () { done(error); }, 0);
-    }
-    return {
-      abort: function () {
-        if (finished) { return; }
-        finished = true;
-        if (nativeAbort) { nativeAbort.call(xhr); }
-      }
-    };
+    if (accept) { headers.Accept = accept; }
+    if (token) { headers['X-Plex-Token'] = token; }
+    return PlexHttp.request(rootObject, {
+      method: method,
+      url: url,
+      timeout: Number(options && options.timeout || 5000),
+      headers: headers,
+      statusError: function (status) { return new Error('Plex authentication failed with status ' + status); },
+      networkError: 'Plex authentication network error',
+      timeoutError: 'Plex authentication timed out'
+    }, function (error, body) { callback(error || null, body || ''); });
   }
 
   function endpoint(options, path) {

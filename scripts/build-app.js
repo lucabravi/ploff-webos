@@ -2,34 +2,68 @@
 
 var fs = require('fs');
 var path = require('path');
+var Minifier = require('./minify-javascript');
 
-var SOURCE_FILES = [
-  '00-runtime.js',
-  '10-shell-home.js',
-  '20-search.js',
-  '30-library.js',
-  '40-settings.js',
-  '42-server.js',
-  '45-setup.js',
-  '46-server-actions.js',
-  '47-settings-navigation.js',
-  '48-diagnostics.js',
-  '50-detail.js',
-  '60-player-controls.js',
-  '65-player-subtitles-playback.js',
-  '69-playlist-queue.js',
-  '70-input-bootstrap.js'
+var MODULE_FILES = [
+  'plex-feature-ports.js',
+  'presentation-services.js',
+  'choice-dialog-controller.js',
+  'media-info-dialog-controller.js',
+  'settings-controller.js',
+  'settings-feature-controller.js',
+  'diagnostics-controller.js',
+  'diagnostics-feature-controller.js',
+  'setup-feature-controller.js',
+  'server-controller.js',
+  'server-feature-controller.js',
+  'search-controller.js',
+  'search-feature-controller.js',
+  'shell-controller.js',
+  'shell-feature-controller.js',
+  'library-controller.js',
+  'library-feature-controller.js',
+  'detail-controller.js',
+  'detail-feature-controller.js',
+  'queue-sequence-contract.js',
+  'bounded-queue-cache.js',
+  'plex-container-queue-provider.js',
+  'series-queue-provider.js',
+  'queue-gap-controller.js',
+  'playback-queue-controller.js',
+  'player-controls-controller.js',
+  'playback-controller.js',
+  'player-feature-controller.js',
+  'input-controller.js',
+  'pointer-controller.js',
+  'application-controller.js',
+  'application-bootstrap.js'
 ];
 
 function bundle(parts) {
   return parts.join('');
 }
 
-function readBundle(root) {
-  var sourceDirectory = path.join(root, 'app', 'source');
-  return bundle(SOURCE_FILES.map(function (fileName) {
-    return fs.readFileSync(path.join(sourceDirectory, fileName), 'utf8');
-  }));
+function compactSource(source) {
+  var value = String(source || '');
+  if (/\\\r?\n/.test(value)) { throw new Error('Bundle compaction does not support JavaScript line continuations'); }
+  return value
+    .replace(/^[\t ]*\r?\n/gm, '')
+    .replace(/^[\t ]+/gm, '')
+    .replace(/[\t ]+$/gm, '');
+}
+
+function readFiles(root, files) {
+  return files.map(function (fileName) {
+    return compactSource(fs.readFileSync(path.join(root, 'app', 'coordinator', fileName), 'utf8'));
+  });
+}
+
+function readSourceBundle(root, moduleFiles) {
+  return bundle(readFiles(root, moduleFiles || MODULE_FILES));
+}
+
+function readBundle(root, moduleFiles) {
+  return Minifier.minifySource(readSourceBundle(root, moduleFiles));
 }
 
 function outputPath(root) {
@@ -63,9 +97,11 @@ if (require.main === module) {
 }
 
 module.exports = {
-  SOURCE_FILES: SOURCE_FILES,
+  MODULE_FILES: MODULE_FILES,
   bundle: bundle,
+  compactSource: compactSource,
   check: check,
   readBundle: readBundle,
+  readSourceBundle: readSourceBundle,
   write: write
 };

@@ -6,6 +6,7 @@ var HomeState = require('../app/home-state');
 var rows = [{
   title: 'Continue Watching',
   shape: 'poster',
+  showLibraryBadge: true,
   items: [
     { ratingKey: '10', title: 'Alpha', meta: 'Season 1', image: '/alpha', progress: 25 },
     { ratingKey: '20', title: 'Beta', meta: 'Movie', image: '/beta', viewed: true }
@@ -18,6 +19,7 @@ var rows = [{
 
 var normalized = HomeState.normalizeRows(rows);
 assert.strictEqual(normalized.length, 1, 'empty Home rows must not enter render state');
+assert.strictEqual(normalized[0].showLibraryBadge, true, 'Home normalization must retain mixed-library badge semantics');
 assert.strictEqual(HomeState.mediaKey(normalized[0].items[0]), 'rating:10', 'Plex rating keys must provide stable card identity');
 assert.strictEqual(HomeState.fingerprintRows(normalized), HomeState.fingerprintRows(HomeState.normalizeRows(rows)), 'equivalent Home data must have a stable fingerprint');
 
@@ -31,6 +33,21 @@ assert.deepStrictEqual(
   HomeState.restoreFocus(reordered, { area: 'media', navIndex: 0, rowIndex: 0, column: 1 }, selection),
   { area: 'media', navIndex: 0, rowIndex: 0, column: 0 },
   'Home refreshes must preserve focus by media identity when cards move'
+);
+
+var movedToAnotherRow = [{ title: 'Because You Watched', shape: 'poster', items: [normalized[0].items[1]] }, {
+  title: 'Continue Watching', shape: 'poster', items: [normalized[0].items[0]]
+}];
+assert.deepStrictEqual(
+  HomeState.restoreFocus(movedToAnotherRow, { area: 'media', navIndex: 0, rowIndex: 0, column: 1 }, selection),
+  { area: 'media', navIndex: 0, rowIndex: 0, column: 0 },
+  'a media item that leaves its original Home row must not steal focus from another row'
+);
+assert.deepStrictEqual(
+  HomeState.restoreFocus([{ title: 'Recently Added', shape: 'poster', items: [{ ratingKey: '30', title: 'Gamma' }] }],
+    { area: 'media', navIndex: 0, rowIndex: 3, column: 4 }, selection),
+  { area: 'media', navIndex: 0, rowIndex: 0, column: 0 },
+  'a missing Home selection must fall back to the first available media item'
 );
 
 var requests = [];
@@ -60,6 +77,20 @@ coordinator.refresh();
 coordinator.reset();
 requests[3](null, rows);
 assert.strictEqual(results.length, 3, 'responses from a reset server or profile generation must be ignored');
+
+var abortCount = 0;
+var abortedCallbacks = [];
+var abortedResults = 0;
+var abortingCoordinator = HomeState.createRefreshCoordinator(function (callback) {
+  abortedCallbacks.push(callback);
+  return { abort: function () { abortCount += 1; } };
+}, function () { abortedResults += 1; });
+abortingCoordinator.refresh();
+abortingCoordinator.reset();
+assert.strictEqual(abortCount, 1, 'resetting Home must abort the active transport request');
+assert.strictEqual(abortingCoordinator.isLoading(), false, 'resetting Home must clear the loading state immediately');
+abortedCallbacks[0](null, rows);
+assert.strictEqual(abortedResults, 0, 'an aborted Home request must not publish a stale result');
 
 function fakeClock() {
   var nextId = 1;

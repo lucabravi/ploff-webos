@@ -16,17 +16,24 @@
   function create(options) {
     var values = options || {};
     var documentRef = values.document;
+    var catalogNodesByIndex = {};
+    var recommendationNodesByPosition = {};
     var state = {
       mode: 'catalog', usesGridScroll: true, contentActive: true,
       items: [], recommendations: [], totalSize: 0,
       focus: { zone: 'grid', index: 0, recommendationRow: 0 },
       layout: { columns: 1, visibleRows: 1, totalRows: 0, cardWidth: 0, cardHeight: 0 },
       window: { start: 0, end: 0, visibleStartRow: 0, offsetRows: 0 },
-      scrollTimer: null
+      renderedFocus: { mode: '', index: -1, recommendationRow: -1 },
+      renderToken: 0,
+      scrollTimer: null, scrollUsesAnimationFrame: false
     };
 
     function node(id) { return documentRef && documentRef.getElementById ? documentRef.getElementById(id) : null; }
-    function metrics() { return values.cardMetrics ? values.cardMetrics() : { width: 200, imageHeight: 300, columnStep: 220, rowStep: 360 }; }
+    function profile() {
+      var current = values.cardProfile ? values.cardProfile() : null;
+      return current || { metrics: values.cardMetrics ? values.cardMetrics() : { width: 200, imageHeight: 300, columnStep: 220, rowStep: 360 }, poster: null };
+    }
     function element(tagName, className, text) {
       if (values.element) { return values.element(tagName, className, text); }
       var value = documentRef.createElement(tagName);
@@ -42,77 +49,257 @@
     function pointerSelectionActive() { return values.pointerSelectionActive ? values.pointerSelectionActive() : false; }
 
     function updateText(target, text) {
-      if (target) { target.textContent = String(text || ''); }
+      var value = String(text || '');
+      if (target && target.textContent !== value) { target.textContent = value; }
+    }
+
+    function updateAttribute(target, key, value) {
+      value = String(value);
+      if (target && target.getAttribute(key) !== value) { target.setAttribute(key, value); }
     }
 
     function card(index, item, recommendationRow) {
       var result = element('button', 'library-card' + (recommendationRow !== undefined ? ' library-recommendation-card' : ''));
       var image = element('img', 'library-card-image');
       var caption = element('span', 'library-card-caption');
+      var title = element('span', 'library-card-title');
+      var meta = element('span', 'library-card-meta');
+      var detail = element('span', 'library-card-detail');
       image.alt = '';
       result.type = 'button';
       result.appendChild(image);
-      caption.appendChild(element('span', 'library-card-title'));
-      caption.appendChild(element('span', 'library-card-meta'));
-      caption.appendChild(element('span', 'library-card-detail'));
+      caption.appendChild(title);
+      caption.appendChild(meta);
+      caption.appendChild(detail);
       result.appendChild(caption);
-      updateCard(result, index, item, recommendationRow);
+      result.__ploffLibraryParts = { image: image, caption: caption, title: title, meta: meta, detail: detail, ratingBadge: null, libraryBadge: null, progress: null, progressValue: null };
       return result;
     }
 
-    function updateProgress(target, item) {
-      var progress = target.querySelector('.progress-track');
-      var value;
-      if (typeof item.progress === 'number') {
-        if (!progress) {
-          progress = element('span', 'progress-track');
-          progress.appendChild(element('span', 'progress-value'));
-          target.appendChild(progress);
-        }
-        value = progress.querySelector('.progress-value');
-        if (value) { value.style.width = clamp(item.progress, 0, 100) + '%'; }
-      } else if (progress && progress.parentNode) {
-        progress.parentNode.removeChild(progress);
-      }
+    function cardParts(target) {
+      var parts = target.__ploffLibraryParts;
+      if (parts) { return parts; }
+      parts = {
+        image: target.getElementsByTagName('img')[0] || null,
+        caption: target.querySelector('.library-card-caption'),
+        title: target.querySelector('.library-card-title'),
+        meta: target.querySelector('.library-card-meta'),
+        detail: target.querySelector('.library-card-detail'),
+        ratingBadge: target.querySelector('.library-rating-badge'),
+        libraryBadge: target.querySelector('.library-source-badge'),
+        progress: target.querySelector('.progress-track'),
+        progressValue: target.querySelector('.progress-value')
+      };
+      target.__ploffLibraryParts = parts;
+      return parts;
     }
 
-    function updateCard(target, index, item, recommendationRow) {
-      var badge = target.querySelector('.library-rating-badge');
-      var caption = target.querySelector('.library-card-caption');
+    function presentationVersion() { return values.presentationVersion ? values.presentationVersion() : ''; }
+
+    function presentationCache(item, version) {
+      item = item || {};
+      return {
+        item: item,
+        version: version,
+        title: item.title,
+        titleKey: item.titleKey,
+        titleParameters: item.titleParameters,
+        originalTitle: item.originalTitle,
+        parentTitle: item.parentTitle,
+        grandparentTitle: item.grandparentTitle,
+        year: item.year,
+        index: item.index,
+        parentIndex: item.parentIndex,
+        leafCount: item.leafCount,
+        childCount: item.childCount,
+        meta: item.meta,
+        metaKey: item.metaKey,
+        metaParameters: item.metaParameters,
+        metaNumber: item.metaParameters && item.metaParameters.number,
+        detail: item.detail,
+        detailKey: item.detailKey,
+        detailParameters: item.detailParameters,
+        seasonCount: item.seasonCount,
+        genre: item.genre,
+        rating: item.rating,
+        progress: item.progress,
+        viewOffset: item.viewOffset,
+        duration: item.duration,
+        viewed: item.viewed === true,
+        image: item.image,
+        libraryTitle: item.libraryTitle
+      };
+    }
+
+    function currentPresentationCache(cache, item, version) {
+      return cache && cache.item === item && cache.version === version &&
+        cache.title === item.title && cache.titleKey === item.titleKey && cache.titleParameters === item.titleParameters &&
+        cache.originalTitle === item.originalTitle && cache.parentTitle === item.parentTitle &&
+        cache.grandparentTitle === item.grandparentTitle && cache.year === item.year && cache.index === item.index &&
+        cache.parentIndex === item.parentIndex && cache.leafCount === item.leafCount && cache.childCount === item.childCount &&
+        cache.meta === item.meta && cache.metaKey === item.metaKey && cache.metaParameters === item.metaParameters &&
+        cache.metaNumber === (item.metaParameters && item.metaParameters.number) && cache.detail === item.detail &&
+        cache.detailKey === item.detailKey && cache.detailParameters === item.detailParameters &&
+        cache.seasonCount === item.seasonCount && cache.genre === item.genre && cache.rating === item.rating && cache.progress === item.progress &&
+        cache.viewOffset === item.viewOffset && cache.duration === item.duration && cache.viewed === (item.viewed === true) && cache.image === item.image && cache.libraryTitle === item.libraryTitle;
+    }
+
+    function presentation(item) {
+      var title = mediaTitle(item);
       var meta = mediaMeta(item);
       var detail = mediaDetail(item);
-      target.setAttribute('data-media-key', mediaKey(item));
-      target.setAttribute('aria-label', [mediaTitle(item), meta, detail].filter(function (value) { return !!value; }).join(', '));
-      if (recommendationRow === undefined) { target.setAttribute('data-library-index', index); }
-      else {
-        target.setAttribute('data-library-recommendation-row', recommendationRow);
-        target.setAttribute('data-library-recommendation-column', index);
+      var rating = typeof item.rating === 'number' && !isNaN(item.rating) ? item.rating.toFixed(1) : '';
+      var progress = typeof item.progress === 'number' ? clamp(item.progress, 0, 100) : null;
+      var libraryTitle = values.showLibraryBadge && values.showLibraryBadge() ? String(item.libraryTitle || '') : '';
+      return {
+        key: mediaKey(item),
+        title: title,
+        meta: meta,
+        detail: detail,
+        aria: [title, meta, detail, libraryTitle].filter(function (value) { return !!value; }).join(', '),
+        rating: rating,
+        progress: progress,
+        viewed: item.viewed === true,
+        image: String(item.image || ''),
+        libraryTitle: libraryTitle
+      };
+    }
+
+    function cardPresentation(target, item, version) {
+      if (target && currentPresentationCache(target.__ploffLibraryPresentationCache, item, version) && target.__ploffLibraryPresentation) {
+        return target.__ploffLibraryPresentation;
       }
-      updateText(target.querySelector('.library-card-title'), mediaTitle(item));
-      updateText(target.querySelector('.library-card-meta'), meta);
-      updateText(target.querySelector('.library-card-detail'), detail);
-      if (typeof item.rating === 'number' && !isNaN(item.rating)) {
-        if (!badge) {
-          badge = element('span', 'library-rating-badge');
-          target.insertBefore(badge, caption);
+      if (target) { target.__ploffLibraryPresentationCache = presentationCache(item, version); }
+      return presentation(item);
+    }
+
+    function samePresentation(left, right) {
+      return left && right && left.key === right.key && left.title === right.title && left.meta === right.meta &&
+        left.detail === right.detail && left.aria === right.aria && left.rating === right.rating &&
+        left.progress === right.progress && left.viewed === right.viewed && left.image === right.image &&
+        left.libraryTitle === right.libraryTitle;
+    }
+
+    function updateProgress(target, progress, parts) {
+      if (progress !== null) {
+        if (!parts.progress) {
+          parts.progress = element('span', 'progress-track');
+          parts.progressValue = element('span', 'progress-value');
+          parts.progress.appendChild(parts.progressValue);
+          target.appendChild(parts.progress);
         }
-        updateText(badge, '\u2665 ' + item.rating.toFixed(1));
-      } else if (badge && badge.parentNode) {
-        badge.parentNode.removeChild(badge);
+        if (parts.progressValue && parts.progressValue.style.width !== progress + '%') { parts.progressValue.style.width = progress + '%'; }
+      } else if (parts.progress && parts.progress.parentNode) {
+        parts.progress.parentNode.removeChild(parts.progress);
+        parts.progress = null;
+        parts.progressValue = null;
       }
-      updateProgress(target, item);
     }
 
-    function queuePoster(target, item, priority, jobs, scope) {
-      var image = target.getElementsByTagName('img')[0];
+    function updateCard(target, index, item, recommendationRow, nextPresentation) {
+      var parts = cardParts(target);
+      var previous = target.__ploffLibraryPresentation;
+      updateAttribute(target, 'data-media-key', nextPresentation.key);
+      if (recommendationRow === undefined) { updateAttribute(target, 'data-library-index', index); }
+      else {
+        updateAttribute(target, 'data-library-recommendation-row', recommendationRow);
+        updateAttribute(target, 'data-library-recommendation-column', index);
+      }
+      if (samePresentation(previous, nextPresentation)) { return false; }
+      updateAttribute(target, 'aria-label', nextPresentation.aria);
+      updateText(parts.title, nextPresentation.title);
+      updateText(parts.meta, nextPresentation.meta);
+      updateText(parts.detail, nextPresentation.detail);
+      if (nextPresentation.rating) {
+        if (!parts.ratingBadge) {
+          parts.ratingBadge = element('span', 'library-rating-badge');
+          target.insertBefore(parts.ratingBadge, parts.caption);
+        }
+        updateText(parts.ratingBadge, '♥ ' + nextPresentation.rating);
+      } else if (parts.ratingBadge && parts.ratingBadge.parentNode) {
+        parts.ratingBadge.parentNode.removeChild(parts.ratingBadge);
+        parts.ratingBadge = null;
+      }
+      if (nextPresentation.libraryTitle) {
+        if (!parts.libraryBadge) {
+          parts.libraryBadge = element('span', 'library-source-badge media-library-badge');
+          target.insertBefore(parts.libraryBadge, parts.caption);
+        }
+        updateText(parts.libraryBadge, nextPresentation.libraryTitle);
+      } else if (parts.libraryBadge && parts.libraryBadge.parentNode) {
+        parts.libraryBadge.parentNode.removeChild(parts.libraryBadge);
+        parts.libraryBadge = null;
+      }
+      updateProgress(target, nextPresentation.progress, parts);
+      target.__ploffLibraryPresentation = nextPresentation;
+      return true;
+    }
+
+    function cancelPoster(target) {
+      var image = target && cardParts(target).image;
+      if (!image) { return; }
+      if (values.posterLoader && values.posterLoader.cancel) { values.posterLoader.cancel(image); }
+      image.__ploffLibraryPoster = null;
+    }
+
+    function queuePoster(target, source, priority, jobs, scope, cardLayout, previewOnly) {
+      var image = cardParts(target).image;
+      var previous;
+      var next;
+      var shouldQueue;
+      var specification;
       if (!image || !values.renderedPosterSpecification) { return; }
-      jobs.push({ target: image, specification: values.renderedPosterSpecification(image, item.image, priority, scope || 'library', metrics().width, metrics().imageHeight) });
+      next = {
+        source: source,
+        priority: priority,
+        scope: scope || 'library',
+        width: cardLayout.metrics.width,
+        height: cardLayout.metrics.imageHeight,
+        previewOnly: previewOnly === true
+      };
+      previous = image.__ploffLibraryPoster;
+      shouldQueue = !previous || previous.source !== next.source || previous.scope !== next.scope ||
+        previous.width !== next.width || previous.height !== next.height ||
+        previous.previewOnly === true && next.previewOnly === false;
+      image.__ploffLibraryPoster = next;
+      if (!shouldQueue && previous && next.priority < previous.priority) {
+        if (values.posterLoader && values.posterLoader.prioritize) { values.posterLoader.prioritize(image, next.priority); }
+        return;
+      }
+      if (shouldQueue) {
+        specification = values.fixedPosterSpecification && cardLayout.poster
+          ? values.fixedPosterSpecification(next.source, cardLayout.poster, next.priority, next.scope)
+          : values.renderedPosterSpecification(image, next.source, next.priority, next.scope, next.width, next.height);
+        specification.previewOnly = next.previewOnly;
+        jobs.push({ target: image, specification: specification });
+      }
     }
 
-    function applyCatalogFocus(target, index, item, visibleStart, visibleEnd, jobs) {
+    function applyCatalogFocus(target, index, nextPresentation, visibleStart, visibleEnd, fullStart, fullEnd, jobs, cardLayout) {
       var focused = state.contentActive && state.focus.index === index;
-      target.className = 'library-card' + (item.viewed ? ' is-viewed' : '') + (focused ? ' is-focused' : '');
-      queuePoster(target, item, focused ? 0 : (index >= visibleStart && index < visibleEnd ? 1 : 2), jobs);
+      var visible = index >= visibleStart && index < visibleEnd;
+      var fullArtwork = focused || index >= fullStart && index < fullEnd;
+      var priority = focused ? 0 : (visible ? 1 : (fullArtwork ? 2 : 3));
+      var className = 'library-card' + (nextPresentation.viewed ? ' is-viewed' : '') + (focused ? ' is-focused' : '');
+      if (target.className !== className) { target.className = className; }
+      queuePoster(target, nextPresentation.image, priority, jobs, 'library', cardLayout, !fullArtwork);
+    }
+
+    function claimNode(target, token) {
+      if (!target || target.__ploffLibraryRenderToken === token) { return null; }
+      target.__ploffLibraryRenderToken = token;
+      return target;
+    }
+
+    function claimKeyed(nodes, key, token) {
+      var list = nodes[key] || [];
+      var index;
+      var target;
+      for (index = 0; index < list.length; index += 1) {
+        target = claimNode(list[index], token);
+        if (target) { return target; }
+      }
+      return null;
     }
 
     function catalogWindow(container, layout, cardMetrics) {
@@ -128,70 +315,126 @@
       return String(row && (row.identifier || row.key || row.title) || index);
     }
 
-    function renderCatalog() {
+    function renderCatalog(force, currentProfile) {
       var container = node('library-grid');
       var content = node('library-grid-content');
-      var cardMetrics = metrics();
-      var existing = {};
+      var cardLayout = currentProfile || profile();
+      var cardMetrics = cardLayout.metrics;
+      var existingByIndex = {};
       var existingByKey = {};
-      var used = [];
+      var existingNodes = [];
+      var freeNodes = [];
+      var records = [];
       var children;
       var index;
+      var position;
       var target;
+      var current;
       var visibleStart;
       var visibleEnd;
+      var fullStart;
+      var fullEnd;
       var jobs = [];
-      if (!container || !content) { return; }
+      var nextLayout;
+      var nextWindow;
+      var unchanged;
+      var token;
+      var nextPresentation;
+      var left;
+      var top;
+      var width;
+      var version;
+      if (!container || !content) { return false; }
+      nextLayout = (values.SearchModel || {}).measureLayout((container.clientWidth || 1612) - 12, container.clientHeight || 600, cardMetrics.columnStep, cardMetrics.rowStep, state.items.length);
+      nextLayout.visibleRows = state.usesGridScroll ? Math.max(1, Math.ceil((container.clientHeight || 600) / cardMetrics.rowStep)) : 1;
+      nextLayout.cardWidth = cardMetrics.width;
+      nextLayout.cardHeight = cardMetrics.rowStep;
+      if (state.usesGridScroll) {
+        nextWindow = catalogWindow(container, nextLayout, cardMetrics);
+        content.className = 'library-grid-content is-catalog';
+        if (content.style.height !== (nextLayout.totalRows * cardMetrics.rowStep) + 'px') { content.style.height = (nextLayout.totalRows * cardMetrics.rowStep) + 'px'; }
+      } else {
+        nextWindow = values.SearchModel.virtualWindow(state.focus.index, state.items.length, nextLayout.columns, nextLayout.visibleRows, values.overscanRows === undefined ? 3 : values.overscanRows, state.window.visibleStartRow);
+        content.className = 'library-grid-content';
+        if (content.style.height !== 'auto') { content.style.height = 'auto'; }
+      }
+      unchanged = state.layout.columns === nextLayout.columns && state.layout.visibleRows === nextLayout.visibleRows &&
+        state.layout.cardWidth === nextLayout.cardWidth && state.layout.cardHeight === nextLayout.cardHeight &&
+        state.window.start === nextWindow.start && state.window.end === nextWindow.end &&
+        state.window.visibleStartRow === nextWindow.visibleStartRow && state.window.offsetRows === nextWindow.offsetRows;
+      state.layout = nextLayout;
+      state.window = nextWindow;
+      if (force === false && unchanged) { return false; }
       children = content.children;
       for (index = 0; index < children.length; index += 1) {
-        if (children[index].hasAttribute('data-library-index')) {
-          existing[children[index].getAttribute('data-library-index')] = children[index];
-          existingByKey[children[index].getAttribute('data-media-key')] = children[index];
-        }
+        target = children[index];
+        if (!target.hasAttribute('data-library-index')) { continue; }
+        existingNodes.push(target);
+        existingByIndex[target.getAttribute('data-library-index')] = target;
+        current = String(target.getAttribute('data-media-key') || '');
+        if (!existingByKey[current]) { existingByKey[current] = []; }
+        existingByKey[current].push(target);
       }
-      state.layout = (values.SearchModel || {}).measureLayout((container.clientWidth || 1612) - 12, container.clientHeight || 600, cardMetrics.columnStep, cardMetrics.rowStep, state.items.length);
-      state.layout.visibleRows = state.usesGridScroll ? Math.max(1, Math.ceil((container.clientHeight || 600) / cardMetrics.rowStep)) : 1;
-      state.layout.cardWidth = cardMetrics.width;
-      state.layout.cardHeight = cardMetrics.rowStep;
-      if (state.usesGridScroll) {
-        state.window = catalogWindow(container, state.layout, cardMetrics);
-        content.className = 'library-grid-content is-catalog';
-        content.style.height = (state.layout.totalRows * cardMetrics.rowStep) + 'px';
-      } else {
-        state.window = values.SearchModel.virtualWindow(state.focus.index, state.items.length, state.layout.columns, state.layout.visibleRows, values.overscanRows === undefined ? 3 : values.overscanRows, state.window.visibleStartRow);
-        content.className = 'library-grid-content';
-        content.style.height = 'auto';
-      }
+      token = state.renderToken += 1;
+      version = presentationVersion();
       visibleStart = state.window.visibleStartRow * state.layout.columns;
       visibleEnd = Math.min(state.items.length, visibleStart + state.layout.visibleRows * state.layout.columns);
+      fullStart = Math.max(0, visibleStart - state.layout.columns);
+      fullEnd = Math.min(state.items.length, visibleEnd + state.layout.columns);
       for (index = state.window.start; index < state.window.end; index += 1) {
-        target = existingByKey[mediaKey(state.items[index])];
-        if (target && used.indexOf(target) !== -1) { target = null; }
-        if (!target) {
-          target = existing[index];
-          if (target && used.indexOf(target) !== -1) { target = null; }
+        current = mediaKey(state.items[index]);
+        target = claimKeyed(existingByKey, current, token) || claimNode(existingByIndex[index], token);
+        nextPresentation = target ? cardPresentation(target, state.items[index], version) : null;
+        records.push({ index: index, item: state.items[index], presentation: nextPresentation, target: target });
+      }
+      for (index = 0; index < existingNodes.length; index += 1) {
+        if (existingNodes[index].__ploffLibraryRenderToken !== token) { freeNodes.push(existingNodes[index]); }
+      }
+      for (index = 0; index < freeNodes.length; index += 1) { cancelPoster(freeNodes[index]); }
+      position = 0;
+      for (index = 0; index < records.length; index += 1) {
+        if (!records[index].target) {
+          records[index].target = freeNodes[position] || card(records[index].index, records[index].item);
+          records[index].target.__ploffLibraryRenderToken = token;
+          position += 1;
         }
-        if (!target) { target = card(index, state.items[index]); }
-        used.push(target);
-        updateCard(target, index, state.items[index]);
-        applyCatalogFocus(target, index, state.items[index], visibleStart, visibleEnd, jobs);
+        if (!records[index].presentation) { records[index].presentation = cardPresentation(records[index].target, records[index].item, version); }
+      }
+      for (index = 0; index < freeNodes.length; index += 1) {
+        if (freeNodes[index].parentNode === content) { content.removeChild(freeNodes[index]); }
+      }
+      catalogNodesByIndex = {};
+      for (index = 0; index < records.length; index += 1) {
+        target = records[index].target;
+        catalogNodesByIndex[records[index].index] = target;
+        updateCard(target, records[index].index, records[index].item, undefined, records[index].presentation);
+        applyCatalogFocus(target, records[index].index, records[index].presentation, visibleStart, visibleEnd, fullStart, fullEnd, jobs, cardLayout);
         if (state.usesGridScroll) {
-          target.style.left = ((index % state.layout.columns) * cardMetrics.columnStep) + 'px';
-          target.style.top = (Math.floor(index / state.layout.columns) * cardMetrics.rowStep) + 'px';
-          target.style.width = cardMetrics.width + 'px';
-        } else { target.style.left = ''; target.style.top = ''; target.style.width = ''; }
-        content.appendChild(target);
+          left = ((records[index].index % state.layout.columns) * cardMetrics.columnStep) + 'px';
+          top = (Math.floor(records[index].index / state.layout.columns) * cardMetrics.rowStep) + 'px';
+          width = cardMetrics.width + 'px';
+        } else { left = ''; top = ''; width = ''; }
+        if (target.style.left !== left) { target.style.left = left; }
+        if (target.style.top !== top) { target.style.top = top; }
+        if (target.style.width !== width) { target.style.width = width; }
       }
-      for (index = content.children.length - 1; index >= 0; index -= 1) {
-        if (used.indexOf(content.children[index]) === -1) { content.removeChild(content.children[index]); }
+      for (position = 0; position < records.length; position += 1) {
+        target = records[position].target;
+        current = content.children[position];
+        if (current === target) { continue; }
+        if (current) { content.insertBefore(target, current); }
+        else { content.appendChild(target); }
       }
-      if (values.posterLoader && values.posterLoader.loadBatch) { values.posterLoader.loadBatch(jobs); }
+      while (content.children.length > records.length) { content.removeChild(content.children[content.children.length - 1]); }
+      if (jobs.length && values.posterLoader && values.posterLoader.loadBatch) { values.posterLoader.loadBatch(jobs); }
+      return true;
     }
 
     function renderRecommendations() {
       var container = node('library-recommended');
       var grid = node('library-grid');
       var jobs = [];
+      var cardLayout;
       var existingSections = {};
       var usedSections = [];
       var existingCards;
@@ -205,8 +448,13 @@
       var row;
       var target;
       var title;
+      var nextPresentation;
+      var version;
       if (!container || !grid) { return; }
       if (state.mode !== 'recommended') { container.className = 'library-recommended is-hidden'; grid.className = 'library-grid'; return; }
+      cardLayout = profile();
+      version = presentationVersion();
+      recommendationNodesByPosition = {};
       container.className = 'library-recommended';
       grid.className = 'library-grid is-hidden';
       children = container.children;
@@ -233,11 +481,13 @@
         }
         for (column = 0; column < array(rowData.items).length; column += 1) {
           target = existingCards[mediaKey(rowData.items[column])] || card(column, rowData.items[column], rowIndex);
+          nextPresentation = cardPresentation(target, rowData.items[column], version);
           usedCards.push(target);
-          updateCard(target, column, rowData.items[column], rowIndex);
-          target.className = 'library-card library-recommendation-card' + (rowData.items[column].viewed ? ' is-viewed' : '') + (state.contentActive && state.focus.recommendationRow === rowIndex && state.focus.index === column ? ' is-focused' : '');
+          recommendationNodesByPosition[rowIndex + ':' + column] = target;
+          updateCard(target, column, rowData.items[column], rowIndex, nextPresentation);
+          target.className = 'library-card library-recommendation-card' + (nextPresentation.viewed ? ' is-viewed' : '') + (state.contentActive && state.focus.recommendationRow === rowIndex && state.focus.index === column ? ' is-focused' : '');
           row.appendChild(target);
-          queuePoster(target, rowData.items[column], state.contentActive && state.focus.recommendationRow === rowIndex && state.focus.index === column ? 0 : 1, jobs);
+          queuePoster(target, nextPresentation.image, state.contentActive && state.focus.recommendationRow === rowIndex && state.focus.index === column ? 0 : 1, jobs, 'library', cardLayout, false);
         }
         for (column = row.children.length - 1; column >= 0; column -= 1) {
           if (usedCards.indexOf(row.children[column]) === -1) { row.removeChild(row.children[column]); }
@@ -263,7 +513,10 @@
       var title;
       var row;
       var target;
+      var nextPresentation;
       var jobs = [];
+      var cardLayout = profile();
+      var version = presentationVersion();
       if (!documentRef || !documentRef.createDocumentFragment || !limit) { return null; }
       grid = documentRef.createDocumentFragment();
       recommendations = documentRef.createDocumentFragment();
@@ -278,9 +531,11 @@
         row = element('div', 'library-recommendation-row');
         for (column = 0; column < array(rowData.items).length && count < limit; column += 1) {
           target = card(column, rowData.items[column], rowIndex);
-          target.className = 'library-card library-recommendation-card' + (rowData.items[column].viewed ? ' is-viewed' : '');
+          nextPresentation = cardPresentation(target, rowData.items[column], version);
+          updateCard(target, column, rowData.items[column], rowIndex, nextPresentation);
+          target.className = 'library-card library-recommendation-card' + (nextPresentation.viewed ? ' is-viewed' : '');
           row.appendChild(target);
-          queuePoster(target, rowData.items[column], 3, jobs, 'library-prefetch');
+          queuePoster(target, nextPresentation.image, 3, jobs, 'library-prefetch', cardLayout, false);
           count += 1;
         }
         section.appendChild(row);
@@ -292,20 +547,76 @@
 
     function render() { if (state.mode === 'recommended') { renderRecommendations(); } else { renderCatalog(); renderRecommendations(); } return snapshot(); }
 
+    function focusSnapshot() {
+      return { zone: 'grid', index: state.focus.index, recommendationRow: state.focus.recommendationRow };
+    }
+
+    function navigationSnapshot() {
+      var recommendationItemCount = 0;
+      state.recommendations.forEach(function (row) { recommendationItemCount += array(row && row.items).length; });
+      return {
+        itemCount: state.items.length,
+        recommendationItemCount: recommendationItemCount,
+        totalSize: state.totalSize,
+        focus: focusSnapshot(),
+        layout: { columns: state.layout.columns, visibleRows: state.layout.visibleRows, totalRows: state.layout.totalRows },
+        window: { start: state.window.start, end: state.window.end, visibleStartRow: state.window.visibleStartRow, offsetRows: state.window.offsetRows }
+      };
+    }
+
+    function sameFocus(left, right) {
+      return left && right && left.mode === right.mode && left.index === right.index && left.recommendationRow === right.recommendationRow;
+    }
+
+    function focusReference() {
+      return { mode: state.mode, index: state.focus.index, recommendationRow: state.focus.recommendationRow };
+    }
+
+    function focusTargetFor(reference) {
+      if (!reference || reference.index < 0) { return null; }
+      if (reference.mode === 'recommended') {
+        return recommendationNodesByPosition[reference.recommendationRow + ':' + reference.index] || null;
+      }
+      return catalogNodesByIndex[reference.index] || null;
+    }
+
+    function removeFocusedClass(target) {
+      if (!target) { return; }
+      target.className = String(target.className || '').replace(/(?:^|\s)is-focused(?=\s|$)/g, '').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    }
+
+    function addFocusedClass(target) {
+      if (target && (' ' + target.className + ' ').indexOf(' is-focused ') === -1) { target.className += ' is-focused'; }
+    }
+
     function focusTarget() {
+      var current = focusReference();
+      var changed = !sameFocus(current, state.renderedFocus);
+      var previous = changed ? focusTargetFor(state.renderedFocus) : null;
       var target;
       var image;
-      if (!state.contentActive) { return; }
-      if (state.mode === 'recommended') { target = documentRef.querySelector('[data-library-recommendation-row="' + state.focus.recommendationRow + '"][data-library-recommendation-column="' + state.focus.index + '"]'); }
-      else { target = documentRef.querySelector('[data-library-index="' + state.focus.index + '"]'); }
-      if (target && (' ' + target.className + ' ').indexOf(' is-focused ') === -1) { target.className += ' is-focused'; }
+      if (previous) { removeFocusedClass(previous); }
+      target = focusTargetFor(current);
+      if (!target && state.contentActive) {
+        if (state.mode === 'recommended') { renderRecommendations(); }
+        else { renderCatalog(); }
+        target = focusTargetFor(current);
+      }
+      if (!state.contentActive) {
+        removeFocusedClass(target);
+        state.renderedFocus = current;
+        return focusSnapshot();
+      }
+      addFocusedClass(target);
       image = target && target.getElementsByTagName('img')[0];
       if (image && values.posterLoader && values.posterLoader.prioritize) { values.posterLoader.prioritize(image); }
       if (target && !pointerSelectionActive()) {
         target.focus();
         keepVisible(target);
       }
-      if (values.onFocus) { values.onFocus(snapshot().focus, focusedItem()); }
+      state.renderedFocus = current;
+      if (changed && values.onFocus) { values.onFocus(focusSnapshot(), focusedItem()); }
+      return focusSnapshot();
     }
 
     function keepVisible(target) {
@@ -324,10 +635,14 @@
       }
     }
 
-    function refreshFocus() { clearFocus(); render(); focusTarget(); return snapshot(); }
-    function refreshRenderedFocus() { clearFocus(); focusTarget(); return snapshot(); }
-    function setMode(mode, usesGridScroll) { state.mode = mode === 'recommended' ? 'recommended' : 'catalog'; state.usesGridScroll = !!usesGridScroll; return snapshot(); }
-    function setContentActive(active) { state.contentActive = !!active; return snapshot(); }
+    function refreshFocus() { clearFocus(); return focusTarget(); }
+    function refreshRenderedFocus() { clearFocus(); return focusTarget(); }
+    function setMode(mode, usesGridScroll) { state.mode = mode === 'recommended' ? 'recommended' : 'catalog'; state.usesGridScroll = !!usesGridScroll; return navigationSnapshot(); }
+    function setContentActive(active) {
+      state.contentActive = !!active;
+      if (!state.contentActive) { removeFocusedClass(focusTargetFor(state.renderedFocus)); }
+      return focusSnapshot();
+    }
     function setItems(items, totalSize) {
       var focusedKey = mediaKey(state.items[state.focus.index]);
       var nextItems = array(items).slice();
@@ -339,6 +654,16 @@
       }
       state.focus.index = clamp(state.focus.index, 0, Math.max(0, state.items.length - 1));
       return render();
+    }
+
+    function appendItems(items, totalSize) {
+      var page = array(items);
+      var index;
+      for (index = 0; index < page.length; index += 1) { state.items.push(page[index]); }
+      state.totalSize = Number(totalSize === undefined ? state.items.length : totalSize);
+      state.focus.index = clamp(state.focus.index, 0, Math.max(0, state.items.length - 1));
+      if (state.mode === 'catalog') { renderCatalog(false); }
+      return navigationSnapshot();
     }
     function setRecommendations(rows) {
       var previousRow = state.recommendations[state.focus.recommendationRow];
@@ -418,19 +743,45 @@
 
     function restoreFocus(target) { return pointerFocus(target); }
 
+    function cancelScrollUpdate() {
+      var root = values.root || {};
+      if (state.scrollTimer === null) { return; }
+      if (state.scrollUsesAnimationFrame && root.cancelAnimationFrame) { root.cancelAnimationFrame(state.scrollTimer); }
+      else if (root.clearTimeout) { root.clearTimeout(state.scrollTimer); }
+      state.scrollTimer = null;
+      state.scrollUsesAnimationFrame = false;
+    }
+
+    function scheduleScrollUpdate(callback) {
+      var root = values.root || {};
+      var completed = false;
+      var identifier;
+      function run() { completed = true; callback(); }
+      if (root.requestAnimationFrame) {
+        state.scrollUsesAnimationFrame = true;
+        identifier = root.requestAnimationFrame(run);
+      } else if (root.setTimeout) {
+        state.scrollUsesAnimationFrame = false;
+        identifier = root.setTimeout(run, 16);
+      } else { run(); }
+      state.scrollTimer = completed ? null : identifier;
+    }
+
     function onScroll() {
       var container = node('library-grid');
-      if (!state.usesGridScroll || state.mode === 'recommended' || !container) { return; }
-      if (state.scrollTimer && values.root && values.root.clearTimeout) { values.root.clearTimeout(state.scrollTimer); }
-      state.scrollTimer = (values.root && values.root.setTimeout ? values.root.setTimeout : function (callback) { callback(); })(function () {
-        state.scrollTimer = null; renderCatalog();
-        if (state.items.length < state.totalSize && container.scrollTop + container.clientHeight >= container.scrollHeight - metrics().rowStep * 2 && values.onNearEnd) { values.onNearEnd(); }
-      }, 40);
+      if (!state.usesGridScroll || state.mode === 'recommended' || !container || state.scrollTimer !== null) { return; }
+      scheduleScrollUpdate(function () {
+        var cardLayout = profile();
+        var cardMetrics = cardLayout.metrics;
+        state.scrollTimer = null;
+        state.scrollUsesAnimationFrame = false;
+        renderCatalog(false, cardLayout);
+        if (state.items.length < state.totalSize && container.scrollTop + container.clientHeight >= container.scrollHeight - cardMetrics.rowStep * 2 && values.onNearEnd) { values.onNearEnd(); }
+      });
     }
 
     function reset() {
-      if (values.root && values.root.clearTimeout && state.scrollTimer) { values.root.clearTimeout(state.scrollTimer); }
-      state.scrollTimer = null; state.items = []; state.recommendations = []; state.totalSize = 0; state.focus.index = 0; state.focus.recommendationRow = 0; state.window = { start: 0, end: 0, visibleStartRow: 0, offsetRows: 0 };
+      cancelScrollUpdate(); catalogNodesByIndex = {}; recommendationNodesByPosition = {}; state.items = []; state.recommendations = []; state.totalSize = 0; state.focus.index = 0; state.focus.recommendationRow = 0; state.window = { start: 0, end: 0, visibleStartRow: 0, offsetRows: 0 }; state.renderedFocus = { mode: '', index: -1, recommendationRow: -1 };
       if (values.posterLoader && values.posterLoader.cancelScope) { values.posterLoader.cancelScope('library'); }
       return render();
     }
@@ -449,6 +800,8 @@
         state.mode === 'recommended'
           ? array(state.recommendations[state.focus.recommendationRow] && state.recommendations[state.focus.recommendationRow].items).length - 1
           : state.items.length - 1));
+      catalogNodesByIndex = {}; recommendationNodesByPosition = {};
+      state.renderedFocus = { mode: '', index: -1, recommendationRow: -1 };
       return render();
     }
 
@@ -456,7 +809,7 @@
       return { mode: state.mode, items: state.items.slice(), recommendations: state.recommendations.slice(), totalSize: state.totalSize, focus: { zone: 'grid', index: state.focus.index, recommendationRow: state.focus.recommendationRow }, layout: state.layout, window: state.window };
     }
 
-    return { buildDetachedRecommendations: buildDetachedRecommendations, focusedItem: focusedItem, focusCatalog: focusCatalog, focusRecommendations: focusRecommendations, handleDirection: handleDirection, onScroll: onScroll, pointerFocus: pointerFocus, refreshFocus: refreshFocus, render: render, reset: reset, restore: restore, restoreFocus: restoreFocus, setContentActive: setContentActive, setItems: setItems, setMode: setMode, setRecommendations: setRecommendations, snapshot: snapshot };
+    return { appendItems: appendItems, buildDetachedRecommendations: buildDetachedRecommendations, focusedItem: focusedItem, focusCatalog: focusCatalog, focusRecommendations: focusRecommendations, focusSnapshot: focusSnapshot, handleDirection: handleDirection, navigationSnapshot: navigationSnapshot, onScroll: onScroll, pointerFocus: pointerFocus, refreshFocus: refreshFocus, render: render, reset: reset, restore: restore, restoreFocus: restoreFocus, setContentActive: setContentActive, setItems: setItems, setMode: setMode, setRecommendations: setRecommendations, snapshot: snapshot };
   }
 
   return { create: create };

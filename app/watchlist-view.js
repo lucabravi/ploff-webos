@@ -18,7 +18,7 @@
     var documentRef = values.document;
     var state = {
       open: false, items: [], focusIndex: 0, zone: 'grid', provider: null,
-      generation: 0, providerGeneration: 0, request: null, localRequests: [], providerRequest: null,
+      generation: 0, providerGeneration: 0, request: null, localRequests: [], providerRequest: null, mutationRequest: null,
       loading: false, error: null, loadedIdentity: '', byLocalKey: {}, mutationPending: false,
       providerCallbacks: []
     };
@@ -59,9 +59,11 @@
     function cancel() {
       cancelRequest(state.request); state.request = null;
       cancelRequest(state.providerRequest); state.providerRequest = null;
+      cancelRequest(state.mutationRequest); state.mutationRequest = null;
       while (state.localRequests.length) { cancelRequest(state.localRequests.shift()); }
       state.providerGeneration += 1;
       state.providerCallbacks = [];
+      state.mutationPending = false;
     }
     function statusKey() {
       return values.WatchlistState && values.WatchlistState.statusKey ? values.WatchlistState.statusKey(state.loading, state.error, state.items.length) : '';
@@ -107,23 +109,29 @@
       var card;
       var image;
       var caption;
+      var profile;
       var metrics;
       if (!content) { if (values.render) { values.render(snapshot()); } return; }
       if (values.posterLoader && values.posterLoader.cancelScope) { values.posterLoader.cancelScope(values.scope || 'watchlist'); }
       content.innerHTML = '';
-      metrics = values.cardMetrics ? values.cardMetrics() : { width: 200, imageHeight: 300 };
+      profile = values.cardProfile ? values.cardProfile() : null;
+      metrics = profile ? profile.metrics : (values.cardMetrics ? values.cardMetrics() : { width: 200, imageHeight: 300 });
       for (index = 0; index < state.items.length; index += 1) {
         item = state.items[index];
         card = element('button', 'watchlist-card' + (item.viewed ? ' is-viewed' : ''));
         card.type = 'button'; card.setAttribute('data-watchlist-index', index);
         image = element('img', 'library-card-image'); image.alt = ''; card.appendChild(image);
+        if (item.libraryTitle) { card.appendChild(element('span', 'watchlist-library-badge media-library-badge', item.libraryTitle)); }
+        card.setAttribute('aria-label', title(item) + (item.libraryTitle ? ', ' + item.libraryTitle : ''));
         if (typeof item.rating === 'number' && !isNaN(item.rating)) { card.appendChild(element('span', 'library-rating-badge', '\u2665 ' + item.rating.toFixed(1))); }
         caption = element('span', 'library-card-caption');
         caption.appendChild(element('span', 'library-card-title', title(item)));
         caption.appendChild(element('span', 'library-card-meta', meta(item)));
         caption.appendChild(element('span', 'library-card-detail', detail(item)));
         card.appendChild(caption); content.appendChild(card);
-        if (values.renderedPosterSpecification) {
+        if (values.fixedPosterSpecification && profile && profile.poster) {
+          jobs.push({ target: image, specification: values.fixedPosterSpecification(item.image, profile.poster, index === state.focusIndex ? 0 : 1, values.scope || 'watchlist') });
+        } else if (values.renderedPosterSpecification) {
           jobs.push({ target: image, specification: values.renderedPosterSpecification(image, item.image, index === state.focusIndex ? 0 : 1, values.scope || 'watchlist', metrics.width, metrics.imageHeight) });
         }
       }
@@ -157,6 +165,8 @@
     }
     function completeLoad(generation, identity, error, items, callback) {
       if (generation !== state.generation) { return; }
+      state.request = null;
+      state.localRequests = [];
       state.loading = false;
       state.error = error || null;
       state.items = error ? [] : array(items);
@@ -209,7 +219,11 @@
       var item;
       var next;
       if (event && event.preventDefault) { event.preventDefault(); }
-      if (event && (event.keyCode === 27 || event.keyCode === 461)) { if (values.onBack) { values.onBack(); } return; }
+      if (event && (event.keyCode === 27 || event.keyCode === 461)) {
+        if (state.zone !== 'nav') { state.zone = 'nav'; applyFocus(); }
+        else if (values.onBack) { values.onBack(); }
+        return;
+      }
       if (event && event.keyCode === 415 && state.zone === 'grid' && focusedItem()) { if (values.onPlay) { values.onPlay(focusedItem()); } return; }
       if (state.zone === 'nav') {
         if (direction === 'left' || direction === 'right') { if (values.onNavigate) { values.onNavigate(direction); } applyFocus(); }
@@ -235,7 +249,6 @@
       return value && value.getAttribute ? Number(value.getAttribute('data-watchlist-index')) : -1;
     }
     function pointerFocus(value) { var index = pointerIndex(value); if (index >= 0) { setFocus(index); } }
-    function activatePointer(value) { var index = pointerIndex(value); return index >= 0 ? state.items[index] || null : null; }
     function restoreFocus(value) { pointerFocus(value); }
     function findLocal(key) { return state.byLocalKey[String(key || '')] || null; }
     function setProvider(provider) { state.provider = provider || null; }
@@ -245,24 +258,31 @@
       var previous;
       var local;
       var mutation;
+      var generation;
+      var request;
       if (!available() || !state.provider || state.mutationPending || !cloudKey) { if (callback) { callback(new Error('Watchlist unavailable')); } return; }
+      generation = state.generation;
       previous = state.items.slice(); state.mutationPending = true;
       local = item || {};
       local.ratingKey = local.ratingKey || cloudKey; local.cloudRatingKey = cloudKey; local.inWatchlist = !!enabled;
       mutation = values.WatchlistState.optimistic(state.items, local, enabled);
       state.items = mutation.items; state.focusIndex = clamp(state.focusIndex, 0, Math.max(0, state.items.length - 1)); indexItems(); notifyItemsChanged(); render();
-      values.set(optionsForProvider(), cloudKey, enabled, function (error) {
+      request = values.set(optionsForProvider(), cloudKey, enabled, function (error) {
+        if (generation !== state.generation) { return; }
+        state.mutationRequest = null;
         state.mutationPending = false;
         if (error) { state.items = previous; state.focusIndex = clamp(state.focusIndex, 0, Math.max(0, state.items.length - 1)); indexItems(); notifyItemsChanged(); render(); if (callback) { callback(error); } return; }
         if (callback) { callback(null, local); }
       });
+      if (generation === state.generation && state.mutationPending) { state.mutationRequest = request || null; }
+      return request || null;
     }
 
     return {
       snapshot: snapshot, open: open, leave: leave, close: leave, load: load, cancel: cancel, reset: reset,
       render: render, refreshFocus: applyFocus, setFocus: setFocus, focusNavigation: focusNavigation, focusContent: focusContent,
       focusedItem: focusedItem, handleKeyDown: handleKeyDown,
-      pointerFocus: pointerFocus, activatePointer: activatePointer, restoreFocus: restoreFocus, findLocal: findLocal,
+      pointerFocus: pointerFocus, restoreFocus: restoreFocus, findLocal: findLocal,
       setProvider: setProvider, getProvider: getProvider, ensureProvider: ensureProvider, toggle: toggle, seed: seed
     };
   }

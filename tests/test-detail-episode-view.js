@@ -53,7 +53,7 @@ var documentRef = {
 };
 var view = DetailEpisodeView.create({
   root: { setTimeout: function () { return 1; }, clearTimeout: function () {} }, document: documentRef,
-  element: function (tagName, className, text) { return node(tagName, className, text); }, ProgressiveImages: ProgressiveImages,
+  element: function (tagName, className, text) { var result = node(tagName, className, text); if (tagName === 'img') { result.clientWidth = 310.9; result.clientHeight = 124.8; } return result; }, ProgressiveImages: ProgressiveImages,
   posterLoader: { loadBatch: function (jobs) { batches.push(jobs); }, cancelScope: function (scope) { cancelled.push(scope); } },
   onSeasonActivate: function (index) { seasonActivation = index; }, onEpisodeActivate: function (index) { episodeActivation = index; }
 });

@@ -15,6 +15,7 @@ for path in \
   .github/workflows/ci.yml \
   .github/workflows/release.yml \
   docs/architecture.md \
+  docs/application-source-architecture.md \
   docs/playback-invariants.md \
   docs/testing.md \
   app/build-info.js \
@@ -46,28 +47,49 @@ for path in \
   scripts/check-release-signoff.js \
   scripts/preview-local.sh \
   scripts/docker-installer.sh \
-  scripts/install-webos.sh; do
+  scripts/install-webos.sh \
+  tests/test-application-session.js \
+  tests/test-controller-contracts.js; do
   test -f "$path" || { echo "missing: $path" >&2; exit 1; }
 done
 
-for fragment in \
-  00-runtime.js \
-  10-shell-home.js \
-  20-search.js \
-  30-library.js \
-  40-settings.js \
-  42-server.js \
-  45-setup.js \
-  46-server-actions.js \
-  47-settings-navigation.js \
-  48-diagnostics.js \
-  50-detail.js \
-  60-player-controls.js \
-  65-player-subtitles-playback.js \
-  69-playlist-queue.js \
-  70-input-bootstrap.js; do
-  test -f "app/source/$fragment" || { echo "missing: app/source/$fragment" >&2; exit 1; }
-done
+node - <<'NODE'
+'use strict';
+var assert = require('assert');
+var fs = require('fs');
+var path = require('path');
+var Builder = require('./scripts/build-app');
+
+function listedFiles(directory, files) {
+  var root = path.join('app', directory);
+  var actual = fs.existsSync(root) ? fs.readdirSync(root).filter(function (name) {
+    return /\.js$/.test(name);
+  }).sort() : [];
+  var declared = files.slice().sort();
+  assert.deepStrictEqual(actual, declared, directory + ' JavaScript files must match the build list');
+  files.forEach(function (name) {
+    assert.ok(fs.existsSync(path.join(root, name)), 'missing: ' + path.join(root, name));
+  });
+}
+
+assert.strictEqual(new Set(Builder.MODULE_FILES).size, Builder.MODULE_FILES.length, 'MODULE_FILES must be unique');
+assert.strictEqual(Object.prototype.hasOwnProperty.call(Builder, 'LEGACY_FILES'), false, 'final builder must not expose LEGACY_FILES');
+listedFiles('coordinator', Builder.MODULE_FILES);
+assert.strictEqual(fs.existsSync(path.join('app', 'source')), false, 'final coordinator must remove app/source');
+NODE
+
+if test -f app/.modular-coordinator; then
+  if test -d app/source && find app/source -type f -name '*.js' -print -quit | grep -q .; then
+    echo "modular coordinator marker forbids app/source JavaScript" >&2
+    exit 1
+  fi
+  if grep -q 'Generated bundle entry' app/app.js; then
+    echo "modular coordinator bundle still contains the legacy entry marker" >&2
+    exit 1
+  fi
+else
+  grep -q 'Generated bundle entry' app/app.js
+fi
 
 test ! -f app/config.local.js || git check-ignore -q app/config.local.js
 test ! -d docs/superpowers
@@ -97,7 +119,6 @@ grep -q 'MIT' README.md
 grep -qi 'unofficial' README.md
 grep -q 'npm run verify' README.md
 grep -q 'npm run build:app' README.md
-grep -q 'Generated bundle entry' app/app.js
 grep -q 'npm run verify' .github/workflows/ci.yml
 grep -q 'npm run verify' .github/workflows/release.yml
 grep -q 'npm run check:deps' .github/workflows/ci.yml
@@ -106,6 +127,7 @@ grep -q 'check-release-signoff.js.*GITHUB_REF_NAME' .github/workflows/release.ym
 grep -q '"check:deps": "npm audit --audit-level=high"' package.json
 grep -q 'Physical-TV Release Signoff' docs/testing.md
 test -f docs/store-submission/lg-ux-compliance.md
+grep -q '"check:coordinator": "for file in app/coordinator/\*.js' package.json
 grep -q '"check:lg-ux": "node scripts/check-lg-ux.js"' package.json
 grep -q 'npm run check:lg-ux' docs/store-submission/lg-ux-compliance.md
 test -f docs/release-signoff/TEMPLATE.md

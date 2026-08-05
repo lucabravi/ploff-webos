@@ -107,11 +107,9 @@
       }
     }
     function imageSpecification(image, source, priority) {
-      var rect = image && image.getBoundingClientRect ? image.getBoundingClientRect() : null;
-      var width = Math.ceil(rect && rect.width ? rect.width : (image.clientWidth || 310));
-      var height = Math.ceil(rect && rect.height ? rect.height : (image.clientHeight || 124));
-      var preview = values.ProgressiveImages.previewSize(width, height, 128);
-      return { source: source, previewWidth: preview.width, previewHeight: preview.height, width: width, height: height, priority: priority, scope: 'detail' };
+      var size = values.ProgressiveImages.renderedSize(image, 310, 124);
+      var preview = values.ProgressiveImages.previewSize(size.width, size.height, 128);
+      return { source: source, previewWidth: preview.width, previewHeight: preview.height, width: size.width, height: size.height, priority: priority, scope: 'detail' };
     }
     function updateCard(card, episode, position, visibleRange) {
       var progress = clamp(Number(episode && episode.progress || 0), 0, 100);

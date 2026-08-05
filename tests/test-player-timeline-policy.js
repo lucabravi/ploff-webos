@@ -5,6 +5,8 @@ var TimelinePolicy = require('../app/player-timeline-policy');
 
 assert.strictEqual(TimelinePolicy.formatTime(0), '0:00', 'short time must render a zero position');
 assert.strictEqual(TimelinePolicy.formatTime(65.6), '1:06', 'short time must preserve the existing rounded display');
+assert.strictEqual(TimelinePolicy.formatTime(3600), '01:00:00', 'long time must switch to hours after one hour');
+assert.strictEqual(TimelinePolicy.formatTime(3661.9), '01:01:02', 'long time must keep rounded seconds after one hour');
 assert.strictEqual(TimelinePolicy.formatTime(-5), '0:00', 'short time must clamp negative values');
 
 assert.strictEqual(TimelinePolicy.formatLongTime(0), '00:00:00', 'long time must render a zero position');

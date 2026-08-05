@@ -87,5 +87,13 @@ MediaPreferences.clear(storage, identity);
 assert.strictEqual(MediaPreferences.load(storage, identity), null, 'clearing an override must restore Automatic');
 stored[MediaPreferences.storageKey(identity)] = '{broken';
 assert.strictEqual(MediaPreferences.load(storage, identity), null, 'corrupt storage must safely return no override');
+assert.doesNotThrow(function () {
+  var unavailable = {
+    setItem: function () { throw new Error('quota'); },
+    removeItem: function () { throw new Error('blocked'); }
+  };
+  MediaPreferences.save(unavailable, identity, { audioTrack: mediasetPreference });
+  MediaPreferences.clear(unavailable, identity);
+}, 'track changes must remain usable when persistence is unavailable');
 
 console.log('Media preference checks passed');

@@ -58,6 +58,9 @@ function createFixture() {
         if (selector === '[data-library-filter-option]') {
           return source.filter(function (item) { return item.hasAttribute('data-library-filter-option'); });
         }
+        if (selector === '[data-library-advanced-filter], [data-library-filter-option], [data-library-filter-action]') {
+          return source.concat([nodes['library-filter-reset'], nodes['library-filter-cancel'], nodes['library-filter-apply']]);
+        }
         return [nodes['library-filter-reset'], nodes['library-filter-cancel'], nodes['library-filter-apply']].filter(function (item) {
           return item.style.display !== 'none';
         });
@@ -97,11 +100,17 @@ function keyEvent(keyCode) {
   return { keyCode: keyCode, prevented: false, preventDefault: function () { this.prevented = true; } };
 }
 
+function click(view, button) {
+  view.pointerFocus(button);
+  view.handleKeyDown(keyEvent(13));
+}
+
 var fixture = createFixture();
 fixture.view.setActiveFilters({ watched: 'unwatched', year: '2020', genre: '' });
 fixture.view.open({ key: 'movies' });
 fixture.requests[0].callback(null, { year: [{ value: '2020', label: '2020' }], genre: [{ value: 'drama', label: 'Drama' }] });
 assert.deepStrictEqual(fixture.view.snapshot().draftFilters, { watched: 'unwatched', year: '2020', genre: '' }, 'open must copy committed filters into a draft');
+assert.strictEqual(fixture.nodes['library-filter-drawer'].getAttribute('aria-hidden'), 'false', 'opening the filter drawer must expose dialog semantics');
 assert.strictEqual(fixture.nodes['library-filter-rows'].children[0].children[1].textContent, 'library.unwatched', 'watch status must be visible inside advanced filters');
 fixture.view.handleKeyDown(keyEvent(39), 'right');
 assert.strictEqual(fixture.view.snapshot().draftFilters.watched, 'watched', 'watch status must cycle inside advanced filters');
@@ -111,14 +120,15 @@ fixture.view.handleKeyDown(keyEvent(13));
 assert.strictEqual(fixture.view.snapshot().pickerKey, 'genre', 'Enter must open the focused filter picker');
 fixture.view.handleKeyDown(keyEvent(13));
 assert.strictEqual(fixture.view.snapshot().draftFilters.genre, '', 'an empty picker must retain its Any value');
-fixture.view.activatePointer({ getAttribute: function () { return 'apply'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
+click(fixture.view, { getAttribute: function () { return 'apply'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
 assert.deepStrictEqual(fixture.callbacks[0], ['apply', { watched: 'watched', year: '2020', genre: '' }], 'Apply must publish the draft filters');
 assert.strictEqual(fixture.view.snapshot().open, false, 'Apply must close the drawer');
+assert.strictEqual(fixture.nodes['library-filter-drawer'].getAttribute('aria-hidden'), 'true', 'closing the filter drawer must hide dialog semantics');
 fixture.view.open({ key: 'movies' });
-fixture.view.activatePointer({ getAttribute: function () { return 'reset'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
+click(fixture.view, { getAttribute: function () { return 'reset'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
 assert.deepStrictEqual(fixture.view.snapshot().draftFilters, { watched: '', year: '', genre: '' }, 'Reset must clear only the draft filters');
 assert.deepStrictEqual(fixture.callbacks[fixture.callbacks.length - 1], ['reset', { watched: '', year: '', genre: '' }], 'Reset must publish the cleared draft');
-fixture.view.activatePointer({ getAttribute: function () { return 'cancel'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
+click(fixture.view, { getAttribute: function () { return 'cancel'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
 
 var applyChanged = createFixture();
 applyChanged.view.setActiveFilters({ watched: '', year: '2020', genre: '' });
@@ -132,7 +142,7 @@ applyChanged.view.handleKeyDown(keyEvent(40), 'down');
 applyChanged.view.handleKeyDown(keyEvent(40), 'down');
 applyChanged.view.handleKeyDown(keyEvent(13));
 assert.strictEqual(applyChanged.view.snapshot().draftFilters.year, '2021', 'selecting a different picker value must update the draft');
-applyChanged.view.activatePointer({ getAttribute: function () { return 'apply'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
+click(applyChanged.view, { getAttribute: function () { return 'apply'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
 assert.strictEqual(applyChanged.view.filters().year, '2021', 'Apply must commit the newly selected value');
 
 var cancelChanged = createFixture();
@@ -141,19 +151,19 @@ cancelChanged.view.open({ key: 'movies' });
 cancelChanged.requests[0].callback(null, { year: [
   { value: '2020', label: '2020' }, { value: '2021', label: '2021' }
 ], genre: [{ value: 'drama', label: 'Drama' }] });
-cancelChanged.view.activatePointer({ getAttribute: function () { return 'year'; }, hasAttribute: function (name) { return name === 'data-library-advanced-filter'; } });
-cancelChanged.view.activatePointer({ getAttribute: function () { return '2'; }, hasAttribute: function (name) { return name === 'data-library-filter-option'; } });
+click(cancelChanged.view, { getAttribute: function () { return 'year'; }, hasAttribute: function (name) { return name === 'data-library-advanced-filter'; } });
+click(cancelChanged.view, { getAttribute: function () { return '2'; }, hasAttribute: function (name) { return name === 'data-library-filter-option'; } });
 assert.strictEqual(cancelChanged.view.snapshot().draftFilters.year, '2021', 'a newly selected value must exist only in the draft before Apply');
-cancelChanged.view.activatePointer({ getAttribute: function () { return 'reset'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
+click(cancelChanged.view, { getAttribute: function () { return 'reset'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
 assert.deepStrictEqual(cancelChanged.view.snapshot().draftFilters, { watched: '', year: '', genre: '' }, 'Reset must clear the changed draft before Cancel');
-cancelChanged.view.activatePointer({ getAttribute: function () { return 'cancel'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
+click(cancelChanged.view, { getAttribute: function () { return 'cancel'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
 assert.deepStrictEqual(cancelChanged.view.filters(), { watched: '', year: '2020', genre: 'drama' }, 'Cancel must leave committed filters unchanged after draft changes and reset');
 
 fixture.view.open({ key: 'movies' });
 fixture.requests[0].callback(null, { year: [{ value: '2020', label: '2020' }], genre: [{ value: 'drama', label: 'Drama' }] });
-fixture.view.activatePointer({ getAttribute: function () { return 'genre'; }, hasAttribute: function (name) { return name === 'data-library-advanced-filter'; } });
+click(fixture.view, { getAttribute: function () { return 'genre'; }, hasAttribute: function (name) { return name === 'data-library-advanced-filter'; } });
 fixture.view.handleKeyDown(keyEvent(39), 'right');
-fixture.view.activatePointer({ getAttribute: function () { return 'cancel'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
+click(fixture.view, { getAttribute: function () { return 'cancel'; }, hasAttribute: function (name) { return name === 'data-library-filter-action'; } });
 assert.strictEqual(fixture.view.filters().genre, '', 'Cancel must discard draft changes');
 assert.strictEqual(fixture.callbacks[fixture.callbacks.length - 2][0], 'cancel', 'Cancel must publish cancellation');
 assert.strictEqual(fixture.view.snapshot().open, false, 'Cancel must close the drawer');
@@ -180,10 +190,20 @@ assert.strictEqual(stale.view.snapshot().options, null, 'a stale callback must n
 stale.requests[1].callback(null, { year: [{ value: 'new', label: 'New' }], genre: [] });
 assert.strictEqual(stale.view.snapshot().options.year[0].label, 'New', 'the current callback must install options');
 
+var stablePointer = createFixture();
+stablePointer.view.open({ key: 'movies' });
+stablePointer.requests[0].callback(null, { year: [{ value: '2020', label: '2020' }], genre: [{ value: 'drama', label: 'Drama' }] });
+var pointerTarget = stablePointer.nodes['library-filter-rows'].children[1];
+stablePointer.view.pointerFocus(pointerTarget);
+assert.strictEqual(stablePointer.nodes['library-filter-rows'].children[1], pointerTarget, 'pointer focus must preserve the hovered filter node until click');
+assert.ok(/is-focused/.test(pointerTarget.className), 'pointer focus must update the existing filter node presentation');
+stablePointer.view.handleKeyDown(keyEvent(13));
+assert.strictEqual(stablePointer.view.snapshot().pickerKey, 'year', 'OK after pointer focus must activate the preserved filter target');
+
 var empty = createFixture();
 empty.view.open({ key: 'empty' });
 empty.requests[0].callback(null, { year: [], genre: [] });
-empty.view.activatePointer({ getAttribute: function () { return 'year'; }, hasAttribute: function (name) { return name === 'data-library-advanced-filter'; } });
+click(empty.view, { getAttribute: function () { return 'year'; }, hasAttribute: function (name) { return name === 'data-library-advanced-filter'; } });
 assert.strictEqual(empty.nodes['library-filter-rows'].children.length, 1, 'an empty option list must still render the Any choice');
 assert.strictEqual(empty.nodes['library-filter-rows'].children[0].textContent, 'Any', 'the empty option state must be selectable');
 assert.strictEqual(empty.view.snapshot().focus.zone, 'picker', 'opening an empty picker must preserve picker focus');

@@ -2,11 +2,11 @@
   'use strict';
 
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(require('./search-text'));
   } else {
-    root.PloffSearchModel = factory();
+    root.PloffSearchModel = factory(root.PloffSearchText);
   }
-}(this, function () {
+}(this, function (SearchText) {
   'use strict';
 
   var letterRows = [
@@ -48,19 +48,11 @@
     return { query: next, symbolMode: !!symbolMode };
   }
 
-  function normalizedText(value) {
-    return String(value || '').toLowerCase()
-      .replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e')
-      .replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o')
-      .replace(/[ùúûü]/g, 'u').replace(/[ç]/g, 'c')
-      .replace(/[^a-z0-9]+/g, ' ').replace(/^\s+|\s+$/g, '');
-  }
-
   function relevantCloudItems(query, items) {
-    var terms = normalizedText(query).split(/\s+/).filter(function (term) { return !!term; });
+    var terms = SearchText.terms(query);
     var seen = {};
     return (items || []).filter(function (item, index) {
-      var title = normalizedText(item && item.title);
+      var title = SearchText.normalize(item && item.title);
       var guid = String(item && item.guid || '');
       var titleMatch = terms.length && terms.every(function (term) { return title.indexOf(term) !== -1; });
       var rankedAlias = index === 0 && Number(item && item.score || 0) >= 0.5;
@@ -81,8 +73,8 @@
       result.push(item);
     });
     result.sort(function (left, right) {
-      var leftTitle = normalizedText(left && left.title);
-      var rightTitle = normalizedText(right && right.title);
+      var leftTitle = SearchText.normalize(left && left.title);
+      var rightTitle = SearchText.normalize(right && right.title);
       return leftTitle < rightTitle ? -1 : (leftTitle > rightTitle ? 1 : 0);
     });
     return result;

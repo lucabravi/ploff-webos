@@ -27,6 +27,7 @@
       normalized.push({
         title: String(row.title || ''),
         shape: String(row.shape || 'poster'),
+        showLibraryBadge: row.showLibraryBadge === true,
         items: items.map(cloneObject)
       });
     });
@@ -59,8 +60,12 @@
     return value;
   }
 
+  function fingerprintNormalizedRows(rows) {
+    return JSON.stringify(stableValue(rows));
+  }
+
   function fingerprintRows(rows) {
-    return JSON.stringify(stableValue(normalizeRows(rows)));
+    return fingerprintNormalizedRows(normalizeRows(rows));
   }
 
   function selectionKey(rows, state) {
@@ -69,7 +74,7 @@
     if (!state || state.area !== 'media') { return ''; }
     row = rows && rows[state.rowIndex];
     item = row && row.items && row.items[state.column];
-    return item ? mediaKey(item) : '';
+    return item ? JSON.stringify([rowKey(row), mediaKey(item)]) : '';
   }
 
   function restoreFocus(rows, previous, selectedKey) {
@@ -83,9 +88,14 @@
     if (selectedKey) {
       for (rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
         for (column = 0; column < rows[rowIndex].items.length; column += 1) {
-          if (mediaKey(rows[rowIndex].items[column]) === selectedKey) {
+          if (selectionKey(rows, { area: 'media', rowIndex: rowIndex, column: column }) === selectedKey) {
             return { area: 'media', navIndex: 0, rowIndex: rowIndex, column: column };
           }
+        }
+      }
+      for (rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        if (rows[rowIndex].items.length) {
+          return { area: 'media', navIndex: 0, rowIndex: rowIndex, column: 0 };
         }
       }
     }
@@ -106,26 +116,29 @@
     var pending = false;
     var hasData = false;
     var fingerprint = '';
+    var activeRequest = null;
 
     function refresh() {
       var requestGeneration;
+      var requestHandle;
       if (loading) { pending = true; return; }
       loading = true;
       requestGeneration = generation;
       try {
-        loader(function (error, rows) {
+        requestHandle = loader(function (error, rows) {
           var normalized;
           var nextFingerprint;
           var changed;
           var initial;
           if (requestGeneration !== generation) { return; }
+          activeRequest = null;
           loading = false;
           initial = !hasData;
           if (error) {
             onResult(error, [], false, initial);
           } else {
             normalized = normalizeRows(rows);
-            nextFingerprint = fingerprintRows(normalized);
+            nextFingerprint = fingerprintNormalizedRows(normalized);
             changed = !hasData || nextFingerprint !== fingerprint;
             fingerprint = nextFingerprint;
             hasData = true;
@@ -136,18 +149,24 @@
             refresh();
           }
         });
+        if (requestGeneration === generation && loading) { activeRequest = requestHandle || null; }
+        else if (requestGeneration !== generation && requestHandle && requestHandle.abort) { requestHandle.abort(); }
       } catch (error) {
+        activeRequest = null;
         loading = false;
         onResult(error, [], false, !hasData);
       }
     }
 
     function reset() {
+      var request = activeRequest;
       generation += 1;
+      activeRequest = null;
       loading = false;
       pending = false;
       hasData = false;
       fingerprint = '';
+      if (request && request.abort) { request.abort(); }
     }
 
     return {

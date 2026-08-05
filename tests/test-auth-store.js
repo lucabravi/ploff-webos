@@ -34,6 +34,9 @@ assert.deepStrictEqual(AuthStore.load(storage), saved, 'authenticated profile st
 assert.strictEqual(AuthStore.needsOnboarding({ activeUri: '' }, empty), true, 'a clean install must open onboarding');
 assert.strictEqual(AuthStore.needsOnboarding({ activeUri: 'http://plex:32400' }, empty), false, 'existing installations must migrate without being forced through onboarding');
 assert.strictEqual(AuthStore.activeToken(AuthStore.validate({ mode: 'plex', activeProfileId: 'missing', profiles: [] })), '', 'missing cached profiles must fail safely');
+assert.doesNotThrow(function () {
+  AuthStore.save({ setItem: function () { throw new Error('quota'); } }, saved);
+}, 'profile switching must remain usable when persistence is unavailable');
 
 var cachedProfiles = [
   { id: 'owner', title: 'Owner', token: 'owner-profile-token' },

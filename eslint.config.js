@@ -62,7 +62,7 @@ var correctnessRules = {
 
 module.exports = [
   {
-    ignores: ['app/source/**', 'app/vendor/**', 'dist/**', 'node_modules/**']
+    ignores: ['app/app.js', 'app/vendor/**', 'dist/**', 'node_modules/**']
   },
   {
     files: ['app/**/*.js'],

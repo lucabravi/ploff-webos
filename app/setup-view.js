@@ -15,6 +15,10 @@
     var root = values.root || {};
     var languageCycleTimer = null;
     var languageCycleAnimation = null;
+    var profileIdentitySignature = '';
+    var profilePresentationSignature = '';
+    var serverPresentationSignature = '';
+    var lastStage = '';
 
     function text(key) {
       return values.t ? values.t(key) : key;
@@ -33,11 +37,16 @@
       if (values.setText) { values.setText(id, value); }
     }
 
-    function reset(step, title, message) {
+    function stopLanguageCycle() {
       if (languageCycleTimer && root.clearInterval) { root.clearInterval(languageCycleTimer); }
       if (languageCycleAnimation && root.clearTimeout) { root.clearTimeout(languageCycleAnimation); }
       languageCycleTimer = null;
       languageCycleAnimation = null;
+    }
+
+    function reset(step, title, message, preserveProfiles) {
+      var profileList = documentRef.getElementById('setup-profile-list');
+      stopLanguageCycle();
       setText('setup-step', step);
       setText('setup-title', title);
       setText('setup-message', message);
@@ -46,8 +55,12 @@
       }
       documentRef.getElementById('setup-server-list').className = 'setup-list is-hidden';
       documentRef.getElementById('setup-server-list').innerHTML = '';
-      documentRef.getElementById('setup-profile-list').className = 'setup-list is-hidden';
-      documentRef.getElementById('setup-profile-list').innerHTML = '';
+      profileList.className = 'setup-list is-hidden';
+      if (!preserveProfiles) {
+        profileList.innerHTML = '';
+        profileIdentitySignature = '';
+        profilePresentationSignature = '';
+      }
       documentRef.getElementById('setup-login').className = 'setup-login is-hidden';
       documentRef.getElementById('setup-manual').className = 'setup-manual is-hidden';
       documentRef.getElementById('setup-actions').innerHTML = '';
@@ -106,6 +119,24 @@
       return state.statusKey || snapshot.statusKey || '';
     }
 
+    function serverSignature(snapshot, state) {
+      return JSON.stringify({
+        servers: array(snapshot.servers).map(function (server) {
+          return [
+            String(server && server.name || ''),
+            String(server && server.uri || ''),
+            String(server && server.version || ''),
+            String(server && server.machineIdentifier || '')
+          ];
+        }),
+        canChangeLanguage: snapshot.canChangeLanguage === true,
+        returnView: String(snapshot.returnView || state.returnView || ''),
+        statusKey: statusKey(snapshot, state),
+        ownerToken: state.ownerToken ? '1' : '0',
+        discoveryActive: state.serverDiscoveryActive === true
+      });
+    }
+
     function showInput(type, value, maxLength, placeholder) {
       var input = documentRef.getElementById('setup-address');
       documentRef.getElementById('setup-manual').className = 'setup-manual';
@@ -153,9 +184,11 @@
       var list = documentRef.getElementById('setup-server-list');
       var actions = documentRef.getElementById('setup-actions');
       var servers = array(snapshot.servers);
+      var signature = serverSignature(snapshot, state);
       var index;
       var server;
       var option;
+      if (lastStage === 'servers' && signature === serverPresentationSignature) { return; }
       reset(text('setup.stepServer'), text('setup.findServerTitle'), statusKey(snapshot, state) ? text(statusKey(snapshot, state)) : text('setup.findServerMessage'));
       list.className = 'setup-list';
       list.innerHTML = '';
@@ -178,6 +211,7 @@
       if (state.serverDiscoveryActive && !servers.length) {
         if (values.scanIndicator && values.scanIndicator.start) { values.scanIndicator.start(); }
       } else if (values.scanIndicator && values.scanIndicator.stop) { values.scanIndicator.stop(); }
+      serverPresentationSignature = signature;
     }
 
     function renderManual(snapshot, state) {
@@ -224,49 +258,126 @@
       appendAction(actions, 'setup.cancel', returnAction, false);
     }
 
+    function profileIdentity(profiles) {
+      return array(profiles).map(function (profile, index) {
+        return String(profile && profile.id || 'profile-' + index);
+      }).join('\u001e');
+    }
+
+    function profilePresentation(profiles, active) {
+      return array(profiles).map(function (profile) {
+        profile = profile || {};
+        return [
+          String(profile.id || ''),
+          String(profile.title || ''),
+          String(profile.thumb || ''),
+          profile.protected ? '1' : '0',
+          String(profile.id || '') === String(active || '') ? '1' : '0'
+        ].join('\u001f');
+      }).join('\u001e');
+    }
+
+    function profileAvatar(profile) {
+      var avatar;
+      if (profile.thumb) {
+        avatar = element('img', 'setup-profile-avatar');
+        avatar.src = profile.thumb;
+        avatar.alt = '';
+        return avatar;
+      }
+      return element('span', 'setup-profile-avatar setup-profile-initial', String(profile.title || 'P').charAt(0).toUpperCase());
+    }
+
+    function replaceProfileAvatar(identity, current, profile) {
+      var replacement = profileAvatar(profile);
+      if (current && identity.replaceChild) { identity.replaceChild(replacement, current); }
+      else if (current && identity.removeChild && identity.insertBefore) {
+        identity.removeChild(current);
+        identity.insertBefore(replacement, identity.children[0] || null);
+      } else {
+        identity.innerHTML = '';
+        identity.appendChild(replacement);
+        identity.appendChild(element('span', '', profile.title));
+      }
+      return replacement;
+    }
+
+    function patchProfileAvatar(identity, profile) {
+      var avatar = identity && identity.children && identity.children[0];
+      var needsImage = !!profile.thumb;
+      var isImage = avatar && String(avatar.tagName || '').toLowerCase() === 'img';
+      if (!avatar || needsImage !== isImage) { return replaceProfileAvatar(identity, avatar, profile); }
+      avatar.className = needsImage ? 'setup-profile-avatar' : 'setup-profile-avatar setup-profile-initial';
+      if (needsImage) {
+        if (String(avatar.src || '') !== String(profile.thumb || '')) { avatar.src = profile.thumb || ''; }
+        avatar.alt = '';
+      } else {
+        avatar.textContent = String(profile.title || 'P').charAt(0).toUpperCase();
+      }
+      return avatar;
+    }
+
+    function updateProfileOption(option, profile, active, index) {
+      var identity;
+      var title;
+      var marker;
+      profile = profile || {};
+      option.className = 'setup-option' + (String(profile.id || '') === String(active || '') ? ' is-active' : '');
+      option.type = 'button';
+      option.setAttribute('data-setup-profile', index);
+      option.setAttribute('data-setup-profile-id', String(profile.id || ''));
+      identity = option.children && option.children[0];
+      if (!identity) {
+        identity = element('span', 'setup-profile-identity');
+        identity.appendChild(profileAvatar(profile));
+        identity.appendChild(element('span', '', profile.title));
+        option.appendChild(identity);
+      } else {
+        identity.className = 'setup-profile-identity';
+        patchProfileAvatar(identity, profile);
+        title = identity.children && identity.children[1];
+        if (!title) { title = element('span', '', profile.title); identity.appendChild(title); }
+        else { title.textContent = String(profile.title || ''); }
+      }
+      marker = option.children && option.children[1];
+      if (!marker) { marker = element('span', 'setup-option-meta'); option.appendChild(marker); }
+      marker.className = 'setup-option-meta';
+      marker.textContent = String(profile.id || '') === String(active || '') ? '\u2713' : (profile.protected ? 'PIN' : '');
+      return option;
+    }
+
     function renderProfiles(snapshot, state) {
       var list = documentRef.getElementById('setup-profile-list');
       var actions = documentRef.getElementById('setup-actions');
       var profiles = array(snapshot.profiles);
       var active = state.activeProfileId;
       var index;
-      var profile;
-      var option;
-      var identity;
-      var avatar;
-      var marker;
+      var identitySignature = profileIdentity(profiles);
+      var presentationSignature = profilePresentation(profiles, active);
       reset(
         text('setup.stepProfile'),
         text('setup.chooseProfileTitle'),
         snapshot.profileLoading ? text('setup.chooseProfileMessage') :
-          (statusKey(snapshot, state) ? text(statusKey(snapshot, state)) : text('setup.chooseProfileMessage'))
+          (statusKey(snapshot, state) ? text(statusKey(snapshot, state)) : text('setup.chooseProfileMessage')),
+        true
       );
       if (documentRef.getElementById('setup-title-spinner')) {
         documentRef.getElementById('setup-title-spinner').className =
           'setup-title-spinner' + (snapshot.profileLoading ? '' : ' is-hidden');
       }
       list.className = 'setup-list';
-      list.innerHTML = '';
-      for (index = 0; index < profiles.length; index += 1) {
-        profile = profiles[index];
-        option = element('button', 'setup-option' + (profile.id === active ? ' is-active' : ''));
-        option.type = 'button';
-        option.setAttribute('data-setup-profile', index);
-        identity = element('span', 'setup-profile-identity');
-        if (profile.thumb) {
-          avatar = element('img', 'setup-profile-avatar');
-          avatar.src = profile.thumb;
-          avatar.alt = '';
-        } else {
-          avatar = element('span', 'setup-profile-avatar setup-profile-initial', String(profile.title || 'P').charAt(0).toUpperCase());
+      if (identitySignature !== profileIdentitySignature || list.children.length !== profiles.length) {
+        list.innerHTML = '';
+        for (index = 0; index < profiles.length; index += 1) {
+          list.appendChild(updateProfileOption(element('button', 'setup-option'), profiles[index], active, index));
         }
-        identity.appendChild(avatar);
-        identity.appendChild(element('span', '', profile.title));
-        option.appendChild(identity);
-        marker = profile.id === active ? '\u2713' : (profile.protected ? 'PIN' : '');
-        option.appendChild(element('span', 'setup-option-meta', marker));
-        list.appendChild(option);
+      } else if (presentationSignature !== profilePresentationSignature) {
+        for (index = 0; index < profiles.length; index += 1) {
+          updateProfileOption(list.children[index], profiles[index], active, index);
+        }
       }
+      profileIdentitySignature = identitySignature;
+      profilePresentationSignature = presentationSignature;
       appendAction(actions, state.ownerToken ? 'setup.disconnectPlex' : 'setup.signInPlex', state.ownerToken ? 'disconnect' : 'login', false);
       appendAction(actions, 'setup.continueOffline', 'offline', false);
       if (snapshot.returnView || state.returnView) { appendAction(actions, 'setup.cancel', 'cancel', false); }
@@ -296,9 +407,17 @@
       else if (current.stage === 'profiles') { renderProfiles(current, state); }
       else if (current.stage === 'profile-pin' && current.selectedProfile) { renderProfilePin(current, state); }
       applyFocus(current);
+      lastStage = String(current.stage || '');
+      if (lastStage !== 'servers') { serverPresentationSignature = ''; }
     }
 
-    return { render: render };
+    function destroy() {
+      stopLanguageCycle();
+      serverPresentationSignature = '';
+      lastStage = '';
+    }
+
+    return { destroy: destroy, render: render };
   }
 
   return { create: create };

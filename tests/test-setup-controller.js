@@ -135,6 +135,10 @@ controller.setFocus(8, 3);
 assert.strictEqual(controller.snapshot().focusIndex, 2, 'setup pointer focus must clamp inside the controller-owned button range');
 controller.moveFocus(-1, 3);
 assert.strictEqual(controller.snapshot().focusIndex, 1, 'setup remote movement must continue from the controller-owned focus');
+var rendersBeforeSilentFocus = renders.length;
+controller.setFocus(1, 3, false);
+assert.strictEqual(controller.snapshot().focusIndex, 1, 'silent focus must still update controller ownership');
+assert.strictEqual(renders.length, rendersBeforeSilentFocus, 'silent pointer focus must not publish a presentation rebuild');
 scans[0].callback(null, [localServer]);
 assert.strictEqual(controller.snapshot().servers.length, 1, 'completed discovery must retain discovered servers');
 
@@ -168,6 +172,39 @@ controller.activate('offline');
 assert.strictEqual(offline.length, 1, 'offline setup must delegate persistence to its adapter');
 assert.strictEqual(finished.length, 1, 'offline setup must finish exactly once');
 
+(function testAccountLoginContinuesToProfileSelection() {
+  var accountLoginRequests = [];
+  var accountServerRequests = [];
+  var accountProfileRequests = [];
+  var accountController = SetupController.create({
+    render: function () {},
+    beginLogin: function (purpose, callback) {
+      var request = abortable();
+      accountLoginRequests.push({ purpose: purpose, callback: callback, request: request });
+      return request;
+    },
+    loadAccountServers: function (token, callback) {
+      var request = abortable();
+      accountServerRequests.push({ token: token, callback: callback, request: request });
+      return request;
+    },
+    loadProfiles: function (token, callback) {
+      var request = abortable();
+      accountProfileRequests.push({ token: token, callback: callback, request: request });
+      return request;
+    }
+  });
+  accountController.open({ languageExplicit: true, servers: [localServer] });
+  accountController.activate('login-servers');
+  accountLoginRequests[0].callback(null, { token: 'account-token' });
+  accountServerRequests[0].callback(null, [{ name: 'Remote Plex', uri: 'https://remote.example.test' }]);
+  accountController.activate('select-server', { name: 'Remote Plex', uri: 'https://remote.example.test' });
+  assert.strictEqual(accountProfileRequests.length, 1, 'a Plex account login followed by server selection must load profiles directly');
+  assert.strictEqual(accountProfileRequests[0].token, 'account-token', 'profile loading must reuse the authenticated account token');
+  assert.strictEqual(accountController.snapshot().stage, 'profiles', 'account login must skip the access-mode screen after server selection');
+  accountController.destroy();
+}());
+
 controller.open({ languageExplicit: true, servers: [localServer] });
 controller.activate('select-server', localServer);
 controller.activate('login-servers');
@@ -179,6 +216,7 @@ accountLoads[0].callback(null, [{ name: 'Remote Plex', uri: 'https://remote.exam
 assert.strictEqual(controller.snapshot().stage, 'servers', 'account server results must return to server selection');
 assert.strictEqual(controller.snapshot().servers.length, 2, 'account servers must merge with local servers');
 
+controller.open({ languageExplicit: true, servers: [localServer] });
 controller.activate('select-server', localServer);
 controller.activate('login');
 assert.strictEqual(controller.snapshot().loginPurpose, 'profiles', 'normal login must route authentication to profiles');
@@ -253,6 +291,35 @@ controller.open({
 controller.activate('load-profiles', { token: 'shrinking-profile-token' });
 profileLoads[profileLoads.length - 1].callback(null, [{ id: 'a' }, { id: 'b' }]);
 assert.strictEqual(controller.snapshot().focusIndex, 3, 'profile refreshes must preserve the selected account action when the profile list changes');
+
+
+(function testUnchangedCachedProfileRefreshStaysStable() {
+  var refreshRenders = [];
+  var refreshRequests = [];
+  var cached = [{ id: 'one', title: 'One', thumb: 'one.jpg', protected: false, switchToken: 'old' }];
+  var refreshController = SetupController.create({
+    render: function (snapshot) { refreshRenders.push(snapshot); },
+    loadProfiles: function (token, callback) {
+      var request = abortable();
+      refreshRequests.push({ token: token, callback: callback, request: request });
+      return request;
+    }
+  });
+  refreshController.open({ stage: 'access', scan: false, languageExplicit: true, profiles: cached, focusIndex: 0 });
+  var rendersBeforeEntry = refreshRenders.length;
+  refreshController.activate('load-profiles', { token: 'owner-token' });
+  assert.strictEqual(refreshController.snapshot().stage, 'profiles', 'cached profiles must be shown immediately when entering profile selection');
+  assert.strictEqual(refreshController.snapshot().profileLoading, true, 'cached profile refreshes must keep the loading spinner visible while retaining the existing list');
+  assert.strictEqual(refreshRenders.length, rendersBeforeEntry + 1, 'entering the profile list must publish the cached surface once');
+  refreshRequests[0].callback(null, [{ id: 'one', title: 'One', thumb: 'one.jpg', protected: false, switchToken: 'new' }]);
+  assert.strictEqual(refreshRenders.length, rendersBeforeEntry + 2, 'presentation-equivalent profile refreshes must publish once more to hide the loading spinner');
+  assert.strictEqual(refreshController.snapshot().profiles[0].switchToken, 'new', 'unchanged presentation must still retain refreshed profile objects internally');
+  refreshController.activate('load-profiles', { token: 'owner-token-2' });
+  refreshRequests[1].callback(null, [{ id: 'one', title: 'Renamed', thumb: 'one.jpg', protected: false }]);
+  assert.strictEqual(refreshRenders.length, rendersBeforeEntry + 4, 'a second refresh must publish loading and completion states while updating visible profile changes');
+  refreshController.destroy();
+}());
+
 
 controller.activate('manual');
 controller.activate('connect-manual', { address: 'plex.example.test' });

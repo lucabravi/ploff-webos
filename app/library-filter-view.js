@@ -128,10 +128,12 @@
       if (!drawer || !shade || !rows) { return; }
       if (!state.open) {
         drawer.className = 'library-filter-drawer is-hidden';
+        drawer.setAttribute('aria-hidden', 'true');
         shade.className = 'library-filter-shade is-hidden';
         return;
       }
       drawer.className = 'library-filter-drawer';
+      drawer.setAttribute('aria-hidden', 'false');
       shade.className = 'library-filter-shade';
       setText('library-filter-title', text('library.advancedFilters'));
       setText('library-filter-hint', text('library.filtersHint', { library: values.libraryTitle ? values.libraryTitle(state.context) : '' }));
@@ -294,6 +296,23 @@
       return snapshot();
     }
 
+    function setFocusedClass(target, focused) {
+      var className;
+      if (!target) { return; }
+      className = (' ' + String(target.className || '') + ' ').replace(/\sis-focused\s/g, ' ').replace(/\s+/g, ' ').replace(/^ | $/g, '');
+      target.className = className + (focused ? (className ? ' ' : '') + 'is-focused' : '');
+    }
+
+    function updatePointerFocus(button) {
+      var targets;
+      var index;
+      if (!documentRef || !documentRef.querySelectorAll) { return; }
+      targets = documentRef.querySelectorAll('[data-library-advanced-filter], [data-library-filter-option], [data-library-filter-action]');
+      for (index = 0; index < targets.length; index += 1) {
+        setFocusedClass(targets[index], targets[index] === button);
+      }
+    }
+
     function pointerFocus(button) {
       var key;
       if (!button || !state.open) { return snapshot(); }
@@ -305,20 +324,7 @@
       } else if (button.hasAttribute('data-library-filter-action')) {
         state.focus.zone = 'actions'; state.focus.index = Math.max(0, ['reset', 'cancel', 'apply'].indexOf(button.getAttribute('data-library-filter-action')));
       } else { return snapshot(); }
-      render();
-      return snapshot();
-    }
-
-    function activatePointer(button) {
-      var action;
-      if (!button || !state.open) { return snapshot(); }
-      pointerFocus(button);
-      if (button.hasAttribute('data-library-advanced-filter')) { openPicker(button.getAttribute('data-library-advanced-filter')); }
-      else if (button.hasAttribute('data-library-filter-option')) { selectPicker(Number(button.getAttribute('data-library-filter-option'))); }
-      else if (button.hasAttribute('data-library-filter-action')) {
-        action = button.getAttribute('data-library-filter-action');
-        activateAction(action);
-      }
+      updatePointerFocus(button);
       return snapshot();
     }
 
@@ -386,7 +392,6 @@
     }
 
     return {
-      activatePointer: activatePointer,
       activeFilterCount: activeFilterCount,
       close: close,
       dismiss: dismiss,

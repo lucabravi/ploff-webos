@@ -61,4 +61,17 @@ var MetadataRefresh = require('../app/metadata-refresh');
   assert.deepStrictEqual(events, ['refresh:episode']);
 }());
 
+(function stopsWhenActivityWaitingIsCancelled() {
+  var events = [];
+  MetadataRefresh.run({
+    keys: ['episode', 'season'],
+    refresh: function (key, callback) { events.push('refresh:' + key); callback(null, 'activity:' + key); },
+    wait: function (activityId, callback) { events.push('wait:' + activityId); callback(new Error('cancelled')); },
+    reload: function (key, callback) { events.push('reload:' + key); callback(null); }
+  }, function (error) {
+    assert.strictEqual(error.message, 'cancelled');
+  });
+  assert.deepStrictEqual(events, ['refresh:episode', 'wait:activity:episode'], 'cancelled activity waiting must not reload stale metadata or continue to parent levels');
+}());
+
 console.log('Metadata refresh coordinator checks passed');

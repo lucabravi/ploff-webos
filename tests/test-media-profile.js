@@ -45,6 +45,10 @@ assert.strictEqual(MediaProfile.trackDisplayLabel(fullHd.subtitleTracks[0], 'Ext
 assert.strictEqual(MediaProfile.trackDisplayLabel({ language: 'Italiano', codec: 'ASS', external: true }, 'External'), 'Italiano (ASS External)', 'external subtitle labels must have a readable fallback');
 assert.strictEqual(MediaProfile.trackDisplayLabel({ language: 'English', codec: 'TRUEHD', channels: 8 }, 'External'), 'English (TRUEHD 7.1)', 'audio labels must derive a readable channel layout when Plex omits its title');
 
+
+assert.strictEqual(MediaProfile.detailedSize(2576980377, 'Unavailable'), '2.40 GB', 'technical surfaces must share precise file-size formatting');
+assert.strictEqual(MediaProfile.detailedSize(0, 'Unavailable'), 'Unavailable', 'technical surfaces must share the translated unavailable fallback');
+
 var hdr = MediaProfile.fromNodes({}, {
   container: 'mkv', videoResolution: '4k', width: '3840', height: '2160', videoCodec: 'hevc', videoDynamicRange: 'HDR10', bitrate: '24000'
 }, { id: '100' }, []);

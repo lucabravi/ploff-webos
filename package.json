@@ -1,25 +1,36 @@
 {
   "name": "ploff-webos",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "description": "Development checks for Ploff for Plex on LG webOS",
   "scripts": {
     "build:app": "node scripts/build-app.js",
     "check:app-bundle": "node scripts/build-app.js --check",
+    "check:coordinator": "for file in app/coordinator/*.js; do node --check \"$file\" || exit 1; done",
+    "check:architecture": "node scripts/check-coordinator-architecture.js",
+    "check:feature-contracts": "node scripts/check-feature-contracts.js",
+    "check:performance": "node scripts/check-performance-budget.js",
+    "check:es5": "node scripts/check-runtime-es5.js",
     "check:deps": "npm audit --audit-level=high",
     "check:lg-ux": "node scripts/check-lg-ux.js",
     "lint": "eslint app scripts tests webos-service eslint.config.js",
+    "typecheck:contracts": "tsc --project jsconfig.contracts.json",
     "typecheck": "tsc --project jsconfig.json",
     "test:unit": "for test in tests/test-*.js; do node \"$test\" || exit 1; done",
     "test:baseline": "sh tests/test-baseline.sh",
+    "benchmark:library-catalog": "node scripts/benchmark-library-catalog.js",
+    "test:memory": "node --expose-gc tests/pre-release-memory.js",
+    "test:memory:snapshot": "PLOFF_MEMORY_SNAPSHOTS=1 node --expose-gc tests/pre-release-memory.js",
+    "test:pre-release": "npm run verify && npm run test:memory",
     "check:assets": "node scripts/check-shell-assets.js app/index.html dev",
     "test": "npm run test:unit && npm run test:baseline",
-    "verify": "npm run check:app-bundle && npm run lint && npm run typecheck && npm run test && npm run check:assets && npm run check:lg-ux"
+    "verify": "npm run check:app-bundle && npm run check:coordinator && npm run check:architecture && npm run check:feature-contracts && npm run check:performance && npm run check:es5 && npm run lint && npm run typecheck:contracts && npm run typecheck && npm run test && npm run check:assets && npm run check:lg-ux"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "acorn": "8.17.0",
     "eslint": "10.8.0",
     "globals": "17.7.0",
     "typescript": "7.0.2"
