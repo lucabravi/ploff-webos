@@ -9,8 +9,8 @@ var fullHd = MediaProfile.fromNodes(
   { id: '99', size: String(2576980377), container: 'mkv', file: '/private/media/Example.Movie.mkv', duration: '1439000' },
   [
     { streamType: '1', codec: 'hevc', profile: 'main 10', frameRate: '23.976', bitDepth: '10', colorRange: 'tv' },
-    { id: '10', streamType: '2', language: 'Japanese', languageTag: 'ja', codec: 'aac', channels: '2', selected: '1', displayTitle: 'Japanese (AAC Stereo)' },
-    { id: '20', streamType: '3', index: '4', language: 'Italiano', languageTag: 'it', codec: 'srt', key: '/library/streams/20', offset: '-250', displayTitle: 'Italiano (SRT External)' }
+    { id: '10', streamType: '2', language: 'Japanese', languageTag: 'ja', codec: 'aac', channels: '2', bitrate: '192', samplingRate: '48000', selected: '1', displayTitle: 'Japanese (AAC Stereo)' },
+    { id: '20', streamType: '3', index: '4', language: 'Italiano', languageTag: 'it', codec: 'srt', key: '/library/streams/20', offset: '-250', bitrate: '12', displayTitle: 'Italiano (SRT External)' }
   ]
 );
 assert.strictEqual(fullHd.summary, '1080p · MKV · 2.4 GB', '1080p files must expose a compact summary');
@@ -20,6 +20,9 @@ assert.strictEqual(fullHd.duration, 1439000, 'the media profile must retain the 
 assert.strictEqual(fullHd.videoDetails.profile, 'main 10', 'the media profile must retain safe video stream details');
 assert.strictEqual(fullHd.audioTracks.length, 1, 'audio tracks must be parsed');
 assert.strictEqual(fullHd.subtitleTracks.length, 1, 'subtitle tracks must be parsed');
+assert.strictEqual(fullHd.audioTracks[0].bitrate, 192, 'audio track bitrate must be preserved');
+assert.strictEqual(fullHd.audioTracks[0].samplingRate, 48000, 'audio track sampling rate must be preserved');
+assert.strictEqual(fullHd.subtitleTracks[0].bitrate, 12, 'subtitle track bitrate must be preserved');
 assert.deepStrictEqual(MediaProfile.subtitleLanguages(fullHd), ['Italiano'], 'media information must expose the available subtitle languages');
 assert.deepStrictEqual(fullHd.subtitleTracks[0], {
   id: '20',
@@ -28,6 +31,10 @@ assert.deepStrictEqual(fullHd.subtitleTracks[0], {
   languageCode: 'it',
   codec: 'SRT',
   channels: 0,
+  bitrate: 12,
+  samplingRate: 0,
+  bitDepth: 0,
+  profile: '',
   forced: false,
   selected: false,
   title: '',

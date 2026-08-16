@@ -217,12 +217,17 @@ assert.deepStrictEqual(
     { key: '4', title: 'Anime', type: 'show' }
   ], {}),
   [
-    { title: 'Continua a guardare', path: '/hubs/continueWatching/items', showLibraryBadge: true },
-    { title: 'Recentemente aggiunto in Film', path: '/library/sections/2/recentlyAdded', groupRecent: true },
-    { title: 'Recentemente aggiunto in Anime', path: '/library/sections/4/recentlyAdded', groupRecent: true }
+    { title: 'Continua a guardare', path: '/hubs/continueWatching/items', kind: 'continue', showLibraryBadge: true },
+    { title: 'Recentemente aggiunto in Film', path: '/library/sections/2/recentlyAdded', kind: 'recent', groupRecent: true },
+    { title: 'Recentemente aggiunto in Anime', path: '/library/sections/4/recentlyAdded', kind: 'recent', groupRecent: true }
   ],
   'Home must use the all-library Continue Watching hub exposed by Plex Media Server'
 );
+assert.ok(/\/actions\/removeFromContinueWatching\?/.test(PlexClient.buildRemoveFromContinueWatchingUrl(
+  { apiBaseUrl: '/plex-api', token: 'token' }, '123'
+)) && /ratingKey=123/.test(PlexClient.buildRemoveFromContinueWatchingUrl(
+  { apiBaseUrl: '/plex-api', token: 'token' }, '123'
+)), 'Continue Watching removal must use the dedicated PMS action with the rating key');
 assert.strictEqual(PlexClient.recommendationHubPriority('tv.startwatching.4'), 1, 'Start Watching must have the highest recommendation priority');
 assert.strictEqual(PlexClient.recommendationHubPriority('movie.genre.2.1378'), 2, 'genre recommendations must be accepted');
 assert.strictEqual(PlexClient.recommendationHubPriority('movie.recentlyviewed.2'), 0, 'recently watched items must not be presented as new recommendations');
@@ -467,9 +472,9 @@ assert.deepStrictEqual(
     { key: '1', title: 'Programmi TV', type: 'show' }
   ]),
   [
-    { title: 'Recentemente aggiunto in Film', path: '/library/sections/2/recentlyAdded', groupRecent: true },
-    { title: 'Recentemente aggiunto in Anime', path: '/library/sections/4/recentlyAdded', groupRecent: true },
-    { title: 'Recentemente aggiunto in Programmi TV', path: '/library/sections/1/recentlyAdded', groupRecent: true }
+    { title: 'Recentemente aggiunto in Film', path: '/library/sections/2/recentlyAdded', kind: 'recent', groupRecent: true },
+    { title: 'Recentemente aggiunto in Anime', path: '/library/sections/4/recentlyAdded', kind: 'recent', groupRecent: true },
+    { title: 'Recentemente aggiunto in Programmi TV', path: '/library/sections/1/recentlyAdded', kind: 'recent', groupRecent: true }
   ],
   'library sections must produce one recently-added row each'
 );
@@ -562,14 +567,19 @@ assert.deepStrictEqual(
 assert.deepStrictEqual(
   PlexClient.episodeFromAttributes({
     ratingKey: '44', parentIndex: '2', index: '3', title: 'La decisione', thumb: '/episode', viewCount: '1',
-    viewOffset: '360000', duration: '1440000'
-  }, '/plex-api', '', '44'),
+    viewOffset: '360000', duration: '1440000', year: '2026'
+  }, '/plex-api', '', '44', 2025),
   {
     ratingKey: '44', type: 'episode', seasonIndex: 2, episodeIndex: 3, index: 3,
     title: 'La decisione', image: '/plex-api/episode', viewed: true,
-    viewOffset: 360000, duration: 1440000, progress: 25, selected: true
+    viewOffset: 360000, duration: 1440000, progress: 25, selected: true, year: 2026
   },
-  'episode rows must retain playable identity and coordinates alongside selection, watched state and playback progress'
+  'episode rows must retain the episode year ahead of the season fallback'
+);
+assert.strictEqual(
+  PlexClient.episodeFromAttributes({ ratingKey: '45', parentIndex: '2', index: '4', title: 'Next' }, '/plex-api', '', '', 2025).year,
+  2025,
+  'episode rows must fall back to the season year when Plex omits the episode year'
 );
 
 assert.strictEqual(
@@ -850,7 +860,7 @@ assert.ok(/subtitleStreamID=20/.test(playback.hlsUrl), 'selected subtitles must 
 
 assert.deepStrictEqual(
   PlexClient.trackFromAttributes({ id: '12', index: '3', language: 'Italiano', languageTag: 'it-IT', languageCode: 'ita', codec: 'srt', key: '/library/streams/12', offset: '450', forced: '1', selected: '1', title: 'Forced signs', displayTitle: 'Italiano (SRT External)', extendedDisplayTitle: 'Italiano (SRT External)', channels: '2', audioChannelLayout: 'stereo' }),
-  { id: '12', language: 'Italiano', languageTag: 'it', languageCode: 'it', codec: 'srt', forced: true, selected: true, title: 'Forced signs', index: 3, key: '/library/streams/12', external: true, format: 'srt', offset: 450, displayTitle: 'Italiano (SRT External)', extendedDisplayTitle: 'Italiano (SRT External)', channels: 2, channelLayout: 'stereo' },
+  { id: '12', language: 'Italiano', languageTag: 'it', languageCode: 'it', codec: 'srt', bitrate: 0, samplingRate: 0, bitDepth: 0, profile: '', forced: true, selected: true, title: 'Forced signs', index: 3, key: '/library/streams/12', external: true, format: 'srt', offset: 450, displayTitle: 'Italiano (SRT External)', extendedDisplayTitle: 'Italiano (SRT External)', channels: 2, channelLayout: 'stereo' },
   'track metadata must retain normalized language, forced and display information'
 );
 
@@ -936,10 +946,16 @@ var originalUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 
 var limitedUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 0, videoQuality: '8000', videoResolution: '1920x1080'
 });
+var safeTranscodeUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+  audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 0,
+  videoQuality: '8000', videoResolution: '1920x1080', playbackMode: 'transcode', safeTranscode: true
+});
 assert.ok(/videoResolution=3840x2160/.test(originalUrl), 'the client must advertise a 4K ceiling');
 assert.ok(!/maxVideoBitrate=/.test(originalUrl), 'original quality must not impose a bitrate ceiling');
 assert.ok(/maxVideoBitrate=8000/.test(limitedUrl), 'limited quality must send the selected bitrate ceiling');
 assert.ok(/videoResolution=1920x1080/.test(limitedUrl), 'the safe fallback must be able to request a 1080p ceiling');
+assert.ok(/videoCodec=h264&audioCodec=aac/.test(decodeURIComponent(safeTranscodeUrl)), 'the safe fallback must constrain Plex to the broadly supported H.264/AAC profile');
+assert.ok(!/videoCodec=h264,hevc/.test(decodeURIComponent(safeTranscodeUrl)), 'the safe fallback must not reuse the broad codec profile');
 var localSubtitleUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '20', subtitleSize: 100, localSubtitleOverlay: true, offset: 0, videoQuality: 'original'
 });
@@ -960,6 +976,11 @@ var forcedTranscodeUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', 
   audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 0, videoQuality: 'original', playbackMode: 'transcode'
 });
 assert.ok(/directStream=0/.test(forcedTranscodeUrl), 'Force transcode must disable Plex Direct Stream');
+var accurateSeekUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+  audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 1798,
+  videoQuality: 'original', playbackMode: 'auto'
+});
+assert.ok(/directStream=1/.test(accurateSeekUrl) && /directStreamAudio=1/.test(accurateSeekUrl), 'terminal Direct Stream seeks must remain Direct Stream');
 assert.ok(/directStream=1/.test(originalUrl), 'Auto mode must retain Plex Direct Stream fallback');
 
 assert.strictEqual(PlexClient.playbackModeFromDecisions('copy', 'copy'), 'direct-stream', 'copied audio and video must be described as Direct Stream');

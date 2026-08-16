@@ -52,15 +52,27 @@ interface PloffSettingsRecord {
   remoteVideoQuality: string;
   playbackMode: string;
   videoVersionPriorities: string[];
+  adaptivePlaybackMemory: boolean;
   wheelBehavior: string;
   cardScale: number;
   artworkQuality: number;
   backdropQuality: number;
   accentColor: string;
+  visualTheme: string;
   interfaceAnimations: boolean;
   searchT9Input: boolean;
   showWatchlist: boolean;
   showPlaylists: boolean;
+  settingsBackupMode: 'off' | 'on';
+  highContrast: boolean;
+  strongFocus: boolean;
+  subtitleBackground: string;
+  subtitleEdge: string;
+  subtitlePosition: number;
+  safeAreaTop: number;
+  safeAreaRight: number;
+  safeAreaBottom: number;
+  safeAreaLeft: number;
 }
 
 interface PloffPlaybackOptions {

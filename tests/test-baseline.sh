@@ -18,9 +18,13 @@ for path in \
   docs/application-source-architecture.md \
   docs/playback-invariants.md \
   docs/testing.md \
+  docs/themes.md \
+  docs/settings.md \
+  docs/diagnostics.md \
   app/build-info.js \
   app/config.js \
   app/i18n.js \
+  app/settings-schema.js \
   app/locales/en.js \
   app/locales/it.js \
   app/locales/es.js \
@@ -45,6 +49,7 @@ for path in \
   scripts/check-lg-ux.js \
   scripts/build-app.js \
   scripts/check-release-signoff.js \
+  scripts/check-release-metadata.js \
   scripts/preview-local.sh \
   scripts/docker-installer.sh \
   scripts/install-webos.sh \

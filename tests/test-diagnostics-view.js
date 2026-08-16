@@ -12,6 +12,7 @@ function node() {
     scrollTop: 0,
     textContent: '',
     appendChild: function (child) { this.children.push(child); },
+    setAttribute: function (name, value) { this.attributes = this.attributes || {}; this.attributes[name] = value; },
     focus: function () { this.focused = true; }
   };
 }
@@ -22,15 +23,24 @@ var nodes = {
   'diagnostics-title': node(),
   'diagnostics-notice': node(),
   'diagnostics-refresh': node(),
+  'diagnostics-export': node(),
+  'diagnostics-qr-dialog': node(),
+  'diagnostics-qr-title': node(),
+  'diagnostics-qr-notice': node(),
+  'diagnostics-qr-canvas': node(),
+  'diagnostics-qr-fallback': node(),
+  'diagnostics-report-text': node(),
+  'diagnostics-qr-close': node(),
   'diagnostics-back': node()
 };
-var actions = [nodes['diagnostics-refresh'], nodes['diagnostics-back']];
+var actions = [nodes['diagnostics-refresh'], nodes['diagnostics-export'], nodes['diagnostics-back']];
 var interval = null;
 var clearedIntervals = [];
 var requests = [];
 var opened = 0;
 var closed = 0;
 var rendered = 0;
+var qrRendered = 0;
 var documentStub = {
   getElementById: function (id) { return nodes[id]; },
   querySelectorAll: function () { return actions; }
@@ -70,6 +80,11 @@ var view = DiagnosticsView.create({
     requests.push({ callback: callback, request: request });
     return request;
   },
+  getSupportReport: function () { return { mailto: 'mailto:?body=support', body: 'safe report text' }; },
+  SupportQr: {
+    create: function (value) { assert.strictEqual(value, 'mailto:?body=support'); return { modules: [[true]], size: 1, version: 1 }; },
+    render: function () { qrRendered += 1; return true; }
+  },
   isPointerSelectionActive: function () { return false; },
   onOpen: function () { opened += 1; },
   onClose: function () { closed += 1; }
@@ -97,7 +112,11 @@ view.handleKey({ keyCode: 40, preventDefault: function () {} }, 'down');
 assert.ok(nodes['diagnostics-content'].scrollTop > 90, 'Down must scroll long diagnostics content');
 
 view.handleKey({ keyCode: 39, preventDefault: function () {} }, 'right');
-assert.strictEqual(actions[1].className, 'is-focused', 'Right must move focus to Back');
+assert.strictEqual(actions[1].className, 'is-focused', 'Right must move focus to Export');
+view.handleKey({ keyCode: 39, preventDefault: function () {} }, 'right');
+assert.strictEqual(actions[2].className, 'is-focused', 'Right must move focus from Export to Back');
+view.handleKey({ keyCode: 37, preventDefault: function () {} }, 'left');
+assert.strictEqual(actions[1].className, 'is-focused', 'Left must move focus from Back to Export');
 
 view.setFocus(0);
 assert.strictEqual(actions[0].className, 'is-focused', 'pointer selection must be able to synchronize the focused diagnostics action');
@@ -109,6 +128,18 @@ assert.strictEqual(requests[0].request.aborted, true, 'refresh must abort the pr
 var renderedBeforeStaleRefresh = rendered;
 requests[0].callback(null, { name: 'Old server' });
 assert.strictEqual(rendered, renderedBeforeStaleRefresh, 'an older request must not overwrite a newer diagnostics refresh');
+
+view.setFocus(1);
+view.handleKey({ keyCode: 13, preventDefault: function () {} });
+assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog', 'Export must open the support QR dialog');
+assert.strictEqual(nodes['diagnostics-report-text'].textContent, 'safe report text', 'Export must expose the privacy-safe text report even when QR rendering succeeds');
+assert.strictEqual(qrRendered, 1, 'Export must render one QR for the current support report');
+nodes['diagnostics-qr-close'].onclick();
+assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog is-hidden', 'the QR close button must close the dialog');
+view.setFocus(1);
+view.handleKey({ keyCode: 13, preventDefault: function () {} });
+view.handleKey({ keyCode: 461, preventDefault: function () {} });
+assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog is-hidden', 'Back must close the support QR dialog first');
 
 view.close();
 assert.strictEqual(view.isOpen(), false, 'closing must deactivate the diagnostics controller');

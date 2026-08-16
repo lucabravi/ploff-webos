@@ -128,13 +128,21 @@
     };
   }
 
-  function discoverWithService(rootObject, callback) {
+  function discoverWithService(rootObject, timeout, callback) {
     var bridge;
     var finished = false;
+    var timer = null;
+    var clearTimer = rootObject && typeof rootObject.clearTimeout === 'function' ? rootObject.clearTimeout : null;
     function done(servers) {
       if (finished) { return; }
       finished = true;
+      if (timer !== null && clearTimer) { clearTimer(timer); }
+      timer = null;
       callback(Object.prototype.toString.call(servers) === '[object Array]' ? servers : []);
+    }
+    function armTimeout() {
+      if (finished || !rootObject || typeof rootObject.setTimeout !== 'function') { return; }
+      timer = rootObject.setTimeout(function () { done([]); }, Math.max(1, Number(timeout) || 3500));
     }
     if (rootObject.webOS && rootObject.webOS.service && rootObject.webOS.service.request) {
       try {
@@ -143,6 +151,7 @@
           onSuccess: function (response) { done(response && response.servers); },
           onFailure: function () { done([]); }
         });
+        armTimeout();
       } catch (serviceError) { done([]); }
       return;
     }
@@ -156,7 +165,7 @@
           done(response && response.servers);
         };
         bridge.call(SERVICE_URI + '/' + SERVICE_METHOD, '{}');
-        rootObject.setTimeout(function () { done([]); }, 3500);
+        armTimeout();
       } catch (bridgeError) { done([]); }
       return;
     }
@@ -164,6 +173,7 @@
   }
 
   function discover(rootObject, config, callback) {
+    config = config || {};
     var uris = configuredUris(config || {});
     var pending = uris.length + 1;
     var results = [];
@@ -181,7 +191,7 @@
         probe(rootObject, uri, name, config.discoveryTimeout || 1800, function (server) { complete(server ? [server] : []); });
       }(uris[index], index === 0 ? config.serverName : ''));
     }
-    discoverWithService(rootObject, complete);
+    discoverWithService(rootObject, config.discoveryServiceTimeout || config.discoveryTimeout || 3500, complete);
   }
 
   return {

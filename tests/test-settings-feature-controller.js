@@ -7,7 +7,7 @@ function createFixture() {
   var calls = [];
   var captured = null;
   var settings = { uiLanguage: 'en', accentColor: 'cyan' };
-  var rows = [{ key: 'one' }, { key: 'two' }, { key: 'three' }];
+  var rows = [{ key: 'settingsBackup' }, { key: 'diagnostics' }, { key: 'privacy' }, { key: 'deleteLocalData' }];
   var languages = ['en', 'it', 'fr'];
   var state = {
     open: false,
@@ -59,6 +59,7 @@ function createFixture() {
       calls.push('save');
       return settings;
     },
+    promptSettingsLoad: function (status, options, callback) { calls.push('prompt-settings-load:' + status.profiles.length + ':' + (options.confirmFirst === true)); if (callback) { callback(null, null, true); } return true; },
     setSetupLanguage: function (language, explicit) {
       settings.uiLanguage = language;
       if (explicit === true) { settings.uiLanguageExplicit = true; }
@@ -73,6 +74,8 @@ function createFixture() {
     playbackPreferenceLabel: function (value) { return 'mode:' + value; },
     videoQualityLabel: function (value) { return 'quality:' + value; },
     applyAccentColor: function () { calls.push('apply-accent'); },
+    applyVisualTheme: function () { calls.push('apply-theme'); },
+    applyAccessibilityPreferences: function () { calls.push('apply-accessibility'); },
     applyAnimationPreference: function () { calls.push('apply-animation'); },
     interfaceAnimationDuration: function (milliseconds) { return milliseconds / 2; },
     keepFocusVisible: function () { calls.push('keep-visible'); },
@@ -142,7 +145,9 @@ function createFixture() {
 
   feature.resume({ focusLast: true });
   assert.strictEqual(fixture.node.className, 'app-settings-view', 'resume must reveal Settings');
-  assert.ok(fixture.calls.indexOf('focus-setting:2') !== -1, 'resume from diagnostics must restore the last Settings row');
+  assert.ok(fixture.calls.indexOf('focus-setting:3') !== -1, 'legacy focusLast behavior must remain available to generic callers');
+  feature.resume({ focusKey: 'diagnostics' });
+  assert.ok(fixture.calls.indexOf('focus-setting:1') !== -1, 'resume from diagnostics must restore the diagnostics row instead of the destructive last row');
   assert.ok(fixture.calls.indexOf('navigation') !== -1 && fixture.calls.indexOf('render') !== -1, 'resume must restore navigation and Settings presentation');
 
   feature.leave();
@@ -189,6 +194,9 @@ function createFixture() {
   assert.strictEqual(feature.playbackPreferenceLabel('direct'), 'mode:direct');
   assert.strictEqual(feature.videoQualityLabel('8000'), 'quality:8000');
   assert.strictEqual(feature.animationDuration(400), 200);
+  assert.strictEqual(typeof feature.promptSettingsLoad, 'function', 'SettingsFeature must expose the reusable settings-load flow');
+  feature.promptSettingsLoad({ profiles: [{ id: 'one' }] }, { confirmFirst: true }, function () {});
+  assert.ok(fixture.calls.indexOf('prompt-settings-load:1:true') !== -1, 'onboarding must be able to reuse the Settings-owned load flow');
   assert.strictEqual(typeof feature.setSetupLanguage, 'function', 'SettingsFeature must expose setup-language persistence');
   feature.setSetupLanguage('it', true);
   assert.ok(fixture.calls.indexOf('setup-language:it:true') !== -1, 'setup language changes must use the Settings-owned save path');

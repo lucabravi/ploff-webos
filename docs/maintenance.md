@@ -13,6 +13,68 @@ manually. `app/.modular-coordinator` and the baseline checks enforce both rules.
 The builder removes blank-only lines from the generated runtime bundle while preserving
 every executable source line; tests compare against the same deterministic compaction.
 
+
+## Visual theme maintenance
+
+Visual-theme work follows [`themes.md`](themes.md). The DOM is shared; theme-specific
+CSS belongs only in the registered scoped file under `app/styles/themes/`. Shared
+component behavior belongs in `core.css`, with semantic tokens used only when the
+same conceptual property varies by theme. `app/styles.css` is generated and must not
+be edited directly. `npm run check:styles` enforces registered files, required theme
+tokens, selector scoping, generated-bundle freshness, the single-stylesheet runtime,
+and `theme-registry.js` loading before `settings.js`.
+
+The current registry ships `classic`, `immersive`, `premiere`, `nova`, and `atelier`.
+When a shared DOM or core rule changes, verify every registered theme. When only one
+theme changes, do not modify another theme or core CSS merely to compensate for that
+change. Theme-specific motion must stay within Chrome 53-safe transforms/opacity and
+ordinary transitions/keyframes; do not introduce modern CSS APIs just for one theme.
+
+## Persistent Settings maintenance
+
+`app/settings-schema.js` is the authoritative registry of persisted Settings keys, defaults,
+normalization kinds, and bounded allowed values. `app/settings.js` consumes that registry and
+owns storage versioning, validation orchestration, Plex seeding, and migrations.
+`app/settings-catalog.js` remains presentation-only. See [`settings.md`](settings.md) for the
+full extension workflow.
+
+The local persisted Settings contract remains independent from the Plex saved-settings
+payload format. The current local key is `ploff.settings.v3`. Treat every schema bump as an
+append-only migration chain:
+
+1. add exactly one migration from the previous current schema to the new schema;
+2. keep every older migration step so a TV that skipped releases can still upgrade;
+3. add a representative old-state fixture under `tests/fixtures/settings/`;
+4. prove migration before feature construction with `tests/test-settings.js` and
+   `tests/test-application-composition.js`;
+5. write only the newest key after validation.
+
+Do not fold saved-settings backup versions into the local Settings version. They are separate
+contracts with different compatibility requirements. A future schema that cannot be safely
+understood must fail closed instead of guessing at newer persisted data.
+
+## Playback compatibility memory maintenance
+
+`app/playback-compatibility-memory.js` owns schema `v3` at
+`ploff.playbackCompatibility.v3` and can migrate the previous v2 record. Keep stored records
+bounded and preserve provenance: file-specific automatic failures are `observation`, explicit
+user choices are `user-override`, and generalized format rules are `derived`. The metadata
+record is diagnostic context, not a playback selector: it may contain only bounded TV model,
+runtime, application version, rule version, and timestamp values.
+
+Changing the decision algorithm must either preserve the meaning of existing rules or bump the
+rule/schema version and migrate/discard incompatible learned state deliberately. Never let stale
+compatibility memory override a user's explicit current choice.
+
+## Support-report privacy boundary
+
+`app/support-snapshot.js` is the only place that shapes data for exported support reports.
+Settings and compatibility data must enter through explicit allowlists. Never serialize entire
+Settings/storage records, Plex tokens, credentials, server URLs, local addresses, or arbitrary
+error objects. The QR mail draft and visible report text must reuse the same sanitized report; do
+not add a second serializer in the view. New diagnostic fields need a test proving both their
+presence and the absence of sensitive neighbours. See [`diagnostics.md`](diagnostics.md).
+
 ## Ownership rules
 
 Keep one owner for every mutable lifecycle:
@@ -20,6 +82,10 @@ Keep one owner for every mutable lifecycle:
 - domain state, timers, and requests stay in the corresponding controller;
 - native video, `video.src`, `video.currentTime`, playback clock, recovery,
   reporting, keepalive, and subtitle preview stay in `playback-controller.js`;
+- automatic playback compatibility memory is owned by the application
+  composition root and receives only semantic version/context requests from
+  `playback-controller.js`; it must never select a different media file or
+  mutate native playback state;
 - keyboard/remote routing stays in `input-controller.js`;
 - Magic Remote focus, wheel, and click entry stay in `pointer-controller.js`; ordinary
   clicks must re-enter `input-controller.js` as one semantic OK press instead of
@@ -31,7 +97,9 @@ Keep one owner for every mutable lifecycle:
   setup-language publication, and Up Next layout input stay in
   `settings-feature-controller.js`;
 - Diagnostics surface/snapshots/redaction/actions stay in
-  `diagnostics-feature-controller.js`;
+  `diagnostics-feature-controller.js`; support report shaping and QR rendering
+  stay in `support-snapshot.js` and `support-qr.js`; bounded global JavaScript
+  error capture stays in `runtime-error-store.js`;
 - first-run, Profile Manager, manual setup, account/profile selection, and
   authentication/scan lifecycle stay in `setup-feature-controller.js`;
 - account/profile state, network transitions, bootstrap transport, discovery,
@@ -201,6 +269,11 @@ resume, seek, offset, rebuild, recovery, reporting, keepalive, buffering,
 track/version, or subtitle-timing logic requires a concrete defect, a focused
 regression, and explicit review against `docs/playback-invariants.md`.
 
+Compatibility memory is consulted only by Automatic mode. Forced Direct mode
+always attempts Direct Play and Direct Stream for the selected version; after a
+confirmed terminal failure, Player may offer Automatic through the existing
+settings-change path without exposing a new native playback API.
+
 ## Presentation services
 
 Use `presentation-services.js` only for pure translation, node/text construction,
@@ -298,6 +371,21 @@ not assign `onclick` properties or maintain parallel fixed-handler bookkeeping.
 A feature-local listener may be registered by its feature only when that feature
 removes it during idempotent teardown; Player-owned handlers are cleared by
 `PlayerFeatureController.destroy()`.
+
+## Release metadata integrity
+
+The semantic release version has three checked representations: `package.json`, the root
+project version in `package-lock.json`, and `webos-shell-app/appinfo.json`. They must match
+exactly and use stable `x.y.z` syntax. `npm run check:release-metadata` is part of the normal
+`npm run verify` gate. The release workflow supplies the Git tag to the same checker, so a
+tag other than `v<matching-version>` fails before packaging.
+
+`npm run release:package` is the local orchestration entry point for generated-asset rebuild,
+pre-release verification, IPK packaging/inspection, and `dist/SHA256SUMS`. It deliberately has no
+Git or version side effects. Do not make packaging scripts mutate version files or create tags.
+For a release, change the
+three metadata files intentionally, verify locally, complete the physical-TV signoff for that
+version, commit the release candidate, then create the matching `vX.Y.Z` tag.
 
 ## Physical-TV signoff integrity
 

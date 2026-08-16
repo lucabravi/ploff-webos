@@ -7,6 +7,7 @@ var ApplicationController = require('../app/coordinator/application-controller')
 var ApplicationSession = require('../app/application-session');
 var PlexFeaturePorts = require('../app/coordinator/plex-feature-ports');
 var PresentationServices = require('../app/coordinator/presentation-services');
+var Settings = require('../app/settings');
 
 function eventTarget(name) {
   return {
@@ -21,7 +22,7 @@ function createHarness(options) {
   var sourcePath = path.join(__dirname, '../app/coordinator/application-controller.js');
   var source = fs.readFileSync(sourcePath, 'utf8');
   var moduleNames = source.match(/root\.Ploff[A-Za-z0-9_]+/g) || [];
-  var root = { localStorage: {}, navigator: { userAgent: 'composition-test' }, location: {} };
+  var root = { localStorage: values.localStorage || {}, navigator: { userAgent: 'composition-test' }, location: {} };
   var calls = [];
   var createOrder = [];
   var destroyOrder = [];
@@ -36,6 +37,8 @@ function createHarness(options) {
   moduleNames.forEach(function (entry) { root[entry.slice(5)] = {}; });
 
   root.PloffPlexFeaturePorts = PlexFeaturePorts;
+  root.PloffBuildInfo = values.BuildInfo || { version: 'test' };
+  if (values.PlaybackCompatibilityMemory) { root.PloffPlaybackCompatibilityMemory = values.PlaybackCompatibilityMemory; }
   root.PloffPresentationServices = PresentationServices;
   root.PloffClient = {};
   [
@@ -46,7 +49,8 @@ function createHarness(options) {
     'loadServerIdentity', 'loadSubtitleText', 'pingTranscode', 'posterUrl',
     'preparePlayback', 'refreshLibrary', 'refreshLibraryMetadata',
     'refreshMetadata', 'rotateTranscodeSession', 'search', 'sendTimeline',
-    'setStreamSelection', 'setSubtitleOffset', 'setWatchedAndReset', 'unexpected'
+    'setStreamSelection', 'setSubtitleOffset', 'setWatchedAndReset', 'resetProgress', 'removeFromContinueWatching', 'unexpected'
+    , 'loadSettingsBackupPlaylists', 'createSettingsBackupPlaylist', 'updateSettingsBackupPlaylist', 'deleteSettingsBackupPlaylist'
   ].forEach(function (name) { root.PloffClient[name] = function () {}; });
 
   function recordCall(name) {
@@ -72,6 +76,9 @@ function createHarness(options) {
             invocations.push({ owner: name, method: String(property), args: args });
             if (values.failStartup === methodKey) {
               throw new Error('startup failed: ' + methodKey);
+            }
+            if (values.methodHandlers && Object.prototype.hasOwnProperty.call(values.methodHandlers, methodKey)) {
+              return values.methodHandlers[methodKey].apply(null, args);
             }
             if (values.methodReturns && Object.prototype.hasOwnProperty.call(values.methodReturns, methodKey)) {
               return values.methodReturns[methodKey];
@@ -100,7 +107,7 @@ function createHarness(options) {
     };
   }
 
-  root.PloffSettings = {
+  root.PloffSettings = values.Settings || {
     load: function () { return {}; },
     seedFromPlex: function (settings) { return settings; }
   };
@@ -152,12 +159,14 @@ function createHarness(options) {
 
   [
     ['PloffServerFeatureController', 'server'],
+    ['PloffPlexSettingsBackupStore', 'settingsBackup'],
     ['PloffChoiceDialogController', 'choice'],
     ['PloffMediaInfoDialogController', 'mediaInfo'],
     ['PloffShellFeatureController', 'shell'],
     ['PloffLibraryFeatureController', 'library'],
     ['PloffDetailFeatureController', 'detail'],
     ['PloffPlayerFeatureController', 'player'],
+    ['PloffMediaContextController', 'mediaContext'],
     ['PloffInputController', 'input'],
     ['PloffPointerController', 'pointer'],
     ['PloffSearchFeatureController', 'search'],
@@ -181,7 +190,7 @@ function createHarness(options) {
       recordCall('startup:device');
       if (values.failStartup === 'device') { throw new Error('startup failed: device'); }
       if (values.deferDevice) { deviceCallback = callback; }
-      else { callback({}); }
+      else { callback(values.deviceCapabilities || {}); }
     }
   };
 
@@ -213,10 +222,91 @@ function createHarness(options) {
   };
 }
 
+
+(function onboardingDelegatesToTheReusableSettingsLoadFlow() {
+  var status = {
+    exists: true,
+    currentProfile: null,
+    profiles: [
+      { id: 'living-id', name: 'Living room', model: 'OLED55' },
+      { id: 'bedroom-id', name: 'Bedroom', model: 'OLED42' }
+    ]
+  };
+  var harness = createHarness({
+    methodHandlers: {
+      'settingsBackup.status': function (callback) { callback(null, status); }
+    }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var finish = harness.capturedOptions.setup.transitions.finish;
+  var invocation;
+
+  finish({ returnView: '', selectedServer: null });
+  invocation = harness.invocations.filter(function (entry) {
+    return entry.owner === 'settings' && entry.method === 'promptSettingsLoad';
+  }).pop();
+
+  assert.ok(invocation, 'onboarding must delegate saved-settings decisions to SettingsFeature');
+  assert.strictEqual(invocation.args[0], status, 'onboarding must pass the discovered device saves unchanged');
+  assert.strictEqual(invocation.args[1].confirmFirst, true, 'onboarding must first ask whether saved settings should be loaded');
+  application.destroy();
+}());
+
+(function coldStartupMigratesPersistedSettingsBeforeFeatureConstruction() {
+  var stored = {};
+  stored['ploff.settings.v2'] = JSON.stringify({ version: 2, visualTheme: 'classic', cardScale: 70, settingsBackupMode: 'sync' });
+  var harness = createHarness({ Settings: Settings, localStorage: {
+    getItem: function (key) { return stored[key] || null; },
+    setItem: function (key, value) { stored[key] = value; }
+  } });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var activeSettings = harness.capturedOptions.settings.state.getSettings();
+  assert.strictEqual(activeSettings.version, Settings.CURRENT_VERSION, 'cold startup must migrate persisted settings before feature construction');
+  assert.strictEqual(activeSettings.visualTheme, 'classic', 'cold startup must preserve the saved visual theme through migration');
+  assert.strictEqual(activeSettings.settingsBackupMode, 'on', 'cold startup must migrate legacy sync mode before SettingsFeature sees it');
+  application.destroy();
+}());
+
+(function onboardingLoadedSettingsBecomeTheApplicationStateBeforeHome() {
+  var loaded = Settings.validate({ visualTheme: 'classic', cardScale: 70, settingsBackupMode: 'on' });
+  var status = { exists: true, currentProfile: null, profiles: [{ id: 'living', name: 'Living room', model: 'OLED55' }] };
+  var harness = createHarness({
+    Settings: Settings,
+    methodHandlers: {
+      'settingsBackup.status': function (callback) { callback(null, status); },
+      'settings.promptSettingsLoad': function (_status, _options, callback) { callback(null, { settings: loaded }, false); }
+    }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.capturedOptions.setup.transitions.finish({ returnView: '', selectedServer: null });
+  assert.strictEqual(harness.capturedOptions.settings.state.getSettings(), loaded, 'successful onboarding load must replace the shared application settings state');
+  assert.strictEqual(harness.capturedOptions.settings.state.getSettings().visualTheme, 'classic', 'loaded theme must be visible to every feature after onboarding');
+  application.destroy();
+}());
+
 var expectedCreation = [
-  'session', 'server', 'choice', 'mediaInfo', 'shell', 'library', 'detail', 'player',
-  'input', 'pointer', 'search', 'settings', 'setup', 'diagnostics', 'events'
+  'session', 'server', 'settingsBackup', 'choice', 'mediaInfo', 'shell', 'library', 'detail', 'player',
+  'mediaContext', 'input', 'pointer', 'search', 'settings', 'setup', 'diagnostics', 'events'
 ];
+
+(function compatibilityMemoryReceivesCurrentDeviceMetadataProvider() {
+  var captured = null;
+  var memory = {
+    clear: function () {}, clearFileExceptions: function () {}, clearFormatRules: function () {},
+    recordFailure: function () {}, recordSuccess: function () {}, shouldSkip: function () { return false; },
+    snapshot: function () { return { formatRuleCount: 0, fileExceptionCount: 0, fileExceptionTtlDays: 30 }; },
+    destroy: function () {}
+  };
+  var harness = createHarness({
+    BuildInfo: { version: '1.0.7' },
+    deviceCapabilities: { modelName: 'OLED42' },
+    PlaybackCompatibilityMemory: { create: function (options) { captured = options; return memory; } }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  assert.strictEqual(typeof captured.metadata, 'function', 'composition must provide compatibility memory with dynamic device metadata');
+  assert.deepStrictEqual(captured.metadata(), { model: 'OLED42', runtime: 'composition-test', appVersion: '1.0.7' }, 'compatibility metadata must identify the current TV/runtime/app without media identities');
+  application.destroy();
+}());
 
 (function updateCheckStartsOnlyFromThePostHomeHook() {
   var harness = createHarness();
@@ -249,7 +339,7 @@ var expectedCreation = [
   }, /create failed: search/, 'the original constructor error must be rethrown');
   assert.deepStrictEqual(
     harness.destroyOrder,
-    ['pointer', 'input', 'player', 'detail', 'library', 'shell', 'mediaInfo', 'choice', 'server', 'session'],
+    ['pointer', 'input', 'mediaContext', 'player', 'detail', 'library', 'shell', 'mediaInfo', 'choice', 'settingsBackup', 'server', 'session'],
     'a middle constructor failure must clean every earlier owner in reverse order'
   );
 }());
@@ -261,7 +351,7 @@ var expectedCreation = [
   }, /create failed: search/, 'cleanup failure must not replace the original construction error');
   assert.deepStrictEqual(
     harness.destroyOrder,
-    ['pointer', 'input', 'player', 'detail', 'library', 'shell', 'mediaInfo', 'choice', 'server', 'session'],
+    ['pointer', 'input', 'mediaContext', 'player', 'detail', 'library', 'shell', 'mediaInfo', 'choice', 'settingsBackup', 'server', 'session'],
     'cleanup must continue after one owner destroy throws'
   );
 }());
@@ -288,6 +378,18 @@ var expectedCreation = [
     expectedCreation.slice(0, -1).reverse(),
     'startup failure before event binding must clean all feature owners'
   );
+}());
+
+(function visualPreferencesAreAppliedBeforeTheFirstShellRender() {
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var themeIndex = harness.calls.indexOf('applyVisualTheme:settings');
+  var shellIndex = harness.calls.indexOf('start:shell');
+  var accessibilityIndex = harness.calls.indexOf('applyAccessibilityPreferences:settings');
+  assert.ok(themeIndex !== -1 && shellIndex !== -1, 'startup must apply the visual theme and start the shell');
+  assert.ok(themeIndex < shellIndex, 'the visual theme must be active before the first Home render');
+  assert.ok(accessibilityIndex < shellIndex, 'safe-area preferences must be active before the first Home render');
+  application.destroy();
 }());
 
 (function startupFailureAfterEventBindingDestroysEventsFirst() {
@@ -337,6 +439,33 @@ var expectedCreation = [
   transitions.restoreOrigin('home');
   assert.strictEqual(application.view(), 'home');
   assert.ok(harness.calls.slice(homeCallStart).indexOf('enterHome:shell') !== -1);
+
+  application.destroy();
+}());
+
+(function enteringLibraryFromHomeClosesTheHomeSurface() {
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var transitions = harness.capturedOptions.shell.transitions;
+  var start = harness.calls.length;
+
+  assert.strictEqual(application.view(), 'home');
+  transitions.commitNavigationView({ kind: 'library', key: 'anime' }, 1, false);
+  assert.ok(harness.calls.slice(start).indexOf('hideHomeSurface:shell') !== -1, 'entering a library from Home must hide the Immersive Home surface');
+  assert.ok(harness.calls.slice(start).indexOf('enterLibrary:library') !== -1, 'entering a library must delegate content loading to the library feature');
+
+  application.destroy();
+}());
+
+(function returningFromPlayerClosesTheHomeSurfaceBeforeDetailIsShown() {
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var state = harness.capturedOptions.player.state;
+  var start = harness.calls.length;
+
+  state.enterDetail();
+  assert.strictEqual(application.view(), 'detail');
+  assert.ok(harness.calls.slice(start).indexOf('hideHomeSurface:shell') !== -1, 'Player return must remove the Home hero for every visual theme');
 
   application.destroy();
 }());
@@ -760,6 +889,71 @@ var expectedCreation = [
     'Player must receive the exact original PlexClient object so playback APIs and semantics remain unchanged'
   );
 
+  application.destroy();
+}());
+
+
+(function serverSwitchLifecycleSuspendsSettingsAndReloadsHome() {
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var transition = harness.capturedOptions.server.transitions.serverSwitched;
+  var start;
+
+  harness.capturedOptions.player.state.setView('player');
+  assert.strictEqual(application.view(), 'player', 'precondition: lifecycle test must leave Home before switching server');
+  start = harness.calls.length;
+  transition({ machineIdentifier: 'server-b', uri: 'http://server-b:32400' });
+
+  assert.strictEqual(application.view(), 'home', 'switching Plex server must return the shared application session to Home before reload');
+  assert.deepStrictEqual(
+    harness.calls.slice(start),
+    ['suspend:settings', 'prepareServerSwitch:shell', 'loadApplication:server'],
+    'server switching must suspend Settings, reset the shell boundary, then reload through the Server owner'
+  );
+  application.destroy();
+}());
+
+(function accountLifecycleActionsStayOwnedByServerFeature() {
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var account = harness.capturedOptions.settings.account;
+  var start = harness.calls.length;
+
+  account.disconnect();
+  account.deleteLocalData();
+
+  assert.deepStrictEqual(
+    harness.calls.slice(start),
+    ['disconnect:server', 'deleteLocalData:server'],
+    'Settings account actions must delegate disconnect and local-data reset to the Server feature owner'
+  );
+  application.destroy();
+}());
+
+(function playbackIdentityLifecycleUsesSharedApplicationSession() {
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var state = harness.capturedOptions.player.state;
+  var identity = { ratingKey: 'episode-42', serverMachineIdentifier: 'server-a' };
+
+  state.setPlaybackIdentity(identity);
+  assert.deepStrictEqual(
+    harness.created.session.snapshot().playbackIdentity,
+    identity,
+    'opening playback must publish playback identity through the shared application session'
+  );
+  identity.ratingKey = 'mutated';
+  assert.strictEqual(
+    harness.created.session.snapshot().playbackIdentity.ratingKey,
+    'episode-42',
+    'shared playback identity must remain isolated from producer mutation'
+  );
+  state.setPlaybackIdentity(null);
+  assert.strictEqual(
+    harness.created.session.snapshot().playbackIdentity,
+    null,
+    'closing playback must clear playback identity from the shared application session'
+  );
   application.destroy();
 }());
 

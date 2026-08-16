@@ -184,10 +184,11 @@ function createHarness(overrides) {
     library: extend({ restoreContainerOrigin: function () { return false; } }, values.library),
     dialogs: extend({}, values.dialogs),
     settings: extend({ settings: function () { return {}; }, animationDuration: function (delay) { return delay; } }, values.settings),
-    diagnostics: extend({ capturePlayback: function () { calls.push(['capture-playback']); } }, values.diagnostics),
+    diagnostics: extend({ capturePlayback: function () { calls.push(['capture-playback']); }, error: function () { return ''; }, setError: function () {} }, values.diagnostics),
     state: extend({
       currentView: function () { return 'player'; },
       setView: function () {},
+      enterDetail: function () { calls.push(['enter-detail']); },
       enterHome: function () { calls.push(['enter-home']); },
       pointerSelectionActive: function () { return false; }
     }, values.state)
@@ -226,6 +227,19 @@ function createHarness(overrides) {
   assert.strictEqual(buttons[2].className, 'is-focused', 'pointer focus must update the clicked resume action without rebuilding its button');
   assert.doesNotThrow(function () { h.controller.handleResumeKey({ keyCode: 13 }, ''); }, 'clicking Cancel must activate Cancel rather than the previously focused resume action');
   assert.strictEqual(h.controller.snapshot().resumeChoiceOpen, false, 'activating the pointer-selected Cancel action must close the resume dialog');
+}());
+
+(function forcedDirectErrorOffersAutomaticModeInPlayerUi() {
+  var errorButtons = [fakeNode('player-error-retry'), fakeNode('player-error-settings'), fakeNode('player-error-back')];
+  var h = createHarness({
+    querySelectorAll: function (selector) { return selector === '.player-error-actions button' ? errorButtons : []; }
+  });
+  assert.strictEqual(typeof h.captured.playbackOptions.onDirectPlaybackFailure, 'function', 'Player must expose the forced-Direct fallback callback');
+  h.captured.playbackOptions.onDirectPlaybackFailure(new Error('unsupported codec'), function () {}, function () { h.calls.push(['switch-automatic']); });
+  assert.strictEqual(h.nodes['player-error'].className, 'player-error', 'a forced-Direct failure must open the player error surface');
+  h.controller.handleErrorKey({ keyCode: 39 }, 'right');
+  h.controller.handleErrorKey({ keyCode: 13 }, '');
+  assert.ok(h.calls.some(function (entry) { return entry[0] === 'switch-automatic'; }), 'the secondary error action must switch to Automatic without opening settings');
 }());
 
 (function constructsAndHidesOwnedControllers() {
@@ -485,6 +499,12 @@ function createHarness(overrides) {
   assert.ok(h.calls.some(function (entry) { return entry[0] === 'enter-home'; }), 'the terminal autoplay action must enter Home');
 }());
 
+(function closingPlaybackReentersDetailThroughTheSurfaceBoundary() {
+  var h = createHarness();
+  h.captured.controlsOptions.closePlayer();
+  assert.ok(h.calls.some(function (entry) { return entry[0] === 'enter-detail'; }), 'Player Back must re-enter Detail through the composition boundary so no browsing surface remains visible');
+}());
+
 (function leavingTheEndedPlayerHidesThePauseOverlay() {
   var h = createHarness();
   h.captured.playbackOptions.onEnded();
@@ -713,6 +733,23 @@ function createHarness(overrides) {
   assert.strictEqual(h.calls.some(function (entry) { return /^late-/.test(entry[0]); }), false, 'late stopped-report callbacks must not mutate feature state after destroy');
 }());
 
+(function closedPlaybackReconcilesTheActiveLibrarySurface() {
+  var h = createHarness({
+    state: {
+      currentView: function () { return 'library'; }
+    },
+    library: {
+      refreshAfterPlayback: function (ratingKey, seconds) {
+        h.calls.push(['library-playback-refresh', ratingKey, seconds]);
+      }
+    }
+  });
+  h.captured.playbackOptions.onClosed(37, true, '42');
+  assert.deepStrictEqual(h.calls.filter(function (entry) { return entry[0] === 'library-playback-refresh'; }), [
+    ['library-playback-refresh', '42', 37]
+  ], 'a final playback report must reconcile the active library occurrence after Player closes');
+}());
+
 
 
 (function closingPlayerInvalidatesPendingQueueGapConfirmation() {
@@ -918,6 +955,67 @@ function createHarness(overrides) {
   assert.deepStrictEqual(applied[0].context.episodes, [first, second]);
   assert.strictEqual(applied[0].seasonIndex, 0);
   assert.strictEqual(applied[0].episodeIndex, 1);
+}());
+
+(function repeatedSameSeasonPlaybackReturnsToTheLastActiveEpisode() {
+  var episodes = [1, 2, 3, 4].map(function (number) {
+    return {
+      ratingKey: 's1e' + number,
+      type: 'episode',
+      title: 'Episode ' + number,
+      queueSeasonIndex: 0,
+      queueEpisodeIndex: number - 1,
+      queueSeasonNumber: 1,
+      queueEpisodeNumber: number
+    };
+  });
+  var context = { seasons: [{ ratingKey: 'season-1', index: 1 }], episodes: episodes, playlistQueue: false, type: 'show' };
+  var detailState = { currentDetail: episodes[0], selectedItem: episodes[0], seriesContext: context, seasonIndex: 0, episodeIndex: 0 };
+  var restored = null;
+  var queue = { kind: 'series', title: 'Example Show', items: episodes, index: 0 };
+  var h;
+  episodes.forEach(function (episode) { episode.queueEpisodes = episodes; });
+  h = createHarness({
+    PlaybackQueueModel: PlaybackQueueModel,
+    activeQueue: function () { return queue; },
+    detail: {
+      snapshot: function () { return detailState; },
+      queueSnapshot: function () { return detailState; },
+      preferenceSnapshot: function () { return {}; },
+      playbackPreferences: function () { return {}; },
+      setPlaybackContext: function (detail, item, nextContext, seasonIndex, episodeIndex) {
+        detailState.currentDetail = detail;
+        detailState.selectedItem = item;
+        detailState.seriesContext = nextContext;
+        detailState.seasonIndex = seasonIndex;
+        detailState.episodeIndex = episodeIndex;
+      },
+      queueMediaProfile: function () {},
+      renderEpisodeContext: function () {},
+      resumeAfterPlayer: function () {
+        restored = {
+          ratingKey: detailState.currentDetail && detailState.currentDetail.ratingKey,
+          episodeIndex: detailState.episodeIndex
+        };
+      },
+      leave: function () {}
+    }
+  });
+
+  [1, 2, 3].forEach(function (index) {
+    assert.strictEqual(h.captured.queueOptions.requestPlayback({
+      origin: 'up-next',
+      item: episodes[index],
+      detail: episodes[index],
+      queue: queue,
+      index: index,
+      occurrenceId: 'series:1:' + (index + 1)
+    }), true);
+  });
+  h.captured.playbackOptions.showError(false, function () {});
+  h.controller.handleErrorKey({ keyCode: 461 }, '');
+
+  assert.deepStrictEqual(restored, { ratingKey: 's1e4', episodeIndex: 3 }, 'Back from a playback error after repeated same-season playback must restore the last active episode, not the episode that opened Player');
 }());
 
 

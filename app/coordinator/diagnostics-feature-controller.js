@@ -25,6 +25,14 @@
 
     function active() { return !destroyed && !!controller; }
 
+    function setDiagnosticsSurface(enabled) {
+      var body = platform.document && platform.document.body;
+      var className;
+      if (!body) { return; }
+      className = String(body.className || '').replace(/\s*is-diagnostics-view/g, '');
+      body.className = className + (enabled ? ' is-diagnostics-view' : '');
+    }
+
     function webOSVersion() {
       var agent = String(platformRoot.navigator && platformRoot.navigator.userAgent || '');
       var match = agent.match(/(?:web0s|webos)[\s/]+([0-9.]+)/i);
@@ -91,23 +99,53 @@
       };
     }
 
+    function activeSubtitleOffset(playback, current) {
+      var local = current && current.localSubtitle;
+      var options = playback && playback.options || {};
+      var tracks = playback && playback.subtitleTracks || [];
+      var selectedId = String(options.subtitleStreamID || '');
+      var index;
+      if (local && local.offsetMs !== undefined) { return Number(local.offsetMs); }
+      for (index = 0; index < tracks.length; index += 1) {
+        if ((!selectedId || String(tracks[index].id || '') === selectedId) && tracks[index].offset !== undefined) { return Number(tracks[index].offset); }
+        if ((!selectedId || String(tracks[index].id || '') === selectedId) && tracks[index].offsetMs !== undefined) { return Number(tracks[index].offsetMs); }
+      }
+      return null;
+    }
+
     function playbackSnapshot() {
       var current = call(state.playbackSnapshot) || null;
       var diagnostics = call(state.playbackDiagnostics) || null;
       var playback = current && current.playback;
       if (!playback || !diagnostics) { return null; }
       return {
+        title: playback.title,
         fileName: playback.fileName,
         fileSize: playback.fileSize,
         source: playbackSourceSummary(playback),
         delivery: playback.playbackMode,
+        requestedMode: playback.requestedPlaybackMode,
         strategy: diagnostics.fallback || diagnostics.delivery,
         attempts: diagnostics.attempts || [],
         fallback: diagnostics.fallback || '',
         position: diagnostics.position,
         duration: Number(playback.duration || 0) / 1000,
         buffered: bufferedPlaybackRanges(diagnostics.buffered),
-        state: diagnostics.state
+        state: diagnostics.state,
+        buffering: diagnostics.buffering === true,
+        nativeSeekPending: diagnostics.nativeSeekPending === true,
+        clockRepairCount: diagnostics.clockRepairCount || 0,
+        nativeReadyState: diagnostics.nativeReadyState,
+        nativeNetworkState: diagnostics.nativeNetworkState,
+        nativeErrorCode: diagnostics.nativeErrorCode,
+        subtitleOffsetMs: activeSubtitleOffset(playback, current),
+        subtitleSize: current.localSubtitle && current.localSubtitle.size !== undefined
+          ? Number(current.localSubtitle.size) : Number(playback.options && playback.options.subtitleSize || 0) || null,
+        queue: call(state.queueSnapshot) || null,
+        mediaProfile: playback.mediaProfile,
+        audioTracks: playback.audioTracks || [],
+        subtitleTracks: playback.subtitleTracks || [],
+        options: playback.options || {}
       };
     }
 
@@ -119,7 +157,9 @@
       platform: { root: platformRoot, document: platform.document },
       modules: {
         DiagnosticsState: modules.DiagnosticsState,
-        DiagnosticsView: modules.DiagnosticsView
+        DiagnosticsView: modules.DiagnosticsView,
+        SupportSnapshot: modules.SupportSnapshot,
+        SupportQr: modules.SupportQr
       },
       presentation: {
         t: presentation.t,
@@ -135,12 +175,16 @@
         profile: profileSnapshot,
         device: deviceSnapshot,
         network: state.networkSnapshot,
+        settings: state.settingsSnapshot,
+        compatibility: state.playbackCompatibility,
         playback: playbackSnapshot,
+        jsErrors: state.jsErrors,
         loadIdentity: transport.loadIdentity
       },
       lifecycle: {
         open: function () { call(transitions.enter); },
         close: function () {
+          setDiagnosticsSurface(false);
           if (restoreOnClose) { call(transitions.leave); }
         }
       }
@@ -149,6 +193,7 @@
     function enter() {
       if (!active()) { return false; }
       restoreOnClose = true;
+      setDiagnosticsSurface(true);
       return controller.enter();
     }
 
@@ -157,6 +202,7 @@
       if (!active()) { return false; }
       restoreOnClose = false;
       result = controller.leave();
+      setDiagnosticsSurface(false);
       restoreOnClose = true;
       return result;
     }
@@ -176,6 +222,7 @@
       if (destroyed) { return; }
       restoreOnClose = false;
       if (controller && typeof controller.destroy === 'function') { controller.destroy(); }
+      setDiagnosticsSurface(false);
       controller = null;
       destroyed = true;
     }

@@ -16,7 +16,7 @@ var ids = [
   'detail-title', 'detail-subtitle', 'detail-facts', 'detail-summary', 'detail-summary-button', 'detail-summary-dialog',
   'detail-summary-dialog-title', 'detail-summary-dialog-text', 'detail-summary-dialog-hint', 'detail-summary-dialog-close',
   'detail-audio', 'detail-audio-label', 'detail-audio-value', 'detail-subtitles', 'detail-subtitles-label',
-  'detail-subtitles-value', 'detail-version', 'detail-version-value'
+  'detail-subtitles-value', 'detail-version', 'detail-version-label', 'detail-version-value', 'detail-version-info'
 ];
 var nodes = {};
 ids.forEach(function (id) { nodes[id] = node(id); });
@@ -36,13 +36,16 @@ assert.ok(documentRef.body.className.indexOf('is-movie-detail') !== -1, 'movie m
 
 nodes['detail-audio'].className = 'detail-choice is-focused';
 view.renderMediaControls({
-  labels: { audio: 'Audio', subtitles: 'Subtitles' },
-  choices: { audio: true, subtitles: false, versions: true },
+  labels: { version: 'Version', audio: 'Audio', subtitles: 'Subtitles' },
+  choices: { audio: true, subtitles: false, versions: false, versionOpenable: true },
   values: { audio: 'Automatic - Japanese', subtitles: 'Off', version: 'Automatic - 1080p' }
 });
 assert.strictEqual(nodes['detail-audio-value'].textContent, 'Automatic - Japanese', 'media controls must render resolved audio text');
 assert.ok(nodes['detail-audio'].className.indexOf('is-focused') !== -1 && nodes['detail-audio'].className.indexOf('is-cyclable') !== -1, 'rerendering controls must preserve focus and expose available choices');
 assert.strictEqual(nodes['detail-subtitles'].disabled, true, 'single-value controls must be disabled');
+assert.strictEqual(nodes['detail-version'].disabled, false, 'version details must remain openable even when there is only one file version');
+assert.strictEqual(nodes['detail-version'].className.indexOf('is-cyclable'), -1, 'single-file version details must not advertise lateral cycling');
+assert.strictEqual(nodes['detail-version-label'].textContent, 'Version', 'version must render its localized label from the media-control model');
 
 nodes['detail-summary'].scrollHeight = 160;
 nodes['detail-summary'].clientHeight = 100;

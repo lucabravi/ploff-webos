@@ -1,13 +1,13 @@
 (function (root, factory) {
   'use strict';
-  if (typeof module === 'object' && module.exports) { module.exports = factory(); }
-  else { root.PloffSettingsView = factory(); }
-}(this, function () {
+  if (typeof module === 'object' && module.exports) { module.exports = factory(require('./language-flag')); }
+  else { root.PloffSettingsView = factory(root.PloffLanguageFlag); }
+}(this, function (LanguageFlag) {
   'use strict';
 
   function create(options) {
     var values = options || {};
-    var state = { open: false, zone: 'list', index: 0, languageKind: '', languageIndex: 0 };
+    var state = { open: false, zone: 'list', level: 'categories', index: 0, categoryIndex: 0, categoryId: '', languageKind: '', languageIndex: 0 };
 
     function clamp(index, count) {
       return Math.max(0, Math.min(Math.max(0, Number(count || 0) - 1), Number(index || 0)));
@@ -15,7 +15,8 @@
 
     function snapshot() {
       return {
-        open: state.open, zone: state.zone, index: state.index,
+        open: state.open, zone: state.zone, level: state.level, index: state.index,
+        categoryIndex: state.categoryIndex, categoryId: state.categoryId,
         languageKind: state.languageKind, languageIndex: state.languageIndex
       };
     }
@@ -23,7 +24,10 @@
     function open(keepNavigationFocus) {
       state.open = true;
       state.zone = keepNavigationFocus ? 'nav' : 'list';
+      state.level = 'categories';
       state.index = 0;
+      state.categoryIndex = 0;
+      state.categoryId = '';
       state.languageKind = '';
       state.languageIndex = 0;
       return snapshot();
@@ -37,6 +41,23 @@
     }
 
     function focusNavigation() { state.zone = 'nav'; return snapshot(); }
+
+    function openCategory(categoryId, categoryIndex) {
+      state.level = 'category';
+      state.categoryId = String(categoryId || '');
+      state.categoryIndex = Math.max(0, Number(categoryIndex) || 0);
+      state.zone = 'list';
+      state.index = 0;
+      return snapshot();
+    }
+
+    function closeCategory() {
+      state.level = 'categories';
+      state.categoryId = '';
+      state.zone = 'list';
+      state.index = state.categoryIndex;
+      return snapshot();
+    }
 
     function focusList(index, rowsOrCount, direction) {
       var rows = Array.isArray(rowsOrCount) ? rowsOrCount : null;
@@ -57,6 +78,7 @@
       }
       state.zone = 'list';
       state.index = clamp(candidate, count);
+      if (state.level === 'categories') { state.categoryIndex = state.index; }
       return snapshot();
     }
 
@@ -79,19 +101,11 @@
 
     function renderPalette(container, selectedColor) {
       var palette = values.element('span', 'app-setting-palette');
-      var colors = values.accentColors || [];
-      var index;
-      var color;
-      var swatch;
-      for (index = 0; index < colors.length; index += 1) {
-        color = colors[index];
-        swatch = values.element('span', 'app-setting-swatch' + (color === selectedColor ? ' is-selected' : ''));
-        swatch.style = swatch.style || {};
-        swatch.style.backgroundColor = values.accentValues[color];
-        swatch.setAttribute('data-accent-color', color);
-        swatch.setAttribute('aria-hidden', 'true');
-        palette.appendChild(swatch);
-      }
+      var swatch = values.element('span', 'app-setting-swatch is-selected');
+      swatch.style = swatch.style || {};
+      swatch.style.backgroundColor = values.accentValues[selectedColor] || '';
+      swatch.setAttribute('aria-hidden', 'true');
+      palette.appendChild(swatch);
       container.insertBefore(palette, container.firstChild);
     }
 
@@ -166,14 +180,23 @@
       var editor;
       var currentIndex;
       var ariaValues;
+      var languageFlag;
       values.setText('app-settings-title', state.title);
       values.setText('app-settings-notice', state.notice);
       container.innerHTML = '';
       for (index = 0; index < rows.length; index += 1) {
         row = rows[index];
-        if (row.section !== section) {
+        if (state.level !== 'categories' && state.level !== 'category' && row.section !== section) {
           section = row.section;
           container.appendChild(values.element('div', 'app-settings-section', state.sectionLabel(section)));
+        }
+        if (row.subtitlePreview) {
+          rowElement = values.element('div', 'subtitle-style-preview');
+          rowElement.setAttribute('aria-hidden', 'true');
+          value = values.element('span', 'subtitle-style-preview-text', row.previewText || '');
+          rowElement.appendChild(value);
+          container.appendChild(rowElement);
+          continue;
         }
         rowElement = values.element(row.readOnly ? 'div' : 'button', 'app-setting-row' +
           (row.readOnly ? ' is-read-only' : '') +
@@ -201,8 +224,12 @@
         } else if (row.palette) {
           value.className += ' app-setting-palette-value';
           renderPalette(value, state.accentColor);
+        } else if (row.languageCode && LanguageFlag) {
+          languageFlag = LanguageFlag.create(values.document, row.languageCode);
+          if (languageFlag) { value.insertBefore(languageFlag, value.firstChild); }
         }
         rowElement.appendChild(value);
+        if (row.category) { rowElement.className += ' is-category'; }
         container.appendChild(rowElement);
         if (state.index === 0 && state.serverEditorOpen && index === 0) {
           editor = values.element('div', 'server-editor-inline');
@@ -238,6 +265,8 @@
       var languages = state.languages || [];
       var index;
       var row;
+      var identity;
+      var flag;
       var back = values.document.getElementById('language-editor-back');
       values.setText('language-editor-title', state.title);
       values.setText('language-editor-hint', state.hint);
@@ -249,7 +278,11 @@
         row.type = 'button';
         row.disabled = languages[index].disabled === true;
         row.setAttribute('data-language-index', index);
-        row.appendChild(values.element('span', '', languages[index].label));
+        identity = values.element('span', 'language-editor-identity');
+        flag = languages[index].languageCode && LanguageFlag ? LanguageFlag.create(values.document, languages[index].languageCode) : null;
+        if (flag) { identity.appendChild(flag); }
+        identity.appendChild(values.element('span', '', languages[index].label));
+        row.appendChild(identity);
         row.appendChild(values.element('span', 'language-editor-rank', languages[index].rank ? String(languages[index].rank) : ''));
         list.appendChild(row);
       }
@@ -267,7 +300,7 @@
 
     return {
       open: open, close: close, snapshot: snapshot,
-      focusNavigation: focusNavigation, focusList: focusList,
+      focusNavigation: focusNavigation, focusList: focusList, openCategory: openCategory, closeCategory: closeCategory,
       openLanguages: openLanguages, closeLanguages: closeLanguages, focusLanguage: focusLanguage,
       render: render, renderLanguages: renderLanguages, updateLanguageFocus: updateLanguageFocus, focus: focusSettings
     };

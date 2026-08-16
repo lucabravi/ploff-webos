@@ -114,11 +114,13 @@ track/version values consumed by Detail and Player, and `tests/test-search-text.
 normalization shared by local and cloud search. `tests/test-media-info.js` verifies that technical
 track labels use the same localized presentation formatter as the selection surfaces.
 
+Playback compatibility tests cover persistent format rules, thirty-day file
+exception expiry, bounded storage, and the forced-Direct fallback to Automatic.
+
 Queue suites additionally cover malformed and oversized Plex pages,
 synchronous transport exceptions, monotonic terminal discovery, exact duplicate
 occurrence restoration, and invalidation of an adjacent result when playback moves
-to another episode inside the same series generation. See
-  the architecture and maintenance references for the ownership rationale.
+to another episode inside the same series generation.
 
 Install the lockfile-pinned development dependencies before running the pipeline.
 If installation or an individual gate cannot run in a particular environment, record
@@ -130,9 +132,47 @@ clean working tree, `git fsck --no-dangling`, current bundle, and absence of
 `node_modules/`, `dist/`, `build/`, worktree metadata, IPK, logs, caches, and
 temporary files.
 
-## Library catalog performance
+## Persisted-state and lifecycle regression tests
 
-Catalog performance is measured by the deterministic benchmark:
+Settings persistence is tested as an upgrade path, not only as validation of the current
+shape. `tests/fixtures/settings/v1.json`, `v2.json`, and `v3.json` freeze local Settings shapes.
+`tests/fixtures/settings-backup/` freezes saved-settings interchange versions, including split v2
+shared/device playlists and current v3 device snapshots. `tests/fixtures/compatibility/` freezes
+compatibility-memory v2/v3 records. Add a fixture whenever a future change would otherwise require
+reconstructing an old persisted or transferred shape from memory.
+
+`tests/test-application-composition.js` proves that a cold start migrates persisted Settings
+before feature construction, onboarding saved-settings loading replaces shared state before Home,
+server switching suspends Settings and reloads through the server owner, account disconnect/reset
+delegates to the server boundary, and playback identity is published/cleared through the shared
+application session. `tests/test-settings-controller.js` separately covers live theme changes plus
+same-device recovery and another-device imports, including model-dependent compatibility-memory
+behavior.
+
+`tests/test-playback-compatibility-memory.js` freezes compatibility schema migration, bounded
+metadata, rule/file limits, expiry, and provenance (`observation`, `derived`,
+`user-override`). `tests/test-settings-backup-format.js` and
+`tests/test-plex-settings-backup-store.js` verify that compatibility data crosses saved-settings
+boundaries only when allowed.
+
+Diagnostics tests form an explicit privacy gate. `tests/test-support-snapshot.js` requires the
+allow-listed Settings/compatibility summary and simultaneously proves that Plex tokens and local
+IP addresses cannot enter serialized or QR/mail report bodies. Controller/feature tests verify
+that those providers are wired through the composition root rather than reading storage directly.
+
+The generated-artifact checks are also lifecycle guards: `npm run check:styles` and
+`npm run check:app-bundle` fail when source changes have not been rebuilt, so a green
+`npm run verify` proves the checked-in runtime artifacts match their authoritative sources.
+
+Theme regression coverage is registry-driven. `tests/test-theme-registry.js` freezes the
+registered IDs and Settings acceptance; `tests/test-theme-styles.js` validates every registered
+stylesheet, required semantic tokens, selector scoping, generated order, single-stylesheet runtime,
+and script ordering. The shipped set is `classic`, `immersive`, `premiere`, `nova`, and `atelier`;
+adding another theme must update the registry expectations and keep all theme contracts green.
+
+## Full Library catalog benchmark
+
+Catalog performance work is measured with the permanent deterministic benchmark:
 
 ```bash
 npm run benchmark:library-catalog
@@ -141,7 +181,8 @@ npm run benchmark:library-catalog
 The default run uses 5,000 synthetic items and repeated focus, same-window scroll,
 one-row scroll, and page-append scenarios. Operation counts are the primary signal;
 Node timings are secondary and must be compared only with runs using the same workload
-and environment.
+and environment. The benchmark protocol, current reference measurements, and
+historical comparison are recorded in `docs/catalog-performance.md`.
 
 The release suite also contains a deterministic 10,000-item catalog stress test that
 proves DOM retention and artwork work remain bounded without reducing the configured
@@ -235,7 +276,13 @@ Before a release, verify these cases on a target webOS TV:
    Playlist detail must show title, content counts, and watched/remaining duration.
 4. Open movie, show, season, and episode Detail from Home, Search, Library, Watchlist,
    and playlist origins. Verify theme-audio continuity, watched/Watchlist mutations,
-   media information, and Back restoration from Player settings without stale content.
+   and Back restoration from Player settings without stale content. Version must stay
+   first and remain clickable with one file; its inline information affordance must not
+   become a separate focus target. In the version browser verify Left/Right preview
+   without mutation, two technical columns, scrolling into the fixed Cancel/Apply
+   footer, Back as Cancel, one-file Cancel-only behavior, and commit only from Apply.
+   From media options verify metadata refresh plus whole-season watched/unwatched
+   confirmation, fresh season reload, and visible partial-failure reporting.
 5. Test Direct Play, Direct Stream, Auto fallback, Direct only, and Force transcode
    with 1080p SDR and supported 4K HDR10 material. Confirm diagnostics and bounded
    recovery match the effective delivery mode.
@@ -286,25 +333,41 @@ webOS can still decode a 3840x2160 video surface; actual Direct Play and HDR
 support depends on the model and source codecs.
 
 
-## Physical-TV regression checkpoints
+## Coordinator and Player Physical Checkpoints
 
-Automated extraction checks do not replace TV behavior. After the Player feature
-checkpoint, verify Direct Play, Direct Stream, transcoding, resume, forward and
+Automated extraction checks do not replace TV behavior. After Player/coordinator changes, verify Direct Play, Direct Stream, transcoding, resume, forward and
 backward seek, seek before the current offset, rebuild/recovery, audio,
 subtitles, version changes, subtitle synchronization, chapters, skip prompts,
 Previous/Next, playlist queues, queue drawer focus, both Up Next layouts,
 Back/Stop, and Magic Remote timeline input. Verify that closing playback restores
 the correct Home, Library, Detail, or playlist origin and current queue item.
 
-Repeat startup/onboarding, profile
+After composition-root or cross-feature wiring changes, repeat startup/onboarding, profile
 selection, Home focus restoration, navbar long-press, Search T9, Library,
 Watchlist, Detail, Settings, Diagnostics, network recovery, and the complete
 Player matrix. Record physical results separately; local tests must not mark
 these checkpoints complete.
 
-For every problem found during a physical-TV run, record the exact reproduction path,
+For every physical-TV problem, record the exact reproduction path,
 expected behavior, observed behavior, playback mode, and any visible log or
 diagnostic evidence before changing code.
+
+## Release metadata gate
+
+Before physical signoff or tagging, keep the same stable `x.y.z` version in
+`package.json`, the root project record in `package-lock.json`, and
+`webos-shell-app/appinfo.json`, then run:
+
+```sh
+npm run check:release-metadata
+npm run test:pre-release
+npm run release:package -- --dry-run
+```
+
+The tagged workflow runs `scripts/check-release-metadata.js "$GITHUB_REF_NAME"` before
+signoff validation, packaging, or publication. A tag must be exactly `vX.Y.Z` for the
+coherent metadata version. Version bumping and tag creation remain explicit developer
+actions rather than build side effects.
 
 ## Physical-TV Release Signoff
 
@@ -332,3 +395,9 @@ Home render may trigger one lazy GitHub Releases check, while a cached attempt
 newer than 24 hours must suppress network work. Test current, available, offline,
 error, manual-refresh supersession, and stale callback rejection. On a physical
 legacy TV, confirm the request remains non-blocking and the QR code is readable.
+Scan it with a phone and verify that it opens a local mail draft whose report
+contains the application version, LAN/internet state, failed media's file,
+Direct Play/Direct Stream/transcoding mode, video details, selected
+audio/subtitle tracks, fallback attempts, bounded JavaScript errors, and redacted
+error text. Repeat after a clean playback with no error and confirm that the last
+played media is used instead.

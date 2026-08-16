@@ -78,7 +78,7 @@ function createFixture() {
         innerHeight: 1080,
         navigator: { userAgent: 'Mozilla/5.0 webOS/4.10 Chrome/53.0' }
       },
-      document: {}
+      document: { body: { className: '' } }
     },
     modules: {
       DiagnosticsController: {
@@ -107,8 +107,11 @@ function createFixture() {
         return { modelName: 'LG OLED', known: true, uhd: true, hdr10: true, dolbyVision: false, hdrKnown: true };
       },
       networkSnapshot: function () { return { status: 'online', lanAvailable: true }; },
+      settingsSnapshot: function () { return { version: 3, visualTheme: 'immersive', playbackMode: 'auto', settingsBackupMode: 'on', adaptivePlaybackMemory: true }; },
+      playbackCompatibility: function () { return { schemaVersion: 3, ruleVersion: 1, formatRuleCount: 2, fileExceptionCount: 3, fileExceptionTtlDays: 30 }; },
       playbackSnapshot: function () { return playback; },
-      playbackDiagnostics: function () { return diagnostics; }
+      playbackDiagnostics: function () { return diagnostics; },
+      jsErrors: function () { return [{ type: 'error', message: 'runtime failure' }]; }
     },
     transport: {
       loadIdentity: function () { calls.push('load-identity'); return null; }
@@ -145,11 +148,14 @@ function createFixture() {
   assert.strictEqual(device.webOSVersion, '4.10');
   assert.strictEqual(device.viewport, '1920x1080');
   assert.strictEqual(providers.network().status, 'online');
+  assert.strictEqual(providers.settings().visualTheme, 'immersive');
+  assert.strictEqual(providers.compatibility().schemaVersion, 3);
   assert.strictEqual(playback.source, '3840x2160 / HEVC / MKV / HDR10');
   assert.strictEqual(playback.strategy, 'direct-stream');
   assert.strictEqual(playback.attempts.join(','), 'direct-play,direct-stream');
   assert.strictEqual(playback.buffered, 'T120-T180');
   assert.strictEqual(playback.duration, 7200);
+  assert.deepStrictEqual(providers.jsErrors(), [{ type: 'error', message: 'runtime failure' }]);
 }());
 
 (function ownsLifecycleAndSemanticInput() {
@@ -157,6 +163,7 @@ function createFixture() {
   var feature = fixture.feature;
 
   feature.enter();
+  assert.ok(fixture.captured().platform.document.body.className.indexOf('is-diagnostics-view') !== -1, 'diagnostics must mark its full-screen surface while open');
   assert.ok(fixture.calls.indexOf('surface-enter') !== -1, 'enter must use the explicit root transition');
   feature.focusAction(1);
   feature.handleKey({ keyCode: 13 }, '');
@@ -165,9 +172,11 @@ function createFixture() {
   assert.ok(fixture.calls.indexOf('key:down') !== -1, 'keyboard input must route through the feature');
 
   feature.suspend();
+  assert.strictEqual(fixture.captured().platform.document.body.className.indexOf('is-diagnostics-view'), -1, 'suspend must restore the normal application surface');
   assert.strictEqual(fixture.calls.filter(function (entry) { return entry === 'surface-leave'; }).length, 0, 'suspend must close Diagnostics without restoring Settings');
   feature.enter();
   feature.handleKey({ keyCode: 461 }, '');
+  assert.strictEqual(fixture.captured().platform.document.body.className.indexOf('is-diagnostics-view'), -1, 'Back must restore the visible Settings surface');
   assert.strictEqual(fixture.calls.filter(function (entry) { return entry === 'surface-leave'; }).length, 1, 'Back input must restore the originating Settings surface once');
 }());
 

@@ -305,13 +305,20 @@
           snapshotBefore = grid().snapshot();
           nextItems = mergeRecentPage(snapshotBefore.items, pageItems, context.replace);
           grid().setItems(nextItems, recentTotalSize(nextItems, page));
-        } else if (context.replace || !grid().appendItems) {
+        } else if (context.replace || context.initialContainerFocus === true || !grid().appendItems) {
           if (context.replace) { nextItems = pageItems; }
           else {
             snapshotBefore = grid().snapshot();
             nextItems = copyArray(snapshotBefore.items).concat(pageItems);
           }
-          grid().setItems(nextItems, totalSize);
+          initialFocusIndex = -1;
+          if (context.initialContainerFocus === true) {
+            context.initialContainerFocus = false;
+            initialFocusIndex = values.initialContainerFocusIndex
+              ? Number(values.initialContainerFocusIndex(copyArray(nextItems), context.container))
+              : -1;
+          }
+          grid().setItems(nextItems, totalSize, initialFocusIndex);
         } else {
           grid().appendItems(pageItems, totalSize);
         }

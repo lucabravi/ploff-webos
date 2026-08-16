@@ -69,8 +69,9 @@ assert.strictEqual(libraryPage.hasMore, false, 'a library page ending at totalSi
 
 parseCount = 0;
 nextDocument = documentFor([
-  node('Playlist', { ratingKey: 'playlist-1', key: '/playlists/1/items', title: 'One' }),
-  node('Playlist', { ratingKey: 'playlist-2', key: '/playlists/2/items', title: 'Two' })
+  node('Playlist', { ratingKey: 'playlist-1', key: '/playlists/1/items', title: 'One', leafCount: 2 }),
+  node('Playlist', { ratingKey: 'playlist-empty', key: '/playlists/empty/items', title: 'Empty', leafCount: 0 }),
+  node('Playlist', { ratingKey: 'playlist-2', key: '/playlists/2/items', title: 'Two', leafCount: 1 })
 ], 120);
 var playlistsPage = null;
 PlexClient.loadLibraryPage({ apiBaseUrl: '/plex-api', token: '' }, { key: 'playlists' }, 'playlists', {}, 40, 40, function (error, page) {
@@ -83,8 +84,10 @@ xhr.responseText = '<xml/>';
 xhr.onreadystatechange();
 assert.strictEqual(parseCount, 1, 'a playlist catalog page must parse its XML document once');
 assert.strictEqual(playlistsPage.items.length, 2);
+assert.strictEqual(playlistsPage.items.some(function (item) { return item.ratingKey === 'playlist-empty'; }), false,
+  'empty playlists must remain hidden from every Ploff playlist catalog');
 assert.strictEqual(playlistsPage.totalSize, 120, 'playlist pagination must preserve Plex totalSize across pages');
-assert.strictEqual(playlistsPage.nextStart, 42, 'playlist pagination must advance by raw Plex entries');
+assert.strictEqual(playlistsPage.nextStart, 43, 'playlist pagination must advance by raw Plex entries, including filtered empty playlists');
 assert.strictEqual(playlistsPage.hasMore, true, 'playlist pagination must preserve a known later boundary');
 
 parseCount = 0;

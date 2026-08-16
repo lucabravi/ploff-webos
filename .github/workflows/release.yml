@@ -22,10 +22,8 @@ jobs:
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify version tag
-        run: |
-          APP_VERSION=$(node -p "require('./webos-shell-app/appinfo.json').version")
-          test "$GITHUB_REF_NAME" = "v$APP_VERSION"
+      - name: Verify release metadata
+        run: node scripts/check-release-metadata.js "$GITHUB_REF_NAME"
       - name: Verify physical-TV release signoff
         run: node scripts/check-release-signoff.js "$GITHUB_REF_NAME"
       - name: Install verification tools
@@ -45,9 +43,6 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20
-          cache: npm
-      - name: Install packaging dependencies
-        run: npm ci
       - name: Install webOS CLI
         run: npm install --global @webos-tools/cli@3.2.5
       - name: Build and inspect generic IPK
@@ -87,12 +82,10 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20
-      - name: Verify version tag
-        run: |
-          APP_VERSION=$(node -p "require('./webos-shell-app/appinfo.json').version")
-          test "$GITHUB_REF_NAME" = "v$APP_VERSION"
+      - name: Verify release metadata
+        run: node scripts/check-release-metadata.js "$GITHUB_REF_NAME"
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-      - uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

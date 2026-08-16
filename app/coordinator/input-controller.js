@@ -14,6 +14,7 @@
     var domains = values.domains || {};
     var navigation = values.navigation || {};
     var lifecycle = values.lifecycle || {};
+    var contextMenu = values.contextMenu || {};
     var destroyed = false;
 
     function call(callback, arg1, arg2, arg3) {
@@ -60,10 +61,13 @@
     }
 
     function handleOverlay(event, direction, current) {
+      if (current.textInputDialogOpen) { return invoke(overlays.textInput, event, direction); }
       if (current.choiceDialogOpen) { return capture(overlays.choiceDialog, event, direction); }
       if (current.upNextLayoutOpen) { return capture(overlays.upNextLayout, event, direction); }
       if (current.privacyDialogOpen) { return capture(overlays.privacy, event, direction); }
       if (current.viewStateOpen) { return capture(overlays.viewState, event, direction); }
+      if (current.safeAreaOpen) { return capture(overlays.safeArea, event, direction); }
+      if (current.subtitleStyleOpen) { return capture(overlays.subtitleStyle, event, direction); }
       if (current.appView !== 'player') { return false; }
       if (current.queueGapOpen) { return capture(overlays.queueGap, event, direction); }
       if (current.playerMediaInfoOpen) { return capture(overlays.playerMediaInfo, event, direction); }
@@ -115,6 +119,10 @@
       if (destroyed) { return false; }
       current = snapshot();
       direction = directionForKey(event && event.keyCode);
+      if (Number(event && event.keyCode || 0) === 13 && call(contextMenu.holding) === true) {
+        prevent(event);
+        return true;
+      }
       if (direction && current.pageScrollPendingFocus) {
         call(lifecycle.syncPageScrollFocus);
         call(lifecycle.clearPageScrollPendingFocus);
@@ -123,6 +131,11 @@
       if (direction === 'down' && current.navigationHasFocus && current.navigationContentEntryFocused) {
         prevent(event);
         call(navigation.enterActiveView);
+        return true;
+      }
+      if (Number(event && event.keyCode || 0) === 13 && !current.navigationHasFocus && call(contextMenu.canOpen) === true) {
+        prevent(event);
+        call(contextMenu.startHold);
         return true;
       }
       if (!(current.appView === 'home' && direction) &&
@@ -145,6 +158,17 @@
       current = snapshot();
       keyCode = Number(event && event.keyCode || 0);
       if (keyCode === 37 || keyCode === 39) { call(domains.resetSeekRepeat); }
+      if (keyCode === 13 && call(contextMenu.holding) === true) {
+        prevent(event);
+        if (call(contextMenu.releaseHold) === true) { return true; }
+        return routeTarget(event, '', current, router && typeof router.resolve === 'function' ? router.resolve({
+          choiceDialogOpen: current.choiceDialogOpen,
+          upNextLayoutOpen: current.upNextLayoutOpen,
+          privacyDialogOpen: current.privacyDialogOpen,
+          appView: current.appView,
+          navReorderActive: current.navReorderActive
+        }) : (current.appView || 'home'));
+      }
       if (keyCode !== 13 || !current.navigationHasFocus) { return false; }
       if (current.navHoldTriggered && current.navReorderMode) {
         call(navigation.markReorderReady);

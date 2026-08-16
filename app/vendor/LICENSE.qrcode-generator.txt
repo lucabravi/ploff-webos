@@ -1,0 +1,7 @@
+QR Code Generator for JavaScript
+
+Copyright (c) 2009 Kazuhiko Arase
+
+Licensed under the MIT license.
+The vendored implementation is used locally by PloffSupportQr and is not an
+additional runtime or network dependency.

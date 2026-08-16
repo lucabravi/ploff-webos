@@ -57,6 +57,10 @@ assert.strictEqual(I18n.t('it', 'media.episodeCount', { count: 3 }), '3 episodi'
 assert.strictEqual(I18n.t('en', 'settings.wheelBehavior'), 'Wheel action', 'wheel behavior must have portable English copy');
 assert.strictEqual(I18n.t('it', 'settings.wheelItems'), 'Sposta la selezione', 'Italian wheel item mode must use user-friendly copy');
 assert.strictEqual(I18n.t('it', 'settings.backgroundMusic'), 'Musica del tema', 'Italian settings must identify Plex theme music explicitly');
+assert.strictEqual(I18n.t('it', 'settings.backup.title'), 'Impostazioni Ploff salvate', 'Italian saved-settings title must describe the stored result rather than the save action');
+assert.strictEqual(I18n.t('it', 'settings.backup.chooseSave'), 'Scegli le impostazioni salvate', 'Italian load flow must consistently refer to saved settings');
+assert.strictEqual(I18n.t('it', 'settings.backup.loadOtherDeviceHint'), 'Le impostazioni verranno copiate su questa TV senza modificarne l’identità del dispositivo.', 'Italian cross-device copy hint must use natural device-identity wording');
+assert.strictEqual(I18n.t('ja', 'settings.backup.title'), '保存した Ploff 設定', 'Japanese saved-settings title must describe stored settings consistently');
 assert.strictEqual(I18n.languageName('it', 'ja'), 'Giapponese', 'language names must follow the UI language');
 assert.strictEqual(I18n.languageName('ja', 'en'), '英語', 'Japanese language names must be localized');
 assert.strictEqual(I18n.languageName('ko', 'en'), '영어', 'language names must be localized in Korean');
@@ -72,6 +76,16 @@ assert.strictEqual(I18n.t('it', 'player.directShort'), 'Diretto', 'effective Dir
 assert.strictEqual(I18n.t('it', 'player.transcodeShort'), 'Trascodifica', 'effective transcoding mode must have compact Italian copy');
 assert.strictEqual(I18n.t('en', 'player.resumeFrom', { time: '00:13:13' }), 'Resume from 00:13:13', 'resume copy must expose the absolute saved time');
 assert.strictEqual(I18n.t('it', 'player.playFromBeginning'), 'Riproduci dall’inizio', 'restart copy must be available in Italian');
+assert.strictEqual(I18n.t('it', 'detail.mediaOptions'), 'Opzioni media', 'Italian detail media options must be localized');
+assert.strictEqual(I18n.t('en', 'detail.markSeasonWatched'), 'Mark season as watched', 'season bulk watched action must have portable English copy');
+assert.strictEqual(I18n.t('it', 'detail.markSeasonUnwatched'), 'Segna stagione come non vista', 'season bulk unwatched action must be localized in Italian');
+assert.strictEqual(I18n.t('it', 'detail.markSeasonWatchedConfirm', { count: 10 }), 'Segnare come visti tutti i 10 episodi della stagione?', 'season bulk confirmation must expose the affected episode count');
+assert.strictEqual(I18n.t('it', 'detail.seasonBulkPartial', { count: 2 }), '2 episodi non sono stati aggiornati', 'partial season bulk failures must be localized and quantified');
+assert.strictEqual(I18n.t('it', 'mediaDetails.versionTitle'), 'Versione media', 'integrated version details title must be localized');
+assert.strictEqual(I18n.t('it', 'mediaDetails.versionHint'), 'Sinistra e Destra cambiano anteprima. Giù apre i dettagli.', 'version browser navigation hint must be localized');
+assert.strictEqual(I18n.t('it', 'mediaDetails.active'), 'Attiva', 'active version state must be localized');
+assert.strictEqual(I18n.t('it', 'mediaDetails.preview'), 'Anteprima', 'preview version state must be localized');
+assert.strictEqual(I18n.t('it', 'mediaDetails.useVersion'), 'Usa questa versione', 'version confirmation action must be localized');
 assert.strictEqual(I18n.t('en', 'player.advancedSubtitles'), 'Advanced subtitle settings', 'advanced subtitle settings must have portable English copy');
 assert.strictEqual(I18n.t('it', 'player.subtitleUnsupported'), 'Non supportato', 'unsupported subtitle timing must be explained in Italian');
 assert.strictEqual(I18n.t('en', 'player.chapters'), 'Chapters', 'chapter navigation must have portable English copy');

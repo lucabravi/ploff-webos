@@ -46,7 +46,7 @@ assert.deepStrictEqual(Builder.MODULE_FILES, [
   'settings-controller.js', 'settings-feature-controller.js', 'diagnostics-controller.js', 'diagnostics-feature-controller.js', 'setup-feature-controller.js', 'server-controller.js', 'server-feature-controller.js',
   'search-controller.js', 'search-feature-controller.js', 'shell-controller.js', 'shell-feature-controller.js', 'library-controller.js', 'library-feature-controller.js', 'detail-controller.js', 'detail-feature-controller.js',
   'queue-sequence-contract.js', 'bounded-queue-cache.js', 'plex-container-queue-provider.js', 'series-queue-provider.js', 'queue-gap-controller.js',
-  'playback-queue-controller.js', 'player-controls-controller.js', 'playback-controller.js', 'player-feature-controller.js',
+  'playback-queue-controller.js', 'player-controls-controller.js', 'playback-controller.js', 'player-feature-controller.js', 'media-context-controller.js',
   'input-controller.js', 'pointer-controller.js', 'application-controller.js', 'application-bootstrap.js'
 ], 'coordinator modules must stay explicit and application-bootstrap.js must remain last');
 assert.strictEqual(Object.prototype.hasOwnProperty.call(Builder, 'LEGACY_FILES'), false, 'the final builder must not expose legacy fragment inputs');

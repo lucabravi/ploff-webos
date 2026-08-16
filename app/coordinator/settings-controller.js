@@ -21,6 +21,7 @@
     var root = platform.root || {};
     var document = platform.document;
     var settings = shell.getSettings ? shell.getSettings() : (values.settings || {});
+    var catalogSnapshot = null;
     var destroyed = false;
     var privacyOpen = false;
     var updateOpen = false;
@@ -31,10 +32,17 @@
     var settingsCatalog;
     var view;
     var upNextLayout;
+    var safeAreaDialog;
+    var subtitleStyleDialog;
+    var textInputDialog;
+    var safeAreaOriginal = null;
+    var playbackCompatibilityOpen = false;
+    var playbackCompatibilityFocus = 0;
+    var choicePreviewGeneration = 0;
 
     function noop() {}
     function handled(value) { return { handled: value !== false }; }
-    function call(callback, _arg1, _arg2, _arg3, _arg4, _arg5) {
+    function call(callback, _arg1, _arg2, _arg3, _arg4, _arg5, _arg6, _arg7, _arg8) {
       if (typeof callback === 'function') {
         return callback.apply(null, Array.prototype.slice.call(arguments, 1));
       }
@@ -44,6 +52,9 @@
     function currentServer() { return call(server.active) || null; }
     function currentNetwork() { return call(environment.networkSnapshot) || {}; }
     function currentCapabilities() { return call(environment.playbackCapabilities) || {}; }
+    function playbackCompatibilitySnapshot() {
+      return call(environment.playbackCompatibility) || { formatRuleCount: 0, fileExceptionCount: 0, fileExceptionTtlDays: 30 };
+    }
     function navigationIndex() { return Number(call(shell.navigationIndex) || 0); }
     function pointerActive() { return call(presentation.pointerActive) === true; }
     function releaseSnapshot() { return call(environment.releaseStatusSnapshot) || {}; }
@@ -140,6 +151,11 @@
       return t('settings.color' + normalized.charAt(0).toUpperCase() + normalized.slice(1));
     }
 
+    function visualThemeLabel(value) {
+      var definition = modules.Settings.visualThemeDefinition(value);
+      return t(definition.labelKey);
+    }
+
     function applyAccentColor() {
       var color = accentValues[settings.accentColor] || accentValues.cyan;
       if (document && document.documentElement && document.documentElement.style && document.documentElement.style.setProperty) {
@@ -154,6 +170,53 @@
       body = document.body;
       className = String(body.className || '').replace(/\s*animations-disabled/g, '');
       body.className = className + (settings.interfaceAnimations ? '' : ' animations-disabled');
+    }
+
+    function applyVisualTheme() {
+      var body;
+      var definition;
+      var themeClasses;
+      var classNames;
+      var nextClasses = [];
+      var index;
+      if (!document || !document.body) { return; }
+      body = document.body;
+      definition = modules.Settings.visualThemeDefinition(settings.visualTheme);
+      themeClasses = modules.Settings.visualThemeClassNames();
+      classNames = String(body.className || '').split(/\s+/);
+      for (index = 0; index < classNames.length; index += 1) {
+        if (classNames[index] && themeClasses.indexOf(classNames[index]) === -1) { nextClasses.push(classNames[index]); }
+      }
+      nextClasses.push(definition.className);
+      body.className = nextClasses.join(' ');
+    }
+
+    function applyAccessibilityPreferences() {
+      var rootElement = document && document.documentElement;
+      var body = document && document.body;
+      var backgroundOpacity = { off: 0, low: 0.28, medium: 0.52, high: 0.74, opaque: 0.94 };
+      var edgeShadow = {
+        shadow: '0 2px 5px #000, 0 0 3px #000',
+        outline: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000',
+        both: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 3px 6px #000'
+      };
+      var className;
+      if (rootElement && rootElement.style && rootElement.style.setProperty) {
+        rootElement.style.setProperty('--safe-top', Number(settings.safeAreaTop || 0) + '%');
+        rootElement.style.setProperty('--safe-right', Number(settings.safeAreaRight || 0) + '%');
+        rootElement.style.setProperty('--safe-bottom', Number(settings.safeAreaBottom || 0) + '%');
+        rootElement.style.setProperty('--safe-left', Number(settings.safeAreaLeft || 0) + '%');
+        rootElement.style.setProperty('--subtitle-position', Number(settings.subtitlePosition || 7) + '%');
+        rootElement.style.setProperty('--subtitle-background', 'rgba(0,0,0,' + String(backgroundOpacity[settings.subtitleBackground] === undefined ? 0 : backgroundOpacity[settings.subtitleBackground]) + ')');
+        rootElement.style.setProperty('--subtitle-shadow', edgeShadow[settings.subtitleEdge] || edgeShadow.shadow);
+        rootElement.style.setProperty('--focus-shadow', settings.strongFocus ? '0 0 0 8px var(--focus-color)' : '0 0 0 5px var(--focus-color)');
+        rootElement.style.setProperty('--focus-shadow-inset', settings.strongFocus ? 'inset 0 0 0 8px var(--focus-color)' : 'inset 0 0 0 5px var(--focus-color)');
+      }
+      if (!body) { return; }
+      className = String(body.className || '').replace(/\s*(?:high-contrast|strong-focus)/g, '');
+      if (settings.highContrast) { className += ' high-contrast'; }
+      if (settings.strongFocus) { className += ' strong-focus'; }
+      body.className = className;
     }
 
     function interfaceAnimationDuration(milliseconds) {
@@ -181,12 +244,8 @@
       videoQualityLabel: videoQualityLabel,
       playbackPreferenceLabel: playbackPreferenceLabel,
       accentColorLabel: accentColorLabel,
+      visualThemeLabel: visualThemeLabel,
       supportedUiLanguages: modules.Settings.supportedUiLanguages,
-      cardScales: modules.CardLayout.SCALES,
-      artworkQualities: modules.Settings.ARTWORK_QUALITIES,
-      backdropQualities: modules.Settings.BACKDROP_QUALITIES,
-      videoQualities: modules.Settings.VIDEO_QUALITIES,
-      accentColors: modules.Settings.ACCENT_COLORS,
       accentValues: accentValues,
       appVersion: String(environment.appVersion || releaseSnapshot().installedVersion || ''),
       updateStatusLabel: updateRowStatusLabel
@@ -197,7 +256,6 @@
       element: element,
       setText: setText,
       t: t,
-      accentColors: modules.Settings.ACCENT_COLORS,
       accentValues: accentValues,
       renderServerEditor: server.renderEditor || noop,
       clearFocus: presentation.clearFocus || noop,
@@ -207,8 +265,79 @@
     });
 
     upNextLayout = modules.UpNextLayoutDialog.create();
+    safeAreaDialog = modules.SafeAreaDialog.create({
+      document: document,
+      t: t,
+      insets: modules.Settings.SAFE_AREA_INSETS,
+      pointerActive: pointerActive,
+      clearFocus: presentation.clearFocus || noop
+    });
+    subtitleStyleDialog = modules.SubtitleStyleDialog.create({
+      document: document,
+      t: t,
+      backgrounds: modules.Settings.SUBTITLE_BACKGROUNDS,
+      positions: modules.Settings.SUBTITLE_POSITIONS,
+      edges: modules.Settings.SUBTITLE_EDGES,
+      defaults: { subtitleBackground: 'off', subtitlePosition: 7, subtitleEdge: 'shadow' },
+      pointerActive: pointerActive,
+      clearFocus: presentation.clearFocus || noop
+    });
+    textInputDialog = modules.TextInputDialog && modules.TextInputDialog.create ? modules.TextInputDialog.create({
+      root: root,
+      document: document,
+      t9Enabled: function () { return settings.searchT9Input === true; }
+    }) : null;
 
-    function rows() { return settingsCatalog.rows(settings); }
+    function currentCatalog() {
+      if (!catalogSnapshot && typeof settingsCatalog.snapshot === 'function') {
+        catalogSnapshot = settingsCatalog.snapshot(settings);
+      }
+      return catalogSnapshot;
+    }
+
+    function invalidateCatalog() {
+      catalogSnapshot = null;
+    }
+
+    function categories() {
+      var catalog = currentCatalog();
+      if (catalog) { return catalog.categories || []; }
+      return typeof settingsCatalog.categories === 'function' ? settingsCatalog.categories(settings) : [];
+    }
+    function versionRow() {
+      var catalog = currentCatalog();
+      if (catalog) { return catalog.versionRow || null; }
+      return typeof settingsCatalog.versionRow === 'function' ? settingsCatalog.versionRow(settings) : null;
+    }
+    function categoryRootRows() {
+      var result = categories().map(function (category) {
+        return { key: 'category:' + category.id, categoryId: category.id, category: true, label: category.label, value: '\u203a' };
+      });
+      var version = versionRow();
+      if (version) { result.push(version); }
+      return result;
+    }
+    function rows() {
+      var viewState = view && view.snapshot ? view.snapshot() : { level: 'categories' };
+      var catalog = currentCatalog();
+      var list;
+      var index;
+      if (catalog) {
+        if (viewState.level !== 'category') { return categoryRootRows(); }
+        list = catalog.categories || [];
+        for (index = 0; index < list.length; index += 1) {
+          if (list[index].id === viewState.categoryId) { return list[index].rows; }
+        }
+        return [];
+      }
+      if (!categories().length) { return settingsCatalog.rows(settings); }
+      if (viewState.level !== 'category') { return categoryRootRows(); }
+      list = categories();
+      for (index = 0; index < list.length; index += 1) {
+        if (list[index].id === viewState.categoryId) { return list[index].rows; }
+      }
+      return [];
+    }
     function sectionLabel(section) { return settingsCatalog.sectionLabel(section); }
 
     function publishSettings() {
@@ -218,11 +347,14 @@
 
     function save() {
       settings = modules.Settings.save(root.localStorage, settings);
+      invalidateCatalog();
       publishSettings();
       if (document && document.documentElement) { document.documentElement.lang = settings.uiLanguage; }
       call(shell.applyCardScale);
       applyAccentColor();
+      applyVisualTheme();
       applyAnimationPreference();
+      applyAccessibilityPreferences();
       call(shell.translateStaticUi);
       return settings;
     }
@@ -240,12 +372,14 @@
     function render() {
       var viewState = view.snapshot();
       var serverState = call(server.editorSnapshot) || { open: false };
+      invalidateCatalog();
       if (viewState.zone === 'list') {
         view.focusList(viewState.index, rows());
         viewState = view.snapshot();
       }
       view.render({
-        title: t('settings.title'), notice: t('settings.globalNotice'), rows: rows(),
+        title: viewState.level === 'category' ? sectionLabel(viewState.categoryId) : t('settings.title'),
+        notice: t('settings.globalNotice'), rows: rows(), level: viewState.level,
         sectionLabel: sectionLabel, zone: viewState.zone, index: viewState.index,
         navIndex: navigationIndex(), serverEditorOpen: serverState.open,
         serverDiscoveryActive: call(server.discoveryActive) === true,
@@ -360,10 +494,430 @@
       return handled(true);
     }
 
+    function playbackCompatibilityButtons() {
+      return document && document.querySelectorAll ? document.querySelectorAll('[data-playback-compatibility-index]') : [];
+    }
+
+    function renderPlaybackCompatibility() {
+      var state;
+      var buttons;
+      var index;
+      if (!playbackCompatibilityOpen) { return; }
+      state = playbackCompatibilitySnapshot();
+      buttons = playbackCompatibilityButtons();
+      setText('playback-compatibility-title', t('settings.playbackCompatibilityTitle'));
+      setText('playback-compatibility-notice', t('settings.playbackCompatibilityNotice'));
+      setText('playback-compatibility-status', String(Number(state.formatRuleCount || 0)) + ' / ' + String(Number(state.fileExceptionCount || 0)));
+      setText('playback-compatibility-enabled-label', t('settings.playbackCompatibilityEnabled'));
+      setText('playback-compatibility-enabled-value', t(settings.adaptivePlaybackMemory ? 'settings.enabled' : 'settings.disabled'));
+      setText('playback-compatibility-formats-label', t('settings.playbackCompatibilityFormats'));
+      setText('playback-compatibility-formats-value', String(Number(state.formatRuleCount || 0)));
+      setText('playback-compatibility-files-label', t('settings.playbackCompatibilityFiles'));
+      setText('playback-compatibility-files-value', String(Number(state.fileExceptionCount || 0)) + ' · ' + String(Number(state.fileExceptionTtlDays || 30)) + 'd');
+      setText('playback-compatibility-reset-label', t('settings.playbackCompatibilityReset'));
+      setText('playback-compatibility-reset-value', t('settings.playbackCompatibilityClear'));
+      setText('playback-compatibility-close', t('common.close'));
+      playbackCompatibilityFocus = Math.max(0, Math.min(Math.max(0, buttons.length - 1), playbackCompatibilityFocus));
+      for (index = 0; index < buttons.length; index += 1) {
+        buttons[index].className = 'playback-compatibility-option' + (index === playbackCompatibilityFocus ? ' is-focused' : '');
+      }
+      if (!pointerActive() && buttons[playbackCompatibilityFocus] && buttons[playbackCompatibilityFocus].focus) { buttons[playbackCompatibilityFocus].focus(); }
+    }
+
+    function focusPlaybackCompatibility(index) {
+      var buttons;
+      if (!playbackCompatibilityOpen) { return false; }
+      buttons = playbackCompatibilityButtons();
+      playbackCompatibilityFocus = Math.max(0, Math.min(Math.max(0, buttons.length - 1), Number(index) || 0));
+      renderPlaybackCompatibility();
+      return true;
+    }
+
+    function closePlaybackCompatibility() {
+      var dialog;
+      var buttons;
+      var index;
+      if (!playbackCompatibilityOpen) { return false; }
+      playbackCompatibilityOpen = false;
+      dialog = document && document.getElementById ? document.getElementById('playback-compatibility-dialog') : null;
+      if (dialog) {
+        dialog.className = 'playback-compatibility-dialog is-hidden';
+        dialog.setAttribute('aria-hidden', 'true');
+      }
+      buttons = playbackCompatibilityButtons();
+      for (index = 0; index < buttons.length; index += 1) { buttons[index].className = 'playback-compatibility-option'; }
+      focus();
+      return true;
+    }
+
+    function clearPlaybackCompatibility(kind) {
+      var callback;
+      var title;
+      var clear;
+      if (kind === 'formats') {
+        title = t('settings.playbackCompatibilityClearFormatsConfirm');
+        clear = environment.clearPlaybackCompatibilityFormats;
+      } else if (kind === 'files') {
+        title = t('settings.playbackCompatibilityClearFilesConfirm');
+        clear = environment.clearPlaybackCompatibilityFiles;
+      } else {
+        title = t('settings.playbackCompatibilityResetConfirm');
+        clear = environment.clearPlaybackCompatibility;
+      }
+      callback = function (choice) {
+        if (choice && choice.value === 'confirm') { call(clear); }
+        renderPlaybackCompatibility();
+      };
+      call(dialogs.openChoice, title, [
+        { value: 'cancel', label: t('common.cancel') },
+        { value: 'confirm', label: t('settings.playbackCompatibilityClear') }
+      ], 'cancel', callback, function () { renderPlaybackCompatibility(); });
+    }
+
+    function activatePlaybackCompatibility() {
+      if (playbackCompatibilityFocus === 0) {
+        settings.adaptivePlaybackMemory = !settings.adaptivePlaybackMemory;
+        save();
+        renderPlaybackCompatibility();
+      } else if (playbackCompatibilityFocus === 1) {
+        clearPlaybackCompatibility('formats');
+      } else if (playbackCompatibilityFocus === 2) {
+        clearPlaybackCompatibility('files');
+      } else if (playbackCompatibilityFocus === 3) {
+        clearPlaybackCompatibility('all');
+      } else {
+        closePlaybackCompatibility();
+      }
+    }
+
+    function openPlaybackCompatibility() {
+      var dialog;
+      if (!document || !document.getElementById) { return false; }
+      playbackCompatibilityOpen = true;
+      playbackCompatibilityFocus = 0;
+      dialog = document.getElementById('playback-compatibility-dialog');
+      if (dialog) {
+        dialog.className = 'playback-compatibility-dialog';
+        dialog.setAttribute('aria-hidden', 'false');
+      }
+      renderPlaybackCompatibility();
+      return true;
+    }
+
+    function handlePlaybackCompatibilityKey(event, direction) {
+      if (!playbackCompatibilityOpen) { return handled(false); }
+      if (event && event.preventDefault) { event.preventDefault(); }
+      if (event.keyCode === 27 || event.keyCode === 461) { closePlaybackCompatibility(); }
+      else if (event.keyCode === 38 || direction === 'up') { focusPlaybackCompatibility(playbackCompatibilityFocus - 1); }
+      else if (event.keyCode === 40 || direction === 'down') { focusPlaybackCompatibility(playbackCompatibilityFocus + 1); }
+      else if (event.keyCode === 37 || event.keyCode === 39 || direction === 'left' || direction === 'right') {
+        if (playbackCompatibilityFocus === 0) { activatePlaybackCompatibility(); }
+      } else if (event.keyCode === 13) { activatePlaybackCompatibility(); }
+      return handled(true);
+    }
+
+    function safeAreaValues() {
+      return {
+        safeAreaTop: Number(settings.safeAreaTop || 0),
+        safeAreaRight: Number(settings.safeAreaRight || 0),
+        safeAreaBottom: Number(settings.safeAreaBottom || 0),
+        safeAreaLeft: Number(settings.safeAreaLeft || 0)
+      };
+    }
+
+    function applySafeAreaDraft(next) {
+      var draft = next || {};
+      settings.safeAreaTop = Number(draft.safeAreaTop || 0);
+      settings.safeAreaRight = Number(draft.safeAreaRight || 0);
+      settings.safeAreaBottom = Number(draft.safeAreaBottom || 0);
+      settings.safeAreaLeft = Number(draft.safeAreaLeft || 0);
+      applyAccessibilityPreferences();
+    }
+
+    function restoreSafeAreaOriginal() {
+      if (safeAreaOriginal) { applySafeAreaDraft(safeAreaOriginal); }
+      safeAreaOriginal = null;
+    }
+
+    function openSafeAreaCalibration() {
+      safeAreaOriginal = safeAreaValues();
+      safeAreaDialog.open(safeAreaOriginal, {
+        change: applySafeAreaDraft,
+        apply: function (next) {
+          applySafeAreaDraft(next);
+          safeAreaOriginal = null;
+          afterChange({ key: 'safeAreaCalibration' });
+        },
+        cancel: function () {
+          restoreSafeAreaOriginal();
+          render();
+          focus();
+        }
+      });
+      return true;
+    }
+
+    function handleSafeAreaKey(event, direction) {
+      if (!safeAreaDialog || !safeAreaDialog.snapshot().open) { return handled(false); }
+      return handled(safeAreaDialog.handleKey(event, direction));
+    }
+
+    function subtitleStyleValues() {
+      return {
+        subtitleBackground: settings.subtitleBackground,
+        subtitlePosition: settings.subtitlePosition,
+        subtitleEdge: settings.subtitleEdge
+      };
+    }
+
+    function openSubtitleStyleEditor() {
+      subtitleStyleDialog.open(subtitleStyleValues(), {
+        apply: function (next) {
+          settings.subtitleBackground = next.subtitleBackground;
+          settings.subtitlePosition = next.subtitlePosition;
+          settings.subtitleEdge = next.subtitleEdge;
+          afterChange({ key: 'subtitleAppearance' });
+          applyAccessibilityPreferences();
+        },
+        cancel: function () { render(); focus(); }
+      });
+      return true;
+    }
+
+    function handleSubtitleStyleKey(event, direction) {
+      if (!subtitleStyleDialog || !subtitleStyleDialog.snapshot().open) { return handled(false); }
+      return handled(subtitleStyleDialog.handleKey(event, direction));
+    }
+
+    function backupSizeLabel(status) {
+      var used = Math.max(0, Number(status && status.encodedBytes || 0));
+      var limit = Math.max(1, Number(status && status.limitBytes || 12 * 1024));
+      return (used / 1024).toFixed(1) + ' KB / ' + (limit / 1024).toFixed(0) + ' KB';
+    }
+
+    function showBackupResult(error, successKey) {
+      call(shell.showMessage, t(error ? 'settings.backup.error' : successKey));
+      render();
+      focus();
+    }
+
+    function suggestedDeviceName() {
+      var capabilities = currentCapabilities();
+      return String(capabilities.modelName || capabilities.model || t('settings.backup.defaultDeviceName'));
+    }
+
+    function requestDeviceName(backup, callback) {
+      if (!textInputDialog) { callback(new Error('Device name editor is unavailable')); return; }
+      textInputDialog.open({
+        title: t('settings.backup.deviceNameTitle'), hint: t('settings.backup.deviceNameHint'),
+        value: suggestedDeviceName(), placeholder: t('settings.backup.deviceNamePlaceholder'),
+        cancelLabel: t('common.cancel'), applyLabel: t('common.apply'), maximum: 80,
+        apply: function (name) { backup.registerDevice(name, callback); },
+        cancel: function () { render(); focus(); }
+      });
+    }
+
+    function normalizedModel(value) {
+      return String(value || '').replace(/^\s+|\s+$/g, '').toLowerCase();
+    }
+
+    function currentDeviceModel() {
+      var capabilities = currentCapabilities();
+      return normalizedModel(capabilities.modelName || capabilities.model);
+    }
+
+    function modelsKnownAndDifferent(profile) {
+      var current = currentDeviceModel();
+      var saved = normalizedModel(profile && profile.model);
+      return !!current && !!saved && current !== saved;
+    }
+
+    function profileLabel(profile) {
+      var detail = profile && profile.model && profile.model !== profile.name ? ' · ' + profile.model : '';
+      return String(profile && profile.name || t('settings.backup.defaultDeviceName')) + detail;
+    }
+
+    function applyLoadedSettings(backup, error, loaded, callback) {
+      if (!error && loaded && loaded.settings) {
+        settings = loaded.settings;
+        save();
+        call(shell.markHomeDirty);
+        call(shell.applyNavigationVisibility);
+        call(shell.renderNavigation);
+        if (settings.settingsBackupMode !== 'off') { backup.scheduleAutoSave(); }
+      }
+      call(callback, error || null, loaded || null, false);
+    }
+
+    function loadAsOtherDevice(backup, status, profile, callback) {
+      var current = status && status.currentProfile;
+      if (!textInputDialog) { call(callback, new Error('Device name editor is unavailable'), null, false); return; }
+      textInputDialog.open({
+        title: t('settings.backup.deviceNameTitle'), hint: t('settings.backup.loadOtherDeviceHint'),
+        value: current && current.name ? current.name : suggestedDeviceName(),
+        placeholder: t('settings.backup.deviceNamePlaceholder'),
+        cancelLabel: t('common.cancel'), applyLabel: t('common.apply'), maximum: 80,
+        apply: function (name) {
+          backup.load(profile.id, { sameDevice: false, deviceName: name }, function (error, _nextStatus, loaded) {
+            applyLoadedSettings(backup, error, loaded, callback);
+          });
+        },
+        cancel: function () { call(callback, null, null, true); }
+      });
+    }
+
+    function loadSelectedProfile(backup, status, profile, callback) {
+      var current = status && status.currentProfile;
+      if (current && current.id === profile.id) {
+        backup.load(profile.id, { sameDevice: true }, function (error, _nextStatus, loaded) {
+          applyLoadedSettings(backup, error, loaded, callback);
+        });
+        return;
+      }
+      if (modelsKnownAndDifferent(profile)) {
+        loadAsOtherDevice(backup, status, profile, callback);
+        return;
+      }
+      call(dialogs.openChoice, t('settings.backup.sameDeviceTitle'), [
+        { value: 'same', label: t('settings.backup.sameDevice') },
+        { value: 'other', label: t('settings.backup.otherDevice') }
+      ], 'same', function (choice) {
+        if (choice && choice.value === 'same') {
+          backup.load(profile.id, { sameDevice: true }, function (error, _nextStatus, loaded) {
+            applyLoadedSettings(backup, error, loaded, callback);
+          });
+        } else if (choice && choice.value === 'other') {
+          loadAsOtherDevice(backup, status, profile, callback);
+        }
+      }, null, '', null, function (applied) {
+        if (!applied) { call(callback, null, null, true); }
+      });
+    }
+
+    function chooseSavedProfile(backup, status, callback) {
+      var profiles = status && status.profiles || [];
+      var choices;
+      if (!profiles.length) { call(callback, new Error('No Ploff settings save was found'), null, false); return; }
+      if (profiles.length === 1) { loadSelectedProfile(backup, status, profiles[0], callback); return; }
+      choices = profiles.map(function (profile) { return { value: profile.id, label: profileLabel(profile) }; });
+      call(dialogs.openChoice, t('settings.backup.chooseSave'), choices, choices[0].value, function (choice) {
+        var selected = profiles.filter(function (profile) { return profile.id === String(choice && choice.value || ''); })[0];
+        if (selected) { loadSelectedProfile(backup, status, selected, callback); }
+      }, null, '', null, function (applied) {
+        if (!applied) { call(callback, null, null, true); }
+      });
+    }
+
+    function promptSettingsLoad(status, options, callback) {
+      var backup = environment.settingsBackup;
+      var values = options || {};
+      var done = false;
+      function complete(error, loaded, skipped) {
+        if (done) { return; }
+        done = true;
+        call(callback, error || null, loaded || null, skipped === true);
+      }
+      function choose() { chooseSavedProfile(backup, status, complete); }
+      if (!backup || !status || !status.exists) { complete(new Error('No Ploff settings save was found'), null, false); return false; }
+      if (values.confirmFirst !== true) { choose(); return true; }
+      call(dialogs.openChoice, t('settings.backup.loadPrompt'), [
+        { value: 'skip', label: t('settings.backup.notNow') },
+        { value: 'load', label: t('settings.backup.load') }
+      ], 'skip', function (choice) {
+        if (choice && choice.value === 'load') { choose(); }
+        else { complete(null, null, true); }
+      }, null, '', null, function (applied) {
+        if (!applied) { complete(null, null, true); }
+      });
+      return true;
+    }
+
+    function saveBackup(backup) {
+      backup.status(function (statusError, status) {
+        if (statusError) { showBackupResult(statusError, 'settings.backup.saved'); return; }
+        if (status && status.needsDeviceName) {
+          requestDeviceName(backup, function (registerError) { showBackupResult(registerError, 'settings.backup.saved'); });
+          return;
+        }
+        backup.save(function (error) { showBackupResult(error, 'settings.backup.saved'); });
+      });
+    }
+
+    function restoreBackup(backup) {
+      backup.status(function (statusError, status) {
+        if (statusError || !status || !status.exists) { showBackupResult(statusError || new Error('not found'), 'settings.backup.loaded'); return; }
+        promptSettingsLoad(status, { confirmFirst: false }, function (error, _loaded, skipped) {
+          if (skipped) { render(); focus(); return; }
+          showBackupResult(error, 'settings.backup.loaded');
+        });
+      });
+    }
+
+    function performBackupAction(choice) {
+      var backup = environment.settingsBackup;
+      if (!choice || !backup) { return; }
+      if (choice.value === 'save') {
+        saveBackup(backup);
+      } else if (choice.value === 'restore') {
+        restoreBackup(backup);
+      } else if (choice.value === 'mode') {
+        call(dialogs.openChoice, t('settings.backup.modeTitle'), [
+          { value: 'off', label: t('settings.backup.mode.off') + ' · ' + t('settings.backup.modeOffHint') },
+          { value: 'on', label: t('settings.backup.mode.on') + ' · ' + t('settings.backup.modeOnHint') }
+        ], settings.settingsBackupMode, function (modeChoice) {
+          var mode = String(modeChoice && modeChoice.value || 'off');
+          function applyMode(error) {
+            if (!error) {
+              settings.settingsBackupMode = mode;
+              save();
+              if (mode !== 'off') { backup.scheduleAutoSave(); }
+            }
+            showBackupResult(error, 'settings.backup.modeChanged');
+          }
+          if (mode === 'off') { applyMode(null); return; }
+          backup.status(function (statusError, status) {
+            if (statusError) { applyMode(statusError); }
+            else if (status && status.needsDeviceName) { requestDeviceName(backup, applyMode); }
+            else { applyMode(null); }
+          });
+        }, focus);
+      } else if (choice.value === 'delete') {
+        call(dialogs.openChoice, t('settings.backup.deleteConfirm'), [
+          { value: 'cancel', label: t('common.cancel') },
+          { value: 'delete', label: t('settings.backup.delete') }
+        ], 'cancel', function (confirmation) {
+          if (confirmation && confirmation.value === 'delete') {
+            backup.remove(function (error) { showBackupResult(error, 'settings.backup.deleted'); });
+          }
+        }, focus);
+      } else { openSettingsBackup(); }
+    }
+
+    function openSettingsBackup() {
+      var backup = environment.settingsBackup;
+      if (!backup) { showBackupResult(new Error('unavailable')); return false; }
+      backup.status(function (error, status) {
+        var exists = !error && status && status.exists;
+        var settingsStatus = !error && status && status.settingsMatch === true ? 'matched' : 'unmatched';
+        call(dialogs.openChoice, t('settings.backup.title'), [
+          { value: 'save', label: t('settings.backup.save'), status: settingsStatus },
+          { value: 'restore', label: t('settings.backup.load') + (exists ? '' : ' · ' + t('settings.backup.notFound')) },
+          { value: 'mode', label: t('settings.backup.autosave') + ': ' + t('settings.backup.mode.' + settings.settingsBackupMode) },
+          { value: 'delete', label: t('settings.backup.delete') },
+          { value: 'space', label: t('settings.backup.space') + ': ' + backupSizeLabel(status) }
+        ], 'save', performBackupAction, focus);
+      });
+      return true;
+    }
+
     function activateAction(row) {
+      if (row.key === 'settingsBackup') { openSettingsBackup(); return true; }
       if (row.key === 'appVersion') { openUpdateDialog(); return true; }
       if (row.key === 'diagnostics') { call(dialogs.openDiagnostics); return true; }
       if (row.key === 'privacy') { openPrivacyPolicy(); return true; }
+      if (row.key === 'playbackCompatibility') { openPlaybackCompatibility(); return true; }
+      if (row.key === 'safeAreaCalibration') { openSafeAreaCalibration(); return true; }
+      if (row.key === 'subtitleAppearance') { openSubtitleStyleEditor(); return true; }
       if (row.key === 'disconnectPlex') {
         if (!call(account.connected)) {
           call(dialogs.openChoice, t('setup.disconnectPlex'), [{ value: 'cancel', label: t('settings.notConnected') }], 'cancel', null, focus);
@@ -391,12 +945,14 @@
 
     function afterChange(row) {
       save();
+      if (environment.settingsBackup) { environment.settingsBackup.scheduleAutoSave(); }
       if (row.key === 'cardScale') { call(shell.refreshCardsForCurrentView); }
       if (row.key === 'artworkQuality') {
         call(shell.markHomeDirty);
         call(shell.refreshCardsForCurrentView);
       }
       if (row.key === 'backdropQuality') { call(shell.clearBackdrop); }
+      if (row.key === 'visualTheme') { call(shell.refreshCardsForCurrentView); }
       if (row.key === 'showWatchlist' || row.key === 'showPlaylists') { call(shell.applyNavigationVisibility); }
       call(shell.renderNavigation);
       render();
@@ -422,6 +978,7 @@
     function changeSetting(direction) {
       var row = rows()[view.snapshot().index];
       if (!row) { return; }
+      if (row.category) { return; }
       if (row.action) { activateAction(row); return; }
       if (row.upNextLayoutEditor) { openUpNextLayoutEditor(); return; }
       if (row.editor || row.priorityEditor) { openLanguageEditor(row.key); return; }
@@ -435,16 +992,34 @@
     function openSettingChoice(index) {
       var currentIndex = index === undefined ? view.snapshot().index : Math.max(0, Number(index) || 0);
       var row = rows()[currentIndex];
+      var generation;
+      function open(previewOptions) {
+        call(dialogs.openChoice, row.label, row.choices, settings[row.key], function (choice) {
+          applyValue(row, choice.value);
+        }, focus, row.choiceVariant || '', previewOptions || { cardScale: settings.cardScale });
+      }
       if (!row) { return; }
+      if (row.category) {
+        view.openCategory(row.categoryId, currentIndex);
+        render();
+        return;
+      }
       if (row.action) { activateAction(row); return; }
       if (row.upNextLayoutEditor) { openUpNextLayoutEditor(); return; }
       if (row.editor || row.priorityEditor) { openLanguageEditor(row.key); return; }
       if (row.serverEditor) { call(server.openEditor); return; }
       if (row.profileEditor) { call(dialogs.openProfileManager); return; }
       if (!row.choices || !row.choices.length) { return; }
-      call(dialogs.openChoice, row.label, row.choices, settings[row.key], function (choice) {
-        applyValue(row, choice.value);
-      }, focus);
+      if (row.choiceVariant === 'backdrop-quality' && typeof shell.loadBackdropPreview === 'function') {
+        generation = choicePreviewGeneration += 1;
+        shell.loadBackdropPreview(function (_error, source) {
+          if (destroyed || generation !== choicePreviewGeneration) { return; }
+          open({ cardScale: settings.cardScale, backdropUrl: source || '' });
+        });
+        return;
+      }
+      choicePreviewGeneration += 1;
+      open({ cardScale: settings.cardScale });
     }
 
     function renderUpNextLayoutEditor() {
@@ -524,6 +1099,7 @@
           label: viewState.languageKind === 'videoVersionPriorities'
             ? t('settings.versionPriority.' + languages[index])
             : modules.I18n.languageName(settings.uiLanguage, languages[index]),
+          languageCode: viewState.languageKind === 'videoVersionPriorities' ? '' : languages[index],
           rank: rank === -1 ? 0 : rank + 1,
           disabled: editorItemDisabled(languages[index])
         });
@@ -612,6 +1188,11 @@
     }
 
     function leave() {
+      if (safeAreaDialog && safeAreaDialog.snapshot().open) {
+        safeAreaDialog.dismiss();
+        restoreSafeAreaOriginal();
+      }
+      if (subtitleStyleDialog && subtitleStyleDialog.snapshot().open) { subtitleStyleDialog.close(false); }
       if (updateOpen) {
         updateOpen = false;
         document.getElementById('update-dialog').className = 'update-dialog is-hidden';
@@ -622,6 +1203,7 @@
         document.getElementById('privacy-dialog').className = 'privacy-dialog is-hidden';
         document.getElementById('privacy-dialog').setAttribute('aria-hidden', 'true');
       }
+      if (playbackCompatibilityOpen) { closePlaybackCompatibility(); }
       view.close();
       call(server.closeEditor);
       document.getElementById('language-editor').className = 'language-editor is-hidden';
@@ -637,6 +1219,9 @@
       var editorState;
       var nextIndex;
       if (destroyed) { return handled(false); }
+      if (safeAreaDialog && safeAreaDialog.snapshot().open) { return handleSafeAreaKey(event, direction); }
+      if (subtitleStyleDialog && subtitleStyleDialog.snapshot().open) { return handleSubtitleStyleKey(event, direction); }
+      if (playbackCompatibilityOpen) { return handlePlaybackCompatibilityKey(event, direction); }
       if (updateOpen) { return handleUpdateKey(event, direction); }
       state = view.snapshot();
       if (event && event.preventDefault) { event.preventDefault(); }
@@ -644,7 +1229,11 @@
         editorState = call(server.editorSnapshot) || { open: false };
         if (editorState.open) { call(server.closeEditor); }
         else if (state.languageKind) { closeLanguageEditor(); }
-        else if (state.zone !== 'nav') {
+        else if (state.level === 'category') {
+          call(server.closeEditor);
+          view.closeCategory();
+          render();
+        } else if (state.zone !== 'nav') {
           view.focusNavigation();
           call(shell.renderNavigation);
           focus();
@@ -728,18 +1317,35 @@
       return {
         open: state.open,
         zone: state.zone,
+        level: state.level,
+        categoryIndex: state.categoryIndex,
+        categoryId: state.categoryId,
         index: state.index,
         languageKind: state.languageKind,
         languageIndex: state.languageIndex,
         privacyOpen: privacyOpen,
         updateOpen: updateOpen,
         updateFocus: updateFocus,
+        compatibilityOpen: playbackCompatibilityOpen,
+        compatibilityFocus: playbackCompatibilityFocus,
+        safeAreaOpen: safeAreaDialog && safeAreaDialog.snapshot().open === true,
+        safeArea: safeAreaDialog ? safeAreaDialog.snapshot() : { open: false, focus: 0, values: safeAreaValues() },
+        subtitleStyleOpen: subtitleStyleDialog && subtitleStyleDialog.snapshot().open === true,
+        subtitleStyle: subtitleStyleDialog ? subtitleStyleDialog.snapshot() : { open: false, focus: 0, values: subtitleStyleValues() },
+        textInputOpen: textInputDialog && textInputDialog.snapshot().open === true,
         upNext: upNextLayout.snapshot(),
         settings: settings
       };
     }
 
-    function refresh() { render(); if (updateOpen) { renderUpdateDialog(); } return snapshot(); }
+    function refresh() {
+      render();
+      if (updateOpen) { renderUpdateDialog(); }
+      if (playbackCompatibilityOpen) { renderPlaybackCompatibility(); }
+      if (safeAreaDialog && safeAreaDialog.snapshot().open) { safeAreaDialog.render(); }
+      if (subtitleStyleDialog && subtitleStyleDialog.snapshot().open) { subtitleStyleDialog.render(); }
+      return snapshot();
+    }
     function focusNavigation() { view.focusNavigation(); return snapshot(); }
     function focusList(index, rowsOrCount, direction) { view.focusList(index, rowsOrCount || rows(), direction); return snapshot(); }
     function focusLanguage(index, count, updateOnly) {
@@ -754,9 +1360,15 @@
     function destroy() {
       var node;
       if (destroyed) { return; }
+      choicePreviewGeneration += 1;
       privacyOpen = false;
       updateOpen = false;
+      playbackCompatibilityOpen = false;
       upNextLayout.close();
+      if (safeAreaDialog) { safeAreaDialog.destroy(); }
+      if (subtitleStyleDialog) { subtitleStyleDialog.destroy(); }
+      if (textInputDialog) { textInputDialog.destroy(); }
+      safeAreaOriginal = null;
       call(server.closeEditor);
       view.close();
       if (document && document.getElementById) {
@@ -770,6 +1382,8 @@
         if (node) { node.className = 'language-editor is-hidden'; node.setAttribute('aria-hidden', 'true'); }
         node = document.getElementById('up-next-layout-dialog');
         if (node) { node.className = 'up-next-layout-dialog is-hidden'; node.setAttribute('aria-hidden', 'true'); }
+        node = document.getElementById('playback-compatibility-dialog');
+        if (node) { node.className = 'playback-compatibility-dialog is-hidden'; node.setAttribute('aria-hidden', 'true'); }
       }
       destroyed = true;
     }
@@ -785,6 +1399,7 @@
       rows: rows,
       sectionLabel: sectionLabel,
       save: save,
+      promptSettingsLoad: promptSettingsLoad,
       setSetupLanguage: setSetupLanguage,
       render: render,
       focus: focus,
@@ -814,6 +1429,16 @@
       moveUpNextVertical: moveUpNextVertical,
       handleUpNextKey: handleUpNextKey,
       handlePrivacyKey: handlePrivacyKey,
+      openPlaybackCompatibility: openPlaybackCompatibility,
+      closePlaybackCompatibility: closePlaybackCompatibility,
+      focusPlaybackCompatibility: focusPlaybackCompatibility,
+      handlePlaybackCompatibilityKey: handlePlaybackCompatibilityKey,
+      handleSafeAreaKey: handleSafeAreaKey,
+      handleSubtitleStyleKey: handleSubtitleStyleKey,
+      handleTextInputKey: function (event, direction) { return textInputDialog && textInputDialog.handleKey(event, direction); },
+      focusTextInput: function (index) { return textInputDialog && textInputDialog.focus(index); },
+      focusSafeArea: function (index) { return safeAreaDialog && safeAreaDialog.focusAction(index); },
+      focusSubtitleStyle: function (index) { return subtitleStyleDialog && subtitleStyleDialog.focusAction(index); },
       videoQualityLabel: videoQualityLabel,
       activeConnectionRoute: activeConnectionRoute,
       connectionRouteLabel: connectionRouteLabel,
@@ -823,6 +1448,8 @@
       playbackPreferenceLabel: playbackPreferenceLabel,
       accentColorLabel: accentColorLabel,
       applyAccentColor: applyAccentColor,
+      applyVisualTheme: applyVisualTheme,
+      applyAccessibilityPreferences: applyAccessibilityPreferences,
       applyAnimationPreference: applyAnimationPreference,
       interfaceAnimationDuration: interfaceAnimationDuration,
       keepFocusVisible: keepPanelFocusVisible

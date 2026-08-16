@@ -13,6 +13,7 @@ var episode = {
   meta: 'Stagione 4',
   metaKey: 'media.season',
   metaParameters: { number: 4 },
+  year: 2026,
   detail: 'E02 - A New Day'
 };
 
@@ -20,7 +21,7 @@ assert.strictEqual(MediaLabels.title(episode, translate('en')), 'Example Show', 
 assert.strictEqual(MediaLabels.meta(episode, translate('en')), 'Season 4', 'semantic season metadata must follow the English UI language');
 assert.strictEqual(MediaLabels.meta(episode, translate('it')), 'Stagione 4', 'semantic season metadata must follow the Italian UI language');
 assert.strictEqual(MediaLabels.detail(episode, translate('en')), 'E02 - A New Day', 'language-neutral episode details must remain unchanged');
-assert.strictEqual(MediaLabels.cardMeta(episode, translate('it')), 'S04 - E02', 'episode cards must use compact season and episode numbering');
+assert.strictEqual(MediaLabels.cardMeta(episode, translate('it')), 'S04 - E02 \u00b7 2026', 'episode cards must show their year after compact season and episode numbering');
 assert.strictEqual(MediaLabels.cardDetail(episode, translate('it')), 'A New Day', 'episode cards must place the episode title on its own line');
 assert.strictEqual(MediaLabels.cardMeta({ meta: 'Speciali', detail: 'E01 - OVA' }, translate('it')), 'Speciali - E01', 'special episodes must retain their localized season label');
 assert.strictEqual(MediaLabels.cardDetail({ meta: 'Speciali', detail: 'E01 - OVA' }, translate('it')), 'OVA', 'special episode titles must remain on their own line');
