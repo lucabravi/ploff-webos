@@ -20,10 +20,13 @@ APP_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' 
 test -n "$APP_VERSION" || { echo "unable to read the webOS application version" >&2; exit 1; }
 printf '%s\n' "(function (root) { 'use strict'; root.PloffBuildInfo = { version: '$APP_VERSION' }; }(this));" > "$STAGE/build-info.js"
 
-# A single application version keeps every staged script and stylesheet in sync.
-sed "s/?v=[0-9A-Za-z._-]*/?v=$APP_VERSION/g" "$STAGE/index.html" > "$STAGE/index.html.versioned"
+# A content-derived suffix prevents webOS from reusing stale assets when local
+# development builds intentionally retain the same semantic app version.
+ASSET_HASH=$(node "$ROOT/scripts/asset-cache-key.js" "$STAGE")
+CACHE_KEY="$APP_VERSION-$ASSET_HASH"
+sed "s/?v=[0-9A-Za-z._-]*/?v=$CACHE_KEY/g" "$STAGE/index.html" > "$STAGE/index.html.versioned"
 mv "$STAGE/index.html.versioned" "$STAGE/index.html"
-node "$ROOT/scripts/check-shell-assets.js" "$STAGE/index.html" "$APP_VERSION"
+node "$ROOT/scripts/check-shell-assets.js" "$STAGE/index.html" "$CACHE_KEY"
 
 CLI_VERSION=$(ares-package --version 2>/dev/null | head -n 1 || true)
 {

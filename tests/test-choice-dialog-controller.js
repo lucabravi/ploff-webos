@@ -7,9 +7,9 @@ function createHarness() {
   var calls = [];
   var state = { open: false, index: 0, choices: [] };
   var view = {
-    open: function (title, choices, selectedValue) {
+    open: function (title, choices, selectedValue, variant, previewOptions) {
       var index;
-      calls.push(['open', title, selectedValue]);
+      calls.push(['open', title, selectedValue, variant, previewOptions]);
       state.open = true;
       state.choices = choices.slice();
       state.index = 0;
@@ -42,6 +42,18 @@ function createHarness() {
   assert.deepStrictEqual(h.controller.snapshot(), { open: false, index: 0, title: '', choices: [], destroyed: false });
   assert.strictEqual(h.controller.open({ title: 'Empty', choices: [] }), false, 'an empty picker must not open');
   assert.strictEqual(h.calls.length, 0, 'empty choices must not touch the view');
+}());
+
+(function forwardsVisualPreviewContextToTheView() {
+  var h = createHarness();
+  h.controller.open({
+    title: 'Artwork quality',
+    choices: [{ value: 90, label: '90%' }],
+    selectedValue: 90,
+    variant: 'artwork-quality',
+    previewOptions: { cardScale: 120 }
+  });
+  assert.deepStrictEqual(h.calls[0], ['open', 'Artwork quality', 90, 'artwork-quality', { cardScale: 120 }], 'visual preview context must reach the reusable view unchanged');
 }());
 
 (function remoteAndPointerInputApplyOrCancelExactlyOnce() {

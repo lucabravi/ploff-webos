@@ -6,6 +6,7 @@ var HomeState = require('../app/home-state');
 var rows = [{
   title: 'Continue Watching',
   shape: 'poster',
+  kind: 'continue',
   showLibraryBadge: true,
   items: [
     { ratingKey: '10', title: 'Alpha', meta: 'Season 1', image: '/alpha', progress: 25 },
@@ -19,6 +20,7 @@ var rows = [{
 
 var normalized = HomeState.normalizeRows(rows);
 assert.strictEqual(normalized.length, 1, 'empty Home rows must not enter render state');
+assert.strictEqual(normalized[0].kind, 'continue', 'Home normalization must retain the row kind used by contextual actions');
 assert.strictEqual(normalized[0].showLibraryBadge, true, 'Home normalization must retain mixed-library badge semantics');
 assert.strictEqual(HomeState.mediaKey(normalized[0].items[0]), 'rating:10', 'Plex rating keys must provide stable card identity');
 assert.strictEqual(HomeState.fingerprintRows(normalized), HomeState.fingerprintRows(HomeState.normalizeRows(rows)), 'equivalent Home data must have a stable fingerprint');

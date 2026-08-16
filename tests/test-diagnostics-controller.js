@@ -22,6 +22,7 @@ var fakeView = {
     if (event.keyCode === 461) { this.close(); }
   },
   activate: function () { calls.push('activate:' + focus); },
+  closeSupportQr: function () { calls.push('closeSupportQr'); },
   setFocus: function (index) { focus = index; calls.push('focus:' + index); },
   scroll: function (direction) { calls.push('scroll:' + direction); }
 };
@@ -48,6 +49,10 @@ var controller = DiagnosticsController.create({
         return result;
       }
     },
+    SupportSnapshot: {
+      create: function (values) { return { playback: values.playback, failurePlayback: values.failurePlayback, error: values.error, jsErrors: values.jsErrors, settings: values.settings, compatibility: values.compatibility }; }
+    },
+    SupportQr: {},
     DiagnosticsView: {
       create: function (options) {
         fakeView.options = options;
@@ -71,7 +76,10 @@ var controller = DiagnosticsController.create({
     profile: function () { return { mode: 'Plex', name: 'Luca' }; },
     device: function () { return { modelName: 'LG TV', webOSVersion: '4.10' }; },
     network: function () { return { status: 'online' }; },
+    settings: function () { return { version: 3, visualTheme: 'immersive' }; },
+    compatibility: function () { return { schemaVersion: 3, formatRuleCount: 2 }; },
     playback: function () { playbackReads += 1; return { state: 'playing', fileName: 'episode.mkv' }; },
+    jsErrors: function () { return [{ type: 'error', message: 'runtime failure' }]; },
     loadIdentity: function (callback) {
       identityCallback = callback;
       return { abort: function () { aborted = true; } };
@@ -100,13 +108,21 @@ controller.capturePlayback();
 controller.setError('failure token=secret');
 snapshot = controller.snapshot();
 assert.strictEqual(snapshot.error, 'failure token=[redacted]', 'diagnostic errors are redacted before export');
+var supportReport = fakeView.options.getSupportReport();
+assert.deepStrictEqual(supportReport.jsErrors, [{ type: 'error', message: 'runtime failure' }], 'support reports must receive collected JavaScript errors');
+assert.strictEqual(supportReport.settings.visualTheme, 'immersive', 'support reports must receive current settings');
+assert.strictEqual(supportReport.compatibility.schemaVersion, 3, 'support reports must receive compatibility summary');
 
 assert.deepStrictEqual(controller.handleKey({ keyCode: 40, preventDefault: function () {} }, 'down'), { handled: true }, 'open diagnostics consume remote input');
 assert.ok(calls.indexOf('key:down:40') >= 0, 'remote scrolling routes through the diagnostics view');
 assert.deepStrictEqual(controller.handlePointer('focus', { target: { getAttribute: function () { return 'back'; } } }), { handled: true }, 'pointer focus is synchronized');
-assert.strictEqual(focus, 1, 'the Back action owns the second diagnostics focus slot');
+assert.strictEqual(focus, 2, 'the Back action owns the third diagnostics focus slot');
 controller.handlePointer('activate', { target: { getAttribute: function () { return 'refresh'; } } });
 assert.ok(calls.indexOf('activate:0') >= 0, 'pointer activation uses the same action path');
+controller.handlePointer('activate', { target: { getAttribute: function (name) {
+  return name === 'data-diagnostics-qr-action' ? 'close' : null;
+} } });
+assert.ok(calls.indexOf('closeSupportQr') >= 0, 'pointer activation closes the support QR dialog');
 
 controller.leave();
 assert.strictEqual(controller.isOpen(), false, 'leave closes diagnostics');

@@ -205,6 +205,7 @@ function createHarness(overrides) {
   document.register('server-activity', new FakeNode('button'));
   document.register('server-activity-panel', new FakeNode('section'));
   document.register('server-activity-title', new FakeNode('span'));
+  document.register('server-activity-title-text', new FakeNode('span'));
 
   var options = {
     platform: { root: root, document: document, storage: root.localStorage },
@@ -377,6 +378,7 @@ function createHarness(overrides) {
   harness.feature.start();
   harness.feature.start();
   assert.deepStrictEqual(harness.controllerCalls.slice(0, 3), [['applyCardScale'], ['renderNavigation'], ['updateClock']]);
+  assert.ok(/is-home-surface-active/.test(harness.document.body.className), 'starting on Home must activate the Home surface before the first data render');
   assert.deepStrictEqual(harness.calls.filter(function (entry) { return /^translate/.test(entry[0]); }), [
     ['translateDetail'], ['translateLibrary'], ['translatePlayer']
   ]);
@@ -432,8 +434,10 @@ function createHarness(overrides) {
   assert.strictEqual(feature.renderServerActivities(), true);
   assert.ok(/is-starting/.test(activityButton.className), 'first active render uses the existing start transition');
   assert.strictEqual(activityButton.getAttribute('aria-busy'), 'true');
-  assert.strictEqual(activityPanel.children.length, 2, 'network row and activity row are rendered');
-  assert.strictEqual(activityPanel.children[1].children[2].children[0].style.width, '42%');
+  assert.strictEqual(activityButton.getAttribute('title'), undefined, 'active server work uses the custom panel instead of a sticky native browser tooltip');
+  assert.strictEqual(activityPanel.children.length, 2, 'one summary and one expandable detail surface are rendered');
+  assert.strictEqual(textOf(activityPanel.children[0]), 'Refreshing', 'the unified activity surface carries the condensed single-line summary');
+  assert.strictEqual(activityPanel.children[1].children[1].children[2].children[0].style.width, '42%');
   harness.root.runNextTimeout();
   assert.ok(/is-active/.test(activityButton.className), 'activity transition settles to active');
   assert.deepStrictEqual(activityTitles[activityTitles.length - 1], ['Refreshing', 'active']);
@@ -443,14 +447,31 @@ function createHarness(overrides) {
   assert.ok(/is-stopping/.test(activityButton.className), 'empty activity state preserves the stop transition');
   harness.root.runNextTimeout();
   assert.ok(/is-idle/.test(activityButton.className), 'activity transition settles to idle');
-  assert.strictEqual(activityPanel.children.length, 2, 'network row and idle row remain visible');
+  assert.strictEqual(activityPanel.children.length, 2, 'the unified activity surface retains its stable summary/detail structure while idle');
+  assert.strictEqual(activityButton.getAttribute('title'), undefined, 'idle activity controls must not advertise a server operation');
+
+  activities = [{ id: 'maintenance', type: 'butler', title: 'Butler tasks', progress: 88 }];
+  feature.renderServerActivities();
+  assert.ok(/is-idle/.test(activityButton.className), 'background Plex Butler maintenance must not keep the user-facing activity indicator active');
+  assert.strictEqual(activityButton.getAttribute('aria-busy'), 'false');
+  assert.strictEqual(activityPanel.className, 'server-activity-panel');
+
+  harness.controllerOptions().presentation.setHomeLoading(true);
+  harness.feature.renderServerActivities();
+  harness.root.runNextTimeout();
+  harness.root.runNextTimeout();
+  harness.root.runNextTimeout();
+  assert.ok(/is-idle/.test(activityButton.className), 'a Home refresh must not make the server activity control look continuously active');
+  assert.strictEqual(activityButton.getAttribute('aria-busy'), 'false');
 
   content.className = 'is-navigation-entering';
   feature.hideHomeSurface();
   assert.strictEqual(content.style.display, 'none');
   assert.strictEqual(content.className, '', 'hiding a browsing surface must clear a pending navigation entrance animation');
+  assert.strictEqual(/is-home-surface-active/.test(harness.document.body.className), false, 'non-Home views must not inherit the Immersive Home geometry');
   feature.showHomeSurface();
   assert.strictEqual(content.style.display, 'block');
+  assert.ok(/is-home-surface-active/.test(harness.document.body.className), 'showing Home enables its theme-specific geometry');
   content.appendChild(new FakeNode('div'));
   feature.clearHomeSurface();
   assert.strictEqual(content.children.length, 0);

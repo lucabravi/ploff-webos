@@ -27,6 +27,7 @@
       normalized.push({
         title: String(row.title || ''),
         shape: String(row.shape || 'poster'),
+        kind: String(row.kind || ''),
         showLibraryBadge: row.showLibraryBadge === true,
         items: items.map(cloneObject)
       });

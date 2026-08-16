@@ -1,0 +1,28 @@
+{
+  "format": "ploff-settings",
+  "version": 2,
+  "kind": "device",
+  "appVersion": "1.0.5",
+  "createdAt": 1100,
+  "device": {
+    "id": "legacy-living-room",
+    "name": "Legacy Living room",
+    "model": "OLED55",
+    "webOS": "5.0",
+    "width": 1920,
+    "height": 1080
+  },
+  "settings": {
+    "version": 2,
+    "cardScale": 70,
+    "lanVideoQuality": "original",
+    "remoteVideoQuality": "8000",
+    "playbackMode": "auto",
+    "settingsBackupMode": "sync"
+  },
+  "compatibility": {
+    "version": 2,
+    "formats": [{"key": "legacy-format", "kind": "direct-play", "files": ["legacy-file"], "failures": 2}],
+    "files": [{"key": "legacy-file", "formatKey": "legacy-format", "kind": "direct-play", "failures": 1, "confirmed": true, "expiresAt": 9999999999999}]
+  }
+}

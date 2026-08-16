@@ -5,7 +5,7 @@
 - webOS version: <version>
 - Tester: <name>
 - Result: <PASS or FAIL>
-- Matrix SHA-256: db61ef2501c103daa269f138bfa353f24ce7da7b677ffe42c0fdb356d4f511a3
+- Matrix SHA-256: f9769612fc4bcd5d2a8c4c5466e48cbbea4b0e8ed0f7c634654ef14ec9211401
 ## Regression matrix
 
 Copy this file to `docs/release-signoff/v<major>.<minor>.<patch>.md`, replace
@@ -17,7 +17,7 @@ physical run. The repository test keeps this template digest synchronized.
 - [ ] 1. Startup, onboarding, server/profile loading, refresh stability, and restart
 - [ ] 2. Home focus, navbar long-press, Search T9, libraries, Watchlist, and playlists
 - [ ] 3. Sorting, filters, virtual cards, empty states, and disabled empty Collections
-- [ ] 4. Detail origins, media mutations, theme continuity, media info, and Back restore
+- [ ] 4. Detail origins, media mutations, version browser, season bulk actions, theme continuity, and Back restore
 - [ ] 5. Direct Play, Direct Stream, transcode modes, HDR diagnostics, and recovery
 - [ ] 6. Resume, play from beginning, bidirectional/offset seek, rebuild, and recovery
 - [ ] 7. Audio, subtitles, versions, advanced synchronization, and unsupported formats

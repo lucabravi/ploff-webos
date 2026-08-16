@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "uiLanguage": "en",
+  "uiLanguageExplicit": true,
+  "lanVideoQuality": "original",
+  "remoteVideoQuality": "12000",
+  "visualTheme": "immersive",
+  "settingsBackupMode": "sync",
+  "cardScale": 70
+}

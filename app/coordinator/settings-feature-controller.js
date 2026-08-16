@@ -61,7 +61,10 @@
         VersionSelection: modules.VersionSelection,
         ServerStore: modules.ServerStore,
         ServerDiscovery: modules.ServerDiscovery,
-        UpNextLayoutDialog: modules.UpNextLayoutDialog
+        UpNextLayoutDialog: modules.UpNextLayoutDialog,
+        SafeAreaDialog: modules.SafeAreaDialog,
+        SubtitleStyleDialog: modules.SubtitleStyleDialog,
+        TextInputDialog: modules.TextInputDialog
       },
       presentation: {
         t: presentation.t,
@@ -87,6 +90,7 @@
         applyCardScale: shell.applyCardScale,
         translateStaticUi: shell.translateStaticUi,
         refreshCardsForCurrentView: shell.refreshCardsForCurrentView,
+        loadBackdropPreview: shell.loadBackdropPreview,
         clearBackdrop: shell.clearBackdrop,
         applyNavigationVisibility: shell.applyNavigationVisibility,
         markHomeDirty: shell.markHomeDirty,
@@ -134,13 +138,24 @@
     function resume(options) {
       var list;
       var focusIndex;
+      var focusKey;
+      var index;
       options = options || {};
       if (!active()) { return false; }
       showView();
       call(shell.renderNavigation);
       list = rows();
-      if (options.focusLast === true) { focusIndex = Math.max(0, list.length - 1); }
-      else if (options.focusIndex !== undefined) { focusIndex = Math.max(0, Number(options.focusIndex) || 0); }
+      focusKey = options.focusKey === undefined || options.focusKey === null ? '' : String(options.focusKey);
+      if (focusKey) {
+        for (index = 0; index < list.length; index += 1) {
+          if (list[index] && String(list[index].key || '') === focusKey) {
+            focusIndex = index;
+            break;
+          }
+        }
+      }
+      if (focusIndex === undefined && options.focusLast === true) { focusIndex = Math.max(0, list.length - 1); }
+      else if (focusIndex === undefined && options.focusIndex !== undefined) { focusIndex = Math.max(0, Number(options.focusIndex) || 0); }
       if (focusIndex !== undefined && typeof controller.focusList === 'function') {
         controller.focusList(focusIndex, list);
       }
@@ -188,9 +203,24 @@
       return true;
     }
 
-    function invoke(name, arg1, arg2) {
+    function focusPlaybackCompatibility(index) {
+      if (!active()) { return false; }
+      return controller.focusPlaybackCompatibility(index);
+    }
+
+    function focusSafeArea(index) {
+      if (!active() || typeof controller.focusSafeArea !== 'function') { return false; }
+      return controller.focusSafeArea(index);
+    }
+
+    function focusSubtitleStyle(index) {
+      if (!active() || typeof controller.focusSubtitleStyle !== 'function') { return false; }
+      return controller.focusSubtitleStyle(index);
+    }
+
+    function invoke(name, arg1, arg2, arg3) {
       if (!active() || typeof controller[name] !== 'function') { return false; }
-      return controller[name](arg1, arg2);
+      return controller[name](arg1, arg2, arg3);
     }
 
     function chooseUpNext(value) {
@@ -227,6 +257,8 @@
       activeVideoQuality: function () { return invoke('activeVideoQuality'); },
       animationDuration: function (milliseconds) { return invoke('interfaceAnimationDuration', milliseconds); },
       applyAccentColor: function () { return invoke('applyAccentColor'); },
+      applyVisualTheme: function () { return invoke('applyVisualTheme'); },
+      applyAccessibilityPreferences: function () { return invoke('applyAccessibilityPreferences'); },
       applyAnimationPreference: function () { return invoke('applyAnimationPreference'); },
       applyUpNext: applyUpNext,
       cancelUpNext: cancelUpNext,
@@ -236,10 +268,18 @@
       focusLanguage: focusLanguage,
       focusNavigation: focusNavigation,
       focusPrivacy: focusPrivacy,
+      focusPlaybackCompatibility: focusPlaybackCompatibility,
+      focusSafeArea: focusSafeArea,
+      focusSubtitleStyle: focusSubtitleStyle,
+      focusTextInput: function (index) { return invoke('focusTextInput', index); },
       focusUpdate: focusUpdate,
       focusSetting: focusSetting,
       handleKey: function (event, direction) { return invoke('handleKey', event, direction); },
+      handleSafeAreaKey: function (event, direction) { return invoke('handleSafeAreaKey', event, direction); },
+      handleSubtitleStyleKey: function (event, direction) { return invoke('handleSubtitleStyleKey', event, direction); },
+      handleTextInputKey: function (event, direction) { return invoke('handleTextInputKey', event, direction); },
       handlePrivacyKey: function (event) { return invoke('handlePrivacyKey', event); },
+      handlePlaybackCompatibilityKey: function (event, direction) { return invoke('handlePlaybackCompatibilityKey', event, direction); },
       handleUpNextKey: function (event) { return invoke('handleUpNextKey', event); },
       handleUpNextLayoutClick: handleUpNextLayoutClick,
       keepFocusVisible: function (container, target) { return invoke('keepFocusVisible', container, target); },
@@ -247,6 +287,7 @@
       networkStatusClass: function (network) { return invoke('networkStatusClass', network); },
       networkStatusLabel: function (network) { return invoke('networkStatusLabel', network); },
       playbackPreferenceLabel: function (value) { return invoke('playbackPreferenceLabel', value); },
+      promptSettingsLoad: function (status, options, callback) { return invoke('promptSettingsLoad', status, options, callback); },
       refresh: function () { return invoke('refresh'); },
       resume: resume,
       save: function () { return invoke('save'); },

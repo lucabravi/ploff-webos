@@ -46,10 +46,24 @@ function fixture(rootOverride, viewOptions) {
   var cancelledTargets = [];
   var focusEvents = [];
   var metricCalls = 0;
+  viewOptions = viewOptions || {};
   ['library-grid', 'library-grid-content', 'library-recommended'].forEach(function (id) { roots[id] = node('div'); roots[id].id = id; });
   roots['library-grid'].clientWidth = 320;
   roots['library-grid'].clientHeight = 160;
   roots['library-grid'].appendChild(roots['library-grid-content']);
+  if (viewOptions.clampScrollToContent) {
+    (function () {
+      var scrollTop = 0;
+      Object.defineProperty(roots['library-grid'], 'scrollTop', {
+        configurable: true,
+        get: function () { return scrollTop; },
+        set: function (value) {
+          var contentHeight = parseInt(roots['library-grid-content'].style.height, 10) || 0;
+          scrollTop = Math.max(0, Math.min(Number(value || 0), Math.max(0, contentHeight - roots['library-grid'].clientHeight)));
+        }
+      });
+    }());
+  }
   var documentRef = {
     createElement: function (tagName) { return node(tagName); },
     createTextNode: function (text) { return node('#text', '', text); },
@@ -57,7 +71,6 @@ function fixture(rootOverride, viewOptions) {
     querySelector: function (selector) { var ids = Object.keys(roots); var index; var found; for (index = 0; index < ids.length; index += 1) { found = find(roots[ids[index]], selector); if (found.length) { return found[0]; } } return null; },
     querySelectorAll: function (selector) { var output = []; Object.keys(roots).forEach(function (id) { find(roots[id], selector, output); }); return output; }
   };
-  viewOptions = viewOptions || {};
   var view = LibraryGridView.create({
     root: rootOverride || { clearTimeout: function () {}, setTimeout: function (callback) { callback(); return 1; } },
     document: documentRef, SearchModel: SearchModel,
@@ -115,6 +128,13 @@ catalog.view.refreshFocus();
 assert.strictEqual(catalog.batches.length, catalogFocusBatches, 'catalog focus movement must not rebuild poster batches');
 assert.strictEqual(catalog.focusEvents.length, catalogFocusEvents + 1, 'one catalog movement must publish one focus change even when the outer controller refreshes focus');
 assert.strictEqual(catalog.view.navigationSnapshot().itemCount, 40, 'navigation snapshots must expose catalog counts without copying the full item array');
+
+var distantInitialFocus = fixture(null, { clampScrollToContent: true });
+distantInitialFocus.view.setMode('catalog', true);
+distantInitialFocus.view.setItems(items(80), 80, 47);
+assert.ok(distantInitialFocus.roots['library-grid'].scrollTop > 0, 'programmatic focus outside the mounted catalog window must scroll to its row');
+assert.ok(distantInitialFocus.view.snapshot().window.start <= 47 && distantInitialFocus.view.snapshot().window.end > 47, 'programmatic focus must mount the selected catalog item');
+assert.ok(distantInitialFocus.roots['library-grid-content'].querySelector('[data-library-index="47"]').className.indexOf('is-focused') !== -1, 'the newly mounted catalog item must render as focused');
 
 var firstCard = catalog.roots['library-grid-content'].children[0];
 catalog.view.setItems([items(1, 'new')[0]].concat(items(40).slice(1)), 60);

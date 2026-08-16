@@ -29,6 +29,9 @@
    * @property {string=} libraryTitle
    * @property {(number|string)=} year
    * @property {string=} genre
+   * @property {string=} summary
+   * @property {string=} tagline
+   * @property {string=} contentRating
    * @property {number=} seasonCount
    * @property {string=} guid
    * @property {string=} ratingKey
@@ -221,6 +224,9 @@
     if (attributes.librarySectionTitle) { item.libraryTitle = attributes.librarySectionTitle; }
     if (attributes.year) { item.year = Number(attributes.year) || attributes.year; }
     if (attributes.genre) { item.genre = attributes.genre; }
+    if (attributes.summary) { item.summary = attributes.summary; }
+    if (attributes.tagline) { item.tagline = attributes.tagline; }
+    if (attributes.contentRating) { item.contentRating = attributes.contentRating; }
     if (type === 'show') { item.seasonCount = Math.max(0, Number(attributes.childCount || 0)); }
     if (attributes.guid) { item.guid = attributes.guid; }
     if (attributes.ratingKey) {
@@ -523,7 +529,7 @@
   }
 
   function seasonFromAttributes(attributes, baseUrl, token, selectedKey) {
-    return {
+    var season = {
       ratingKey: attributes.ratingKey || '',
       index: Number(attributes.index || 0),
       title: attributes.title || 'Season ' + Number(attributes.index || 0),
@@ -532,6 +538,8 @@
       viewedLeafCount: Number(attributes.viewedLeafCount || 0),
       selected: attributes.ratingKey === selectedKey
     };
+    if (attributes.year) { season.year = Number(attributes.year) || attributes.year; }
+    return season;
   }
 
   function preferredSeasonKeyFromAttributes(attributesList, requestedKey) {
@@ -556,10 +564,10 @@
     return firstUnwatchedRegular || firstRegular || firstAny;
   }
 
-  function episodeFromAttributes(attributes, baseUrl, token, selectedKey) {
+  function episodeFromAttributes(attributes, baseUrl, token, selectedKey, seasonYear) {
     var duration = Math.max(0, Number(attributes.duration || 0));
     var viewOffset = Math.max(0, Number(attributes.viewOffset || 0));
-    return {
+    var episode = {
       ratingKey: attributes.ratingKey || '',
       type: 'episode',
       seasonIndex: Number(attributes.parentIndex || 0),
@@ -573,6 +581,8 @@
       progress: duration > 0 && viewOffset > 0 ? Math.max(0, Math.min(100, Math.round(viewOffset / duration * 100))) : 0,
       selected: attributes.ratingKey === selectedKey
     };
+    if (attributes.year || seasonYear) { episode.year = Number(attributes.year || seasonYear) || attributes.year || seasonYear; }
+    return episode;
   }
 
   function trackFromAttributes(stream) {
@@ -660,8 +670,10 @@
 
   function hlsUrlFor(playback, baseUrl, token, options) {
     var transcodeSession = playback.transcodeSession || playback.session;
-    var profile = 'add-transcode-target(type=videoProfile&context=all&protocol=hls&container=mpegts&videoCodec=h264,hevc,mpeg2video,mpeg4&audioCodec=aac,ac3,eac3,mp2,mp3)'
-      + '+add-transcode-target-settings(type=videoProfile&context=all&protocol=hls&ForceZeroByteEmptySegment=true)';
+    var profile = options && options.safeTranscode
+      ? 'add-transcode-target(type=videoProfile&context=all&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac)'
+      : 'add-transcode-target(type=videoProfile&context=all&protocol=hls&container=mpegts&videoCodec=h264,hevc,mpeg2video,mpeg4&audioCodec=aac,ac3,eac3,mp2,mp3)';
+    profile += '+add-transcode-target-settings(type=videoProfile&context=all&protocol=hls&ForceZeroByteEmptySegment=true)';
     var parameters = {
       hasMDE: 1,
       path: playback.key,
@@ -858,6 +870,7 @@
       return {
         title: 'Recentemente aggiunto in ' + section.title,
         path: '/library/sections/' + section.key + '/recentlyAdded',
+        kind: 'recent',
         groupRecent: true
       };
     });
@@ -867,6 +880,7 @@
     return [{
       title: 'Continua a guardare',
       path: config && config.continuePath || '/hubs/continueWatching/items',
+      kind: 'continue',
       showLibraryBadge: true
     }].concat(sectionDefinitions(sections));
   }
@@ -1343,10 +1357,90 @@
       start: start,
       size: size,
       errorMessage: 'Invalid Plex playlist response',
-      filter: function (item) { return !!(item.key || item.ratingKey); },
+      filter: function (item) {
+        return !!(item.key || item.ratingKey) && Math.max(0, Number(item.leafCount || item.childCount || 0)) > 0;
+      },
       map: function (item) { return containerFromAttributes(item, config.apiBaseUrl, config.token || '', 'playlists'); },
       libraryKey: library.key
     }, callback);
+  }
+
+  function loadSettingsBackupPlaylists(config, titlePrefix, marker, callback) {
+    return request(buildUrl(config.apiBaseUrl, '/playlists', { playlistType: 'video' }, config.token || ''), config.requestTimeout || 8000, function (error, xmlText) {
+      var items;
+      if (error) { callback(error); return; }
+      try {
+        items = parseAttributes(xmlText).filter(function (item) {
+          return String(item.title || '').indexOf(String(titlePrefix || '')) === 0 && String(item.summary || '').indexOf(String(marker || '')) === 0;
+        });
+        callback(null, items);
+      } catch (parseError) { callback(parseError); }
+    });
+  }
+
+  function createSettingsBackupPlaylist(config, title, callback) {
+    var requests = [];
+    var aborted = false;
+    function stop() { return aborted; }
+    function track(operation) { requests.push(operation); return operation; }
+    function fail(error) { if (!stop()) { callback(error); } }
+    function create(identity, ratingKey) {
+      var uri = 'server://' + identity.machineIdentifier + '/com.plexapp.plugins.library/library/metadata/' + ratingKey;
+      track(requestWithMethod(buildUrl(config.apiBaseUrl, '/playlists', { type: 'video', title: title, smart: 0, uri: uri }, config.token || ''), 'POST', config.requestTimeout || 8000, function (error, xmlText) {
+        var playlist;
+        if (error) { fail(error); return; }
+        try { playlist = parseAttributes(xmlText)[0] || {}; }
+        catch (parseError) { fail(parseError); return; }
+        if (!playlist.ratingKey) { fail(new Error('Plex did not create the settings backup playlist')); return; }
+        track(request(buildUrl(config.apiBaseUrl, '/playlists/' + playlist.ratingKey + '/items', {}, config.token || ''), config.requestTimeout || 8000, function (itemsError, itemsXml) {
+          var seed;
+          if (itemsError) { fail(itemsError); return; }
+          try { seed = parseAttributes(itemsXml)[0] || {}; }
+          catch (parseItemsError) { fail(parseItemsError); return; }
+          if (!seed.playlistItemID) { fail(new Error('Plex settings backup seed is unavailable')); return; }
+          track(requestWithMethod(buildUrl(config.apiBaseUrl, '/playlists/' + playlist.ratingKey + '/items/' + seed.playlistItemID, {}, config.token || ''), 'DELETE', config.requestTimeout || 8000, function (removeError) {
+            if (!stop()) { callback(removeError || null, playlist); }
+          }));
+        }));
+      }));
+    }
+    track(loadServerIdentity(config, function (identityError, identity) {
+      if (identityError) { fail(identityError); return; }
+      track(request(buildUrl(config.apiBaseUrl, '/library/sections', {}, config.token || ''), config.requestTimeout || 8000, function (sectionsError, sectionsXml) {
+        var sections;
+        var section;
+        var mediaType;
+        if (sectionsError) { fail(sectionsError); return; }
+        try { sections = parseAttributes(sectionsXml); }
+        catch (parseError) { fail(parseError); return; }
+        section = sections.filter(function (item) { return item.type === 'movie' || item.type === 'show'; })[0];
+        if (!section) { fail(new Error('A playable Plex library is required for settings backup')); return; }
+        mediaType = section.type === 'movie' ? 1 : 4;
+        track(request(buildUrl(config.apiBaseUrl, '/library/sections/' + section.key + '/all', {
+          type: mediaType, 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': 1
+        }, config.token || ''), config.requestTimeout || 8000, function (mediaError, mediaXml) {
+          var media;
+          if (mediaError) { fail(mediaError); return; }
+          try { media = parseAttributes(mediaXml)[0] || {}; }
+          catch (parseMediaError) { fail(parseMediaError); return; }
+          if (!media.ratingKey) { fail(new Error('A playable Plex item is required for settings backup')); return; }
+          create(identity, media.ratingKey);
+        }));
+      }));
+    }));
+    return { abort: function () { aborted = true; requests.forEach(function (entry) { if (entry && entry.abort) { entry.abort(); } }); } };
+  }
+
+  function updateSettingsBackupPlaylist(config, ratingKey, summary, callback) {
+    return requestWithMethod(buildUrl(config.apiBaseUrl, '/playlists/' + ratingKey, { summary: summary }, config.token || ''), 'PUT', config.requestTimeout || 8000, function (error) {
+      callback(error || null);
+    });
+  }
+
+  function deleteSettingsBackupPlaylist(config, ratingKey, callback) {
+    return requestWithMethod(buildUrl(config.apiBaseUrl, '/playlists/' + ratingKey, {}, config.token || ''), 'DELETE', config.requestTimeout || 8000, function (error) {
+      callback(error || null);
+    });
   }
 
   function loadLibraryContainerPage(config, container, start, size, callback) {
@@ -1397,6 +1491,7 @@
             if (definition.groupRecent) { attributes = groupRecentAttributes(attributes); }
             rows[index] = {
               title: definition.title,
+              kind: definition.kind || '',
               shape: 'poster',
               showLibraryBadge: definition.showLibraryBadge === true,
               items: attributes.slice(0, config.itemLimit || 12).map(function (item) {
@@ -1450,7 +1545,7 @@
       recommendationDeadline = null;
       requests = [];
       if (recommendedItems.length) {
-        baseRows.splice(1, 0, { title: 'Recommended for You', recommendation: true, showLibraryBadge: true, shape: 'poster', items: recommendedItems });
+        baseRows.splice(1, 0, { title: 'Recommended for You', kind: 'recommended', recommendation: true, showLibraryBadge: true, shape: 'poster', items: recommendedItems });
       }
       callback(baseRows.length ? null : baseError, baseRows);
     }
@@ -1534,7 +1629,7 @@
     });
   }
 
-  function loadSeasonEpisodes(config, seasonKey, selectedKey, callback) {
+  function loadSeasonEpisodes(config, seasonKey, selectedKey, callback, seasonYear) {
     var url = buildUrl(config.apiBaseUrl, '/library/metadata/' + seasonKey + '/children', {}, config.token || '');
     return request(url, config.requestTimeout || 8000, function (error, xmlText) {
       var episodes;
@@ -1545,7 +1640,7 @@
       }
       try {
         episodes = parseAttributes(xmlText).map(function (attributes) {
-          return episodeFromAttributes(attributes, config.apiBaseUrl, config.token || '', selectedKey || '');
+          return episodeFromAttributes(attributes, config.apiBaseUrl, config.token || '', selectedKey || '', seasonYear);
         });
         episodes.forEach(function (episode) {
           selectedFound = selectedFound || episode.selected;
@@ -1576,6 +1671,7 @@
     var currentRequest = null;
     var aborted = false;
     var url;
+    var selectedSeasonYear = null;
 
     function abort() {
       if (aborted) { return; }
@@ -1606,6 +1702,11 @@
         seasons = seasonAttributes.map(function (attributes) {
           return seasonFromAttributes(attributes, config.apiBaseUrl, config.token || '', seasonKey);
         });
+        seasons.some(function (season) {
+          if (String(season.ratingKey || '') !== String(seasonKey || '')) { return false; }
+          selectedSeasonYear = season.year || null;
+          return true;
+        });
       } catch (parseError) {
         callback(parseError);
         return;
@@ -1619,7 +1720,7 @@
         currentRequest = null;
         if (episodeError) { callback(episodeError); }
         else { callback(null, { seasons: seasons, episodes: episodes }); }
-      });
+      }, selectedSeasonYear);
     });
     return { abort: abort };
   }
@@ -1790,11 +1891,14 @@
   }
 
   function sendTimeline(config, playback, state, time, callback) {
+    var duration = Number(playback && playback.duration || 0);
+    var position = Math.max(0, Number(time || 0));
+    if (duration > 0) { position = Math.min(duration, position); }
     var url = buildUrl(config.apiBaseUrl, '/:/timeline', {
       ratingKey: playback.ratingKey,
       key: playback.key,
       state: state,
-      time: Math.max(0, Math.round(time || 0)),
+      time: Math.round(position),
       duration: playback.duration,
       playQueueItemID: playback.ratingKey,
       'X-Plex-Product': 'Ploff',
@@ -1921,6 +2025,18 @@
     });
   }
 
+  function buildRemoveFromContinueWatchingUrl(config, ratingKey) {
+    return buildUrl(config.apiBaseUrl, '/actions/removeFromContinueWatching', {
+      ratingKey: ratingKey
+    }, config.token || '');
+  }
+
+  function removeFromContinueWatching(config, ratingKey, callback) {
+    return requestWithMethod(buildRemoveFromContinueWatchingUrl(config, ratingKey), 'PUT', config.requestTimeout || 8000, function (error) {
+      callback(error || null);
+    });
+  }
+
   function buildProgressUrl(config, ratingKey, time) {
     return buildUrl(config.apiBaseUrl, '/:/progress', {
       key: ratingKey,
@@ -2011,6 +2127,7 @@
     buildSubtitleTranscodeUrl: buildSubtitleTranscodeUrl,
     buildSubtitleOffsetUrl: buildSubtitleOffsetUrl,
     buildWatchedUrl: buildWatchedUrl,
+    buildRemoveFromContinueWatchingUrl: buildRemoveFromContinueWatchingUrl,
     buildProgressUrl: buildProgressUrl,
     buildLibraryRefreshUrl: buildLibraryRefreshUrl,
     buildMetadataRefreshUrl: buildMetadataRefreshUrl,
@@ -2043,6 +2160,10 @@
     containerFromAttributes: containerFromAttributes,
     loadLibraryContainerPage: loadLibraryContainerPage,
     loadLibraryPage: loadLibraryPage,
+    loadSettingsBackupPlaylists: loadSettingsBackupPlaylists,
+    createSettingsBackupPlaylist: createSettingsBackupPlaylist,
+    updateSettingsBackupPlaylist: updateSettingsBackupPlaylist,
+    deleteSettingsBackupPlaylist: deleteSettingsBackupPlaylist,
     search: search,
     loadPlayback: loadPlayback,
     loadMediaProfile: loadMediaProfile,
@@ -2055,6 +2176,7 @@
     resolvePlaybackOptions: resolvePlaybackOptions,
     sendTimeline: sendTimeline,
     setWatched: setWatched,
+    removeFromContinueWatching: removeFromContinueWatching,
     resetProgress: resetProgress,
     setWatchedAndReset: setWatchedAndReset,
     refreshLibrary: refreshLibrary,

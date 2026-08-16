@@ -29,6 +29,7 @@ var serverRenders = 0;
 var keptVisible = [];
 var view = SettingsView.create({
   document: {
+    createElement: function (tagName) { return node(tagName); },
     getElementById: function (id) { return nodes[id]; },
     querySelector: function (selector) {
       var match = selector.match(/data-setting-index="(\d+)"/);
@@ -48,7 +49,12 @@ var view = SettingsView.create({
 });
 
 view.open(true);
-assert.deepStrictEqual(view.snapshot(), { open: true, zone: 'nav', index: 0, languageKind: '', languageIndex: 0 }, 'settings view must own its initial navigation state');
+assert.deepStrictEqual(view.snapshot(), { open: true, zone: 'nav', level: 'categories', index: 0, categoryIndex: 0, categoryId: '', languageKind: '', languageIndex: 0 }, 'settings view must own its initial category navigation state');
+view.openCategory('playback', 4);
+assert.strictEqual(view.snapshot().level, 'category', 'opening a category must switch the settings list level');
+assert.strictEqual(view.snapshot().categoryId, 'playback', 'the active category identity must remain explicit');
+view.closeCategory();
+assert.strictEqual(view.snapshot().categoryIndex, 4, 'returning to categories must preserve the originating category focus');
 view.focusList(3, 2);
 assert.strictEqual(view.snapshot().zone, 'list', 'focusing a settings row must leave navbar focus');
 assert.strictEqual(view.snapshot().index, 1, 'settings row focus must clamp to the available row count');
@@ -78,8 +84,17 @@ assert.strictEqual(nodes['app-settings-list'].children[3].className, 'app-settin
 assert.strictEqual(nodes['app-settings-list'].children[4].className, 'app-setting-row is-focused', 'settings focus must be derived from the supplied snapshot');
 assert.strictEqual(nodes['app-settings-list'].children[2].tagName, 'div', 'read-only settings rows must not render as buttons');
 assert.strictEqual(nodes['app-settings-list'].children[2].attributes['data-setting-index'], undefined, 'read-only settings rows must not enter pointer focus navigation');
-assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0].children.length, 2, 'accent settings must render every configured color swatch');
+assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0].children.length, 1, 'accent settings must render only the selected color swatch in the main list');
+assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0].children[0].attributes['aria-hidden'], 'true', 'the main-list swatch must remain informational rather than a separate control');
+assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0].children[0].style.backgroundColor, '#00ffff', 'the main-list swatch must show the selected accent color');
 assert.strictEqual(keptVisible.length, 1, 'remote focus must keep the selected setting visible');
+
+view.render({
+  title: 'Playback', notice: '', level: 'category', zone: 'list', index: 0, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan', rows: [{ key: 'playbackMode', section: 'playback', label: 'Mode', value: 'Automatic' }],
+  sectionLabel: function () { return 'PLAYBACK'; }
+});
+assert.strictEqual(nodes['app-settings-list'].children[0].className, 'app-setting-row is-focused', 'category pages must not repeat their title as an inner section heading');
 
 view.render({
   title: 'Settings', notice: '', zone: 'list', index: 0, serverEditorOpen: false,
@@ -122,6 +137,19 @@ assert.strictEqual(stepperValue.children[1].textContent, 'Original', 'Original m
 view.render({
   title: 'Settings', notice: '', zone: 'list', index: 0, serverEditorOpen: false,
   credit: '', accentColor: 'cyan',
+  rows: [
+    { key: 'safeAreaCalibration', section: 'accessibility', label: 'Screen safe area', value: 'Default', action: true, safeAreaCalibration: true },
+    { key: 'subtitleStylePreview', section: 'accessibility', readOnly: true, subtitlePreview: true, previewText: 'Live preview' }
+  ],
+  sectionLabel: function () { return 'ACCESSIBILITY'; }
+});
+assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-setting-row is-focused', 'safe-area calibration must render as a single focusable settings action');
+assert.strictEqual(nodes['app-settings-list'].children[2].className, 'subtitle-style-preview', 'subtitle styling must render a dedicated live preview inside settings');
+assert.strictEqual(nodes['app-settings-list'].children[2].children[0].textContent, 'Live preview', 'subtitle preview must use localized sample copy');
+
+view.render({
+  title: 'Settings', notice: '', zone: 'list', index: 0, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan',
   rows: [{ key: 'appVersion', section: 'support', label: 'Ploff 1.0.5', value: 'Version 1.0.6 available', action: true, versionRow: true }],
   sectionLabel: function () { return 'SUPPORT'; }
 });
@@ -139,10 +167,11 @@ assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-settin
 
 view.renderLanguages({
   title: 'Audio priority', hint: 'Choose', backLabel: 'Back', index: 1,
-  languages: [{ code: 'ja', label: 'Japanese', rank: 1 }, { code: 'it', label: 'Italian', rank: 2 }]
+  languages: [{ code: 'ja', languageCode: 'ja', label: 'Japanese', rank: 1 }, { code: 'it', languageCode: 'it', label: 'Italian', rank: 2 }]
 });
 assert.strictEqual(nodes['language-editor-list'].children.length, 2, 'language editor must render every language');
 assert.strictEqual(nodes['language-editor-list'].children[1].className, 'language-editor-row is-focused', 'language editor focus must be snapshot-driven');
+assert.strictEqual(nodes['language-editor-list'].children[1].children[0].children[0].className, 'language-flag language-flag-it', 'language priority rows must display the matching flag');
 assert.strictEqual(nodes['language-editor-list'].children[1].children[1].textContent, '2', 'language priority rank must remain visible');
 assert.strictEqual(nodes['language-editor-back'].textContent, 'Back', 'language editor must expose a visible Back action');
 assert.strictEqual(nodes['language-editor-back'].attributes['data-language-index'], '2', 'Back must participate in the same focus model as language rows');

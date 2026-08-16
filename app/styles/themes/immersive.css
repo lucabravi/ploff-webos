@@ -1,0 +1,98 @@
+body.visual-theme-immersive {
+  --theme-app-background: #0b0c0e;
+  --theme-app-text: #f5f5f5;
+  --theme-scroll-track: #292d32;
+  --theme-scroll-thumb: #737b84;
+  --theme-backdrop-shade: linear-gradient(to right, rgba(10,8,9,.82) 0%, rgba(10,8,9,.48) 52%, rgba(10,8,9,.58) 100%);
+  --theme-media-card-surface: rgba(24,20,22,.76);
+  --theme-card-caption-surface: rgba(24,20,22,.96);
+  --theme-corner-radius: 6px;
+  --control-surface: #242124;
+  --control-surface-focused: #332f32;
+  --control-surface-disabled: #191b1f;
+  --control-value: #c9cdd2;
+  --control-divider: #363a40;
+  --action-surface: #2d282b;
+  --action-text: #ffffff;
+  --text-secondary: #d0c8c5;
+  --text-disabled: #777d84;
+  --panel-divider: #4a4246;
+  --panel-surface: #171416;
+  --panel-overlay: rgba(0,0,0,.64);
+  --panel-shadow: 0 18px 60px rgba(0,0,0,.72);
+}
+
+
+body.visual-theme-immersive.is-home-surface-active .home-preview {
+  box-sizing:border-box;
+  position: absolute;
+  z-index: 2;
+  top: 9%;
+  right: 0;
+  left: 0;
+  display: block;
+  height: 23%;
+  padding: 2.6% 3.5% .8%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+body.visual-theme-immersive.is-home-surface-active .home-preview.is-empty { visibility: hidden; }
+body.visual-theme-immersive .home-preview-copy { box-sizing: border-box; width: 100%; max-width: none; }
+body.visual-theme-immersive .home-preview-kicker {
+  display: block;
+  overflow: hidden;
+  margin-bottom: 6px;
+  color: var(--accent, #13b8ad);
+  font-size: 20px;
+  font-weight: bold;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+body.visual-theme-immersive .home-preview-title {
+  overflow: hidden;
+  margin: 0;
+  color: #fff;
+  font-size: 48px;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body.visual-theme-immersive .home-preview-meta {
+  overflow: hidden;
+  margin: 10px 0 0;
+  color: #d6d0ce;
+  font-size: 22px;
+  font-weight: bold;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body.visual-theme-immersive .home-preview-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  max-width: none;
+  max-height: 60px;
+  margin: 14px 0 0;
+  color: #f2efed;
+  font-size: 20px;
+  line-height: 27px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+body.visual-theme-immersive.is-home-surface-active .content {
+  box-sizing:border-box;
+  position: absolute;
+  top: 32%;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: auto;
+  padding: 0 3.5% 2%;
+  overflow-y:auto;
+}
+
+
+body.visual-theme-immersive .media-card { overflow: hidden; }
+body.visual-theme-immersive .section-title { margin-bottom: 14px; }

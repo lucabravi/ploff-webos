@@ -51,6 +51,10 @@
       languageCode: LANGUAGE_ALIASES[String(stream.languageCode || '').toLowerCase()] || tag,
       codec: stream.codec || '',
       channels: Number(stream.channels || 0),
+      bitrate: Number(stream.bitrate || 0),
+      samplingRate: Number(stream.samplingRate || stream.sampleRate || 0),
+      bitDepth: Number(stream.bitDepth || 0),
+      profile: String(stream.profile || stream.audioProfile || ''),
       forced: stream.forced === '1',
       selected: stream.selected === '1',
       title: stream.title || '',
@@ -142,6 +146,7 @@
       else if (stream.streamType === '1' && !videoDetails.codec) {
         videoDetails = {
           codec: String(stream.codec || media.videoCodec || '').toUpperCase(),
+          bitrate: Number(stream.bitrate || 0),
           profile: String(stream.profile || stream.videoProfile || ''),
           frameRate: String(stream.frameRate || media.videoFrameRate || ''),
           bitDepth: String(stream.bitDepth || ''),

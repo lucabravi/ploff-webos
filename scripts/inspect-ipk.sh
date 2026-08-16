@@ -15,7 +15,12 @@ ar -p "$PACKAGE" data.tar.gz | tar -xzf - -C "$STAGE"
 APP_ROOT="$STAGE/usr/palm/applications/$APP_ID"
 test -d "$APP_ROOT" || { echo "application payload missing" >&2; exit 1; }
 test -f "$APP_ROOT/build-manifest.txt" || { echo "build manifest missing" >&2; exit 1; }
-node "$ROOT/scripts/check-shell-assets.js" "$APP_ROOT/index.html" "$APP_VERSION"
+CACHE_KEY=$(sed -n 's/.*styles\.css?v=\([^"[:space:]]*\).*/\1/p' "$APP_ROOT/index.html" | head -n 1)
+case "$CACHE_KEY" in
+  "$APP_VERSION"-*) ;;
+  *) echo "invalid packaged asset cache key: ${CACHE_KEY:-missing}" >&2; exit 1 ;;
+esac
+node "$ROOT/scripts/check-shell-assets.js" "$APP_ROOT/index.html" "$CACHE_KEY"
 
 if find "$STAGE" -type f \( -name 'config.local.js' -o -name '.env' -o -name '*.ipk' \) -print -quit | grep -q .; then
   echo "development or local configuration found in package" >&2

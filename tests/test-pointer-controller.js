@@ -54,12 +54,15 @@ var calls = [];
 var focusSelectionStates = [];
 var scrolled = [];
 var blurred = 0;
+var mediaHoldEnabled = false;
+var mediaHolding = false;
+var mediaHoldTriggered = false;
 var session = {
   appView: 'home', homeArea: 'media', libraryZone: '', libraryViewKey: '', watchlistZone: '', searchZone: '',
   serverEditorOpen: false, languageKind: '', summaryDialogOpen: false,
   navigationHasFocus: false, navReorderMode: false, navReorderReady: false, navHoldTriggered: false,
   choiceDialogOpen: false, privacyDialogOpen: false, updateDialogOpen: false, resumeChoiceOpen: false, subtitleEditorOpen: false,
-  playerControlsMode: 'hidden', playerChapterOpen: false, playerSettingsOpen: false
+  playerControlsMode: 'hidden', playerChapterOpen: false, playerSettingsOpen: false, safeAreaOpen: false, subtitleStyleOpen: false
 };
 var visibleHome = button({ 'data-row-index': '2', 'data-column': '1' }, { rect: { left: 10, top: 10, right: 110, bottom: 60, width: 100, height: 50 } });
 var content = {
@@ -103,9 +106,18 @@ controller = PointerController.create({
     navigation: function (index) { calls.push('focus-nav:' + index); },
     search: function () { calls.push('focus-search'); },
     settings: function (index) { calls.push('focus-setting:' + index); },
+    safeArea: function (index) { calls.push('focus-safe-area:' + index); },
+    subtitleStyle: function (index) { calls.push('focus-subtitle-style:' + index); },
+    diagnostics: function (index) { calls.push('focus-diagnostics:' + index); },
     updateDialog: function (index) { calls.push('focus-update:' + index); },
     resume: function (index) { calls.push('focus-resume:' + index); },
     player: function (zone, index) { calls.push('focus-player:' + zone + ':' + index); }
+  },
+  contextMenu: {
+    canOpen: function () { return mediaHoldEnabled; },
+    startHold: function () { mediaHolding = true; calls.push('media-hold-start'); return true; },
+    holding: function () { return mediaHolding; },
+    releaseHold: function () { mediaHolding = false; calls.push('media-hold-release'); return mediaHoldTriggered; }
   },
   selectAccent: function (color) { calls.push('accent:' + color); },
   navigation: {
@@ -153,6 +165,14 @@ session.appView = 'settings';
 controller.handleClick({ target: setting });
 assert.ok(calls.indexOf('focus-setting:4') >= 0, 'pointer clicks must focus the addressed Settings row');
 assert.deepStrictEqual(pressedCodes, [13, 13], 'pointer clicks must use the same semantic OK path for Settings rows');
+session.safeAreaOpen = true;
+assert.strictEqual(controller.syncFocus(button({ 'data-safe-area-index': '6' })), true, 'pointer movement must enter the safe-area modal focus model');
+assert.ok(calls.indexOf('focus-safe-area:6') >= 0, 'pointer focus must address safe-area actions while the modal is open');
+session.safeAreaOpen = false;
+session.subtitleStyleOpen = true;
+assert.strictEqual(controller.syncFocus(button({ 'data-subtitle-style-index': '5' })), true, 'pointer movement must enter the subtitle appearance modal focus model');
+assert.ok(calls.indexOf('focus-subtitle-style:5') >= 0, 'pointer focus must address subtitle appearance actions while the modal is open');
+session.subtitleStyleOpen = false;
 session.updateDialogOpen = true;
 var updateClose = button({ 'data-update-index': '1' });
 controller.handleClick({ target: updateClose });
@@ -168,6 +188,13 @@ assert.ok(calls.indexOf('focus-resume:2') >= 0, 'resume dialog clicks must synch
 assert.deepStrictEqual(pressedCodes, [13, 13, 13], 'resume dialog clicks must use the shared semantic OK path');
 pressedCodes.pop();
 session.resumeChoiceOpen = false;
+session.appView = 'home';
+
+session.appView = 'diagnostics';
+assert.strictEqual(controller.syncFocus(button({ 'data-diagnostics-action': 'refresh' })), true, 'pointer focus must route diagnostics Refresh');
+assert.strictEqual(controller.syncFocus(button({ 'data-diagnostics-action': 'export' })), true, 'pointer focus must route diagnostics Export');
+assert.strictEqual(controller.syncFocus(button({ 'data-diagnostics-action': 'back' })), true, 'pointer focus must route diagnostics Back');
+assert.ok(calls.indexOf('focus-diagnostics:0') >= 0 && calls.indexOf('focus-diagnostics:1') >= 0 && calls.indexOf('focus-diagnostics:2') >= 0, 'all diagnostics actions must receive their own focus slot');
 session.appView = 'home';
 
 var queue = button({ 'data-queue-index': '4' });
@@ -216,6 +243,18 @@ controller.handleMove({ clientX: 50, clientY: 20, target: third });
 assert.strictEqual(calls.length, countBeforeLockMove, 'small movement after wheel scrolling must not steal focus while the pointer is locked');
 controller.handleMove({ clientX: 50, clientY: 400, target: third });
 assert.ok(calls.indexOf('focus-home:3:0') >= 0, 'moving across thirty percent of the screen must unlock pointer focus');
+
+mediaHoldEnabled = true;
+mediaHoldTriggered = true;
+var pressesBeforeMediaHold = pressedCodes.length;
+controller.handleDown({ target: second, button: 0 });
+assert.ok(calls.indexOf('media-hold-start') >= 0, 'Magic Remote center down on a media card must start the contextual hold');
+controller.handleUp({ preventDefault: function () { calls.push('media-up-prevent'); }, stopPropagation: function () { calls.push('media-up-stop'); } });
+controller.handleClick({ target: second, preventDefault: function () { calls.push('media-click-prevent'); }, stopPropagation: function () { calls.push('media-click-stop'); } });
+assert.strictEqual(pressedCodes.length, pressesBeforeMediaHold, 'the click emitted after a triggered Magic Remote long press must not open the media');
+assert.ok(calls.indexOf('media-click-prevent') >= 0 && calls.indexOf('media-click-stop') >= 0, 'the post-hold click must be consumed once');
+mediaHoldEnabled = false;
+mediaHoldTriggered = false;
 
 var nav = button({ 'data-nav-index': '2' });
 session.navigationHasFocus = true;

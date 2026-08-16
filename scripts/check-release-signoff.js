@@ -4,6 +4,7 @@ var childProcess = require('child_process');
 var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
+var ReleaseMetadata = require('./check-release-metadata');
 
 function fail(message) {
   throw new Error(message);
@@ -128,15 +129,13 @@ function isTracked(root, relativePath) {
 }
 
 function check(root, tag) {
-  var version;
   var signoffPath;
   var relativePath;
   var matrix;
   if (!/^v\d+\.\d+\.\d+$/.test(tag || '')) {
     fail('usage: node scripts/check-release-signoff.js v<major>.<minor>.<patch>');
   }
-  version = JSON.parse(fs.readFileSync(path.join(root, 'webos-shell-app', 'appinfo.json'), 'utf8')).version;
-  if (tag !== 'v' + version) { fail('release tag ' + tag + ' does not match app version v' + version); }
+  ReleaseMetadata.check(root, tag);
   relativePath = path.join('docs', 'release-signoff', tag + '.md');
   signoffPath = path.join(root, relativePath);
   if (!fs.existsSync(signoffPath)) { fail('missing physical-TV release signoff: ' + relativePath); }

@@ -21,7 +21,7 @@ assert.strictEqual(nodes['subtitle-editor-timeline-progress'].style.width, '42%'
 assert.strictEqual(nodes['subtitle-editor-current-time'].textContent, '10:00', 'the editor timeline must expose the current playback time');
 assert.ok(controls[1].className.indexOf('is-focused') !== -1 && controls[1].className.indexOf('is-active') !== -1, 'loop focus and active state must compose');
 view.renderOverlay([], 1000, 0, 125);
-assert.strictEqual(nodes['subtitle-preview-overlay'].children[0].textContent, 'Hello', 'subtitle preview must strip embedded markup');
+assert.strictEqual(nodes['subtitle-preview-overlay'].children[0].children[0].textContent, 'Hello', 'subtitle preview must strip embedded markup');
 assert.strictEqual(nodes['subtitle-preview-overlay'].style.fontSize, '53px', 'subtitle preview must apply the selected size');
 view.setOpen(false);
 assert.strictEqual(nodes['subtitle-editor'].getAttribute('aria-hidden'), 'true', 'closing the editor must hide its dialog semantics');

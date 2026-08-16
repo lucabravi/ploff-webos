@@ -77,6 +77,7 @@
     var playerErrorVisible = false;
     var playerErrorIndex = 0;
     var playerErrorRetryAction = null;
+    var playerErrorFallbackAction = null;
     var resumeChoiceState = null;
     var resumeChoiceVisible = false;
     var playerControlsView = null;
@@ -125,6 +126,10 @@
     }
     function currentView() { return String(call(statePorts.currentView) || 'home'); }
     function setAppView(view) { return call(statePorts.setView, view); }
+    function enterDetailView() {
+      if (typeof statePorts.enterDetail === 'function') { return statePorts.enterDetail(); }
+      return setAppView('detail');
+    }
     function setPlaybackIdentity(identity) { return call(statePorts.setPlaybackIdentity, identity); }
     function pointerSelectionActive() { return call(statePorts.pointerSelectionActive) === true; }
     function navigationHasFocus() { return call(statePorts.navigationHasFocus) === true; }
@@ -138,6 +143,7 @@
     function saveDetailMediaOverride() { return call(detailPorts.saveMediaOverride); }
     function applyLocalPlaybackProgress(ratingKey, seconds) { return call(detailPorts.applyLocalPlaybackProgress, ratingKey, seconds); }
     function refreshEpisodePlaybackState(ratingKey, seconds) { return call(detailPorts.refreshPlaybackState, ratingKey, seconds); }
+    function reconcileLibraryPlaybackProgress(ratingKey, seconds) { return call(libraryPorts.refreshAfterPlayback, ratingKey, seconds); }
     function playbackQueueSnapshot() { return playbackQueueController ? playbackQueueController.snapshot() : {}; }
 
     function copyRecord(source) {
@@ -871,7 +877,7 @@
       if (!playback) { return choices; }
       (playback.subtitleTracks || []).forEach(function (track) {
         if (SubtitleSync.classify(track).supported) {
-          choices.push({ value: String(track.id || ''), label: trackLabel(playback.subtitleTracks, track.id, t('subtitle.off')) });
+          choices.push({ value: String(track.id || ''), label: trackLabel(playback.subtitleTracks, track.id, t('subtitle.off')), languageCode: track.languageTag || track.languageCode || track.language || '' });
         }
       });
       return choices;
@@ -1137,13 +1143,15 @@
       if (buttons[playerErrorIndex]) { buttons[playerErrorIndex].focus(); }
     }
 
-    function showPlayerError(waitingForNetwork, retryAction) {
+    function showPlayerError(waitingForNetwork, retryAction, fallbackAction) {
       if (destroyed) { return; }
       playerErrorVisible = true;
       playerErrorIndex = 0;
       playerErrorRetryAction = retryAction || null;
+      playerErrorFallbackAction = fallbackAction || null;
       if (waitingForNetwork || !diagnosticsPorts.error()) { diagnosticsPorts.setError(t(waitingForNetwork ? 'player.waitingNetwork' : 'player.errorMessage')); }
       setText('player-error-message', t(waitingForNetwork ? 'player.waitingNetwork' : 'player.errorMessage'));
+      setText('player-error-settings', t(playerErrorFallbackAction ? 'player.switchToAutomatic' : 'player.settings'));
       document.getElementById('player-error').className = 'player-error';
       document.getElementById('player-error-retry').disabled = !!waitingForNetwork;
       setPlayerLoading(false);
@@ -1156,7 +1164,17 @@
       var retryAction = playerErrorRetryAction;
       hidePlayerError();
       playerErrorRetryAction = null;
+      playerErrorFallbackAction = null;
       if (retryAction) { retryAction(); }
+    }
+
+    function activatePlayerErrorSecondary() {
+      var fallbackAction = playerErrorFallbackAction;
+      hidePlayerError();
+      playerErrorRetryAction = null;
+      playerErrorFallbackAction = null;
+      if (fallbackAction) { fallbackAction(); }
+      else { setSettingsOpen(true); }
     }
 
     function handlePlayerErrorKey(event, direction) {
@@ -1167,8 +1185,8 @@
         updatePlayerErrorFocus();
       } else if (event.keyCode === 13) {
         if (playerErrorIndex === 0) { retryPlaybackFromError(); }
-        else if (playerErrorIndex === 1) { hidePlayerError(); setSettingsOpen(true); }
-        else { hidePlayerError(); closePlayer(); }
+        else if (playerErrorIndex === 1) { activatePlayerErrorSecondary(); }
+        else { hidePlayerError(); playerErrorRetryAction = null; playerErrorFallbackAction = null; closePlayer(); }
       } else if (event.keyCode === 27 || event.keyCode === 461) { hidePlayerError(); closePlayer(); }
       return true;
     }
@@ -1203,7 +1221,7 @@
       document.getElementById('resume-choice').setAttribute('aria-hidden', 'true');
       if (typeof restoreContainerDirectPlayOrigin === 'function' && restoreContainerDirectPlayOrigin()) { return; }
       document.getElementById('player-view').className = 'player-view is-hidden';
-      setAppView('detail'); detailPorts.showSurface({ restoreTheme: true });
+      enterDetailView(); detailPorts.showSurface({ restoreTheme: true });
     }
 
     function startCurrentPlayback(startOffset, versionAffinity) {
@@ -1368,7 +1386,7 @@
       resumeChoiceVisible = false; resumeChoiceState = null;
       document.getElementById('resume-choice').className = 'resume-choice is-hidden';
       document.getElementById('resume-choice').setAttribute('aria-hidden', 'true');
-      setPlayerLoading(false); hidePlayerError(); playerErrorRetryAction = null;
+      setPlayerLoading(false); hidePlayerError(); playerErrorRetryAction = null; playerErrorFallbackAction = null;
       playerControlsController.reset(); document.getElementById('player-settings').className = 'player-settings is-hidden'; document.getElementById('player-settings').setAttribute('aria-hidden', 'true');
       document.getElementById('player-view').className = 'player-view is-hidden';
       if (destination === 'home') {
@@ -1379,7 +1397,7 @@
       }
       if (typeof restoreContainerDirectPlayOrigin === 'function' && restoreContainerDirectPlayOrigin()) { return; }
       if (restoreContainerPlaybackOrigin()) { return; }
-      setAppView('detail'); detailPorts.resumeAfterPlayer(new Date().getTime() + 700);
+      enterDetailView(); detailPorts.resumeAfterPlayer(new Date().getTime() + 700);
     }
 
     function closePlayer(destination) {
@@ -2790,10 +2808,16 @@
         playbackAtEnd = false;
         hideEndPauseOverlay();
         if (!playbackController.snapshot().active) { setPlaybackIdentity(null); }
-        if (reported) { applyLocalPlaybackProgress(ratingKey, position); }
+        if (reported) {
+          applyLocalPlaybackProgress(ratingKey, position);
+          reconcileLibraryPlaybackProgress(ratingKey, position);
+        }
         refreshEpisodePlaybackState(ratingKey, position);
       },
       onError: function (error) { if (!destroyed && error) { diagnosticsPorts.setError(error); } },
+      onDirectPlaybackFailure: function (error, retryAction, switchToAutomaticAction) {
+        if (!destroyed) { showPlayerError(false, retryAction, switchToAutomaticAction); }
+      },
       showError: showPlayerError,
       hideError: hidePlayerError,
       onTrackChanged: function () { if (!destroyed) { updateSettingsDisplay(); } },
@@ -2887,8 +2911,8 @@
     bindClick('player-settings-button', function () { setSettingsOpen(true); });
     bindClick('player-media-info', openPlayerMediaInfo);
     bindClick('player-error-retry', retryPlaybackFromError);
-    bindClick('player-error-settings', function () { hidePlayerError(); setSettingsOpen(true); });
-    bindClick('player-error-back', function () { hidePlayerError(); closePlayer(); });
+    bindClick('player-error-settings', activatePlayerErrorSecondary);
+    bindClick('player-error-back', function () { hidePlayerError(); playerErrorRetryAction = null; playerErrorFallbackAction = null; closePlayer(); });
     bindClick('autoplay-play', confirmAutoplayCountdown);
     bindClick('autoplay-cancel', function () { cancelAutoplayCountdown(true); });
     bindClick('queue-gap-stay', function () { queueGapController.cancel(); });
@@ -2916,6 +2940,7 @@
       translateStatic: translateStatic,
       playbackSnapshot: publicPlaybackSnapshot,
       playbackDiagnostics: playbackDiagnostics,
+      queueSnapshot: queueSnapshot,
       controlsSnapshot: controlsSnapshot,
       snapshot: featureSnapshot,
       destroy: destroy

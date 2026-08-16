@@ -141,6 +141,8 @@ function harness(overrides) {
   var metadataCalls = [];
   var adjacentStarted = [];
   var closed = [];
+  var directFallbacks = [];
+  var ended = 0;
   var storageValues = {};
   var loaded = playbackFixture();
   var sessionCounter = 0;
@@ -151,7 +153,12 @@ function harness(overrides) {
   var PlexClient = {
     loadPlayback: overrides.loadPlayback || function (config, key, session, preferences, callback) { callback(null, loaded); },
     preparePlayback: function (config, current, options, callback) {
-      preparations.push({ offset: Number(options.offset || 0), delivery: options.delivery, session: current.transcodeSession });
+      preparations.push({
+        offset: Number(options.offset || 0),
+        delivery: options.delivery,
+        safeTranscode: options.safeTranscode === true,
+        session: current.transcodeSession
+      });
       current.playbackMode = options.delivery === 'direct-play' ? 'direct-play' : (options.delivery === 'direct-stream' ? 'direct-stream' : 'transcode-video');
       if (overrides.preparePlayback) { return overrides.preparePlayback(config, current, options, callback); }
       callback(null, 'https://stream/' + current.transcodeSession + '/' + Number(options.offset || 0));
@@ -209,6 +216,9 @@ function harness(overrides) {
     hideSubtitleOverlay: function () {},
     onError: function (error) { errors.push(error); },
     showError: function () {},
+    onDirectPlaybackFailure: overrides.onDirectPlaybackFailure || function (error, retry, switchToAutomatic) {
+      directFallbacks.push({ error: error, retry: retry, switchToAutomatic: switchToAutomatic });
+    },
     hideError: function () {},
     playbackPreferences: function () { return {}; },
     resolveVersionTracks: overrides.resolveVersionTracks || function () { return null; },
@@ -216,7 +226,8 @@ function harness(overrides) {
     translate: function (key) { return 'translated:' + key; },
     resolveAdjacent: overrides.resolveAdjacent,
     onAdjacentStarted: function (target) { adjacentStarted.push(target); },
-    onClosed: function (position, reported, ratingKey) { closed.push({ position: position, reported: reported, ratingKey: ratingKey }); }
+    onClosed: function (position, reported, ratingKey) { closed.push({ position: position, reported: reported, ratingKey: ratingKey }); },
+    onEnded: function () { ended += 1; }
   });
   return {
     root: root,
@@ -233,6 +244,8 @@ function harness(overrides) {
     errors: errors,
     metadataCalls: metadataCalls,
     adjacentStarted: adjacentStarted,
+    directFallbacks: directFallbacks,
+    ended: function () { return ended; },
     closed: closed,
     storageValues: storageValues
   };
@@ -264,6 +277,86 @@ function harness(overrides) {
     'applySubtitleEditor', 'cancelSubtitleEditor', 'changeTrack', 'changeVersion', 'close', 'destroy',
     'diagnostics', 'open', 'openSubtitleEditor', 'seekAbsolute', 'snapshot', 'startAdjacent', 'startItem', 'toggle'
   ].sort(), 'the playback controller must expose only the planned public API');
+  h.controller.destroy();
+}());
+
+(function forcedDirectFailureOffersAutomaticFallback() {
+  var directPlayback = playbackFixture();
+  var h;
+  directPlayback.options.playbackMode = 'direct';
+  h = harness({
+    playback: directPlayback,
+    capabilities: { directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, dolbyVision: false },
+    preparePlayback: function (config, current, options, callback) {
+      callback({ code: 3, message: 'unsupported codec' });
+      return null;
+    }
+  });
+  h.controller.open({ detail: { ratingKey: 'episode-1' } });
+  h.root.runAllTimeouts(20);
+  assert.strictEqual(h.preparations.length, 2, 'forced Direct mode must try Direct Play and Direct Stream before giving up');
+  assert.strictEqual(h.directFallbacks.length, 1, 'a terminal forced-Direct failure must offer Automatic mode');
+  assert.strictEqual(h.directFallbacks[0].retry instanceof Function, true, 'the error action must keep an explicit retry path');
+  assert.strictEqual(h.directFallbacks[0].switchToAutomatic instanceof Function, true, 'the error action must expose an Automatic fallback');
+  h.directFallbacks[0].switchToAutomatic();
+  assert.strictEqual(h.controller.diagnostics().requestedMode, 'auto', 'the fallback must switch the requested mode to Automatic');
+  assert.strictEqual(h.preparations.length, 3, 'switching to Automatic must immediately start a new attempt');
+  h.controller.destroy();
+}());
+
+(function automaticTrackFailureRetainsNativeFallback() {
+  var playback = playbackFixture();
+  var h;
+  playback.options.audioStreamID = 'a2';
+  h = harness({
+    playback: playback,
+    capabilities: { directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, dolbyVision: false },
+    preparePlayback: function (config, current, options, callback) {
+      callback({ code: 3, message: 'transcode unavailable' });
+      return null;
+    }
+  });
+  h.controller.open({ detail: { ratingKey: 'episode-1' } });
+  h.root.runAllTimeouts(20);
+  assert.deepStrictEqual(h.preparations.map(function (entry) { return entry.delivery; }), [
+    'transcode', 'safe-transcode', 'direct-play', 'direct-stream'
+  ], 'Automatic playback must retain native attempts after selected-track transcoding fails');
+  h.controller.destroy();
+}());
+
+(function slowTranscodeDoesNotFallBackWithoutAnError() {
+  var playback = playbackFixture();
+  var h;
+  playback.options.playbackMode = 'transcode';
+  h = harness({ playback: playback });
+  h.controller.open({ detail: { ratingKey: 'episode-1' } });
+  assert.strictEqual(h.preparations[0].delivery, 'transcode', 'forced transcoding must start with the requested transcode attempt');
+  h.root.runAllTimeouts(20);
+  assert.strictEqual(h.preparations.length, 1, 'a slow transcode must remain active until the native player reports an actual failure');
+  h.controller.destroy();
+}());
+
+(function playingCancelsTranscodeStartupFallback() {
+  var playback = playbackFixture();
+  var h;
+  playback.options.playbackMode = 'transcode';
+  h = harness({ playback: playback });
+  h.controller.open({ detail: { ratingKey: 'episode-1' } });
+  h.video.dispatch('playing');
+  h.root.runAllTimeouts(20);
+  assert.strictEqual(h.preparations.length, 1, 'a transcode stream that starts normally must not trigger a fallback');
+  h.controller.destroy();
+}());
+
+(function transcodeNativeErrorFallsBackToSafePlan() {
+  var playback = playbackFixture();
+  var h;
+  playback.options.playbackMode = 'transcode';
+  h = harness({ playback: playback });
+  h.controller.open({ detail: { ratingKey: 'episode-1' } });
+  h.video.dispatch('error');
+  h.root.runAllTimeouts(20);
+  assert.strictEqual(h.preparations[1].delivery, 'safe-transcode', 'a native transcode startup error must use the bounded safe transcode fallback');
   h.controller.destroy();
 }());
 
@@ -381,12 +474,92 @@ function harness(overrides) {
   assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 1036, 'a later backward seek must replace an unready stream instead of waiting for canplay forever');
 }());
 
-(function seekNeverRequestsTerminalOffsetStream() {
-  var h = harness();
+(function terminalSeekUsesAnExactOffsetStream() {
+  var h = harness({ capabilities: { directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, dolbyVision: false } });
   h.controller.open({ detail: { ratingKey: 'episode-1' }, startOffset: 120 });
   h.video.dispatch('playing');
-  h.controller.seekAbsolute(1800, { immediate: true });
-  assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 1798, 'a seek to the end must leave a short playable tail instead of requesting an already-ended HLS stream');
+  h.controller.seekAbsolute(1800, { immediate: true, forceRebuild: true });
+  assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 1789, 'a terminal Direct Stream seek must start eleven seconds before the media end to retain keyframe context');
+  assert.strictEqual(h.preparations[h.preparations.length - 1].delivery, 'direct-stream', 'a terminal Direct Stream seek must not force transcoding');
+  assert.strictEqual(h.playback.terminalEndPause, true, 'a final-five-second seek must request a paused terminal state');
+  assert.strictEqual(h.playback.terminalSeekTarget, 1800, 'the terminal target must remain the authoritative absolute Plex position');
+  assert.strictEqual(h.playback.terminalNativeSeekTarget, 11, 'the terminal target must be translated to the replacement stream clock');
+}());
+
+(function terminalWindowUsesTheSameAbsoluteClockBeforeTheFinalFiveSeconds() {
+  var h = harness({ capabilities: { directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, dolbyVision: false } });
+  h.controller.open({ detail: { ratingKey: 'episode-1' }, startOffset: 120 });
+  h.video.dispatch('playing');
+  h.controller.seekAbsolute(1792, { immediate: true, forceRebuild: true });
+  assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 1789, 'a seek eight seconds before the end must use the fixed eleven-second Direct Stream window');
+  assert.strictEqual(h.playback.terminalNativeSeekTarget, 3, 'the eight-second absolute target must remain three seconds into the replacement stream');
+  assert.strictEqual(h.playback.terminalEndPause, false, 'a seek more than five seconds before the end must continue normally');
+}());
+
+(function finalFiveSecondsJumpToPausedMediaEnd() {
+  var h = harness({ capabilities: { directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, dolbyVision: false } });
+  h.controller.open({ detail: { ratingKey: 'episode-1' }, startOffset: 120 });
+  h.video.dispatch('playing');
+  h.controller.seekAbsolute(1796, { immediate: true });
+  assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 1789, 'a seek inside the final five seconds must use the Direct Stream tail window');
+  assert.strictEqual(h.playback.terminalEndPause, true, 'a final-five-second seek must request a paused terminal state');
+  h.video.duration = 11;
+  h.video.dispatch('canplay');
+  assert.ok(h.video.currentTime > 10.9, 'the terminal pause must seek to the end of the replacement stream');
+  h.video.dispatch('seeked');
+  h.root.runAllTimeouts();
+  assert.strictEqual(h.video.paused, true, 'the final-five-second seek must remain paused');
+  assert.strictEqual(h.controller.snapshot().positionSeconds, 1800, 'the paused terminal state must expose the authoritative media duration');
+  assert.strictEqual(h.ended(), 1, 'the paused terminal state must hand control to the existing Up Next path once');
+}());
+
+(function terminalSeekCannotUseTheCurrentEndRange() {
+  var h = harness({ capabilities: { directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, dolbyVision: false } });
+  h.video.buffered = ranges([[0, 1800]]);
+  h.controller.open({ detail: { ratingKey: 'episode-1' }, startOffset: 120 });
+  h.video.dispatch('playing');
+  h.controller.seekAbsolute(1800, { immediate: true, forceRebuild: true });
+  assert.strictEqual(h.preparations.length, 2, 'a terminal seek must rebuild even when the current stream reports the end as buffered');
+  assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 1789, 'the terminal rebuild must retain Direct Stream and request a bounded lookback');
+  assert.strictEqual(h.preparations[h.preparations.length - 1].delivery, 'direct-stream', 'the terminal rebuild must not request transcoding');
+}());
+
+(function fractionalDurationStillUsesAnExactTerminalStream() {
+  var playback = playbackFixture();
+  var h;
+  playback.duration = 3339083;
+  h = harness({ playback: playback, capabilities: { directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, dolbyVision: false } });
+  h.video.buffered = ranges([[0, 3339.083]]);
+  h.controller.open({ detail: { ratingKey: 'episode-1' }, startOffset: 120 });
+  h.video.dispatch('playing');
+  h.controller.seekAbsolute(3330, { immediate: true, forceRebuild: true });
+  assert.strictEqual(h.preparations.length, 2, 'a whole-second TV seek at the terminal guard must rebuild a fractional-duration stream');
+  assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 3328, 'the rebuilt stream must use an eleven-second Direct Stream lookback for fractional durations');
+  assert.strictEqual(h.playback.terminalNativeSeekTarget, 2, 'fractional durations must preserve the exact relative terminal seek');
+  assert.strictEqual(h.preparations[h.preparations.length - 1].delivery, 'direct-stream', 'fractional Plex durations must remain Direct Stream');
+}());
+
+(function publicTimelineNeverExceedsPlexDurationAfterTerminalSeek() {
+  var h = harness({ capabilities: { directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, dolbyVision: false } });
+  h.controller.open({ detail: { ratingKey: 'episode-1' }, startOffset: 120 });
+  h.video.dispatch('playing');
+  h.controller.seekAbsolute(1792, { immediate: true, forceRebuild: true });
+  assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 1789, 'terminal protection must use the Direct Stream lookback');
+  h.video.dispatch('canplay');
+  h.root.runAllTimeouts();
+  assert.strictEqual(h.video.currentTime, 3, 'the replacement stream must seek to the terminal target relative to its offset');
+  h.video.dispatch('seeked');
+  assert.strictEqual(h.controller.snapshot().positionSeconds, 1792, 'the verified relative seek must restore the absolute terminal target');
+  h.video.dispatch('playing');
+  h.video.currentTime = 20;
+  h.video.dispatch('timeupdate');
+  assert.strictEqual(h.controller.snapshot().positionSeconds, 1800, 'a native tail beyond Plex duration must be hidden from the public timeline');
+  h.video.dispatch('ended');
+  assert.strictEqual(h.controller.snapshot().positionSeconds, 1800, 'ended playback must remain anchored at the authoritative duration');
+  assert.strictEqual(h.timeline[h.timeline.length - 1].seconds, 1800, 'terminal Plex reporting must never exceed the media duration');
+  h.controller.seekAbsolute(1700, { immediate: true });
+  assert.strictEqual(h.preparations[h.preparations.length - 1].offset, 1700, 'an explicit backward seek must remain available after terminal normalization');
+  assert.strictEqual(h.preparations[h.preparations.length - 1].delivery, 'direct-stream', 'leaving the terminal guard must restore the ordinary Direct Stream path');
 }());
 
 (function stalePrepareResponseCannotReplaceLatestSeekStream() {

@@ -18,7 +18,11 @@ var source = {
   displayTitle: 'Italiano (SRT External)',
   extendedDisplayTitle: 'Italiano (SRT External)',
   channels: '2',
-  audioChannelLayout: 'stereo'
+  audioChannelLayout: 'stereo',
+  bitrate: '192',
+  samplingRate: '48000',
+  bitDepth: '24',
+  profile: 'main'
 };
 var expected = {
   id: '12',
@@ -37,7 +41,11 @@ var expected = {
   displayTitle: 'Italiano (SRT External)',
   extendedDisplayTitle: 'Italiano (SRT External)',
   channels: 2,
-  channelLayout: 'stereo'
+  channelLayout: 'stereo',
+  bitrate: 192,
+  samplingRate: 48000,
+  bitDepth: 24,
+  profile: 'main'
 };
 
 assert.strictEqual(typeof MediaProfile.trackFromAttributes, 'function',

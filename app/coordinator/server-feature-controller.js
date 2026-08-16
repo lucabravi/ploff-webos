@@ -181,11 +181,33 @@
       return ServerStore.connectionUris({ uri: value.uri, connections: connections });
     }
 
+    function preferredLocalUri(server, uris) {
+      var selected = activeServer();
+      var profile = activeProfile();
+      var preferred = [];
+      var index;
+      var candidate;
+      if (ServerStore.same(server, selected)) {
+        preferred.push(applicationConfig.apiBaseUrl);
+        if (profile) { preferred.push(profile.serverConnectionUri); }
+      }
+      preferred.push(server && server.uri);
+      for (index = 0; index < preferred.length; index += 1) {
+        candidate = ServerStore.normalizeUri(preferred[index]);
+        if (candidate && uris.indexOf(candidate) !== -1 && ServerDiscovery.isLocalCandidate(candidate)) {
+          return candidate;
+        }
+      }
+      return '';
+    }
+
     function addressesFor(server, compactDirect) {
       var uris = connectionUris(server);
       var localHosts = [];
+      var localUris = [];
       var result = [];
       var directCount = 0;
+      var selectedLocalUri;
       var index;
       var uri;
       var host;
@@ -194,7 +216,10 @@
       for (index = 0; index < uris.length; index += 1) {
         uri = uris[index];
         host = String(uri || '').match(/^https?:\/\/([^/:]+)/i);
-        if (host && ServerDiscovery.isLocalCandidate(uri)) { localHosts.push(host[1]); }
+        if (host && ServerDiscovery.isLocalCandidate(uri)) {
+          localHosts.push(host[1]);
+          if (localUris.indexOf(uri) === -1) { localUris.push(uri); }
+        }
       }
       for (index = 0; index < uris.length; index += 1) {
         uri = uris[index];
@@ -203,9 +228,15 @@
         embeddedHost = direct ? [direct[1], direct[2], direct[3], direct[4]].join('.') : '';
         if (compactDirect && direct) {
           if (localHosts.indexOf(embeddedHost) === -1) { directCount += 1; }
+        } else if (compactDirect && ServerDiscovery.isLocalCandidate(uri)) {
+          /* The settings picker needs one usable local endpoint, not every adapter route. */
         } else {
           result.push({ kind: ServerDiscovery.isLocalCandidate(uri) ? 'local' : 'remote', uri: uri });
         }
+      }
+      if (compactDirect && localUris.length) {
+        selectedLocalUri = preferredLocalUri(server, uris) || localUris[0];
+        result.unshift({ kind: 'local', uri: selectedLocalUri });
       }
       if (compactDirect && directCount) { result.push({ kind: 'direct', count: directCount, uri: '' }); }
       return result;

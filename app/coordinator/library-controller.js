@@ -449,7 +449,7 @@
         call(values.updateFocus);
       } else if (!next || next.moved !== true) { call(values.updateFocus); }
       gridSnapshot = gridNavigationSnapshot();
-      if (usesGridScroll() && gridSnapshot.itemCount < gridSnapshot.totalSize &&
+      if ((!next || !next.leave) && usesGridScroll() && gridSnapshot.itemCount < gridSnapshot.totalSize &&
           gridSnapshot.focus.index >= gridSnapshot.itemCount - gridSnapshot.layout.columns * 2) {
         call(values.loadMore);
       }

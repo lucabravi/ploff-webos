@@ -73,6 +73,7 @@ function element(tagName, className, text) {
 var view = SetupView.create({
   root: setupRoot,
   document: {
+    createElement: function (tagName) { return node(tagName); },
     getElementById: function (id) { return nodes[id]; }
   },
   element: element,
@@ -101,6 +102,7 @@ view.render({ stage: 'language', focusIndex: 1, selectedLanguage: '', profiles: 
 assert.strictEqual(nodes['setup-title'].textContent, 'setup.chooseLanguageTitle', 'language stage must render its title');
 assert.strictEqual(nodes['setup-server-list'].className, 'setup-list setup-language-list', 'language stage must use the language list');
 assert.deepStrictEqual(listText('setup-server-list'), ['English', 'Italiano✓'], 'language options must render labels and active markers');
+assert.strictEqual(nodes['setup-server-list'].children[1].children[0].children[0].className, 'language-flag language-flag-it', 'onboarding language choices must display the matching flag');
 assert.strictEqual(nodes['setup-server-list'].children[1].className, 'setup-option is-active', 'injected active language must be marked');
 assert.deepStrictEqual(focusCalls[0], { index: 1, count: 2 }, 'language stage must delegate the controller focus index');
 

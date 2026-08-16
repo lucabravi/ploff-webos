@@ -71,7 +71,9 @@ Each controller owns its mutable state, timers, requests, and lifecycle:
   The dialog always renders a vertical option list; focus and the already-applied
   value remain distinct until confirmation. Shared selection controls and overlay
   panels take their colors from the `--control-*` and `--panel-*` tokens in
-  `app/styles.css`, which are the visual authority for Settings, filters, setup,
+  the generated `app/styles.css`, built from `app/styles/core.css` and the scoped
+  registered theme files described in `docs/themes.md`, which are the visual authority
+  for Settings, filters, setup,
   Player settings, subtitle settings, and reusable choice dialogs.
 - `media-info-dialog-controller.js`: shared media-information view, origin,
   scrolling, close command, callback, and teardown.
