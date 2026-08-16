@@ -646,13 +646,19 @@
     function setItems(items, totalSize) {
       var focusedKey = mediaKey(state.items[state.focus.index]);
       var nextItems = array(items).slice();
+      var initialFocusIndex = arguments.length > 2 ? Number(arguments[2]) : -1;
+      var hasInitialFocus = isFinite(initialFocusIndex) && initialFocusIndex >= 0;
       var index;
       state.items = nextItems;
       state.totalSize = Number(totalSize === undefined ? state.items.length : totalSize);
-      for (index = 0; focusedKey && index < state.items.length; index += 1) {
-        if (mediaKey(state.items[index]) === focusedKey) { state.focus.index = index; break; }
+      if (hasInitialFocus) { state.focus.index = initialFocusIndex; }
+      else {
+        for (index = 0; focusedKey && index < state.items.length; index += 1) {
+          if (mediaKey(state.items[index]) === focusedKey) { state.focus.index = index; break; }
+        }
       }
       state.focus.index = clamp(state.focus.index, 0, Math.max(0, state.items.length - 1));
+      if (hasInitialFocus) { positionCatalogFocus(state.focus.index); }
       return render();
     }
 
@@ -664,6 +670,41 @@
       state.focus.index = clamp(state.focus.index, 0, Math.max(0, state.items.length - 1));
       if (state.mode === 'catalog') { renderCatalog(false); }
       return navigationSnapshot();
+    }
+
+    function positionCatalogFocus(index) {
+      var container = node('library-grid');
+      var content = node('library-grid-content');
+      var cardLayout;
+      var metrics;
+      var layout;
+      var columns;
+      var row;
+      var totalRows;
+      var maximumScroll;
+      var centeredScroll;
+      if (!state.usesGridScroll || !container || !content || !state.items.length) { return null; }
+      cardLayout = profile();
+      metrics = cardLayout.metrics;
+      layout = (values.SearchModel || {}).measureLayout((container.clientWidth || 1612) - 12, container.clientHeight || 600, metrics.columnStep, metrics.rowStep, state.items.length);
+      columns = Math.max(1, Number(layout.columns || 1));
+      row = Math.floor(index / columns);
+      totalRows = Math.ceil(state.items.length / columns);
+      maximumScroll = Math.max(0, totalRows * metrics.rowStep - Number(container.clientHeight || 0));
+      centeredScroll = row * metrics.rowStep - Math.max(0, (Number(container.clientHeight || 0) - metrics.rowStep) / 2);
+      content.className = 'library-grid-content is-catalog';
+      content.style.height = (totalRows * metrics.rowStep) + 'px';
+      container.scrollTop = clamp(Math.round(centeredScroll), 0, maximumScroll);
+      return cardLayout;
+    }
+
+    function mountCatalogFocus(index) {
+      var cardLayout;
+      if (catalogNodesByIndex[index]) { return false; }
+      cardLayout = positionCatalogFocus(index);
+      if (!cardLayout) { return false; }
+      renderCatalog(false, cardLayout);
+      return !!catalogNodesByIndex[index];
     }
     function setRecommendations(rows) {
       var previousRow = state.recommendations[state.focus.recommendationRow];
@@ -685,7 +726,12 @@
       state.focus.index = clamp(state.focus.index, 0, Math.max(0, array(state.recommendations[state.focus.recommendationRow] && state.recommendations[state.focus.recommendationRow].items).length - 1));
       return render();
     }
-    function focusCatalog(index) { state.mode = state.mode === 'recommended' ? 'recommended' : 'catalog'; state.focus.index = clamp(Number(index || 0), 0, Math.max(0, state.items.length - 1)); return refreshFocus(); }
+    function focusCatalog(index) {
+      state.mode = state.mode === 'recommended' ? 'recommended' : 'catalog';
+      state.focus.index = clamp(Number(index || 0), 0, Math.max(0, state.items.length - 1));
+      if (state.mode === 'catalog') { mountCatalogFocus(state.focus.index); }
+      return refreshFocus();
+    }
     function focusRecommendations(row, index) {
       state.focus.recommendationRow = clamp(Number(row || 0), 0, Math.max(0, state.recommendations.length - 1));
       state.focus.index = clamp(Number(index || 0), 0, Math.max(0, array(state.recommendations[state.focus.recommendationRow] && state.recommendations[state.focus.recommendationRow].items).length - 1));

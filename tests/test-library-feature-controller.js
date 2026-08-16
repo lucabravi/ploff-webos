@@ -166,7 +166,14 @@ var FakeGridView = {
       focusRecommendations: function (row, index) { gridState.focus = { zone: 'grid', recommendationRow: row, index: index }; },
       focusCatalog: function (index) { gridState.focus = { zone: 'grid', recommendationRow: 0, index: index }; focusedCatalog.push(index); },
       focusedItem: function () { return gridState.items[gridState.focus.index] || null; },
-      setItems: function (items, totalSize) { gridState.items = items.slice(); gridState.totalSize = totalSize; setItemsCalls.push(items.slice()); },
+      setItems: function (items, totalSize, initialFocusIndex) {
+        gridState.items = items.slice();
+        gridState.totalSize = totalSize;
+        if (initialFocusIndex !== undefined && initialFocusIndex !== null) {
+          gridState.focus = { zone: 'grid', index: Number(initialFocusIndex), recommendationRow: 0 };
+        }
+        setItemsCalls.push(items.slice());
+      },
       restore: function (saved) { gridState = saved; calls.push('grid-restore'); },
       restoreFocus: function () { calls.push('grid-restore-focus'); },
       buildDetachedRecommendations: function () { return null; },
@@ -506,13 +513,33 @@ var lifecycleLoadCountBeforeDistantRender = lifecycleLoads.length;
 lifecycleOptions.onRender({ kind: 'page' });
 assert.strictEqual(lifecycleLoads.length, lifecycleLoadCountBeforeDistantRender + 1, 'playlist restoration loads another real Plex page when the active occurrence is not resident');
 assert.strictEqual(lifecycleLoads[lifecycleLoads.length - 1].reset, false, 'distant playlist restoration appends the next page without resetting the real list');
+gridState.focus = { zone: 'grid', index: 0, recommendationRow: 0 };
+assert.strictEqual(feature.reconcilePlaybackProgress('distant', 420), true,
+  'a stopped report may arrive before the distant playlist occurrence is rendered');
 gridState.items = Array.apply(null, Array(80)).map(function (_, itemIndex) {
   return itemIndex === 65 ? distantItem : { ratingKey: 'item-' + itemIndex };
 });
 lifecycleOptions.onRender({ kind: 'page' });
 assert.strictEqual(focusedCatalog[focusedCatalog.length - 1], 65, 'playlist restoration focuses an occurrence loaded from a later Plex page');
+assert.strictEqual(gridState.items[65].viewOffset, 420000,
+  'a pending stopped report is applied to the restored playlist occurrence after its page renders');
 gridState.items = queueItems.slice();
 gridState.totalSize = queueItems.length;
+gridState.focus = { zone: 'grid', index: 3, recommendationRow: 0 };
+
+assert.strictEqual(feature.reconcilePlaybackProgress('dup', 420), true,
+  'a closed container playback must accept the final local progress update');
+assert.strictEqual(gridState.items[3].viewOffset, undefined,
+  'progress reconciliation must follow the focused occurrence rather than an unrelated item');
+gridState.focus = { zone: 'grid', index: 2, recommendationRow: 0 };
+assert.strictEqual(feature.reconcilePlaybackProgress('dup', 420), true,
+  'progress reconciliation must work when the active duplicate occurrence is focused');
+assert.strictEqual(gridState.items[2].viewOffset, 420000,
+  'progress reconciliation must patch the focused occurrence in milliseconds');
+assert.strictEqual(gridState.items[2].progress, 70,
+  'progress reconciliation must update the focused occurrence percentage');
+assert.strictEqual(gridState.items[0].viewOffset, undefined,
+  'progress reconciliation must preserve another occurrence with the same rating key');
 gridState.focus = { zone: 'grid', index: 3, recommendationRow: 0 };
 
 nodes.content.style.display = 'block';

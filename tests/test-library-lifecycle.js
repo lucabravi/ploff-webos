@@ -10,7 +10,7 @@ function createFixture() {
   var deferred = [];
   var active = true;
   var scrollTop = 42;
-  var gridCalls = { appendItems: 0, setItems: 0, snapshot: 0 };
+  var gridCalls = { appendItems: 0, setItems: 0, snapshot: 0, initialFocusIndex: -1, focusCatalog: 0 };
   var lifecycle = LibraryLifecycle.create({
     grid: {
       snapshot: function () { gridCalls.snapshot += 1; return gridState; },
@@ -23,10 +23,16 @@ function createFixture() {
         };
       },
       reset: function () { gridState.items = []; gridState.totalSize = 0; gridState.recommendations = []; gridState.focus = { index: 0 }; },
-      setItems: function (items, totalSize) { gridCalls.setItems += 1; gridState.items = items; gridState.totalSize = totalSize; },
+      setItems: function (items, totalSize, initialFocusIndex) {
+        gridCalls.setItems += 1;
+        gridCalls.initialFocusIndex = Number(initialFocusIndex === undefined ? -1 : initialFocusIndex);
+        gridState.items = items;
+        gridState.totalSize = totalSize;
+        if (gridCalls.initialFocusIndex >= 0) { gridState.focus = { index: gridCalls.initialFocusIndex }; }
+      },
       appendItems: function (items, totalSize) { gridCalls.appendItems += 1; Array.prototype.push.apply(gridState.items, items); gridState.totalSize = totalSize; },
       setRecommendations: function (rows) { gridState.recommendations = rows; },
-      focusCatalog: function (index) { gridState.focus = { index: index }; }
+      focusCatalog: function (index) { gridCalls.focusCatalog += 1; gridState.focus = { index: index }; }
     },
     scrollTop: function () { return scrollTop; },
     setScrollTop: function (value) { scrollTop = value; },
@@ -233,6 +239,10 @@ playlistInitialFocus.requests.filter(function (request) { return request.kind ==
 });
 assert.strictEqual(playlistInitialFocus.grid.focus.index, 1,
   'playlist detail must focus the first unfinished item, including partially watched media');
+assert.strictEqual(playlistInitialFocus.gridCalls.initialFocusIndex, 1,
+  'playlist detail must provide the first unfinished index before the initial grid render');
+assert.strictEqual(playlistInitialFocus.gridCalls.focusCatalog, 0,
+  'playlist detail must not repair initial focus with a second post-render focus pass');
 
 var allWatchedPlaylistInitialFocus = createFixture();
 allWatchedPlaylistInitialFocus.lifecycle.openContainer({ containerKey: '/playlists/watched', containerType: 'playlist' });

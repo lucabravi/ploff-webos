@@ -16,10 +16,12 @@
 ## Contents
 
 - [Why Ploff](#why-ploff)
+- [Architecture at a glance](#architecture-at-a-glance)
 - [Screenshots](#screenshots)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Installation troubleshooting](#installation-troubleshooting)
 - [First launch](#first-launch)
 - [Compatibility notes](#compatibility-notes)
 - [Security](#security)
@@ -43,6 +45,37 @@
 - **No account required.** Point Ploff at a local Plex Media Server and go.
   Optional Plex linking adds Home profiles, Watchlist, remote servers, Relay
   failover, and improved multilingual search.
+
+## Architecture at a Glance
+
+Ploff deliberately keeps the installed TV runtime small and explicit:
+
+```text
+LG webOS TV / Chrome 53
+        |
+        v
+app/index.html + app/styles.css + generated app/app.js
+        |
+        +--> feature controllers --> shared TV views / remote + pointer input
+        |
+        +--> Plex HTTP client ----------------------> Plex Media Server
+        |
+        +--> webOS Luna service -- UDP GDM --------> local Plex discovery
+        |
+        +--> Settings / DB8 / bounded local state
+```
+
+`app/coordinator/application-controller.js` is the composition root: it wires focused
+feature controllers together but does not own their Plex requests, DOM, timers, or
+private state. Browser runtime code remains dependency-free ES5. `app/app.js` and
+`app/styles.css` are checked-in generated artifacts for the TV package and must never
+be edited directly.
+
+Local Plex discovery and LAN playback do not require Plex cloud services. Plex linking
+is optional and adds Home profiles, Watchlist, remote servers, Relay failover, and
+cloud-assisted title aliases. See [docs/architecture.md](docs/architecture.md) for the
+full ownership/data-flow model and [docs/README.md](docs/README.md) for the current
+documentation map.
 
 ## Screenshots
 
@@ -81,10 +114,9 @@
 
 </details>
 
-The gallery is captured from the real Ploff interface at 1920x1080 using a
-fictional demo library. It contains no personal Plex data: all titles,
-descriptions, and artwork were created for the demo to avoid using copyrighted
-media.
+Screenshots use a fictional demo library and contain no personal Plex data.
+All titles, descriptions, and artwork shown are fictional and were created for
+the demo to avoid using copyrighted media.
 
 ## Features
 
@@ -92,13 +124,17 @@ media.
 
 - Home, search, libraries, collections, playlists, and Watchlist, all built TV-first
 - Optional classic T9 numeric search input, for remotes without a pointer
-- Progressive artwork, adjustable card sizes, independent artwork/backdrop download quality, and media themes
+- Progressive artwork, adjustable card sizes, independent artwork/backdrop download
+  quality, and five selectable visual themes: Simple, Cinema, Premiere, Nova, and Atelier
 
 ### Playback
 
 - Direct Play, Direct Stream, transcoding fallback, and playback diagnostics
-- Quality, version, audio, subtitle, synchronization, chapter, and resume controls
+- Quality, version, audio, subtitle, synchronization, chapter, and resume controls; Detail keeps Version first and opens an integrated technical browser even when only one file exists
+- Contextual Detail media options for season watched/unwatched bulk actions with confirmation and metadata refresh
 - Remote-friendly choice dialogs for tracks, playback, and application settings
+- Adaptive playback compatibility memory learns from confirmed direct-play failures
+  in Automatic mode, helping Ploff reach a compatible fallback faster.
 - Playback progress, watched state, next-episode autoplay, and metadata refresh
 
 ### Remote and navigation
@@ -109,11 +145,13 @@ media.
 
 - Local server discovery, Plex Home profiles, and automatic LAN/direct/Relay failover
 - Fully usable without a Plex account
+- Optional per-device configuration backup and restore through a clearly named Plex
+  playlist, with manual or automatic synchronization between Ploff installations
 
 ### Interface
 
 - English, Italian, Spanish, French, German, Brazilian Portuguese, Japanese, and Korean
-- Automatic update checks, with a manual refresh option in Settings and a QR link to the latest GitHub release
+- Automatic update checks, with a manual Settings check and QR link to the latest GitHub release
 
 ## Requirements
 
@@ -192,6 +230,32 @@ Docker installer. Release packages contain no Plex address or credentials.
 
 </details>
 
+## Installation Troubleshooting
+
+If installation fails, check the TV-side Developer Mode state before changing Ploff:
+
+- **TV cannot be reached:** confirm the TV and computer are on the same reachable
+  network, verify the current TV IP in the Developer Mode app, and make sure **Dev
+  Mode Status** is enabled. For a manual CLI setup, `ares-device --system-info
+  --device my-tv` is a quick connectivity check.
+- **Pairing / `ares-novacom --getkey` fails:** enable **Key Server**, keep its screen
+  open, and use the current six-character passphrase. With Docker, rerun the installer
+  with the `pair` command; it updates the stored device address and retrieves a fresh
+  key.
+- **A previously working install asks to pair again:** the Developer Mode session/key
+  may have expired or the TV IP may have changed. Renew Developer Mode on the TV,
+  enable Key Server, then pair again. The persistent Docker volume can be reused.
+- **`ares-install` or launch fails after a long idle period:** first verify the
+  Developer Mode session and device connection. Re-pair before rebuilding the package;
+  packaging does not repair an expired TV key.
+- **Non-interactive Docker use fails before pairing:** provide `PLOFF_TV_IP` and
+  `PLOFF_TV_PASSPHRASE`; optionally set `PLOFF_DEVICE` when maintaining more than one
+  configured TV.
+
+For manual installations, `ares-setup-device --listfull` shows the configured device
+record. Do not place TV passphrases, private keys, Plex tokens, or personal server
+addresses in issues, logs, or repository files.
+
 ## First Launch
 
 No Plex address or token is embedded in Ploff. On first launch, the app finds
@@ -235,6 +299,7 @@ instructions, and [PRIVACY.md](PRIVACY.md) for the data-handling policy.
 
 ```sh
 npm ci
+npm run build:styles
 npm run build:app
 ./scripts/package-tv-shell.sh
 ./scripts/install-webos.sh my-tv
@@ -274,7 +339,10 @@ npm run test:pre-release
 ```
 
 It runs the complete verification suite followed by the forced-GC memory lifecycle
-stress test documented in `docs/testing.md`.
+stress test documented in `docs/testing.md`. To build a local release artifact after metadata and
+physical signoff are ready, use `npm run release:package`; it rebuilds generated assets, runs the
+pre-release gate, packages and inspects the IPK, and writes `dist/SHA256SUMS` without changing Git
+or the application version.
 
 ### Local preview
 
@@ -288,11 +356,24 @@ browser when supported. Pass a different port as its first argument, for example
 discovery, but a server can be entered manually and is retained in local
 storage.
 
+To stage and open the app in the macOS webOS TV Simulator, use:
+
+```sh
+./scripts/install-simulator.sh
+```
+
+The script rebuilds the generated assets, imports the app through the simulator's
+virtual remote, and leaves the physical TV untouched. Use `--stage-only` to only
+prepare the import directory.
+
 ## Project Structure and Documentation
 
-- [docs/README.md](docs/README.md) — authoritative documentation index and historical records
+- [docs/README.md](docs/README.md) — authoritative current-document index
 - [docs/architecture.md](docs/architecture.md) — runtime components and design rationale
 - [docs/features.md](docs/features.md) — current viewer-facing capabilities
+- [docs/themes.md](docs/themes.md) — visual-theme architecture, isolation rules, and extension workflow
+- [docs/settings.md](docs/settings.md) — persisted Settings schema, migrations, and extension workflow
+- [docs/diagnostics.md](docs/diagnostics.md) — privacy-safe support reports and diagnostics export workflow
 - [docs/playback-invariants.md](docs/playback-invariants.md) — TV-verified seek and resume behavior
 - [docs/testing.md](docs/testing.md) — release test matrix
 - [CHANGELOG.md](CHANGELOG.md) — release history

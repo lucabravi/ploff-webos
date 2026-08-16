@@ -14,6 +14,7 @@
     var navigation = values.navigation || {};
     var page = values.page || {};
     var player = values.player || {};
+    var contextMenu = values.contextMenu || {};
     var state = {
       selectionActive: false,
       suppressNextClick: false,
@@ -125,7 +126,8 @@
         if (has(button, 'data-subtitle-editor') && session.subtitleEditorOpen) {
           return focusCall(focus.subtitleEditor, button);
         } else if (has(button, 'data-diagnostics-action') && session.appView === 'diagnostics') {
-          return focusCall(focus.diagnostics, attribute(button, 'data-diagnostics-action') === 'refresh' ? 0 : 1);
+          index = ['refresh', 'export', 'back'].indexOf(attribute(button, 'data-diagnostics-action'));
+          return index >= 0 ? focusCall(focus.diagnostics, index) : false;
         } else if (has(button, 'data-resume-index') && session.resumeChoiceOpen) {
           return focusCall(focus.resume, Number(attribute(button, 'data-resume-index')));
         } else if (has(button, 'data-setup-language') || has(button, 'data-setup-action') || has(button, 'data-setup-server') || has(button, 'data-setup-profile')) {
@@ -138,15 +140,23 @@
           return focusCall(focus.detail, 'season', Number(attribute(button, 'data-season-position')));
         } else if (has(button, 'data-episode-position')) {
           return focusCall(focus.detail, 'episode', Number(attribute(button, 'data-episode-position')));
-        } else if (button.id === 'detail-play' || button.id === 'detail-watched' || button.id === 'detail-watchlist' || button.id === 'detail-refresh-metadata' || button.id === 'detail-file-info') {
-          index = button.id === 'detail-play' ? 0 : (button.id === 'detail-watched' ? 1 : (button.id === 'detail-watchlist' ? 2 : (button.id === 'detail-refresh-metadata' ? 3 : 4)));
+        } else if (button.id === 'detail-play' || button.id === 'detail-watched' || button.id === 'detail-watchlist' || button.id === 'detail-options') {
+          index = button.id === 'detail-play' ? 0 : (button.id === 'detail-watched' ? 1 : (button.id === 'detail-watchlist' ? 2 : 3));
           return focusCall(focus.detail, 'play', index);
         } else if (button.id === 'detail-audio' || button.id === 'detail-subtitles' || button.id === 'detail-version') {
           return focusCall(focus.detail, button.id === 'detail-audio' ? 'audio' : (button.id === 'detail-subtitles' ? 'subtitles' : 'version'), 0);
         } else if (button.id === 'detail-summary-button') {
           return focusCall(focus.detail, 'summary', 0);
+        } else if (has(button, 'data-safe-area-index') && session.safeAreaOpen) {
+          return focusCall(focus.safeArea, Number(attribute(button, 'data-safe-area-index')), button);
+        } else if (has(button, 'data-subtitle-style-index') && session.subtitleStyleOpen) {
+          return focusCall(focus.subtitleStyle, Number(attribute(button, 'data-subtitle-style-index')), button);
         } else if (has(button, 'data-setting-index')) {
           return focusCall(focus.settings, Number(attribute(button, 'data-setting-index')));
+        } else if (has(button, 'data-text-input-index') && session.textInputDialogOpen) {
+          return focusCall(focus.textInput, Number(attribute(button, 'data-text-input-index')));
+        } else if (has(button, 'data-playback-compatibility-index') && session.playbackCompatibilityOpen) {
+          return focusCall(focus.playbackCompatibility, Number(attribute(button, 'data-playback-compatibility-index')));
         } else if (has(button, 'data-update-index') && session.updateDialogOpen) {
           return focusCall(focus.updateDialog, Number(attribute(button, 'data-update-index')));
         } else if (button.id === 'privacy-dialog-close') {
@@ -223,6 +233,7 @@
       }
       if (!button || (event.relatedTarget && button.contains(event.relatedTarget))) { return; }
       if (button !== state.currentButton) {
+        if (call(contextMenu.holding) === true) { call(contextMenu.releaseHold); }
         state.currentButton = button;
         syncPointerFocus(button);
         notePlayerPointerActivity(button);
@@ -404,17 +415,26 @@
     function handleDown(event) {
       var button;
       var session;
-      if (state.destroyed) { return; }
+      if (state.destroyed || (event && event.button !== undefined && Number(event.button) !== 0)) { return; }
       button = closestButton(event && event.target);
       session = currentSession();
-      if (!button || !has(button, 'data-nav-index') || !session.navigationHasFocus || session.navReorderMode) { return; }
-      syncPointerFocus(button);
-      call(navigation.startHold, Number(attribute(button, 'data-nav-index')));
+      if (!button) { return; }
+      if (has(button, 'data-nav-index') && session.navigationHasFocus && !session.navReorderMode) {
+        syncPointerFocus(button);
+        call(navigation.startHold, Number(attribute(button, 'data-nav-index')));
+        return;
+      }
+      if (syncPointerFocus(button) && call(contextMenu.canOpen) === true) { call(contextMenu.startHold); }
     }
 
-    function handleUp() {
+    function handleUp(event) {
       var session;
       if (state.destroyed) { return; }
+      if (call(contextMenu.holding) === true && call(contextMenu.releaseHold) === true) {
+        state.suppressNextClick = true;
+        if (event && event.preventDefault) { event.preventDefault(); }
+        if (event && event.stopPropagation) { event.stopPropagation(); }
+      }
       session = currentSession();
       if (session.navHoldTriggered && session.navReorderMode) {
         call(navigation.markReorderReady);
@@ -500,6 +520,7 @@
       if (state.wheelDebounceTimer !== null && platformRoot.clearTimeout) { platformRoot.clearTimeout(state.wheelDebounceTimer); }
       state.wheelDebounceTimer = null;
       clearWheelNavigation();
+      if (call(contextMenu.holding) === true) { call(contextMenu.releaseHold); }
       state.selectionActive = false;
       state.pageScrollPendingFocus = false;
       state.currentButton = null;

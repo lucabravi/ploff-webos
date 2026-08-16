@@ -1,11 +1,14 @@
 {
   "name": "ploff-webos",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "Development checks for Ploff for Plex on LG webOS",
   "scripts": {
+    "build:styles": "node scripts/build-styles.js",
     "build:app": "node scripts/build-app.js",
+    "check:styles": "node scripts/build-styles.js --check && node scripts/check-theme-contracts.js",
     "check:app-bundle": "node scripts/build-app.js --check",
+    "check:release-metadata": "node scripts/check-release-metadata.js",
     "check:coordinator": "for file in app/coordinator/*.js; do node --check \"$file\" || exit 1; done",
     "check:architecture": "node scripts/check-coordinator-architecture.js",
     "check:feature-contracts": "node scripts/check-feature-contracts.js",
@@ -22,9 +25,10 @@
     "test:memory": "node --expose-gc tests/pre-release-memory.js",
     "test:memory:snapshot": "PLOFF_MEMORY_SNAPSHOTS=1 node --expose-gc tests/pre-release-memory.js",
     "test:pre-release": "npm run verify && npm run test:memory",
+    "release:package": "node scripts/release-package.js",
     "check:assets": "node scripts/check-shell-assets.js app/index.html dev",
     "test": "npm run test:unit && npm run test:baseline",
-    "verify": "npm run check:app-bundle && npm run check:coordinator && npm run check:architecture && npm run check:feature-contracts && npm run check:performance && npm run check:es5 && npm run lint && npm run typecheck:contracts && npm run typecheck && npm run test && npm run check:assets && npm run check:lg-ux"
+    "verify": "npm run check:styles && npm run check:app-bundle && npm run check:release-metadata && npm run check:coordinator && npm run check:architecture && npm run check:feature-contracts && npm run check:performance && npm run check:es5 && npm run lint && npm run typecheck:contracts && npm run typecheck && npm run test && npm run check:assets && npm run check:lg-ux"
   },
   "engines": {
     "node": ">=20"
@@ -32,7 +36,7 @@
   "devDependencies": {
     "acorn": "8.17.0",
     "eslint": "10.8.0",
-    "globals": "17.7.0",
+    "globals": "17.8.0",
     "typescript": "7.0.2"
   }
 }

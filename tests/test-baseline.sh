@@ -18,9 +18,13 @@ for path in \
   docs/application-source-architecture.md \
   docs/playback-invariants.md \
   docs/testing.md \
+  docs/themes.md \
+  docs/settings.md \
+  docs/diagnostics.md \
   app/build-info.js \
   app/config.js \
   app/i18n.js \
+  app/settings-schema.js \
   app/locales/en.js \
   app/locales/it.js \
   app/locales/es.js \
@@ -45,6 +49,7 @@ for path in \
   scripts/check-lg-ux.js \
   scripts/build-app.js \
   scripts/check-release-signoff.js \
+  scripts/check-release-metadata.js \
   scripts/preview-local.sh \
   scripts/docker-installer.sh \
   scripts/install-webos.sh \
@@ -139,6 +144,8 @@ grep -q 'rm -f "$STAGE/config.local.js"' scripts/package-tv-shell.sh
 grep -q 'PloffBuildInfo' scripts/package-tv-shell.sh
 grep -q 'build-app.js.*--check' scripts/package-tv-shell.sh
 grep -q 'rm -rf "$STAGE/source"' scripts/package-tv-shell.sh
+grep -q 'CACHE_KEY=' scripts/inspect-ipk.sh
+grep -q 'check-shell-assets.js.*CACHE_KEY' scripts/inspect-ipk.sh
 grep -q 'io.github.rhapsodos.ploff' webos-shell-app/appinfo.json
 grep -q 'webos-shell-app/logo.svg' README.md
 grep -q '<title id="title">Ploff</title>' app/ploff-logo.svg

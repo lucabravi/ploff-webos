@@ -92,4 +92,10 @@ assert.throws(function () {
   );
 }, /Matrix SHA-256 field/, 'a signoff without an exact matrix identity must be rejected');
 
+var signoffSource = fs.readFileSync(path.join(project, 'scripts', 'check-release-signoff.js'), 'utf8');
+assert.ok(/require\('\.\/check-release-metadata'\)/.test(signoffSource),
+  'release signoff must share canonical version and tag validation');
+assert.ok(/ReleaseMetadata\.check\(root, tag\)/.test(signoffSource),
+  'release signoff must validate repository metadata before checking physical-TV evidence');
+
 console.log('Release signoff checks passed');

@@ -24,6 +24,10 @@ change the playback clock model without reproducing every case below.
 - Stream replacement anchors and freezes the public clock before changing the
   offset, so a new offset can never be added to the previous stream's stale
   `currentTime`.
+- The public position, progress bar, end-time estimate, and Plex timeline
+  report are capped at the authoritative Plex duration. The raw native clock
+  remains available internally for seek and recovery, but a decoder tail or
+  late `timeupdate` must never move the public position past the media end.
 
 ## Seeking
 
@@ -37,6 +41,14 @@ change the playback clock model without reproducing every case below.
 - Offset HLS streams use `video.buffered` for native seeks. A target outside
   the active buffer rebuilds at the exact absolute target instead of assigning
   an unsafe relative `video.currentTime`.
+- A Direct Stream seek with five to ten seconds remaining uses an eleven-second
+  lookback and translates the requested absolute position into the replacement
+  stream clock. A request inside the final five seconds treats the authoritative
+  Plex duration as the target, seeks to the actual native end of the replacement
+  stream, waits for seek verification, and pauses there before notifying the
+  existing end/Up Next path. It must not clamp the public time to a fake
+  duration-minus-two value or force transcoding. Ordinary Direct Play and Direct
+  Stream playback keep their selected delivery mode.
 - If a Direct Play seek fails, times out, or later regresses, recovery advances
   to an offset-capable Direct Stream. Transcoding remains a later bounded
   fallback according to the selected playback mode.
@@ -55,7 +67,7 @@ change the playback clock model without reproducing every case below.
 ## Automated guards
 
 - `tests/test-playback-controller.js` locks the native lifecycle as one UMD
-  boundary: all eleven regression cases below, non-zero track/version rebuilds,
+  boundary: all thirteen regression cases below, non-zero track/version rebuilds,
   stream namespace rotation, reporting suppression, buffering reconciliation,
   subtitle Apply/Cancel rollback, stale callback rejection, and idempotent
   teardown. It also asserts that no legacy coordinator mutates native time,
@@ -101,6 +113,11 @@ change the playback clock model without reproducing every case below.
     decoder must never oscillate between two native positions.
 11. Chapter selection: content and timer start at the selected chapter, then
     both backward and forward seeks remain responsive.
+12. Terminal playback: a near-end Direct Stream seek preserves the absolute
+    position, while a final-five-second seek lands on the actual native end,
+    pauses once, and notifies the existing end path exactly once. An explicit
+    backward seek remains available afterward and the public position never
+    exceeds the authoritative duration.
 
 ## Queue boundary
 

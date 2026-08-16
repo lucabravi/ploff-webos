@@ -24,15 +24,16 @@
     var match = /^E0*([0-9]+)(?:\s+-\s+)?(.*)$/.exec(detailValue);
     var hasSeason = !!(item && item.metaParameters && item.metaParameters.number !== undefined);
     var season = Number(hasSeason ? item.metaParameters.number : 0);
+    var yearSuffix = item && item.year ? ' \u00b7 ' + String(item.year) : '';
     var episodeLabel;
     if (!match) { return null; }
     episodeLabel = 'E' + (Number(match[1]) < 10 ? '0' : '') + Number(match[1]);
     if (!hasSeason || isNaN(season) || (item && item.metaKey !== 'media.season')) {
       if (!meta(item, translate)) { return null; }
-      return { meta: meta(item, translate) + ' - ' + episodeLabel, detail: match[2] || '' };
+      return { meta: meta(item, translate) + ' - ' + episodeLabel + yearSuffix, detail: match[2] || '' };
     }
     return {
-      meta: 'S' + (season < 10 ? '0' : '') + season + ' - ' + episodeLabel,
+      meta: 'S' + (season < 10 ? '0' : '') + season + ' - ' + episodeLabel + yearSuffix,
       detail: match[2] || ''
     };
   }

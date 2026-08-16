@@ -36,6 +36,7 @@
     var navigationReorderOriginalItems = null;
     var activeViewState = null;
     var homeRefreshVisualActive = false;
+    var homeRefreshVisualTimer = null;
     var serverActivityVisualState = 'idle';
     var serverActivityVisualTarget = 'idle';
     var serverActivityTransitionTimer = null;
@@ -105,6 +106,15 @@
       return PlexClient.loadHome(config, function (error, nextRows) {
         (nextRows || []).forEach(function (row) { if (row.recommendation) { row.title = t('home.recommended'); } });
         call(callback, error, nextRows || []);
+      });
+    }
+
+    function loadBackdropPreview(callback) {
+      var source = controller.sampleBackdropSource ? controller.sampleBackdropSource() : '';
+      if (source) { call(callback, null, source); return null; }
+      return loadHome(function (error, nextRows) {
+        var sample = !error && controller.sampleBackdropSource ? controller.sampleBackdropSource(nextRows) : '';
+        call(callback, error || (!sample ? new Error('Backdrop preview unavailable') : null), sample || '');
       });
     }
 
@@ -313,7 +323,10 @@
 
     function serverActivities() {
       var activities = call(statePort.serverActivities);
-      return Object.prototype.toString.call(activities) === '[object Array]' ? activities : [];
+      if (Object.prototype.toString.call(activities) !== '[object Array]') { return []; }
+      return activities.filter(function (activity) {
+        return String(activity && activity.type || '').toLowerCase() !== 'butler';
+      });
     }
 
     function networkSnapshot() { return call(statePort.networkSnapshot) || {}; }
@@ -381,6 +394,8 @@
       var index;
       var activity;
       var row;
+      var details;
+      var summary;
       var network = networkSnapshot();
       var networkLabel = call(presentation.networkStatusLabel, network) || '';
       var title = activities.length ? (activities[0].title || t('activity.working')) : '';
@@ -395,13 +410,17 @@
       button.setAttribute('data-nav-index', navigationItems().length);
       button.setAttribute('aria-label', t('activity.label') + ': ' + networkLabel + (title ? ' \u00b7 ' + title : ''));
       button.setAttribute('aria-busy', desiredVisualState === 'idle' ? 'false' : 'true');
-      button.setAttribute('title', t('activity.label') + ': ' + networkLabel);
-      setText('server-activity-title', title);
+      button.removeAttribute('title');
       call(presentation.onActivityTitle, title, desiredVisualState);
       panel.innerHTML = '';
-      panel.appendChild(element('div', 'activity-network-status', t('settings.networkStatus') + ': ' + networkLabel));
+      panel.className = 'server-activity-panel' + (activities.length ? ' has-activities' : '');
+      summary = element('div', 'activity-summary', title);
+      details = element('div', 'activity-details');
+      panel.appendChild(summary);
+      panel.appendChild(details);
+      details.appendChild(element('div', 'activity-network-status', t('settings.networkStatus') + ': ' + networkLabel));
       if (!activities.length) {
-        panel.appendChild(element('div', 'activity-empty', t('activity.idle')));
+        details.appendChild(element('div', 'activity-empty', t('activity.idle')));
         return true;
       }
       for (index = 0; index < activities.length; index += 1) {
@@ -410,27 +429,38 @@
         row.appendChild(element('span', 'activity-heading', activity.title || t('activity.working')));
         if (activity.subtitle) { row.appendChild(element('span', 'activity-subtitle', activity.subtitle)); }
         if (activity.progress >= 0) { renderActivityProgress(row, activity); }
-        panel.appendChild(row);
+        details.appendChild(row);
       }
       return true;
     }
 
     function showHomeSurface() {
       var content = document && document.getElementById ? document.getElementById('content') : null;
+      var preview = document && document.getElementById ? document.getElementById('home-preview') : null;
+      var body = document && document.body;
       if (content) { content.style.display = 'block'; }
+      if (preview) { preview.style.display = ''; }
+      if (body && String(body.className || '').indexOf('is-home-surface-active') === -1) {
+        body.className = String(body.className || '') + ' is-home-surface-active';
+      }
       return !!content;
     }
 
     function hideHomeSurface() {
       var content = document && document.getElementById ? document.getElementById('content') : null;
+      var preview = document && document.getElementById ? document.getElementById('home-preview') : null;
+      var body = document && document.body;
       clearNavigationSurfaceAnimation();
       if (content) { content.style.display = 'none'; }
+      if (preview) { preview.style.display = 'none'; }
+      if (body) { body.className = String(body.className || '').replace(/\s*is-home-surface-active/g, ''); }
       return !!content;
     }
 
     function clearHomeSurface() {
       var content = document && document.getElementById ? document.getElementById('content') : null;
       if (content) { content.innerHTML = ''; }
+      if (controller && controller.clearHomePreview) { controller.clearHomePreview(); }
       return !!content;
     }
 
@@ -449,11 +479,23 @@
       call(presentation.translatePlayer);
     }
 
+    function clearHomeRefreshVisualTimer() {
+      if (homeRefreshVisualTimer !== null && root.clearTimeout) { root.clearTimeout(homeRefreshVisualTimer); }
+      homeRefreshVisualTimer = null;
+    }
+
     function setHomeRefreshVisualActive(active) {
       active = active === true;
-      if (homeRefreshVisualActive === active) { return; }
+      if (active && homeRefreshVisualActive) { return; }
+      if (!active) { clearHomeRefreshVisualTimer(); }
       homeRefreshVisualActive = active;
       renderServerActivities();
+      if (active && root.setTimeout) {
+        homeRefreshVisualTimer = root.setTimeout(function () {
+          homeRefreshVisualTimer = null;
+          if (!destroyed) { setHomeRefreshVisualActive(false); }
+        }, 1000);
+      }
     }
 
     function passiveHomeState(messageKey) {
@@ -492,6 +534,7 @@
       controller.renderNavigation();
       if (rows().length) { hideViewState(); }
       showHomeSurface();
+      if (focusMode === 'nav' || focusMode === 'first') { call(controller.resetHomeScroll); }
       call(presentation.hideNonHomeViews);
       if (rows().length) {
         if (controller.isHomeDirty()) {
@@ -784,6 +827,7 @@
     function start() {
       if (destroyed || started) { return false; }
       started = true;
+      if (currentView() === 'home') { showHomeSurface(); }
       controller.applyCardScale();
       translateStaticUi();
       controller.renderNavigation();
@@ -806,6 +850,7 @@
       if (resizeTimer !== null && root.clearTimeout) { root.clearTimeout(resizeTimer); }
       resizeTimer = null;
       clearServerActivityTransition();
+      clearHomeRefreshVisualTimer();
       if (clockTimer !== null && root.clearInterval) { root.clearInterval(clockTimer); }
       clockTimer = null;
       hideViewState();
@@ -931,6 +976,7 @@
       hideViewState: hideViewState,
       isHomeLoading: function () { return controller.isHomeLoading(); },
       loadRenderedPoster: loadRenderedPoster,
+      loadBackdropPreview: loadBackdropPreview,
       markHomeDirty: function () { return controller.markHomeDirty(); },
       markReorderReady: markReorderReady,
       moveReorderedLibrary: moveReorderedLibrary,

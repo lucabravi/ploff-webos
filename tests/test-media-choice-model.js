@@ -3,16 +3,16 @@
 var assert = require('assert');
 var MediaChoiceModel = require('../app/media-choice-model');
 
-var audio = [{ id: '10', language: 'Japanese' }, { language: 'Italiano' }];
+var audio = [{ id: '10', language: 'Japanese', languageTag: 'ja' }, { language: 'Italiano', languageCode: 'ita' }];
 var choices = MediaChoiceModel.trackChoices(audio, {
   automatic: { value: '', label: 'Automatic - Japanese' },
   useIndexFallback: true,
   label: function (track) { return track.language; }
 });
 assert.deepStrictEqual(choices, [
-  { value: '', label: 'Automatic - Japanese', track: null },
-  { value: '10', label: 'Japanese', track: audio[0] },
-  { value: '1', label: 'Italiano', track: audio[1] }
+  { value: '', label: 'Automatic - Japanese', track: null, languageCode: '' },
+  { value: '10', label: 'Japanese', track: audio[0], languageCode: 'ja' },
+  { value: '1', label: 'Italiano', track: audio[1], languageCode: 'ita' }
 ], 'track choices must preserve automatic entries, stable IDs and explicit index fallback');
 
 var subtitleChoices = MediaChoiceModel.trackChoices([{ id: '20', language: 'English' }], {

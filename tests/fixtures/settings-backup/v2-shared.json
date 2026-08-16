@@ -1,0 +1,17 @@
+{
+  "format": "ploff-settings",
+  "version": 2,
+  "kind": "shared",
+  "appVersion": "1.0.5",
+  "createdAt": 1000,
+  "settings": {
+    "version": 2,
+    "uiLanguage": "it",
+    "uiLanguageExplicit": true,
+    "visualTheme": "classic",
+    "autoplayDelay": 3,
+    "settingsBackupMode": "sync"
+  },
+  "libraryOrder": ["4", "2"],
+  "subtitleOffsets": {"server|part|stream": 250}
+}

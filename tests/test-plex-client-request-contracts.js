@@ -8,7 +8,7 @@ var xhrs = [];
 
 global.XMLHttpRequest = function () {
   xhrs.push(this);
-  this.open = function () {};
+  this.open = function (method, url) { this.method = method; this.url = url; };
   this.send = function () {};
   this.abort = function () { this.aborted = true; };
 };
@@ -39,6 +39,11 @@ cancellable('series context loading', function () {
 cancellable('watched-state updates', function () {
   return PlexClient.setWatchedAndReset(config, '40', true, function () {});
 });
+cancellable('Continue Watching removal', function () {
+  return PlexClient.removeFromContinueWatching(config, '42', function () {});
+});
+assert.strictEqual(xhrs[xhrs.length - 1].method, 'PUT', 'Continue Watching removal must use the PMS PUT action');
+assert.ok(/\/actions\/removeFromContinueWatching\?/.test(xhrs[xhrs.length - 1].url) && /ratingKey=42/.test(xhrs[xhrs.length - 1].url), 'Continue Watching removal must send the selected rating key');
 
 var watchedHandle = PlexClient.setWatchedAndReset(config, '41', true, function () {});
 var watchedRequest = xhrs[xhrs.length - 1];

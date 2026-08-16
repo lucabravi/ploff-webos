@@ -53,11 +53,11 @@ function harness(extra) {
     loadSeason: function () { actions.push(['load-season']); },
     playEpisode: function (episode) { actions.push(['play-episode', episode && episode.ratingKey]); },
     openChoice: function (kind) { actions.push(['choice', kind]); },
+    openVersionDetails: function () { actions.push(['version-details']); },
     openSummary: function () { actions.push(['summary']); },
     toggleWatched: function () { actions.push(['watched']); },
     toggleWatchlist: function () { actions.push(['watchlist']); },
-    refreshCurrentMetadata: function () { actions.push(['refresh']); },
-    openMediaInfo: function () { actions.push(['media-info']); }
+    openDetailOptions: function () { actions.push(['options']); }
   };
   Object.keys(extra || {}).forEach(function (key) { values[key] = extra[key]; });
   return {
@@ -166,8 +166,10 @@ function harness(extra) {
   assert.deepStrictEqual(h.actions.pop(), ['play-episode', 'e1']);
   h.controller.setFocus({ zone: 'audio' }); h.controller.handleKey({ keyCode: 13 }, null);
   assert.deepStrictEqual(h.actions.pop(), ['choice', 'audio']);
-  h.controller.setFocus({ zone: 'play', actionIndex: 4 }); h.controller.handleKey({ keyCode: 13 }, null);
-  assert.deepStrictEqual(h.actions.pop(), ['media-info']);
+  h.controller.setFocus({ zone: 'version' }); h.controller.handleKey({ keyCode: 13 }, null);
+  assert.deepStrictEqual(h.actions.pop(), ['version-details'], 'OK on Version must open the technical version browser rather than the generic choice dialog');
+  h.controller.setFocus({ zone: 'play', actionIndex: 3 }); h.controller.handleKey({ keyCode: 13 }, null);
+  assert.deepStrictEqual(h.actions.pop(), ['options']);
   assert.strictEqual(h.controller.handleKey({ keyCode: 461 }, null).handled, true);
   assert.strictEqual(h.actions.some(function (entry) { return entry[0] === 'close-detail'; }), false, 'Back must respect the opening grace period');
   h.setNow(1600); h.controller.handleKey({ keyCode: 461 }, null);
@@ -180,16 +182,19 @@ function harness(extra) {
   var h = harness({
     mediaInfoOpen: function () { return mediaInfoOpen; },
     summaryOpen: function () { return summaryOpen; },
-    closeMediaInfo: function () { h.actions.push(['close-media-info']); mediaInfoOpen = false; },
-    scrollMediaInfo: function (direction) { h.actions.push(['scroll-media-info', direction]); },
+    handleMediaInfoKey: function (event, direction) {
+      h.actions.push(['media-info-key', event && event.keyCode, direction]);
+      if (event && event.keyCode === 13) { mediaInfoOpen = false; }
+      return { handled: true };
+    },
     closeSummary: function () { h.actions.push(['close-summary']); summaryOpen = false; },
     scrollSummary: function (direction) { h.actions.push(['scroll-summary', direction]); }
   });
   h.controller.open({ ratingKey: 'm1', type: 'movie' });
   h.controller.handleKey({ keyCode: 40 }, 'down');
-  assert.deepStrictEqual(h.actions.pop(), ['scroll-media-info', 1], 'advanced media info must own its scroll input');
+  assert.deepStrictEqual(h.actions.pop(), ['media-info-key', 40, 'down'], 'the shared media dialog must own directional input while open');
   h.controller.handleKey({ keyCode: 13 }, null);
-  assert.deepStrictEqual(h.actions.pop(), ['close-media-info']);
+  assert.deepStrictEqual(h.actions.pop(), ['media-info-key', 13, null], 'the shared media dialog must own confirmation while open');
   summaryOpen = true;
   h.controller.handleKey({ keyCode: 38 }, 'up');
   assert.deepStrictEqual(h.actions.pop(), ['scroll-summary', -1], 'summary overflow must own its scroll input');
@@ -199,7 +204,7 @@ function harness(extra) {
   h.controller.handleKey({ keyCode: 13 }, null);
   assert.deepStrictEqual(h.actions.pop(), ['close-summary'], 'the visible Close action and remote OK must use the summary close command');
 
-  [[1, 'watched'], [2, 'watchlist'], [3, 'refresh'], [4, 'media-info']].forEach(function (entry) {
+  [[1, 'watched'], [2, 'watchlist'], [3, 'options']].forEach(function (entry) {
     h.controller.setFocus({ zone: 'play', actionIndex: entry[0] });
     h.controller.handleKey({ keyCode: 13 }, null);
     assert.strictEqual(h.actions.pop()[0], entry[1]);
@@ -221,6 +226,14 @@ function harness(extra) {
   assert.strictEqual(closed[0].returnView, 'watchlist');
   assert.strictEqual(closed[0].snapshot.currentDetail, null, 'closing detail must not flash stale metadata back onto the restored surface');
   assert.strictEqual(h.controller.snapshot().selectedItem, null);
+}());
+
+(function testContinueWatchingOriginIsExplicitAndResettable() {
+  var h = harness();
+  h.controller.open({ ratingKey: 'continue-1', type: 'movie' }, { returnView: 'home', fromContinueWatching: true });
+  assert.strictEqual(h.controller.snapshot().fromContinueWatching, true, 'detail controller must preserve Continue Watching origin');
+  h.controller.setFromContinueWatching(false);
+  assert.strictEqual(h.controller.snapshot().fromContinueWatching, false, 'detail controller must clear the contextual action after removal');
 }());
 
 (function testTransitionsAndDestroyAreIdempotent() {

@@ -20,13 +20,14 @@
     var choices = [];
     var index;
     var choice;
-    if (values.automatic) { choices.push({ value: String(values.automatic.value), label: String(values.automatic.label), track: null }); }
+    if (values.automatic) { choices.push({ value: String(values.automatic.value), label: String(values.automatic.label), track: null, languageCode: String(values.automatic.languageCode || '') }); }
     if (values.off) { choices.push({ value: String(values.off.value), label: String(values.off.label), track: null }); }
     for (index = 0; index < source.length; index += 1) {
       choice = {
         value: trackValue(source[index], index, values.useIndexFallback === true),
         label: String(values.label ? values.label(source[index], index) : ''),
-        track: source[index]
+        track: source[index],
+        languageCode: String(source[index].languageTag || source[index].languageCode || source[index].language || '')
       };
       choices.push(choice);
     }

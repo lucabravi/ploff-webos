@@ -41,6 +41,7 @@
     var activeMode = '';
     var generation = 0;
     var pendingContainerRestore = null;
+    var pendingPlaybackProgress = null;
     var librarySurfaceAnimationPending = false;
     var destroyed = false;
 
@@ -731,6 +732,7 @@
           renderLibraryGrid();
           renderLibraryGlobalHeader();
           completeContainerRestore(result);
+          applyPendingPlaybackProgress();
           updateLibraryFocus();
           if (librarySurfaceAnimationPending) {
             librarySurfaceAnimationPending = false;
@@ -755,6 +757,7 @@
           updateLibraryPresentationClass();
           renderLibraryGrid();
           renderLibraryGlobalHeader();
+          applyPendingPlaybackProgress();
           updateLibraryFocus();
         }
       });
@@ -830,6 +833,7 @@
       var saved;
       entryOptions = entryOptions || {};
       if (destroyed || !library) { return false; }
+      pendingPlaybackProgress = null;
       generation += 1;
       activeMode = 'library';
       librarySurfaceAnimationPending = false;
@@ -873,6 +877,7 @@
       var watchlistViewNode;
       entryOptions = entryOptions || {};
       if (destroyed) { return false; }
+      pendingPlaybackProgress = null;
       if (!available()) {
         call(shell.showMessage, t('watchlist.unavailable'));
         call(shell.renderNavigation);
@@ -917,6 +922,7 @@
       if (destroyed || !mode) { return false; }
       librarySurfaceAnimationPending = false;
       cancelContainerRestore(true);
+      pendingPlaybackProgress = null;
       generation += 1;
       call(shell.hideViewState);
       if (mode === 'library') {
@@ -1032,6 +1038,72 @@
 
     function originKey(value) {
       return String(value && (value.containerKey || value.containerRatingKey || value.ratingKey || value.key || '') || '');
+    }
+
+    function playbackScopeKey() {
+      var container = activeContainer();
+      var library = activeLibrary();
+      return container ? 'container:' + originKey(container) : 'library:' + libraryCacheKey(library);
+    }
+
+    function playbackProgressIndex(items, ratingKey, focusIndex, hasContainer) {
+      var index;
+      if (focusIndex >= 0 && items[focusIndex] &&
+          String(items[focusIndex].ratingKey || '') === String(ratingKey || '')) {
+        return focusIndex;
+      }
+      if (hasContainer) { return -1; }
+      for (index = 0; index < items.length; index += 1) {
+        if (String(items[index] && items[index].ratingKey || '') === String(ratingKey || '')) { return index; }
+      }
+      return -1;
+    }
+
+    function applyPendingPlaybackProgress() {
+      var pending = pendingPlaybackProgress;
+      var currentGrid;
+      var items;
+      var focus;
+      var targetIndex;
+      var target;
+      var duration;
+      var offset;
+      if (!pending || !isLibraryActive()) { return false; }
+      if (pending.scope !== playbackScopeKey()) {
+        pendingPlaybackProgress = null;
+        return false;
+      }
+      if (pendingContainerRestore) { return false; }
+      currentGrid = gridSnapshot();
+      items = currentGrid.items || [];
+      focus = currentGrid.focus || {};
+      targetIndex = playbackProgressIndex(items, pending.ratingKey, Number(focus.index), !!activeContainer());
+      if (targetIndex < 0) { return false; }
+      target = copyRecord(items[targetIndex]);
+      duration = Number(target.duration || 0);
+      offset = Math.max(0, Math.round(Number(pending.seconds || 0) * 1000));
+      target.viewOffset = offset;
+      if (duration > 0) {
+        target.progress = Math.max(0, Math.min(100, Math.round(offset / duration * 100)));
+      }
+      items = items.slice();
+      items[targetIndex] = target;
+      pendingPlaybackProgress = null;
+      gridView.setItems(items, currentGrid.totalSize);
+      updateLibraryFocus();
+      return true;
+    }
+
+    function reconcilePlaybackProgress(ratingKey, seconds) {
+      var numericSeconds = Number(seconds);
+      var scope;
+      if (destroyed || !ratingKey || !isFinite(numericSeconds) || numericSeconds < 0 || !activeLibrary() ||
+          !(isLibraryActive() || (activeMode === 'library' && currentView() === 'player' && !!detailContainerKind(activeContainer())))) { return false; }
+      scope = playbackScopeKey();
+      if (!scope) { return false; }
+      pendingPlaybackProgress = { ratingKey: String(ratingKey), seconds: numericSeconds, scope: scope };
+      applyPendingPlaybackProgress();
+      return true;
     }
 
     function containerRestoreFocusIndex(restore, items) {
@@ -1187,6 +1259,7 @@
     function resetContent() {
       if (destroyed) { return false; }
       cancelContainerRestore(false);
+      pendingPlaybackProgress = null;
       generation += 1;
       activeMode = '';
       if (controller && controller.resetContent) { controller.resetContent(); }
@@ -1255,6 +1328,7 @@
     function destroy() {
       if (destroyed) { return; }
       cancelContainerRestore(false);
+      pendingPlaybackProgress = null;
       destroyed = true;
       generation += 1;
       activeMode = '';
@@ -1325,6 +1399,7 @@
       resetContent: resetContent,
       restorePageFocus: restorePageFocus,
       restoreContainerOrigin: restoreContainerOrigin,
+      reconcilePlaybackProgress: reconcilePlaybackProgress,
       scheduleAdjacentPrefetch: scheduleAdjacentPrefetch,
       snapshot: snapshot,
       toggleWatchlist: toggleWatchlist,

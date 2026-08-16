@@ -18,6 +18,7 @@
     var PlayerBufferingIndicator = values.PlayerBufferingIndicator;
     var SubtitleSync = values.SubtitleSync;
     var SubtitleOffsetStore = values.SubtitleOffsetStore;
+    var compatibilityMemory = values.compatibilityMemory;
     var config = values.config || {};
     var storage = values.storage;
     var playback = null;
@@ -38,6 +39,7 @@
     var resumeTimer = null;
     var recoveryTimer = null;
     var pendingSeek = null;
+    var pendingTerminalPause = false;
     var seekTimer = null;
     var estimatedEndTimer = null;
     var timelineSuppressed = false;
@@ -58,7 +60,13 @@
     var listeners = [];
     var networkUnsubscribe = null;
     var visibilityTarget = values.document || null;
-    var END_SEEK_GUARD_SECONDS = 2;
+    var TERMINAL_PAUSE_WINDOW_SECONDS = 5;
+    var TERMINAL_DIRECT_LOOKBACK_SECONDS = 11;
+    var TERMINAL_DIRECT_WINDOW_SECONDS = 10;
+    var compatibilityAttemptToken = 0;
+    var compatibilityRecordedToken = 0;
+    var directFailureNotifiedToken = 0;
+    var terminalPlayback = false;
 
     function call(callback, arg1, arg2, arg3, arg4, arg5) {
       if (typeof callback === 'function') { return callback(arg1, arg2, arg3, arg4, arg5); }
@@ -117,9 +125,48 @@
 
     function setStatus(key, detail) { call(values.setStatus, key, detail); }
     function setLoading(loading, preserveFrame) { call(values.setLoading, loading, preserveFrame === true); }
-    function renderProgress(position, duration) { call(values.renderProgress, position, duration, snapshot()); }
+    function durationSeconds() { return playback ? Number(playback.duration || 0) / 1000 : 0; }
+
+    function terminalStreamStart(position) {
+      var target = Math.max(0, Number(position || 0));
+      var duration = durationSeconds();
+      if (!isFinite(duration) || duration <= TERMINAL_DIRECT_LOOKBACK_SECONDS || !isTerminalDirectWindow(target)) { return target; }
+      return Math.max(0, Math.floor(duration - TERMINAL_DIRECT_LOOKBACK_SECONDS));
+    }
+
+    function isTerminalDirectWindow(position) {
+      var duration = durationSeconds();
+      var target = Number(position);
+      var remaining = duration - target;
+      return duration > TERMINAL_DIRECT_LOOKBACK_SECONDS && isFinite(target) && remaining >= 0 && remaining <= TERMINAL_DIRECT_WINDOW_SECONDS;
+    }
+
+    function terminalNativeTarget(position, streamStart) {
+      return Math.max(0, Number(position || 0) - Number(streamStart || 0));
+    }
+
+    function isTerminalPauseTarget(position) {
+      var duration = durationSeconds();
+      var target = Number(position);
+      var remaining = duration - target;
+      return duration > TERMINAL_PAUSE_WINDOW_SECONDS && isFinite(target) && remaining >= 0 && remaining <= TERMINAL_PAUSE_WINDOW_SECONDS;
+    }
+
+    function publicTime(value) {
+      var duration = durationSeconds();
+      var position = value === undefined ? displayTime() : Number(value);
+      if (!isFinite(position)) { position = 0; }
+      position = Math.max(0, position);
+      if (duration > 0) { position = Math.min(duration, position); }
+      return terminalPlayback && duration > 0 ? duration : position;
+    }
+
+    function renderProgress(position, duration) {
+      var total = duration === undefined ? durationSeconds() : Number(duration || 0);
+      call(values.renderProgress, publicTime(position), total, snapshot());
+    }
     function renderPlaybackInfo() { call(values.renderPlaybackInfo, playback, snapshot()); }
-    function updateEstimatedEnd() { call(values.updateEstimatedEnd, absoluteTime(), playback && Number(playback.duration || 0) / 1000, snapshot()); }
+    function updateEstimatedEnd() { call(values.updateEstimatedEnd, publicTime(), durationSeconds(), snapshot()); }
     function notifyState() { call(values.onState, snapshot()); }
 
     function stopKeepalive() {
@@ -228,6 +275,7 @@
     function report(stateName, callback) {
       var current = playback;
       var position = absoluteTime();
+      position = publicTime(position);
       if (!PlayerTimelinePolicy.shouldReport({ hasPlayback: !!current, suppressed: timelineSuppressed, position: position })) {
         call(callback, position, false);
         return false;
@@ -265,20 +313,56 @@
 
     function capabilitiesFor(current) {
       var source = call(values.capabilities) || {};
+      var tracksRequireTranscode = false;
       var capabilities = {
         directPlay: source.directPlay,
         codecs: source.codecs,
         containers: source.containers,
+        known: source.known,
         uhd: source.uhd,
         hdr10: source.hdr10,
         dolbyVision: source.dolbyVision,
-        hdrKnown: source.hdrKnown
+        hdrKnown: source.hdrKnown,
+        tracksRequireTranscode: false
       };
       var selectedAudio = String(current.options.audioStreamID || '');
       var defaultAudio = '';
       (current.audioTracks || []).forEach(function (track) { if (track.selected) { defaultAudio = String(track.id || ''); } });
-      if (current.options.subtitleStreamID || (selectedAudio && defaultAudio && selectedAudio !== defaultAudio)) { capabilities.directPlay = false; }
+      tracksRequireTranscode = !!current.options.subtitleStreamID || !!(selectedAudio && defaultAudio && selectedAudio !== defaultAudio);
+      capabilities.tracksRequireTranscode = tracksRequireTranscode;
       return capabilities;
+    }
+
+    function selectedVersionFor(current) {
+      var versions = current && current.mediaVersions || [];
+      var mediaIndex = Number(current && current.options && current.options.mediaIndex || 0);
+      var partIndex = Number(current && current.options && current.options.partIndex || 0);
+      var index;
+      for (index = 0; index < versions.length; index += 1) {
+        if (Number(versions[index].mediaIndex || 0) === mediaIndex && Number(versions[index].partIndex || 0) === partIndex) {
+          return versions[index];
+        }
+      }
+      return versions[0] || null;
+    }
+
+    function compatibilityContext(current) {
+      var version = selectedVersionFor(current) || {};
+      var options = current && current.options || {};
+      var audio = trackForId(version.audioTracks || current && current.audioTracks, options.audioStreamID);
+      var subtitles = trackForId(version.subtitleTracks || current && current.subtitleTracks, options.subtitleStreamID);
+      return {
+        serverIdentity: call(values.compatibilityIdentity) || config.apiBaseUrl || 'server',
+        mediaIdentity: current && current.ratingKey || '',
+        fileIdentity: version.partKey || version.partId || version.fileName || current && current.partKey || '',
+        mediaIndex: version.mediaIndex,
+        partIndex: version.partIndex,
+        audioStreamID: audio && audio.id || '',
+        subtitleStreamID: subtitles && subtitles.id || '',
+        audio: audio ? { codec: audio.codec, profile: audio.profile, channels: audio.channels, language: audio.language || audio.languageCode || audio.languageTag } : null,
+        subtitles: subtitles ? { codec: subtitles.codec, format: subtitles.format, source: subtitles.source || (subtitles.external || subtitles.key ? 'external' : 'internal'), language: subtitles.language || subtitles.languageCode || subtitles.languageTag, forced: subtitles.forced === true || subtitles.forced === '1' } : null,
+        enabled: call(values.compatibilityEnabled) !== false
+      };
     }
 
     function planFor(current) {
@@ -287,7 +371,9 @@
         capabilitiesFor(current),
         current.mediaVersions || [],
         current.options.mediaIndex,
-        current.requestedVideoQuality || current.options.videoQuality || 'original'
+        current.requestedVideoQuality || current.options.videoQuality || 'original',
+        compatibilityMemory,
+        compatibilityContext(current)
       );
     }
 
@@ -317,6 +403,71 @@
 
     function directOnlyViolation(current) {
       return !!current && current.requestedPlaybackMode === 'direct' && /^transcode-/.test(String(current.playbackMode || ''));
+    }
+
+    function compatibilityRequest(current, step) {
+      var version = selectedVersionFor({
+        mediaVersions: current && current.mediaVersions || [],
+        options: { mediaIndex: step && step.mediaIndex, partIndex: step && step.partIndex }
+      }) || {};
+      var audio = trackForId(current && current.audioTracks, current && current.options && current.options.audioStreamID);
+      var subtitles = trackForId(current && current.subtitleTracks, current && current.options && current.options.subtitleStreamID);
+      var source = copyObject(version);
+      if (audio) {
+        source.audioCodec = audio.codec || source.audioCodec;
+        source.audioProfile = audio.profile || source.audioProfile;
+        source.audioChannels = audio.channels || source.audioChannels;
+        source.audioLanguage = audio.language || source.audioLanguage;
+        source.audioStreamID = audio.id || source.audioStreamID;
+      }
+      if (subtitles) {
+        source.subtitleCodec = subtitles.codec || source.subtitleCodec;
+        source.subtitleFormat = subtitles.format || source.subtitleFormat;
+        source.subtitleSource = subtitles.source || (subtitles.external ? 'external' : 'internal');
+        source.subtitleLanguage = subtitles.language || source.subtitleLanguage;
+        source.subtitleStreamID = subtitles.id || source.subtitleStreamID;
+      }
+      var context = compatibilityContext(current);
+      return {
+        kind: step && step.kind,
+        version: source,
+        audio: context.audio,
+        subtitles: context.subtitles,
+        context: context
+      };
+    }
+
+    function confirmedCompatibilityError(error, source) {
+      var code = Number(error && error.code || 0);
+      var message = String(error && (error.message || error.statusText) || '').toLowerCase();
+      if (code === 3 || code === 4) { return true; }
+      if (source !== 'native' && source !== 'prepare') { return false; }
+      return /codec|decoder|unsupported|not supported|format|container|decode|direct playback|direct stream/.test(message);
+    }
+
+    function rememberCompatibilityFailure(error, source) {
+      var step;
+      if (!compatibilityMemory || typeof compatibilityMemory.recordFailure !== 'function' || compatibilityRecordedToken === compatibilityAttemptToken) { return; }
+      step = PlaybackRecovery.current(recovery);
+      if (!step || (step.kind !== 'direct-play' && step.kind !== 'direct-stream') || !confirmedCompatibilityError(error, source)) { return; }
+      compatibilityRecordedToken = compatibilityAttemptToken;
+      compatibilityMemory.recordFailure(compatibilityRequest(playback, step), { confirmed: true });
+    }
+
+    function rememberCompatibilitySuccess() {
+      var step;
+      if (!compatibilityMemory || typeof compatibilityMemory.recordSuccess !== 'function') { return; }
+      step = PlaybackRecovery.current(recovery);
+      if (!step || (step.kind !== 'direct-play' && step.kind !== 'direct-stream')) { return; }
+      compatibilityMemory.recordSuccess(compatibilityRequest(playback, step));
+    }
+
+    function notifyDirectPlaybackFailure(error, source) {
+      if (!playback || playback.requestedPlaybackMode !== 'direct' || typeof values.onDirectPlaybackFailure !== 'function') { return false; }
+      if (directFailureNotifiedToken === compatibilityAttemptToken || !confirmedCompatibilityError(error, source)) { return false; }
+      directFailureNotifiedToken = compatibilityAttemptToken;
+      call(values.onDirectPlaybackFailure, error, retry, switchToAutomatic);
+      return true;
     }
 
     function cancelLocalSubtitleRequest() {
@@ -389,12 +540,15 @@
     function applyAttempt(preserveFrame) {
       var step = PlaybackRecovery.current(recovery);
       var position = Math.max(0, Number(recovery.position || 0));
+      var streamOffset;
       var current = playback;
       var attemptGeneration = generation;
       var attemptSession;
       var prepareRequest;
       var prepareCompleted = false;
       if (!current || !step || !active()) { call(values.showError, false, retry); return; }
+      compatibilityAttemptToken += 1;
+      terminalPlayback = false;
       recovery = PlaybackRecovery.start(recovery, position);
       applyVersion(current, step);
       current.options.delivery = step.kind === 'direct-play' ? 'direct-play' : step.kind;
@@ -402,10 +556,15 @@
       current.options.partIndex = step.partIndex;
       current.options.videoQuality = step.videoQuality;
       current.options.videoResolution = step.videoResolution;
+      current.options.safeTranscode = step.safeTranscode === true;
       current.options.playbackMode = step.kind === 'transcode' || step.kind === 'safe-transcode' ? 'transcode' : 'auto';
-      current.options.offset = step.kind === 'direct-play' ? 0 : position;
-      current.offsetBase = step.kind === 'direct-play' ? 0 : position;
+      streamOffset = step.kind === 'direct-play' ? 0 : position;
+      if (step.kind === 'direct-stream' && isTerminalDirectWindow(position)) { streamOffset = terminalStreamStart(position); }
+      current.options.offset = streamOffset;
+      current.offsetBase = streamOffset;
       current.directSeekTarget = step.kind === 'direct-play' ? position : null;
+      current.terminalSeekTarget = step.kind === 'direct-stream' && isTerminalDirectWindow(position) ? position : null;
+      current.terminalNativeSeekTarget = current.terminalSeekTarget === null ? null : terminalNativeTarget(position, streamOffset);
       stopKeepalive();
       PlexClient.rotateTranscodeSession(current);
       attemptSession = current.transcodeSession;
@@ -421,7 +580,10 @@
         prepareCompleted = true;
         if (playbackPrepareRequest === prepareRequest) { playbackPrepareRequest = null; }
         if (!active() || playback !== current || attemptGeneration !== generation || current.transcodeSession !== attemptSession) { return; }
-        if (error || !sourceUrl || directOnlyViolation(current)) { recover(error); return; }
+        if (error || !sourceUrl || directOnlyViolation(current)) {
+          recover.apply(null, [error || (directOnlyViolation(current) ? new Error('unsupported direct playback') : new Error('playback source unavailable')), 'prepare']);
+          return;
+        }
         current.sourceUrl = sourceUrl;
         current.hlsUrl = sourceUrl;
         startKeepalive();
@@ -439,13 +601,16 @@
     }
 
     function recover(error) {
+      var source = arguments.length > 1 ? arguments[1] : 'native';
       var position = !playback ? 0 : (streamSwitching ? Number(recovery.position || 0) : absoluteTime());
       var offline = call(values.isOffline) === true || timerRoot.navigator && timerRoot.navigator.onLine === false;
       if (recoveryTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(recoveryTimer); }
       recoveryTimer = null;
       if (error) { call(values.onError, error); }
+      rememberCompatibilityFailure(error, source);
       if (!playback || !recovery.plan.length) {
         streamSwitching = false;
+        if (notifyDirectPlaybackFailure(error, source)) { notifyState(); return; }
         call(values.showError, false, retry);
         notifyState();
         return;
@@ -459,6 +624,7 @@
       }
       if (recovery.status === 'failed') {
         streamSwitching = false;
+        if (notifyDirectPlaybackFailure(error, source)) { notifyState(); return; }
         call(values.showError, false, retry);
         notifyState();
         return;
@@ -474,11 +640,46 @@
       return true;
     }
 
+    function switchToAutomatic(callback) {
+      var current = playback;
+      var position;
+      if (!current || !active()) { call(callback, new Error('playback unavailable')); return false; }
+      position = absoluteTime();
+      current.requestedPlaybackMode = 'auto';
+      current.options.playbackMode = 'auto';
+      recovery = PlaybackRecovery.create(planFor(current));
+      recovery.position = position;
+      applyAttempt(true);
+      call(values.onSettingsApplied, current, snapshot());
+      call(callback, null, snapshot());
+      return true;
+    }
+
     function resumeRebuiltStream() {
       if (resumeTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(resumeTimer); }
       if (!timerRoot.setTimeout) { return; }
       resumeTimer = timerRoot.setTimeout(function () {
         if (!active() || !video || video.readyState < 2) { return; }
+        if (playback && playback.terminalEndPause) {
+          if (nativeSeekPending) {
+            resumeRebuiltStream();
+            return;
+          }
+          try { video.pause(); } catch (error) {}
+          streamSwitching = false;
+          buffering = false;
+          clock = PlaybackClock.freeze(clock, true);
+          playback.terminalEndPause = false;
+          terminalPlayback = true;
+          setLoading(false);
+          setStatus('ended');
+          timelineSuppressed = false;
+          renderProgress(durationSeconds(), durationSeconds());
+          report('stopped');
+          call(values.onEnded, snapshot());
+          notifyState();
+          return;
+        }
         if (pendingRestore && pendingRestore.paused) {
           streamSwitching = false;
           buffering = false;
@@ -507,6 +708,7 @@
       var current = playback;
       var target;
       var recoveryStep;
+      var streamOffset;
       var transcodeSession;
       var rebuildGeneration = generation;
       var prepareRequest;
@@ -531,7 +733,7 @@
           startKeepalive();
           renderPlaybackInfo();
           video.pause();
-          current.offsetBase = target;
+          current.offsetBase = streamOffset;
           video.src = sourceUrl;
           video.load();
           notifyState();
@@ -543,7 +745,7 @@
           prepareCompleted = true;
           if (playbackPrepareRequest === prepareRequest) { playbackPrepareRequest = null; }
           if (!active() || playback !== current || current.transcodeSession !== transcodeSession || rebuildGeneration !== generation) { return; }
-          if (error || !sourceUrl) { failPrepare(error, 'stream-error'); recover(error); return; }
+          if (error || !sourceUrl) { failPrepare(error, 'stream-error'); recover.apply(null, [error, 'rebuild']); return; }
           applySource(sourceUrl);
         });
         if (!prepareCompleted && active() && playback === current && current.transcodeSession === transcodeSession && rebuildGeneration === generation) {
@@ -561,7 +763,13 @@
         return true;
       }
       recovery = PlaybackRecovery.rebuild(recovery, target);
-      current.options.offset = target;
+      recoveryStep = PlaybackRecovery.current(recovery);
+      terminalPlayback = false;
+      streamOffset = recoveryStep && recoveryStep.kind === 'direct-stream' ? terminalStreamStart(target) : target;
+      current.options.offset = streamOffset;
+      current.directSeekTarget = null;
+      current.terminalSeekTarget = recoveryStep && recoveryStep.kind === 'direct-stream' && isTerminalDirectWindow(target) ? target : null;
+      current.terminalNativeSeekTarget = current.terminalSeekTarget === null ? null : terminalNativeTarget(target, streamOffset);
       pendingSeek = null;
       if (seekTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(seekTimer); }
       seekTimer = null;
@@ -587,8 +795,11 @@
     function commitSeek(options) {
       var decision;
       var target;
+      var terminalPause = pendingTerminalPause;
       var forceRebuild = options && options.forceRebuild;
       if (pendingSeek === null || !playback || !active()) { return; }
+      pendingTerminalPause = false;
+      playback.terminalEndPause = terminalPause;
       if (streamSwitching) {
         target = pendingSeek;
         pendingSeek = null;
@@ -599,6 +810,7 @@
       target = pendingSeek;
       pendingSeek = null;
       seekTimer = null;
+      forceRebuild = forceRebuild === true || terminalPause || (playback.options.delivery === 'direct-stream' && isTerminalDirectWindow(target));
       decision = PlayerSeekController.decide({
         target: target,
         duration: Number(playback.duration || 0) / 1000,
@@ -607,7 +819,7 @@
         buffered: ranges(video.buffered),
         seekable: ranges(video.seekable),
         directPlay: playback.options.delivery === 'direct-play',
-        forceRebuild: forceRebuild === true
+        forceRebuild: forceRebuild
       });
       if (!decision) { return; }
       if (decision.operation === 'rebuild') { rebuild(decision.target, false); return; }
@@ -632,15 +844,16 @@
 
     function seekAbsolute(seconds, options) {
       var duration;
+      var requested;
       var target;
       options = options || {};
       if (!playback || !isFinite(Number(seconds))) { return false; }
       duration = Number(playback.duration || 0) / 1000;
       if (!isFinite(duration) || duration <= 0) { return false; }
-      target = Math.max(0, Math.min(duration, Number(seconds)));
-      if (duration > END_SEEK_GUARD_SECONDS && target > duration - END_SEEK_GUARD_SECONDS) {
-        target = duration - END_SEEK_GUARD_SECONDS;
-      }
+      requested = Math.max(0, Math.min(duration, Number(seconds)));
+      terminalPlayback = false;
+      pendingTerminalPause = isTerminalPauseTarget(requested);
+      target = pendingTerminalPause ? duration : requested;
       pendingSeek = target;
       if (seekTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(seekTimer); }
       if (options.immediate || !timerRoot.setTimeout) { commitSeek(options); }
@@ -1190,6 +1403,7 @@
       detail = request.detail || request.item || null;
       ratingKey = detail && detail.ratingKey;
       if (destroyed || !ratingKey) { call(callback, new Error('playback item unavailable')); return false; }
+      terminalPlayback = false;
       if (playback) { report('stopped'); }
       generation += 1;
       openGeneration = generation;
@@ -1312,6 +1526,8 @@
       clockRepairTimer = null;
       clockRepairFallbackTimer = null;
       pendingSeek = null;
+      pendingTerminalPause = false;
+      terminalPlayback = false;
       pendingRestore = null;
       timelineSuppressed = false;
       localSubtitleState = null;
@@ -1349,7 +1565,7 @@
       var reported;
       generation += 1;
       if (!current) { closeInternal(true); call(callback, 0, false, ratingKey); return false; }
-      position = absoluteTime();
+      position = publicTime();
       reported = PlayerTimelinePolicy.shouldReport({ hasPlayback: true, suppressed: timelineSuppressed, position: position });
       if (reported) {
         PlexClient.sendTimeline(config, current, 'stopped', position * 1000, function () {
@@ -1365,13 +1581,19 @@
 
     function onPlaying() {
       if (!active() || !playback) { return; }
+      if (playback.terminalEndPause) {
+        try { video.pause(); } catch (error) {}
+        return;
+      }
       stopBuffering();
       if (resumeTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(resumeTimer); }
       resumeTimer = null;
       streamSwitching = false;
       buffering = false;
+      terminalPlayback = false;
       clock = PlaybackClock.freeze(clock, false);
       recovery = PlaybackRecovery.playing(recovery);
+      rememberCompatibilitySuccess();
       call(values.hideError);
       startKeepalive();
       if (!nativeSeekPending) { setLoading(false); }
@@ -1388,26 +1610,41 @@
     }
 
     function onCanPlay() {
-      var directTarget;
+      var nativeTarget = null;
+      var absoluteTarget = null;
       if (!active() || !playback) { return; }
       stopBuffering();
-      if (playback.directSeekTarget !== null && playback.directSeekTarget !== undefined) {
-        directTarget = Number(playback.directSeekTarget || 0);
-        if (directTarget > 0.25) {
-          nativeSeekPending = true;
-          armNativeSeekVerification(directTarget, directTarget);
-          try { video.currentTime = directTarget; }
-          catch (error) {
-            nativeSeekPending = false;
-            nativeSeekTarget = null;
-            nativeSeekAbsoluteTarget = null;
-            if (nativeSeekVerificationTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(nativeSeekVerificationTimer); }
-            nativeSeekVerificationTimer = null;
-            recover(error);
-            return;
-          }
-        }
+      if (playback.terminalEndPause) {
+        nativeTarget = Number(video.duration);
+        nativeTarget = isFinite(nativeTarget) && nativeTarget > 0 ? Math.max(0, nativeTarget - 0.05) : Number(playback.terminalNativeSeekTarget || 0);
+        absoluteTarget = durationSeconds();
+        playback.terminalNativeSeekTarget = null;
+        playback.terminalSeekTarget = null;
+      }
+      else if (playback.directSeekTarget !== null && playback.directSeekTarget !== undefined) {
+        nativeTarget = Number(playback.directSeekTarget || 0);
+        absoluteTarget = nativeTarget;
         playback.directSeekTarget = null;
+      }
+      else if (playback.terminalNativeSeekTarget !== null && playback.terminalNativeSeekTarget !== undefined) {
+        nativeTarget = Number(playback.terminalNativeSeekTarget || 0);
+        absoluteTarget = Number(playback.terminalSeekTarget || 0);
+        playback.terminalNativeSeekTarget = null;
+        playback.terminalSeekTarget = null;
+      }
+      if (nativeTarget !== null && nativeTarget > 0.25) {
+        nativeSeekPending = true;
+        armNativeSeekVerification(absoluteTarget, nativeTarget);
+        try { video.currentTime = nativeTarget; }
+        catch (error) {
+          nativeSeekPending = false;
+          nativeSeekTarget = null;
+          nativeSeekAbsoluteTarget = null;
+          if (nativeSeekVerificationTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(nativeSeekVerificationTimer); }
+          nativeSeekVerificationTimer = null;
+          recover.apply(null, [error, 'seek']);
+          return;
+        }
       }
       if (streamSwitching) { resumeRebuiltStream(); }
       else if (video.paused) { video.play(); }
@@ -1453,7 +1690,7 @@
 
     function onPause() {
       stopBuffering();
-      if (streamSwitching || !active() || !playback) { return; }
+      if (streamSwitching || terminalPlayback || !active() || !playback) { return; }
       buffering = false;
       clock = PlaybackClock.freeze(clock, false);
       setLoading(false);
@@ -1465,7 +1702,7 @@
 
     function onTimeUpdate() {
       if (!playback) { return; }
-      renderProgress(displayTime(), Number(playback.duration || 0) / 1000);
+      renderProgress(displayTime(), durationSeconds());
       if (subtitleEditorState && subtitleEditorState.open && subtitleEditorState.loop &&
           absoluteTime() >= subtitleEditorState.bounds.end - 0.05 && !streamSwitching) {
         seekAbsolute(subtitleEditorState.bounds.start, { immediate: true, source: 'subtitle-loop' });
@@ -1475,7 +1712,10 @@
     }
 
     function onEnded() {
-      if (streamSwitching || !playback) { return; }
+      if (streamSwitching || terminalPlayback || !playback || playback.terminalEndPause) { return; }
+      terminalPlayback = true;
+      clock = PlaybackClock.freeze(clock, true);
+      renderProgress(durationSeconds(), durationSeconds());
       report('stopped');
       setStatus('ended');
       call(values.onEnded, snapshot());
@@ -1484,7 +1724,7 @@
     function onError() {
       if (!active()) { return; }
       setStatus('playback-error');
-      recover(video && video.error || new Error('native playback error'));
+      recover.apply(null, [video && video.error || new Error('native playback error'), 'native']);
     }
 
     function bind(target, name, handler) {
@@ -1533,7 +1773,7 @@
         playback: current,
         ratingKey: current && current.ratingKey || '',
         durationSeconds: current ? Number(current.duration || 0) / 1000 : 0,
-        positionSeconds: current ? displayTime() : 0,
+        positionSeconds: current ? publicTime() : 0,
         offsetBase: current ? Number(current.offsetBase || 0) : 0,
         streamSwitching: streamSwitching,
         buffering: buffering,
@@ -1573,7 +1813,10 @@
         buffering: buffering,
         nativeSeekPending: nativeSeekPending,
         timelineSuppressed: timelineSuppressed,
-        clockRepairCount: clockRepairCount
+        clockRepairCount: clockRepairCount,
+        nativeReadyState: video ? Number(video.readyState || 0) : null,
+        nativeNetworkState: video ? Number(video.networkState || 0) : null,
+        nativeErrorCode: video && video.error ? Number(video.error.code || 0) : null
       };
     }
 

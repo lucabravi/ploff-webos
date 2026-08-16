@@ -1,0 +1,21 @@
+{
+  "format": "ploff-settings",
+  "version": 3,
+  "appVersion": "1.0.6",
+  "createdAt": 2000,
+  "device": {
+    "id": "current-bedroom",
+    "name": "Current Bedroom",
+    "model": "OLED42",
+    "webOS": "9.0",
+    "width": 1920,
+    "height": 1080
+  },
+  "settings": {
+    "version": 3,
+    "uiLanguage": "en",
+    "visualTheme": "immersive",
+    "cardScale": 100,
+    "settingsBackupMode": "on"
+  }
+}

@@ -4,6 +4,25 @@ Ploff is a dependency-free webOS application built for the older Chrome 53
 WebView. Runtime JavaScript uses ES5 syntax and communicates directly with Plex
 Media Server over the local network.
 
+## Architecture at a glance
+
+```text
+TV shell (index.html, styles.css, generated app.js)
+  |
+  +-- ApplicationController (composition only)
+  |     +-- Shell / Search / Library / Detail / Player / Settings / Setup / Server / Diagnostics
+  |     +-- explicit semantic ports between feature owners
+  |
+  +-- PlexClient / PlexHttp --------------------------> Plex Media Server
+  +-- webOS Luna discovery service -- multicast GDM -> local network
+  +-- Settings / credential vault / bounded caches --> TV-local persistence
+```
+
+The application has one shared DOM, one generated stylesheet, and one generated ES5
+coordinator bundle. Feature controllers own their own DOM, timers, requests, and
+mutable state. Cross-feature communication goes through explicit ports supplied by the
+composition root rather than through shared controller internals.
+
 ## Components
 
 - `app/` contains the TV interface, player, Plex API client, authentication,
@@ -44,13 +63,10 @@ for deterministic transformations and DOM-specific presentation contracts.
 
 ## Modular coordinator
 
-The coordinator is maintained as complete modules. No JavaScript remains under
-`app/source/`, and
-`app/.modular-coordinator` activates the modular repository baseline. The
-remaining release gate is cumulative verification on a physical LG webOS TV;
-that signoff is deliberately separate from the structural migration and is bound to
-the exact normalized matrix in `testing.md` by SHA-256. A previous matrix cannot be
-reused merely because it has the same number of checks.
+No runtime JavaScript lives under `app/source/`; the modular baseline is activated by
+`app/.modular-coordinator`. Physical-TV release signoff is deliberately separate from
+structural/runtime verification and is bound to the exact normalized matrix in
+`testing.md` by SHA-256; signoff evidence from a different matrix is not reusable.
 
 ```text
 app/coordinator/
@@ -109,10 +125,16 @@ focus, preserved-result resume, and lifecycle around
 `search-controller.js`. `settings-feature-controller.js` composes the
 Settings controller, owns the Settings surface lifecycle, publishes persisted
 settings through `ApplicationSession`, and exposes semantic input and pointer
-operations without root-level view facades. `diagnostics-feature-controller.js`
+operations without root-level view facades. `app/settings-schema.js` is the persisted
+Settings field registry; `app/settings.js` separately owns the versioned storage contract,
+validation orchestration, Plex seeding, and sequential migration from older persisted keys.
+`app/settings-catalog.js` remains presentation-only, so upgrades happen before feature
+construction without coupling persistence metadata to Settings UI rows.
+`diagnostics-feature-controller.js`
 composes the diagnostics controller, owns the Diagnostics surface lifecycle,
-forms device/server/playback snapshots from explicit providers, and exposes
-semantic input and pointer operations without root-level diagnostics helpers.
+forms device/server/playback/Settings/compatibility snapshots from explicit providers, and
+exposes semantic input and pointer operations without root-level diagnostics helpers.
+`support-snapshot.js` reduces those values through privacy-safe allowlists before export.
 `setup-feature-controller.js` permanently replaces the transitional Setup
 adapter, composes onboarding/profile presentation and auth/scan lifecycle, owns
 first-run, Profile Manager, and manual-setup entry flows, and consumes explicit
@@ -148,12 +170,15 @@ providers through semantic occurrence results. `QueueGapController` and
 provider state through `ApplicationSession`. The native-video algorithms remain
 exclusively in `playback-controller.js`.
 `choice-dialog-controller.js` and `media-info-dialog-controller.js` are the sole
-owners of their shared dialog DOM surfaces and callbacks. Controllers do not
-read or mutate another controller's private state.
+owners of their shared dialog DOM surfaces and callbacks. The media-info owner has
+a read-only Player information mode and a Detail version-browser mode: Detail
+supplies immutable preview choices plus an apply callback, while the dialog owns
+preview focus, technical scrolling, Cancel/Apply navigation, and commit timing.
+Controllers do not read or mutate another controller's private state.
 
-`application-controller.js` contains explicit dependency
-resolution, feature construction, fixed cross-feature transitions, global event
-wiring, startup calls, and teardown through one reverse ownership stack.
+`application-controller.js` contains explicit dependency resolution, feature
+construction, fixed cross-feature transitions, global event wiring, startup calls,
+and teardown through one reverse ownership stack.
 `npm run check:architecture` uses an ECMAScript 5 AST to reject direct root Plex
 transport, feature presentation mutation, root-owned feature timers, private
 controller construction, mutable snapshot aliases, and native-video writes outside
@@ -334,4 +359,6 @@ manual playback and navigation matrix is in [`testing.md`](testing.md).
 
 Lifecycle guidance for the modular coordinator is documented in
 [`application-source-architecture.md`](application-source-architecture.md) and
-[`maintenance.md`](maintenance.md).
+[`maintenance.md`](maintenance.md). Behavioral ownership is frozen by the focused
+controller, feature, composition, lifecycle, and bundle contract tests described in
+[`testing.md`](testing.md).

@@ -385,6 +385,14 @@ assert.ok(detailedAddresses.some(function (item) { return item.kind === 'remote'
 assert.ok(detailedAddresses.some(function (item) { return item.uri === directUri; }), 'non-compact address presentation must retain plex.direct routes');
 var compactAddresses = feature.addressesFor(serverA, true);
 assert.ok(compactAddresses.some(function (item) { return item.kind === 'direct' && item.count === 1; }), 'compact presentation must summarize unmatched plex.direct routes');
+var manyLocalAddresses = feature.addressesFor({
+  name: serverA.name,
+  uri: localUri,
+  machineIdentifier: serverA.machineIdentifier,
+  connections: [localUri, 'http://192.168.1.11:32400', remoteUri, directUri]
+}, true);
+assert.strictEqual(manyLocalAddresses.filter(function (item) { return item.kind === 'local'; }).length, 1, 'compact server presentation must show one local endpoint');
+assert.strictEqual(manyLocalAddresses.filter(function (item) { return item.kind === 'local'; })[0].uri, localUri, 'compact server presentation must prefer the active local endpoint');
 assert.strictEqual(feature.normalizeManualAddress('http://server:32400/'), 'http://server:32400', 'manual addresses must use ServerDiscovery normalization');
 assert.strictEqual(feature.shouldOfferConnection(localUri), true, 'local connection policy must be exposed semantically');
 

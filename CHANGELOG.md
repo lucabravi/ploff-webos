@@ -2,10 +2,32 @@
 
 All notable changes to Ploff are documented in this file.
 
-## [1.0.5] - 2026-08-05
+## [Unreleased]
+
+## [1.0.6] - 2026-08-16
 
 ### Added
 
+- An integrated Detail media-version browser: Version stays first and always opens
+  technical file/video/audio/subtitle information, supports non-destructive preview
+  across multiple files, and keeps explicit D-pad-reachable Cancel/Apply actions.
+- Contextual Detail media options with confirmed whole-season watched/unwatched
+  mutations, sequential best-effort updates, fresh season reload, partial-failure
+  reporting, and metadata refresh.
+- Three additional visual themes built as isolated Chrome 53/webOS designs:
+  `premiere` (premium cinematic), `nova` (futuristic tech), and `atelier`
+  (minimal luxury), each with theme-specific Home, browsing, Settings, Detail,
+  Player, focus, and motion treatments.
+- A unified local `release:package` command that rebuilds generated assets, runs the pre-release gate, packages and inspects the IPK, and writes SHA-256 checksums without mutating Git or version metadata.
+- Versioned fixtures for local Settings, saved-settings backup payloads, and playback compatibility memory, including non-destructive recovery of legacy split v2 saved-settings playlists.
+- Diagnostics support export now keeps the QR mail draft while also showing the same privacy-safe report text as a legacy-TV-friendly fallback.
+- Contextual media actions opened by long-press OK or the Magic Remote center button, with dynamic watched/unwatched, clear-progress, play-from-beginning, and Continue Watching removal choices for movies and episodes.
+- Detail media options now preserve whether a movie or episode was opened from
+  Continue Watching, exposing the same removal action with Plex refresh, toast
+  feedback, and immediate action cleanup after success.
+- TV calibration controls with independent safe-area insets and a live edge/center preview.
+- Subtitle appearance controls for background, vertical position, and text edge, with a live in-settings preview driven by the same presentation variables used by playback.
+- Optional high-contrast and stronger-focus presentation modes for TV viewing.
 - Independent poster/thumbnail and backdrop download-quality controls. Poster
   artwork uses 70%, 80%, 85%, 90%, and 100% steps with a 90% default; backdrops
   use 50%, 60%, 70%, 85%, and 100% with an 85% default. These settings change
@@ -22,6 +44,9 @@ All notable changes to Ploff are documented in this file.
   discovery on webOS while preserving manual server entry.
 - Lazy, non-blocking update checks after the first successful Home load, with a
   clickable application-version row, manual refresh, release status, and QR link.
+- Privacy-safe support reports now include allow-listed Settings and adaptive-playback
+  compatibility schema/context summaries without exposing Plex tokens, credentials, server URLs,
+  or local addresses.
 - Explicit visible Cancel, Close, or Back actions for persistent dialogs that
   previously depended only on the remote Back key.
 - Library-origin badges on mixed Home rows, Search, Watchlist, and playlist content.
@@ -31,6 +56,30 @@ All notable changes to Ploff are documented in this file.
 
 ### Changed
 
+- Accent-color Settings now sit directly below the visual theme, show the selected
+  color swatch in the main list, and are visible only for Simple and Cinema;
+  Premiere, Nova, and Atelier keep their theme-owned palettes while preserving the
+  saved global accent for later theme switches.
+- Home hero copy now uses the available horizontal gutter width instead of narrow
+  percentage/max-width caps, reducing unnecessary title truncation across the shipped
+  theme layouts while preserving each theme's visual treatment.
+- Repository documentation was consolidated around current references: completed implementation plans and intermediate benchmark logs were removed from the working tree, the roadmap now contains only open work, and README and contributor guidance now provide clearer architecture and installation onboarding.
+- Settings UI choice rows now consume bounded domain values directly from `settings-schema.js`; the catalog owns labels and presentation only.
+- Application composition regression coverage now freezes server-switch, account reset/disconnect, and shared playback-identity lifecycle boundaries.
+- Persisted Settings definitions are centralized in `settings-schema.js`, while the existing
+  Settings catalog remains presentation-only; defaults and bounded choices now have one
+  persistence authority without changing existing migration semantics.
+- Release metadata now fails verification when `package.json`, `package-lock.json`, and
+  `webos-shell-app/appinfo.json` drift, and tagged releases reuse the same canonical checker.
+- Settings categories and rows were reordered into a clearer TV-first hierarchy, with Accessibility immediately after Interface and background theme audio grouped under Audio & themes.
+- Adaptive playback compatibility fingerprints now include video bit depth and the actually selected audio/subtitle technical characteristics; file-specific exceptions also distinguish exact selected stream IDs.
+- Playback compatibility storage moved to schema v3 with bounded TV/runtime/application metadata, explicit observation/derived/user-override provenance, and migration from v2.
+- Application settings storage moved to schema v3 with explicit sequential migration from v1/v2 persisted records, including legacy video-quality, autoplay, and removed sync semantics.
+- Replaced the temporary suboptimal terminal-transcode workaround with a bounded
+  Direct Stream lookback and a verified native seek on the same absolute Plex
+  clock. Requests within the final five seconds now jump to the actual native
+  end and pause there, while ordinary Direct Play and Direct Stream playback
+  keep their selected delivery mode.
 - Ordered application settings now render as accessible stepped bars with the
   active value shown beside the track; LAN and remote video quality increase
   from 4 Mbps through 12 Mbps to Original at the rightmost step.
@@ -119,6 +168,7 @@ All notable changes to Ploff are documented in this file.
 
 ### Changed
 
+- Repository documentation was consolidated around current references: completed implementation plans and intermediate benchmark logs were removed from the working tree, the roadmap now contains only open work, and README/agent/archive guidance now provide clearer architecture and installation onboarding.
 - Playback queues now continue through mixed item types in Plex's original
   order, while automatic version selection favors the best compatible source
   according to the user's preferences.
@@ -198,6 +248,7 @@ All notable changes to Ploff are documented in this file.
 
 ### Changed
 
+- Repository documentation was consolidated around current references: completed implementation plans and intermediate benchmark logs were removed from the working tree, the roadmap now contains only open work, and README/agent/archive guidance now provide clearer architecture and installation onboarding.
 - Interface-language choices now display every language using its native name.
 - Accent-color selection keeps the inline palette and also provides a labeled
   modal with color swatches.
@@ -261,10 +312,11 @@ All notable changes to Ploff are documented in this file.
 - Expanded Home, library, search, detail, player, chapter, subtitle, onboarding,
   remote-control, and Plex server-management capabilities.
 
-[1.0.5]: https://github.com/lucabravi/ploff-webos/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/lucabravi/ploff-webos/compare/v1.0.3...v1.0.4
+[1.0.5]: https://github.com/lucabravi/ploff-webos/compare/v1.0.4...v1.0.5
+[1.0.6]: https://github.com/lucabravi/ploff-webos/compare/v1.0.5...v1.0.6
 [1.0.3]: https://github.com/lucabravi/ploff-webos/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/lucabravi/ploff-webos/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/lucabravi/ploff-webos/compare/v1.0.0...v1.0.1
 
-[Unreleased]: https://github.com/lucabravi/ploff-webos/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/lucabravi/ploff-webos/compare/v1.0.6...HEAD

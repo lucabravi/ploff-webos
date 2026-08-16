@@ -20,10 +20,13 @@
       var lines = [];
       overlay.innerHTML = '';
       active.forEach(function (cue) { text(cue.text).split('\n').forEach(function (line) { lines.push(line); }); });
+      var textContainer = documentRef.createElement('span');
+      textContainer.className = 'subtitle-preview-text';
       lines.forEach(function (line, index) {
-        if (index > 0) { overlay.appendChild(documentRef.createElement('br')); }
-        overlay.appendChild(documentRef.createTextNode(line));
+        if (index > 0) { textContainer.appendChild(documentRef.createElement('br')); }
+        textContainer.appendChild(documentRef.createTextNode(line));
       });
+      if (lines.length) { overlay.appendChild(textContainer); }
       overlay.style.fontSize = Math.round(42 * Number(size || 100) / 100) + 'px';
       overlay.className = 'subtitle-preview-overlay' + (lines.length ? '' : ' is-hidden');
     }

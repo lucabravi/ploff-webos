@@ -224,6 +224,32 @@ function grid(items, columns) {
 }());
 
 
+(function testLeavingPlaylistGridDoesNotLoadAnotherPage() {
+  var loadMoreCalls = 0;
+  var view = grid([{ key: 1 }, { key: 2 }, { key: 3 }], 3);
+  var originalSnapshot = view.snapshot;
+  var controller = Controller.create({
+    root: timerRoot(), LibraryContainers: Containers,
+    loadMore: function () { loadMoreCalls += 1; },
+    updateFocus: function () {}
+  });
+  view.snapshot = function () {
+    var snapshot = originalSnapshot();
+    snapshot.totalSize = 40;
+    return snapshot;
+  };
+  controller.bindViews({
+    grid: view,
+    lifecycle: { snapshot: function () { return { continueAvailable: true }; }, prepareLibrary: function () {}, leave: function () {} }
+  });
+  controller.enterPlaylists();
+  controller.setZone('grid');
+  controller.handleKey({ keyCode: 38 }, 'up');
+  assert.strictEqual(controller.snapshot().zone, 'nav', 'Up from a global Playlist card must focus the navbar');
+  assert.strictEqual(loadMoreCalls, 0, 'leaving a Playlist grid must not start a background page load');
+}());
+
+
 (function testGridMovementOwnsItsFocusHotPath() {
   var updates = 0;
   var view = grid([{ key: 1 }, { key: 2 }, { key: 3 }, { key: 4 }], 2);

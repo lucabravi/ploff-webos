@@ -48,12 +48,18 @@
       QueueGapView = root.PloffQueueGapView,
       PlaybackQueueController = root.PloffPlaybackQueueController,
       PlayerControlsController = root.PloffPlayerControlsController, PlaybackController = root.PloffPlaybackController,
-      PlayerFeatureController = root.PloffPlayerFeatureController;
-    var DiagnosticsState = root.PloffDiagnosticsState, DiagnosticsView = root.PloffDiagnosticsView,
+      PlayerFeatureController = root.PloffPlayerFeatureController,
+      PlaybackCompatibilityMemory = root.PloffPlaybackCompatibilityMemory;
+    var DiagnosticsState = root.PloffDiagnosticsState, RuntimeErrorStore = root.PloffRuntimeErrorStore,
+      DiagnosticsView = root.PloffDiagnosticsView,
+      SupportSnapshot = root.PloffSupportSnapshot, SupportQr = root.PloffSupportQr,
       DiagnosticsController = root.PloffDiagnosticsController,
       DiagnosticsFeatureController = root.PloffDiagnosticsFeatureController;
     var Settings = root.PloffSettings, LocalData = root.PloffLocalData,
+      SettingsBackupFormat = root.PloffSettingsBackupFormat, PlexSettingsBackupStore = root.PloffPlexSettingsBackupStore,
       SettingsCatalog = root.PloffSettingsCatalog, SettingsView = root.PloffSettingsView,
+      SafeAreaDialog = root.PloffSafeAreaDialog, SubtitleStyleDialog = root.PloffSubtitleStyleDialog,
+      TextInputDialog = root.PloffTextInputDialog,
       SettingsController = root.PloffSettingsController,
       SettingsFeatureController = root.PloffSettingsFeatureController;
     var SetupView = root.PloffSetupView, SetupScanIndicator = root.PloffSetupScanIndicator,
@@ -69,6 +75,7 @@
       DeviceLocale = root.PloffDeviceLocale, ApplicationEvents = root.PloffApplicationEvents,
       ApplicationSession = root.PloffApplicationSession, InputTargetRouter = root.PloffInputTargetRouter,
       InputController = root.PloffInputController, PointerController = root.PloffPointerController,
+      MediaContextController = root.PloffMediaContextController,
       ReleaseStatus = root.PloffReleaseStatus, BuildInfo = root.PloffBuildInfo || { version: 'development' };
     var formatTime = PlayerTimelinePolicy.formatTime;
     var formatLongTime = PlayerTimelinePolicy.formatLongTime;
@@ -155,6 +162,28 @@
     var applicationSession = constructOwner(function () {
       return ApplicationSession.create({ view: 'home', settings: appSettings, config: config });
     });
+    var runtimeErrorStore = constructOwner(function () {
+      if (!RuntimeErrorStore || typeof RuntimeErrorStore.create !== 'function') {
+        return { snapshot: function () { return []; }, destroy: function () {} };
+      }
+      return RuntimeErrorStore.create({ root: root, DiagnosticsState: DiagnosticsState });
+    });
+    var playbackCompatibilityMemory = constructOwner(function () {
+      if (!PlaybackCompatibilityMemory || typeof PlaybackCompatibilityMemory.create !== 'function') {
+        return { shouldSkip: function () { return false; }, recordFailure: function () {}, recordSuccess: function () {}, snapshot: function () { return { formatRuleCount: 0, fileExceptionCount: 0, fileExceptionTtlDays: 30 }; }, clearFormatRules: function () {}, clearFileExceptions: function () {}, clear: function () {}, destroy: function () {} };
+      }
+      return PlaybackCompatibilityMemory.create({
+        storage: root.localStorage,
+        metadata: function () {
+          return {
+            model: playbackCapabilities && playbackCapabilities.modelName || '',
+            runtime: String(root.navigator && root.navigator.userAgent || ''),
+            appVersion: BuildInfo.version
+          };
+        },
+        onChange: function () { if (settingsBackupStore) { settingsBackupStore.scheduleAutoSave(); } }
+      });
+    });
     function currentView() {
       return String(applicationSession.view() || 'home');
     }
@@ -185,6 +214,7 @@
     var playerFeature = null;
     var inputController = null;
     var pointerController = null;
+    var mediaContextController = null;
     function detailSnapshot() { return detailFeature ? detailFeature.snapshot() : {}; }
     serverFeature = constructOwner(function () {
       return ServerFeatureController.create({
@@ -262,8 +292,24 @@
       }
     });
     });
+    var settingsBackupStore = constructOwner(function () {
+      if (!SettingsBackupFormat || !PlexSettingsBackupStore) { throw new Error('ApplicationController requires settings backup modules'); }
+      return PlexSettingsBackupStore.create({
+        storage: root.localStorage,
+        settings: function () { return appSettings; },
+        config: function () { return config; },
+        deviceInfo: function () { return playbackCapabilities; },
+        appVersion: BuildInfo.version,
+        transport: {
+          list: PlexClient.loadSettingsBackupPlaylists,
+          create: PlexClient.createSettingsBackupPlaylist,
+          update: PlexClient.updateSettingsBackupPlaylist,
+          remove: PlexClient.deleteSettingsBackupPlaylist
+        }
+      });
+    });
     var choiceDialogController = constructOwner(function () {
-      return ChoiceDialogController.create({ document: document, ChoiceDialogView: ChoiceDialogView, t: t });
+      return ChoiceDialogController.create({ document: document, ChoiceDialogView: ChoiceDialogView, t: t, CardLayout: CardLayout });
     });
     var mediaInfoDialogController = constructOwner(function () {
       return MediaInfoDialogController.create({
@@ -390,6 +436,7 @@
       },
       data: {
         PlexClient: detailPlexClient, config: config, mediaPreferenceIdentity: mediaPreferenceIdentity, playbackCapabilities: function () { return playbackCapabilities; }, settings: function () { return appSettings; }, activeVideoQuality: function () { return settingsFeature ? settingsFeature.activeVideoQuality() : 'original'; },
+        mediaContext: { removeFromContinueWatching: function (target, callback) { return mediaContextController && mediaContextController.removeFromContinueWatching(target, callback); } },
         waitForActivity: function (activityId, callback) {
           if (serverFeature) { serverFeature.waitForActivity(activityId, callback); }
           else if (callback) { callback({ cancelled: true }); }
@@ -418,8 +465,9 @@
         toggle: function (cloudKey, enabled, local, callback) { return libraryFeature.toggleWatchlist(cloudKey, enabled, local, callback); }
       },
       dialogs: {
-        openChoice: openChoiceDialog, mediaInfoOpen: function () { return mediaInfoDialogController.snapshot().open; }, openMediaInfo: function (model, origin) { return mediaInfoDialogController.open(model, origin); }, closeMediaInfo: function () { return mediaInfoDialogController.close(); },
-        scrollMediaInfo: function (direction) { return mediaInfoDialogController.scroll(direction); }
+        openChoice: openChoiceDialog, mediaInfoOpen: function () { return mediaInfoDialogController.snapshot().open; }, openMediaInfo: function (model, origin) { return mediaInfoDialogController.open(model, origin); },
+        openMediaVersions: function (options, origin) { return mediaInfoDialogController.openVersions(options, origin); },
+        handleMediaInfoKey: function (event, direction) { return mediaInfoDialogController.handleKey(event, direction); }
       },
       state: {
         currentView: function () { return currentView(); }, pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); }, animationsEnabled: function () { return appSettings.interfaceAnimations; },
@@ -452,7 +500,7 @@
         UpNextView: UpNextView
       },
       data: {
-        PlexClient: playerPlexClient, config: config, playbackCapabilities: function () { return playbackCapabilities; }, activeServer: function () { return serverFeature.activeServer(); }, subscribeNetwork: function (listener) { return serverFeature.subscribeNetwork(listener); },
+        PlexClient: playerPlexClient, config: config, playbackCapabilities: function () { return playbackCapabilities; }, compatibilityMemory: playbackCompatibilityMemory, compatibilityIdentity: function () { var server = serverFeature.activeServer(); return server && (server.machineIdentifier || server.uri || server.name) || config.apiBaseUrl || 'server'; }, compatibilityEnabled: function () { return appSettings.adaptivePlaybackMemory !== false; }, activeServer: function () { return serverFeature.activeServer(); }, subscribeNetwork: function (listener) { return serverFeature.subscribeNetwork(listener); },
         networkAvailable: function (snapshot) { return snapshot && snapshot.lanAvailable !== false; }
       },
       shell: {
@@ -476,7 +524,8 @@
       library: {
         snapshot: function () { return libraryFeature ? libraryFeature.snapshot() : {}; }, activeContainer: function () { return libraryFeature ? libraryFeature.activeContainer() : null; }, playbackContext: function () { return libraryFeature ? libraryFeature.playbackContext() : {}; },
         focusedItem: function () { return libraryFeature ? libraryFeature.focusedItem() : null; }, pointerFocus: function (target, index, button) { return libraryFeature && libraryFeature.pointerFocus(target, index, button); },
-        restoreContainerOrigin: function (options) { return libraryFeature && libraryFeature.restoreContainerOrigin(options); }
+        restoreContainerOrigin: function (options) { return libraryFeature && libraryFeature.restoreContainerOrigin(options); },
+        refreshAfterPlayback: function (ratingKey, seconds) { return libraryFeature && libraryFeature.reconcilePlaybackProgress(ratingKey, seconds); }
       },
       dialogs: {
         openChoice: function (options) { return choiceDialogController.open(options); }, openMediaInfo: function (model, origin) { return mediaInfoDialogController.open(model, origin); }, closeMediaInfo: function () { return mediaInfoDialogController.close(); },
@@ -493,10 +542,76 @@
         capturePlayback: function () { return diagnosticsFeature && diagnosticsFeature.capturePlayback(); }
       },
       state: {
-        currentView: function () { return currentView(); }, setView: setAppView, enterHome: function () { return revealHome({ focus: 'first' }); }, setPlaybackIdentity: function (identity) { return applicationSession.update({ playbackIdentity: identity || null }); }, pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
+        currentView: function () { return currentView(); }, setView: setAppView, enterDetail: function () { shellFeature.hideHomeSurface(); setAppView('detail'); }, enterHome: function () { return revealHome({ focus: 'first' }); }, setPlaybackIdentity: function (identity) { return applicationSession.update({ playbackIdentity: identity || null }); }, pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
         navigationHasFocus: navigationHasFocus
       }
     });
+    });
+    function itemInContinueWatching(ratingKey) {
+      var currentRows = shellFeature ? shellFeature.rows() : [];
+      var rowIndex;
+      var itemIndex;
+      for (rowIndex = 0; rowIndex < currentRows.length; rowIndex += 1) {
+        if (currentRows[rowIndex].kind !== 'continue') { continue; }
+        for (itemIndex = 0; itemIndex < (currentRows[rowIndex].items || []).length; itemIndex += 1) {
+          if (String(currentRows[rowIndex].items[itemIndex].ratingKey || '') === String(ratingKey || '')) { return true; }
+        }
+      }
+      return false;
+    }
+    function resolveMediaContextTarget() {
+      var view = currentView();
+      var focus;
+      var rowsValue;
+      var item = null;
+      var stateValue;
+      var inContinue = false;
+      if (view === 'home') {
+        focus = shellFocusSnapshot();
+        rowsValue = shellFeature.rows();
+        if (focus.area !== 'media' || !rowsValue[focus.rowIndex]) { return null; }
+        item = rowsValue[focus.rowIndex].items[focus.column] || null;
+        inContinue = rowsValue[focus.rowIndex].kind === 'continue';
+      } else if (view === 'library' || view === 'watchlist') {
+        stateValue = libraryFeature && libraryFeature.snapshot ? libraryFeature.snapshot() : {};
+        if (view === 'library' && (!stateValue.library || stateValue.library.zone !== 'grid')) { return null; }
+        if (view === 'watchlist' && (!stateValue.watchlist || stateValue.watchlist.zone !== 'grid')) { return null; }
+        item = libraryFeature && libraryFeature.focusedItem ? libraryFeature.focusedItem() : null;
+        inContinue = view === 'library' && stateValue.library && stateValue.library.viewKey === 'continue';
+      } else if (view === 'search') {
+        stateValue = searchFeature && searchFeature.snapshot ? searchFeature.snapshot() : {};
+        focus = stateValue.focus || {};
+        if (focus.zone === 'results') { item = stateValue.results && stateValue.results[focus.index] || null; }
+      }
+      if (!item || !item.ratingKey) { return null; }
+      return { item: item, view: view, inContinueWatching: inContinue || itemInContinueWatching(item.ratingKey) };
+    }
+    function restoreMediaContextFocus(target) {
+      if (!target || currentView() !== target.view) { return false; }
+      if (target.view === 'home') { shellFeature.updateFocus(); return true; }
+      if (target.view === 'library' || target.view === 'watchlist') { return libraryFeature.refreshPresentation(); }
+      if (target.view === 'search') { searchFeature.refreshFocus(); return true; }
+      return false;
+    }
+    function refreshAfterMediaContextMutation() {
+      shellFeature.refreshHome();
+      if (currentView() === 'library' || currentView() === 'watchlist') { libraryFeature.reloadCurrent(true); }
+      else if (currentView() === 'search') { searchFeature.refresh(); }
+      return true;
+    }
+    if (!MediaContextController || typeof MediaContextController.create !== 'function') { throw new Error('ApplicationController requires MediaContextController'); }
+    mediaContextController = constructOwner(function () {
+      return MediaContextController.create({
+        root: root, PlexClient: PlexClient, config: config, holdDelay: 800,
+        resolveTarget: resolveMediaContextTarget,
+        openChoice: function (options) { return choiceDialogController.open(options); },
+        restoreFocus: restoreMediaContextFocus,
+        refresh: refreshAfterMediaContextMutation,
+        playFromBeginning: playHomeItem,
+        showMessage: shellFeature.showMessage,
+        mediaTitle: presentationServices.mediaTitle,
+        t: t
+      });
     });
     inputController = constructOwner(function () {
       return InputController.create({
@@ -509,7 +624,7 @@
         var settingsSnapshot = activeView === 'settings' ? settingsFeature.snapshot() : {};
         var shellNavigation = shellFeature.navigationSnapshot(homeFocus);
         return {
-          appView: activeView, choiceDialogOpen: choiceDialogController.snapshot().open, upNextLayoutOpen: activeView === 'settings' && settingsSnapshot.upNext && settingsSnapshot.upNext.open, privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen, updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen, viewStateOpen: shellFeature.viewStateOpen(),
+          appView: activeView, textInputDialogOpen: activeView === 'settings' && settingsSnapshot.textInputOpen, choiceDialogOpen: choiceDialogController.snapshot().open, upNextLayoutOpen: activeView === 'settings' && settingsSnapshot.upNext && settingsSnapshot.upNext.open, privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen, playbackCompatibilityOpen: activeView === 'settings' && settingsSnapshot.compatibilityOpen, safeAreaOpen: activeView === 'settings' && settingsSnapshot.safeAreaOpen, subtitleStyleOpen: activeView === 'settings' && settingsSnapshot.subtitleStyleOpen, updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen, viewStateOpen: shellFeature.viewStateOpen(),
           playerMediaInfoOpen: activeView === 'player' && mediaInfoDialogController.snapshot().open, resumeChoiceOpen: activeView === 'player' && playerSnapshot.resumeChoiceOpen, queueGapOpen: activeView === 'player' && playerSnapshot.queueGapOpen, playerErrorOpen: activeView === 'player' && playerSnapshot.errorOpen, subtitleEditorOpen: activeView === 'player' && playerSnapshot.subtitleEditorOpen,
           playerUpNextOpen: activeView === 'player' && !!(playerSnapshot.queue && playerSnapshot.queue.upNext && playerSnapshot.queue.upNext.visible),
           navReorderActive: navigationFocused && shellNavigation.reorderMode, navReorderReady: shellNavigation.reorderReady, navigationHasFocus: navigationFocused, navigationContentEntryFocused: navigationFocused && shellNavigation.index < navigationItems.length, navHoldActive: shellNavigation.holdActive, navHoldTriggered: shellNavigation.holdTriggered, navReorderMode: shellNavigation.reorderMode,
@@ -517,7 +632,7 @@
         };
       },
       overlays: {
-        choiceDialog: function (event, direction) { return choiceDialogController.handleKey(event, direction); }, upNextLayout: function (event) { return settingsFeature.handleUpNextKey(event); }, privacy: function (event) { return settingsFeature.handlePrivacyKey(event); }, viewState: shellFeature.handleViewStateKey,
+        textInput: function (event, direction) { return settingsFeature.handleTextInputKey(event, direction); }, choiceDialog: function (event, direction) { return choiceDialogController.handleKey(event, direction); }, upNextLayout: function (event) { return settingsFeature.handleUpNextKey(event); }, privacy: function (event) { return settingsFeature.handlePrivacyKey(event); }, playbackCompatibility: function (event, direction) { return settingsFeature.handlePlaybackCompatibilityKey(event, direction); }, safeArea: function (event, direction) { return settingsFeature.handleSafeAreaKey(event, direction); }, subtitleStyle: function (event, direction) { return settingsFeature.handleSubtitleStyleKey(event, direction); }, viewState: shellFeature.handleViewStateKey,
         queueGap: function (event, direction) { return playerFeature.handleQueueGapKey(event, direction); }, playerMediaInfo: function (event, direction) { return mediaInfoDialogController.handleKey(event, direction); }, resumeChoice: function (event, direction) { return playerFeature.handleResumeKey(event, direction); }, playerError: function (event, direction) { return playerFeature.handleErrorKey(event, direction); },
         subtitleEditor: function (event, direction) { return playerFeature.handleSubtitleEditorKey(event, direction); }
       },
@@ -527,6 +642,10 @@
         detail: function (event, direction) { return detailFeature.handleKey(event, direction); }, library: function (event, direction) { return libraryFeature.handleKey(event, direction); }, watchlist: function (event, direction) { return libraryFeature.handleKey(event, direction); },
         search: function (event, direction) { return searchFeature.handleKey(event, direction); }, home: function (event, direction) { return shellFeature.handleHomeKey(event, direction); },
         resetSeekRepeat: function () { playerFeature.resetSeekRepeat(); }
+      },
+      contextMenu: {
+        canOpen: mediaContextController.canOpen, startHold: mediaContextController.startHold,
+        holding: mediaContextController.holding, releaseHold: mediaContextController.releaseHold
       },
       navigation: {
         moveReorderedLibrary: shellFeature.moveReorderedLibrary, finishReorder: shellFeature.finishReorder, markReorderReady: shellFeature.markReorderReady, cancelHold: shellFeature.cancelNavigationHold,
@@ -554,9 +673,9 @@
         var homeFocus = activeView === 'home' ? shellFocusSnapshot() : null;
         var shellNavigation = shellFeature.navigationSnapshot(homeFocus);
         return {
-          appView: activeView, homeArea: homeFocus ? homeFocus.area : '', libraryZone: libraryState.zone, libraryViewKey: libraryState.viewKey, watchlistZone: watchlistState.zone, searchZone: searchFocus.zone, serverEditorOpen: activeView === 'settings' && !!(serverFeature && serverFeature.editorSnapshot().open),
+          appView: activeView, homeArea: homeFocus ? homeFocus.area : '', libraryZone: libraryState.zone, libraryViewKey: libraryState.viewKey, watchlistZone: watchlistState.zone, searchZone: searchFocus.zone, serverEditorOpen: activeView === 'settings' && !!(serverFeature && serverFeature.editorSnapshot().open), playbackCompatibilityOpen: activeView === 'settings' && settingsSnapshot.compatibilityOpen, safeAreaOpen: activeView === 'settings' && settingsSnapshot.safeAreaOpen, subtitleStyleOpen: activeView === 'settings' && settingsSnapshot.subtitleStyleOpen,
           languageKind: activeView === 'settings' ? settingsSnapshot.languageKind : '', summaryDialogOpen: activeView === 'detail' && detailFeature.summaryOpen(), navigationHasFocus: homeFocus ? homeFocus.area === 'nav' : navigationHasFocus(activeView), navReorderMode: shellNavigation.reorderMode, navReorderReady: shellNavigation.reorderReady, navHoldTriggered: shellNavigation.holdTriggered,
-          choiceDialogOpen: choiceDialogController.snapshot().open, privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen, updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen, resumeChoiceOpen: activeView === 'player' && playerSnapshot.resumeChoiceOpen, queueGapOpen: activeView === 'player' && playerSnapshot.queueGapOpen, subtitleEditorOpen: activeView === 'player' && playerSnapshot.subtitleEditorOpen, playerControlsMode: controls.mode, playerChapterOpen: !!(controls.chapter && controls.chapter.open),
+          textInputDialogOpen: activeView === 'settings' && settingsSnapshot.textInputOpen, choiceDialogOpen: choiceDialogController.snapshot().open, privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen, updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen, resumeChoiceOpen: activeView === 'player' && playerSnapshot.resumeChoiceOpen, queueGapOpen: activeView === 'player' && playerSnapshot.queueGapOpen, subtitleEditorOpen: activeView === 'player' && playerSnapshot.subtitleEditorOpen, playerControlsMode: controls.mode, playerChapterOpen: !!(controls.chapter && controls.chapter.open),
           playerSettingsOpen: controls.settingsOpen
         };
       },
@@ -580,10 +699,14 @@
         detail: function (zone, index) {
           detailFeature.pointerFocus(zone, index);
         },
-        settings: function (index) { settingsFeature.focusSetting(index); }, updateDialog: function (index) { settingsFeature.focusUpdate(index); }, privacy: function (button) { settingsFeature.focusPrivacy(button); }, language: function (index) { settingsFeature.focusLanguage(index); }, server: function (index) { if (serverFeature) { serverFeature.focusEditor(index); } },
+        settings: function (index) { settingsFeature.focusSetting(index); }, textInput: function (index) { settingsFeature.focusTextInput(index); }, safeArea: function (index) { settingsFeature.focusSafeArea(index); }, subtitleStyle: function (index) { settingsFeature.focusSubtitleStyle(index); }, updateDialog: function (index) { settingsFeature.focusUpdate(index); }, privacy: function (button) { settingsFeature.focusPrivacy(button); }, playbackCompatibility: function (index) { settingsFeature.focusPlaybackCompatibility(index); }, language: function (index) { settingsFeature.focusLanguage(index); }, server: function (index) { if (serverFeature) { serverFeature.focusEditor(index); } },
         search: function (button) { searchFeature.pointerFocus(button); }, library: function (zone, index, button) { libraryFeature.pointerFocus(zone, index, button); }, libraryFilter: function (button) { libraryFeature.pointerFocus('library-filter', 0, button); },
         watchlist: function (button) { libraryFeature.pointerFocus('watchlist', 0, button); }, player: function (zone, index) { return playerFeature.pointerFocus(zone, index); },
         choice: function (index) { choiceDialogController.pointerFocus(index); }
+      },
+      contextMenu: {
+        canOpen: mediaContextController.canOpen, startHold: mediaContextController.startHold,
+        holding: mediaContextController.holding, releaseHold: mediaContextController.releaseHold
       },
       selectAccent: function (color) { settingsFeature.selectAccentColor(color); },
       navigation: {
@@ -700,11 +823,14 @@
       else if (currentView() === 'settings') { settingsFeature.leave(); }
       setShellFocus({ area: 'nav', navIndex: targetIndex });
       if (item.kind === 'home') { revealHome({ focus: keepNavigationFocus ? 'nav' : 'first' }); }
-      else if (item.kind === 'library') { libraryFeature.enterLibrary(item, { navigationIndex: targetIndex, keepNavigationFocus: keepNavigationFocus }); }
-      else if (item.kind === 'watchlist') { libraryFeature.enterWatchlist({ navigationIndex: targetIndex, keepNavigationFocus: keepNavigationFocus }); }
-      else if (item.kind === 'playlists') { libraryFeature.enterPlaylists({ navigationIndex: targetIndex, keepNavigationFocus: keepNavigationFocus }); }
-      else if (item.kind === 'search') { openSearch(keepNavigationFocus); }
-      else if (item.kind === 'settings') { settingsFeature.enter({ keepNavigationFocus: keepNavigationFocus }); }
+      else {
+        shellFeature.hideHomeSurface();
+        if (item.kind === 'library') { libraryFeature.enterLibrary(item, { navigationIndex: targetIndex, keepNavigationFocus: keepNavigationFocus }); }
+        else if (item.kind === 'watchlist') { libraryFeature.enterWatchlist({ navigationIndex: targetIndex, keepNavigationFocus: keepNavigationFocus }); }
+        else if (item.kind === 'playlists') { libraryFeature.enterPlaylists({ navigationIndex: targetIndex, keepNavigationFocus: keepNavigationFocus }); }
+        else if (item.kind === 'search') { openSearch(keepNavigationFocus); }
+        else if (item.kind === 'settings') { settingsFeature.enter({ keepNavigationFocus: keepNavigationFocus }); }
+      }
       libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), navigationItems);
     }
     function enterNavigationContent(item, _index) {
@@ -715,10 +841,10 @@
       else if (item.kind === 'settings') { settingsFeature.focusSetting(0); }
     }
     // Shared application presentation helpers used by the modular settings controller.
-    function openChoiceDialog(title, choices, selectedValue, apply, returnFocus) {
+    function openChoiceDialog(title, choices, selectedValue, apply, returnFocus, variant, previewOptions, onClose) {
       return choiceDialogController.open({
         title: title, choices: choices, selectedValue: selectedValue, apply: apply,
-        returnFocus: returnFocus
+        returnFocus: returnFocus, variant: variant, previewOptions: previewOptions || {}, onClose: onClose
       });
     }
     function closeApplication() {
@@ -746,7 +872,7 @@
         credentialStorage: credentialStorage
       },
       modules: {
-        SettingsController: SettingsController, Settings: Settings, SettingsCatalog: SettingsCatalog, SettingsView: SettingsView, I18n: I18n, CardLayout: CardLayout, VersionSelection: VersionSelection, ServerStore: ServerStore, ServerDiscovery: ServerDiscovery,
+        SettingsController: SettingsController, Settings: Settings, SettingsCatalog: SettingsCatalog, SettingsView: SettingsView, SafeAreaDialog: SafeAreaDialog, SubtitleStyleDialog: SubtitleStyleDialog, TextInputDialog: TextInputDialog, I18n: I18n, CardLayout: CardLayout, VersionSelection: VersionSelection, ServerStore: ServerStore, ServerDiscovery: ServerDiscovery,
         UpNextLayoutDialog: UpNextLayoutDialog
       },
       state: {
@@ -767,13 +893,15 @@
         },
         applyCardScale: shellFeature.applyCardScale, translateStaticUi: shellFeature.translateStaticUi,
         clearBackdrop: shellFeature.clearBackdrop,
+        loadBackdropPreview: shellFeature.loadBackdropPreview,
         refreshCardsForCurrentView: function () {
           if (currentView() === 'home') { shellFeature.renderRows(); shellFeature.updateFocus(); }
           else if (currentView() === 'search') { searchFeature.refresh(); }
           else if (currentView() === 'library' || currentView() === 'watchlist') { libraryFeature.refreshPresentation(); }
         },
         applyNavigationVisibility: shellFeature.applyNavigationVisibility, markHomeDirty: function () { shellFeature.markHomeDirty(); },
-        stopBackgroundAudio: function () { shellFeature.stopTheme(); }
+        stopBackgroundAudio: function () { shellFeature.stopTheme(); },
+        showMessage: shellFeature.showMessage
       },
       server: {
         config: function () { return config; }, active: function () { return serverFeature.activeServer(); }, discoveryActive: function () { return !!(serverFeature && serverFeature.snapshot().discoveryActive); }, editorSnapshot: function () { return serverFeature ? serverFeature.editorSnapshot() : { open: false, index: 0 }; },
@@ -792,9 +920,14 @@
       environment: {
         networkSnapshot: function () { return serverFeature.networkSnapshot(); }, playbackCapabilities: function () { return playbackCapabilities; }, languageCatalog: languageCatalog,
         accentColorValues: accentColorValues,
+        playbackCompatibility: function () { return playbackCompatibilityMemory.snapshot(); },
+        clearPlaybackCompatibilityFormats: function () { return playbackCompatibilityMemory.clearFormatRules(); },
+        clearPlaybackCompatibilityFiles: function () { return playbackCompatibilityMemory.clearFileExceptions(); },
+        clearPlaybackCompatibility: function () { return playbackCompatibilityMemory.clear(); },
         appVersion: BuildInfo.version,
         releaseStatusSnapshot: function () { return releaseStatus ? releaseStatus.snapshot() : {}; },
-        checkForUpdates: function (force, callback) { return releaseStatus ? releaseStatus.check(force === true, callback) : false; }
+        checkForUpdates: function (force, callback) { return releaseStatus ? releaseStatus.check(force === true, callback) : false; },
+        settingsBackup: settingsBackupStore
       },
       transitions: {
         enter: function () {
@@ -862,10 +995,7 @@
       }
     });
     });
-    function finishSetup(snapshot) {
-      var destination = snapshot.returnView;
-      if (snapshot.selectedServer) { serverFeature.applyServer(snapshot.selectedServer); }
-      else if (serverFeature.activeServer()) { serverFeature.applyServer(serverFeature.activeServer()); }
+    function completeSetupDestination(destination) {
       shellFeature.renderActiveProfile();
       if (destination === 'settings') {
         setAppView('settings'); settingsFeature.refresh(); serverFeature.loadApplication();
@@ -873,6 +1003,20 @@
         revealHome({ focus: 'first', refresh: false });
         serverFeature.loadApplication(); serverFeature.discover();
       }
+    }
+    function finishSetup(snapshot) {
+      var destination = snapshot.returnView;
+      if (snapshot.selectedServer) { serverFeature.applyServer(snapshot.selectedServer); }
+      else if (serverFeature.activeServer()) { serverFeature.applyServer(serverFeature.activeServer()); }
+      if (destination) { completeSetupDestination(destination); return; }
+      settingsBackupStore.status(function (error, status) {
+        if (error || !status || !status.exists) { completeSetupDestination(destination); return; }
+        settingsFeature.promptSettingsLoad(status, { confirmFirst: true }, function (loadError, loaded, skipped) {
+          if (!skipped) { shellFeature.showMessage(t(loadError ? 'settings.backup.error' : 'settings.backup.loaded')); }
+          if (!loadError && loaded && loaded.settings) { appSettings = loaded.settings; }
+          completeSetupDestination(destination);
+        });
+      });
     }
     function cancelSetup(snapshot) {
       var destination = snapshot.returnView;
@@ -897,7 +1041,7 @@
       platform: { root: root, document: document },
       modules: {
         DiagnosticsController: DiagnosticsController, DiagnosticsState: DiagnosticsState,
-        DiagnosticsView: DiagnosticsView
+        DiagnosticsView: DiagnosticsView, SupportSnapshot: SupportSnapshot, SupportQr: SupportQr
       },
       presentation: {
         t: t, element: presentationServices.element, setText: presentationServices.setText, formatFileSize: function (bytes) { return MediaProfile.detailedSize(bytes, t('player.unavailable')); }, formatLongTime: formatLongTime, formatTime: formatTime,
@@ -905,8 +1049,11 @@
       },
       state: {
         appVersion: function () { return authOptions.version; }, config: function () { return config; }, activeServer: function () { return serverFeature.activeServer(); }, serverAddresses: function (server) { return serverFeature.addressesFor(server, false); }, authMode: function () { return serverFeature.authMode(); },
-        activeProfile: function () { return serverFeature.activeProfile(); }, playbackCapabilities: function () { return playbackCapabilities; }, networkSnapshot: function () { return serverFeature.networkSnapshot(); }, playbackSnapshot: function () { return playerFeature ? playerFeature.playbackSnapshot() : null; },
-        playbackDiagnostics: function () { return playerFeature ? playerFeature.playbackDiagnostics() : null; }
+        activeProfile: function () { return serverFeature.activeProfile(); }, playbackCapabilities: function () { return playbackCapabilities; }, networkSnapshot: function () { return serverFeature.networkSnapshot(); }, playbackSnapshot: function () { return playerFeature ? playerFeature.playbackSnapshot() : null; }, queueSnapshot: function () { return playerFeature ? playerFeature.queueSnapshot() : null; },
+        playbackDiagnostics: function () { return playerFeature ? playerFeature.playbackDiagnostics() : null; },
+        settingsSnapshot: function () { return appSettings; },
+        playbackCompatibility: function () { return playbackCompatibilityMemory.snapshot(); },
+        jsErrors: function () { return runtimeErrorStore ? runtimeErrorStore.snapshot() : []; }
       },
       transport: {
         loadIdentity: function (callback) { return serverFeature.loadServerIdentity(callback); }
@@ -919,7 +1066,7 @@
         },
         leave: function () {
           setAppView('settings');
-          settingsFeature.resume({ focusLast: true });
+          settingsFeature.resume({ focusKey: 'diagnostics' });
         }
       }
     });
@@ -929,11 +1076,35 @@
       var identity = serverFeature.mediaIdentity();
       return MediaPreferences ? MediaPreferences.key(identity.server, identity.profile, detail) : '';
     }
+
+    function sameMediaItem(first, second) {
+      return !!(first && second && first.ratingKey && String(first.ratingKey) === String(second.ratingKey));
+    }
+
+    function detailOpenOptions(item) {
+      var view = currentView();
+      var focus;
+      var rowsValue;
+      var libraryState;
+      var focused;
+      var fromContinueWatching = false;
+      if (view === 'home') {
+        focus = shellFocusSnapshot();
+        rowsValue = shellFeature.rows();
+        fromContinueWatching = focus.area === 'media' && rowsValue[focus.rowIndex] && rowsValue[focus.rowIndex].kind === 'continue' && sameMediaItem(rowsValue[focus.rowIndex].items[focus.column], item);
+      } else if (view === 'library') {
+        libraryState = libraryFeature && libraryFeature.snapshot ? libraryFeature.snapshot() : {};
+        focused = libraryFeature && libraryFeature.focusedItem ? libraryFeature.focusedItem() : null;
+        fromContinueWatching = !!(libraryState.library && libraryState.library.viewKey === 'continue' && sameMediaItem(focused, item));
+      }
+      return { returnView: view, fromContinueWatching: fromContinueWatching };
+    }
+
     function openDetail(item) {
-      return detailFeature && detailFeature.open(item, { returnView: currentView() });
+      return detailFeature && detailFeature.open(item, detailOpenOptions(item));
     }
     function playHomeItem(item) {
-      return detailFeature && detailFeature.playItem(item);
+      return detailFeature && detailFeature.playItem(item, detailOpenOptions(item));
     }
     // Global input dispatch, view closure, event wiring, Home loading, bootstrap.
     function updateWatchedAcrossFeatures(ratingKey, watched) {
@@ -967,9 +1138,11 @@
       destroyOwned();
     }
     try {
-      shellFeature.start();
       settingsFeature.applyAccentColor();
+      settingsFeature.applyVisualTheme();
       settingsFeature.applyAnimationPreference();
+      settingsFeature.applyAccessibilityPreferences();
+      shellFeature.start();
       constructOwner(function () {
         return ApplicationEvents.bind([
         { target: document, name: 'keydown', handler: inputController.handleKeyDown },

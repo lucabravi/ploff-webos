@@ -1,0 +1,33 @@
+body.visual-theme-classic {
+  --theme-app-background: #0b0c0e;
+  --theme-app-text: #f5f5f5;
+  --theme-scroll-track: #292d32;
+  --theme-scroll-thumb: #737b84;
+  --theme-backdrop-shade: rgba(5,6,8,.48);
+  --theme-media-card-surface: rgba(17,19,23,.56);
+  --theme-card-caption-surface: #111317;
+  --theme-corner-radius: 0;
+  --control-surface: #202328;
+  --control-surface-focused: #2b2f35;
+  --control-surface-disabled: #191b1f;
+  --control-value: #c9cdd2;
+  --control-divider: #363a40;
+  --action-surface: #292c31;
+  --action-text: #ffffff;
+  --text-secondary: #b9bec4;
+  --text-disabled: #777d84;
+  --panel-divider: #3a3e45;
+  --panel-surface: #15171b;
+  --panel-overlay: rgba(0,0,0,.64);
+  --panel-shadow: 0 18px 60px rgba(0,0,0,.72);
+}
+
+body.visual-theme-classic .home-preview-copy {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+}
+
+body.visual-theme-classic .home-preview-summary {
+  max-width: none;
+}

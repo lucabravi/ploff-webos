@@ -48,10 +48,14 @@
     var activeBackdrop = 0;
     var activeBackdropSource = '';
     var themeTimer = null;
+    var homePresentationTimer = null;
+    var homePresentationGeneration = 0;
     var themeKeys = [];
     var themeCache = {};
     var messageTimer = null;
     var activeCardProfile = null;
+    var visibleRowIndex = -1;
+    var homeRowTopInset = null;
 
     function call(callback, arg1, arg2, arg3, arg4, arg5, arg6) {
       if (typeof callback === 'function') { return callback(arg1, arg2, arg3, arg4, arg5, arg6); }
@@ -160,6 +164,8 @@
     function clearHome() {
       rows.splice(0, rows.length);
       lastSelectionKey = '';
+      visibleRowIndex = -1;
+      homeRowTopInset = null;
       homeDirty = true;
       call(actions.onHomeCleared);
     }
@@ -519,28 +525,84 @@
       }
     }
 
+    function clearHomePreview() {
+      var preview = document && document.getElementById ? document.getElementById('home-preview') : null;
+      var ids = ['home-preview-kicker', 'home-preview-title', 'home-preview-meta', 'home-preview-summary'];
+      var index;
+      if (!preview) { return false; }
+      preview.className = 'home-preview is-empty';
+      for (index = 0; index < ids.length; index += 1) {
+        updateText(document.getElementById(ids[index]), '');
+      }
+      return true;
+    }
+
+    function renderHomePreview(item) {
+      var preview = document && document.getElementById ? document.getElementById('home-preview') : null;
+      var row = rows[focus.rowIndex] || {};
+      var meta;
+      var detail;
+      if (!preview || !item) { return false; }
+      meta = MediaLabels && MediaLabels.cardMeta ? MediaLabels.cardMeta(item, translate) : String(item.meta || '');
+      detail = MediaLabels && MediaLabels.cardDetail ? MediaLabels.cardDetail(item, translate) : String(item.detail || '');
+      updateText(document.getElementById('home-preview-kicker'), row.title || '');
+      updateText(document.getElementById('home-preview-title'), MediaLabels && MediaLabels.title ? MediaLabels.title(item, translate) : String(item.title || ''));
+      updateText(document.getElementById('home-preview-meta'), [meta, detail].filter(function (value) { return !!value; }).join('  ·  '));
+      updateText(document.getElementById('home-preview-summary'), item.summary || item.tagline || '');
+      preview.className = 'home-preview';
+      return true;
+    }
+
     function keepFocusVisible(target) {
       var content;
       var section;
       var contentRect;
       var sectionRect;
-      var margin = 18;
-      var lowerComfortLine;
+      var firstRowIndex;
+      var targetTop;
+      var scrollDelta;
       if (focus.area !== 'media' || !target) { return; }
       content = document.getElementById('content');
       section = target.parentNode && target.parentNode.parentNode;
       if (!content || !section || !content.getBoundingClientRect || !section.getBoundingClientRect) { return; }
+      if (focus.rowIndex === visibleRowIndex) { return; }
+      visibleRowIndex = focus.rowIndex;
+      firstRowIndex = firstPopulatedRowIndex();
+      if (focus.rowIndex === firstRowIndex) {
+        content.scrollTop = 0;
+      }
       contentRect = content.getBoundingClientRect();
       sectionRect = section.getBoundingClientRect();
-      lowerComfortLine = contentRect.top + contentRect.height * 0.75;
-      if (sectionRect.bottom > lowerComfortLine) { content.scrollTop += sectionRect.bottom - lowerComfortLine + margin; }
-      else if (sectionRect.top < contentRect.top + margin) { content.scrollTop = Math.max(0, content.scrollTop - (contentRect.top - sectionRect.top + margin)); }
+      if (focus.rowIndex === firstRowIndex) {
+        homeRowTopInset = Math.max(0, sectionRect.top - contentRect.top);
+        return;
+      }
+      targetTop = contentRect.top + Math.max(0, Number(homeRowTopInset || 0));
+      scrollDelta = sectionRect.top - targetTop;
+      if (Math.abs(scrollDelta) > 1) { content.scrollTop = Math.max(0, content.scrollTop + scrollDelta); }
     }
 
-    function updateFocus() {
+    function scheduleHomePresentation(item) {
+      var generation = homePresentationGeneration + 1;
+      homePresentationGeneration = generation;
+      if (homePresentationTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(homePresentationTimer); }
+      homePresentationTimer = null;
+      if (!item) { call(services.stopTheme); return; }
+      if (!timerRoot.setTimeout) { renderHomePreview(item); scheduleTheme(item); return; }
+      homePresentationTimer = timerRoot.setTimeout(function () {
+        var currentItem = focus.area === 'media' && rows[focus.rowIndex] ? rows[focus.rowIndex].items[focus.column] : null;
+        homePresentationTimer = null;
+        if (destroyed || generation !== homePresentationGeneration || currentView() !== 'home' || currentItem !== item) { return; }
+        renderHomePreview(item);
+        scheduleTheme(item);
+      }, 80);
+    }
+
+    function updateFocus(deferPresentation) {
       var next;
       var item;
       clearLogicalFocus();
+      if (focus.area !== 'media') { visibleRowIndex = -1; }
       if (!document || !document.querySelector) { return; }
       next = document.querySelector(selectorForState());
       if (next) {
@@ -556,31 +618,42 @@
       }
       scheduleBackdrop();
       item = focus.area === 'media' && rows[focus.rowIndex] ? rows[focus.rowIndex].items[focus.column] : null;
-      if (item) { scheduleTheme(item); }
-      else { call(services.stopTheme); }
+      if (deferPresentation === true) { scheduleHomePresentation(item); }
+      else if (item) { renderHomePreview(item); scheduleTheme(item); }
+      else { scheduleHomePresentation(null); }
+    }
+
+    function firstPopulatedRowIndex() {
+      var rowIndex;
+      for (rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        if (rows[rowIndex].items && rows[rowIndex].items.length) { return rowIndex; }
+      }
+      return -1;
     }
 
     function focusHomeStart() {
-      var rowIndex;
-      for (rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-        if (rows[rowIndex].items && rows[rowIndex].items.length) {
-          setFocus({ area: 'media', navIndex: 0, rowIndex: rowIndex, column: 0 });
-          if (document && document.getElementById('content')) { document.getElementById('content').scrollTop = 0; }
-          updateFocus();
-          return true;
-        }
+      var rowIndex = firstPopulatedRowIndex();
+      if (rowIndex !== -1) {
+        setFocus({ area: 'media', navIndex: 0, rowIndex: rowIndex, column: 0 });
+        if (document && document.getElementById('content')) { document.getElementById('content').scrollTop = 0; }
+        updateFocus();
+        return true;
       }
       return false;
+    }
+
+    function resetHomeScroll() {
+      var content = document && document.getElementById ? document.getElementById('content') : null;
+      if (content) { content.scrollTop = 0; }
+      return !!content;
     }
 
     function isHomeStart() {
       var rowIndex;
       var content;
       if (currentView() !== 'home' || focus.area !== 'media' || focus.column !== 0) { return false; }
-      for (rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-        if (rows[rowIndex].items && rows[rowIndex].items.length) { break; }
-      }
-      if (rowIndex >= rows.length || focus.rowIndex !== rowIndex) { return false; }
+      rowIndex = firstPopulatedRowIndex();
+      if (rowIndex === -1 || focus.rowIndex !== rowIndex) { return false; }
       content = document && document.getElementById ? document.getElementById('content') : null;
       return !content || Number(content.scrollTop || 0) <= 1;
     }
@@ -606,8 +679,8 @@
       selected = options.focus === 'preserve' ? (options.selectionKey || lastSelectionKey) : '';
       setFocus(HomeState.restoreFocus(rows, baseState, selected));
       homeDirty = false;
-      if ((options.focus === 'first' || (selected && HomeState.selectionKey(rows, focus) !== selected)) && document && document.getElementById('content')) {
-        document.getElementById('content').scrollTop = 0;
+      if (options.focus === 'nav' || options.focus === 'first' || (selected && HomeState.selectionKey(rows, focus) !== selected)) {
+        resetHomeScroll();
       }
       updateFocus();
       completeStartup();
@@ -619,6 +692,23 @@
     function artworkUrl(item) {
       var source = item && (item.art || item.image) || '';
       return source.replace('/400/600', '/1280/720').replace('/640/360', '/1280/720');
+    }
+
+    function sampleBackdropSource(sourceRows) {
+      var candidates = [];
+      var availableRows = array(sourceRows === undefined ? rows : sourceRows);
+      var rowIndex;
+      var itemIndex;
+      var item;
+      if (sourceRows === undefined && activeBackdropSource) { return activeBackdropSource; }
+      for (rowIndex = 0; rowIndex < availableRows.length; rowIndex += 1) {
+        for (itemIndex = 0; itemIndex < array(availableRows[rowIndex] && availableRows[rowIndex].items).length; itemIndex += 1) {
+          item = availableRows[rowIndex].items[itemIndex];
+          if (item && item.art) { candidates.push(artworkUrl(item)); }
+        }
+      }
+      if (!candidates.length) { return ''; }
+      return candidates[Math.abs(Number(now()) || 0) % candidates.length];
     }
 
     function isBackdropCurrent(generation) { return !destroyed && generation === backdropGeneration; }
@@ -770,7 +860,7 @@
         if (event.preventDefault) { event.preventDefault(); }
         layout = { navCount: navigationFocusCount(), rowLengths: rows.map(function (row) { return row.items.length; }) };
         setFocus(FocusModel.move(focus, direction, layout));
-        updateFocus();
+        updateFocus(true);
         if (focus.area === 'nav' && (direction === 'left' || direction === 'right')) { call(actions.scheduleNavigationPreview, focus.navIndex); }
         return true;
       }
@@ -862,10 +952,12 @@
       if (startupTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(startupTimer); }
       if (backdropTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(backdropTimer); }
       if (themeTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(themeTimer); }
+      if (homePresentationTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(homePresentationTimer); }
       if (messageTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(messageTimer); }
       startupTimer = null;
       backdropTimer = null;
       themeTimer = null;
+      homePresentationTimer = null;
       messageTimer = null;
     }
 
@@ -885,6 +977,7 @@
       cardProfile: cardProfile,
       clearBackdrop: clearBackdropPresentation,
       clearHome: clearHome,
+      clearHomePreview: clearHomePreview,
       clearLogicalFocus: clearLogicalFocus,
       clearSelectionKey: clearSelectionKey,
       completeStartup: completeStartup,
@@ -916,6 +1009,7 @@
       refreshHome: refreshHome,
       renderNavigation: renderNavigation,
       renderRows: renderRows,
+      renderHomePreview: renderHomePreview,
       requestBackdrop: function (item) {
         var request;
         if (destroyed) { return; }
@@ -945,7 +1039,9 @@
         if (homeRefreshCoordinator) { homeRefreshCoordinator.reset(); }
         setHomeLoading(false);
       },
+      resetHomeScroll: resetHomeScroll,
       rows: function () { return rows; },
+      sampleBackdropSource: sampleBackdropSource,
       scheduleBackdrop: scheduleBackdrop,
       scheduleDetailBackdrop: function (item) { scheduleViewBackdrop(item, 'detail', 0); },
       scheduleHomePolling: function () { if (homePoller) { homePoller.schedule(); } },

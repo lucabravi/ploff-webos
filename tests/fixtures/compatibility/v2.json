@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "formats": [
+    {
+      "key": "fixture-format",
+      "kind": "direct-play",
+      "files": [
+        "fixture-file",
+        "fixture-file-2"
+      ],
+      "failures": 2
+    }
+  ],
+  "files": [
+    {
+      "key": "fixture-file",
+      "formatKey": "fixture-format",
+      "kind": "direct-play",
+      "failures": 1,
+      "confirmed": true,
+      "expiresAt": 1900000000000
+    }
+  ]
+}

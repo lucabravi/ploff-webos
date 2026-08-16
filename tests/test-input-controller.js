@@ -106,6 +106,36 @@ function event(keyCode, calls) {
   assert.deepStrictEqual(calls, ['prevent:461', 'queue', 'controls'], 'unclaimed queue keys must fall through exactly once to player controls');
 }());
 
+(function testSafeAreaDialogOwnsRemoteDirections() {
+  var calls = [];
+  var state = { appView: 'settings', safeAreaOpen: true };
+  var controller = InputController.create({
+    InputTargetRouter: InputTargetRouter,
+    sessionSnapshot: function () { return state; },
+    overlays: {
+      safeArea: function () { calls.push('safe-area'); }
+    },
+    domains: {
+      settings: function () { calls.push('settings'); return true; }
+    }
+  });
+
+  controller.handleKeyDown(event(40, calls));
+  assert.deepStrictEqual(calls, ['prevent:40', 'safe-area'], 'safe-area calibration must consume remote directions before the settings page');
+}());
+
+(function testSubtitleStyleDialogOwnsRemoteDirections() {
+  var calls = [];
+  var controller = InputController.create({
+    InputTargetRouter: InputTargetRouter,
+    sessionSnapshot: function () { return { appView: 'settings', subtitleStyleOpen: true }; },
+    overlays: { subtitleStyle: function () { calls.push('subtitle-style'); } },
+    domains: { settings: function () { calls.push('settings'); return true; } }
+  });
+  controller.handleKeyDown(event(39, calls));
+  assert.deepStrictEqual(calls, ['prevent:39', 'subtitle-style'], 'subtitle appearance must consume remote directions before the settings page');
+}());
+
 (function testViewsMediaKeysT9AndPinRouting() {
   var calls = [];
   var state = { appView: 'setup' };
@@ -260,6 +290,36 @@ function event(keyCode, calls) {
   assert.strictEqual(controller.handleKeyUp(event(13, calls)), false);
   assert.deepStrictEqual(calls, []);
   assert.strictEqual(controller.snapshot().destroyed, true);
+}());
+
+
+(function testMediaContextLongPressDefersShortOkUntilRelease() {
+  var calls = [];
+  var holding = false;
+  var triggered = false;
+  var controller = InputController.create({
+    InputTargetRouter: InputTargetRouter,
+    sessionSnapshot: function () { return { appView: 'home', navigationHasFocus: false }; },
+    contextMenu: {
+      canOpen: function () { return true; },
+      startHold: function () { holding = true; calls.push('hold-start'); return true; },
+      holding: function () { return holding; },
+      releaseHold: function () { holding = false; calls.push('hold-release'); return triggered; }
+    },
+    domains: { home: function (input) { calls.push('home:' + input.keyCode); return true; } }
+  });
+  controller.handleKeyDown(event(13, calls));
+  assert.deepStrictEqual(calls, ['prevent:13', 'hold-start'], 'OK down on a media card must start the context hold without opening the item');
+  controller.handleKeyDown(event(13, calls));
+  assert.deepStrictEqual(calls, ['prevent:13', 'hold-start', 'prevent:13'], 'repeated Enter keydown while holding must be swallowed instead of activating the future dialog');
+  controller.handleKeyUp(event(13, calls));
+  assert.deepStrictEqual(calls, ['prevent:13', 'hold-start', 'prevent:13', 'prevent:13', 'hold-release', 'home:13'], 'short OK release must execute the original semantic activation exactly once');
+
+  calls.length = 0;
+  triggered = true;
+  controller.handleKeyDown(event(13, calls));
+  controller.handleKeyUp(event(13, calls));
+  assert.deepStrictEqual(calls, ['prevent:13', 'hold-start', 'prevent:13', 'hold-release'], 'a triggered long press must suppress the normal media activation');
 }());
 
 console.log('Input controller checks passed');

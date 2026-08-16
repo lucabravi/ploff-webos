@@ -18,6 +18,7 @@
     var identityRequest = null;
     var identityGeneration = 0;
     var identityState = { error: '', identity: null, reachable: false };
+    var supportQrOpen = false;
 
     function text(key) {
       return values.t(key);
@@ -94,6 +95,7 @@
       values.setText('diagnostics-title', text('diagnostics.title'));
       values.setText('diagnostics-notice', text('diagnostics.notice'));
       values.setText('diagnostics-refresh', text('diagnostics.refresh'));
+      values.setText('diagnostics-export', text('diagnostics.exportQr'));
       values.setText('diagnostics-back', text('diagnostics.back'));
       content.innerHTML = '';
       columns = appendColumns(content);
@@ -130,6 +132,8 @@
         appendSection(columns[1], 'diagnostics.playback', [['diagnostics.state', text('diagnostics.noPlayback')]]);
       } else {
         appendSection(columns[1], 'diagnostics.playback', [
+          ['diagnostics.mediaTitle', playback.title],
+          ['diagnostics.playbackSource', playback.source],
           ['diagnostics.file', playback.fileName],
           ['diagnostics.size', values.formatFileSize(playback.fileSize)],
           ['diagnostics.source', playback.source],
@@ -147,6 +151,48 @@
       ]);
       content.scrollTop = scrollTop;
       renderFocus();
+    }
+
+    function closeSupportQr() {
+      var dialog = documentRef.getElementById('diagnostics-qr-dialog');
+      if (!supportQrOpen) { return; }
+      supportQrOpen = false;
+      if (dialog) {
+        dialog.className = 'diagnostics-qr-dialog is-hidden';
+        dialog.setAttribute('aria-hidden', 'true');
+      }
+      renderFocus();
+    }
+
+    function openSupportQr() {
+      var report;
+      var dialog = documentRef.getElementById('diagnostics-qr-dialog');
+      var canvas = documentRef.getElementById('diagnostics-qr-canvas');
+      var fallback = documentRef.getElementById('diagnostics-qr-fallback');
+      var reportText = documentRef.getElementById('diagnostics-report-text');
+      var closeButton = documentRef.getElementById('diagnostics-qr-close');
+      var qr;
+      if (!dialog || !values.getSupportReport) { return; }
+      report = values.getSupportReport(identityState);
+      values.setText('diagnostics-qr-title', text('diagnostics.qrTitle'));
+      values.setText('diagnostics-qr-notice', text('diagnostics.qrNotice'));
+      values.setText('diagnostics-qr-close', text('diagnostics.qrClose'));
+      if (closeButton) { closeButton.onclick = closeSupportQr; }
+      dialog.className = 'diagnostics-qr-dialog';
+      dialog.setAttribute('aria-hidden', 'false');
+      supportQrOpen = true;
+      if (fallback) { fallback.className = 'diagnostics-qr-fallback is-hidden'; fallback.textContent = ''; }
+      if (reportText) { reportText.textContent = String(report.body || report.serialized || ''); }
+      try {
+        qr = values.SupportQr.create(report.mailto);
+        values.SupportQr.render(canvas, qr, { pixels: 420, margin: 4, label: text('diagnostics.qrTitle') });
+      } catch (error) {
+        if (fallback) {
+          fallback.className = 'diagnostics-qr-fallback';
+          fallback.textContent = text('diagnostics.qrUnavailable');
+        }
+      }
+      if (closeButton && closeButton.focus && !values.isPointerSelectionActive()) { closeButton.focus(); }
     }
 
     function clearRequest() {
@@ -192,20 +238,25 @@
 
     function activate() {
       if (focusIndex === 0) { refresh(); }
+      else if (focusIndex === 1) { openSupportQr(); }
       else { close(); }
     }
 
     function setFocus(index) {
-      focusIndex = Number(index) === 1 ? 1 : 0;
+      focusIndex = Math.max(0, Math.min(2, Number(index) || 0));
       renderFocus();
     }
 
     function handleKey(event, direction) {
       if (!active) { return; }
       event.preventDefault();
+      if (supportQrOpen) {
+        if (event.keyCode === 13 || event.keyCode === 27 || event.keyCode === 461) { closeSupportQr(); }
+        return;
+      }
       if (event.keyCode === 27 || event.keyCode === 461) { close(); return; }
-      if (direction === 'left') { setFocus(0); }
-      else if (direction === 'right') { setFocus(1); }
+      if (direction === 'left') { setFocus(focusIndex - 1); }
+      else if (direction === 'right') { setFocus(focusIndex + 1); }
       else if (direction === 'up' || direction === 'down') { scroll(direction); }
       else if (event.keyCode === 13) { activate(); }
     }
@@ -226,6 +277,7 @@
     function close() {
       if (!active) { return; }
       active = false;
+      closeSupportQr();
       identityGeneration += 1;
       rootRef.clearInterval(timer);
       timer = null;
@@ -237,6 +289,7 @@
     return {
       activate: activate,
       close: close,
+      closeSupportQr: closeSupportQr,
       destroy: close,
       handleKey: handleKey,
       isOpen: function () { return active; },

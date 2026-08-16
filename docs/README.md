@@ -1,23 +1,34 @@
 # Documentation
 
-This index is the authoritative starting point for the public Ploff
-documentation. It contains the current runtime, maintenance, testing, and
-playback references shipped with the project.
+This is the authoritative index for current Ploff documentation. Completed migration
+plans and implementation checklists are intentionally not kept in the working tree;
+Git history remains the archive for that material.
 
-## Current project references
+## Start here
 
-- [`../README.md`](../README.md) — product overview, installation, and contributor entry point.
-- [`architecture.md`](architecture.md) — runtime architecture, ownership, and design constraints.
-- [`application-source-architecture.md`](application-source-architecture.md) — generated bundle and coordinator source rules.
-- [`features.md`](features.md) — current viewer-facing functionality.
-- [`maintenance.md`](maintenance.md) — runtime ownership, guardrails, and extension rules.
-- [`testing.md`](testing.md) — automated gates, memory checks, and physical-TV signoff.
-- [`playback-invariants.md`](playback-invariants.md) — native playback, seek, and subtitle invariants.
+- [`../README.md`](../README.md) — product overview, installation, first launch, and developer entry point.
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — coding, compatibility, testing, and pull-request requirements.
 
-## Current feature and performance references
+## Architecture and maintenance
 
-- [`virtual-playback-queue-design.md`](virtual-playback-queue-design.md) — bounded queue model and providers.
-- [`paginated-playback-queue-completion.md`](paginated-playback-queue-completion.md) — delivered queue architecture and locked invariants.
-- [`queue-playlist-ux-design.md`](queue-playlist-ux-design.md) — queue drawer, playlist restoration, and profile refresh behavior.
-- [`up-next-layouts.md`](up-next-layouts.md) — Up Next layouts and exhausted-queue behavior.
-- [`release-signoff/`](release-signoff/) — the physical-TV release checklist used by tagged builds.
+- [`architecture.md`](architecture.md) — runtime components, ownership, data flow, and compatibility constraints.
+- [`application-source-architecture.md`](application-source-architecture.md) — coordinator sources and generated `app/app.js` rules.
+- [`maintenance.md`](maintenance.md) — extension boundaries, lifecycle ownership, and maintenance guardrails.
+- [`testing.md`](testing.md) — automated gates, memory checks, benchmarks, and physical-TV signoff.
+- [`catalog-performance.md`](catalog-performance.md) — current deterministic Library benchmark reference and retained baseline.
+
+## Product behavior
+
+- [`features.md`](features.md) — viewer-facing functionality.
+- [`settings.md`](settings.md) — persisted Settings schema, migrations, and UI/schema boundary.
+- [`themes.md`](themes.md) — five shipped visual themes, Chrome 53-safe styling rules, and extension workflow.
+- [`diagnostics.md`](diagnostics.md) — privacy-safe support-report boundary and export flow.
+- [`playback-invariants.md`](playback-invariants.md) — native playback, seek, subtitle, and resume invariants.
+- [`up-next-layouts.md`](up-next-layouts.md) — Up Next presentation and exhausted-queue behavior.
+
+## Release and distribution
+
+- [`github-settings.md`](github-settings.md) — expected public-repository configuration.
+- [`release-signoff/`](release-signoff/) — physical-TV release template and retained release evidence.
+- [`store-submission/`](store-submission/) — LG Content Store worksheets, reviewer guidance, and submission checklist.
+- [`screenshots/`](screenshots/) — current repository screenshot assets; image refresh is independent from documentation maintenance.

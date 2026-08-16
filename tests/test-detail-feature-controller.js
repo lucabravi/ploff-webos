@@ -43,6 +43,7 @@ function createHarness() {
     currentDetail: null,
     seriesContext: null,
     returnView: 'home',
+    fromContinueWatching: false,
     zone: 'play',
     actionIndex: 0,
     seasonIndex: 0,
@@ -58,6 +59,11 @@ function createHarness() {
   var controllerOptions;
   var presentationOptions;
   var episodeOptions;
+  var seasonEpisodes = [
+    { ratingKey: 'episode-1', title: 'Episode 1', viewed: false, viewOffset: 12000, progress: 0.1 },
+    { ratingKey: 'episode-2', title: 'Episode 2', viewed: false, viewOffset: 0, progress: 0 }
+  ];
+  var watchedFailures = {};
   var preference = {
     snapshot: function () { return { profile: { summary: '1080p', mediaIndex: 0, partIndex: 0, audioTracks: [], subtitleTracks: [] }, override: null, identity: 'id' }; },
     prepare: function (identity) { calls.push(['preparePreferences', identity]); },
@@ -98,7 +104,7 @@ function createHarness() {
     reset: function () { calls.push(['episodeReset']); }
   };
   var controller = {
-    open: function (item, options) { state.generation += 1; state.selectedItem = item; state.returnView = options.returnView; return state; },
+    open: function (item, options) { state.generation += 1; state.selectedItem = item; state.returnView = options.returnView; state.fromContinueWatching = options.fromContinueWatching === true; return state; },
     close: function () { state.generation += 1; state.currentDetail = null; state.selectedItem = null; return state; },
     setCurrentDetail: function (detail) { state.currentDetail = detail; return detail; },
     setSelectedItem: function (item) { state.selectedItem = item; return item; },
@@ -108,6 +114,7 @@ function createHarness() {
     selectEpisode: function (index) { state.episodeIndex = index; return index; },
     setFocus: function (focus) { Object.keys(focus || {}).forEach(function (key) { state[key] = focus[key]; }); return state; },
     setReturnView: function (view) { state.returnView = view; return view; },
+    setFromContinueWatching: function (value) { state.fromContinueWatching = value === true; return state.fromContinueWatching; },
     setPlayPending: function (pending) { state.playPending = pending; },
     setBackLockedUntil: function () {},
     setSeasonTransitionMediaKey: function (key) { state.seasonTransitionMediaKey = key; },
@@ -151,7 +158,38 @@ function createHarness() {
     },
     data: {
       PlexClient: {
-        loadSeriesContext: function (_config, _detail, callback) { callback(null, null); return null; }
+        loadSeriesContext: function (_config, _detail, callback) { callback(null, null); return null; },
+        loadSeasonEpisodes: function (_config, seasonKey, _selectedKey, callback) {
+          calls.push(['loadSeasonEpisodes', seasonKey]);
+          callback(null, seasonEpisodes.map(function (episode) { return Object.assign({}, episode); }));
+          return null;
+        },
+        setWatchedAndReset: function (_config, ratingKey, watched, callback) {
+          var index;
+          calls.push(['setWatched', ratingKey, watched]);
+          if (watchedFailures[String(ratingKey)]) { callback(new Error('watched failure')); return null; }
+          for (index = 0; index < seasonEpisodes.length; index += 1) {
+            if (String(seasonEpisodes[index].ratingKey) === String(ratingKey)) {
+              seasonEpisodes[index].viewed = watched;
+              seasonEpisodes[index].viewOffset = 0;
+              seasonEpisodes[index].progress = 0;
+            }
+          }
+          callback(null);
+          return null;
+        },
+        removeFromContinueWatching: function (_config, ratingKey, callback) {
+          calls.push(['removeContinueClient', ratingKey]);
+          callback(null);
+          return null;
+        }
+      },
+      mediaContext: {
+        removeFromContinueWatching: function (target, callback) {
+          calls.push(['removeContinuePort', target.item && target.item.ratingKey]);
+          callback(null, target);
+          return null;
+        }
       },
       config: {},
       mediaPreferenceIdentity: function () { return 'server:profile:media'; },
@@ -189,9 +227,14 @@ function createHarness() {
       toggle: function () {}
     },
     dialogs: {
-      openChoice: function () {},
+      openChoice: function (title, choices, selectedValue, apply, returnFocus) {
+        calls.push(['openChoice', { title: title, choices: choices, selectedValue: selectedValue, apply: apply, returnFocus: returnFocus }]);
+        return true;
+      },
       mediaInfoOpen: function () { return false; },
       openMediaInfo: function (model, origin) { calls.push(['openMediaInfo', model.sections[0].title, origin]); return true; },
+      openMediaVersions: function (options, origin) { calls.push(['openMediaVersions', options, origin]); return true; },
+      handleMediaInfoKey: function (event, direction) { calls.push(['mediaInfoKey', event && event.keyCode, direction]); return { handled: true }; },
       closeMediaInfo: function () {},
       scrollMediaInfo: function () {}
     },
@@ -217,7 +260,10 @@ function createHarness() {
     counts: function () { return { controller: controllerCreates, presentation: presentationCreates, episode: episodeCreates, preference: preferenceCreates, destroyed: destroyed }; },
     feature: DetailFeatureController.create(options),
     document: document,
-    state: state
+    state: state,
+    preference: preference,
+    setSeasonEpisodes: function (episodes) { seasonEpisodes = episodes.map(function (episode) { return Object.assign({}, episode); }); },
+    setWatchedFailure: function (ratingKey, enabled) { watchedFailures[String(ratingKey)] = enabled === true; }
   };
 }
 
@@ -229,13 +275,115 @@ function createHarness() {
   assert.ok(harness.calls.some(function (entry) { return entry[0] === 'enterDetail' && entry[1] === 'library'; }), 'loaded detail enters through the explicit transition port');
   assert.ok(harness.calls.some(function (entry) { return entry[0] === 'metadata' && entry[1] === 'movie-1'; }), 'loaded detail renders through the owned presentation view');
   assert.ok(harness.calls.some(function (entry) { return entry[0] === 'poster' && entry[1] === '/poster.jpg'; }), 'detail poster work is owned by the feature');
-  harness.controllerOptions().openMediaInfo();
-  assert.ok(harness.calls.some(function (entry) { return entry[0] === 'mediaInfoModel' && entry[1] === '1080p'; }), 'Detail must build its media-information model inside the feature');
-  assert.ok(harness.calls.some(function (entry) { return entry[0] === 'openMediaInfo' && entry[1] === 'model' && entry[2] === 'detail'; }), 'Detail must submit a completed model to the shared dialog');
+  harness.controllerOptions().openVersionDetails();
+  assert.ok(harness.calls.some(function (entry) { return entry[0] === 'mediaInfoModel' && entry[1] === '1080p'; }), 'Detail must build the technical model for the selected version');
+  var browserCall = harness.calls.filter(function (entry) { return entry[0] === 'openMediaVersions'; })[0];
+  assert.ok(browserCall, 'Detail must open the shared media dialog in version-browser mode');
+  assert.strictEqual(browserCall[1].choices.length, 1, 'a single physical file must expose one informational choice without a fake automatic duplicate');
+  assert.strictEqual(browserCall[1].selectedValue, 'auto', 'the single automatic selection remains the active browser value');
+  assert.strictEqual(browserCall[2], 'detail', 'the dialog origin must remain detail');
   assert.strictEqual(harness.feature.snapshot().currentDetail.ratingKey, 'movie-1', 'current detail stays private behind a semantic getter');
   assert.strictEqual(harness.feature.handleKey({ keyCode: 13 }, ''), true, 'remote input delegates through the feature boundary');
 }());
 
+
+(function testVersionBrowserDefersMultipleVersionMutationUntilApply() {
+  var harness = createHarness();
+  var first = { summary: '1080p H264', mediaIndex: 0, partIndex: 0, audioTracks: [], subtitleTracks: [] };
+  var second = { summary: '2160p HEVC HDR', mediaIndex: 1, partIndex: 0, audioTracks: [], subtitleTracks: [] };
+  var override = null;
+  var setVersionCalls = [];
+  var browserCall;
+  var options;
+  harness.preference.snapshot = function () { return { profile: first, override: override, identity: 'id' }; };
+  harness.preference.versions = function () { return [first, second]; };
+  harness.preference.selectedProfile = function () { return override && override.mediaIndex === 1 ? second : first; };
+  harness.preference.setVersion = function (mediaIndex, partIndex) { setVersionCalls.push([mediaIndex, partIndex]); };
+
+  harness.controllerOptions().openVersionDetails();
+  browserCall = harness.calls.filter(function (entry) { return entry[0] === 'openMediaVersions'; })[0];
+  options = browserCall[1];
+  assert.strictEqual(options.choices.length, 3, 'multiple files expose automatic plus each physical version');
+  assert.strictEqual(options.choices[0].value, 'auto');
+  assert.strictEqual(options.choices[1].value, '0:0');
+  assert.strictEqual(options.choices[2].value, '1:0');
+  assert.strictEqual(options.selectedValue, 'auto');
+  assert.deepStrictEqual(setVersionCalls, [], 'opening and preview construction must not mutate the version override');
+
+  options.apply(options.choices[2]);
+  assert.deepStrictEqual(setVersionCalls, [[1, 0]], 'the explicit version is applied only after confirmation');
+  options.apply(options.choices[0]);
+  assert.deepStrictEqual(setVersionCalls, [[1, 0], [null, null]], 'confirming Automatic clears the explicit version override');
+}());
+
+
+(function testDetailOptionsExposeSeasonBulkActionsAndRefresh() {
+  var harness = createHarness();
+  var detail = { ratingKey: 'episode-1', type: 'episode', title: 'Episode 1', viewed: false };
+  var context = {
+    seasons: [{ ratingKey: 'season-1', title: 'Season 1' }],
+    episodes: [
+      { ratingKey: 'episode-1', title: 'Episode 1', viewed: false },
+      { ratingKey: 'episode-2', title: 'Episode 2', viewed: false }
+    ]
+  };
+  var menu;
+  var confirm;
+  harness.feature.setPlaybackContext(detail, detail, context, 0, 0);
+  harness.controllerOptions().openDetailOptions();
+  menu = harness.calls.filter(function (entry) { return entry[0] === 'openChoice'; })[0][1];
+  assert.deepStrictEqual(menu.choices.map(function (choice) { return choice.value; }), ['season-watched', 'season-unwatched', 'refresh-metadata'], 'series detail options must expose both season bulk actions plus metadata refresh');
+  menu.apply(menu.choices[0]);
+  confirm = harness.calls.filter(function (entry) { return entry[0] === 'openChoice'; })[1][1];
+  assert.strictEqual(confirm.title, 'detail.markSeasonWatchedConfirm', 'season bulk actions must require a second confirmation dialog');
+  confirm.apply(confirm.choices[0]);
+  assert.deepStrictEqual(harness.calls.filter(function (entry) { return entry[0] === 'setWatched'; }), [
+    ['setWatched', 'episode-1', true],
+    ['setWatched', 'episode-2', true]
+  ], 'confirming watched must update every episode in the selected season');
+  assert.strictEqual(harness.calls.filter(function (entry) { return entry[0] === 'loadSeasonEpisodes'; }).length, 2, 'bulk updates must reload the season after all writes complete');
+  assert.ok(harness.calls.some(function (entry) { return entry[0] === 'message' && entry[1] === 'detail.seasonWatchedComplete'; }), 'successful bulk updates must report completion');
+}());
+
+(function testDetailOptionsExposeContinueRemovalForContinueWatchingOrigin() {
+  var harness = createHarness();
+  var detail = { ratingKey: 'movie-continue', type: 'movie', title: 'Continue movie', viewed: false };
+  var menu;
+  harness.feature.openLoaded(detail, { returnView: 'home', fromContinueWatching: true, skipSeriesLoad: true });
+  harness.controllerOptions().openDetailOptions();
+  menu = harness.calls.filter(function (entry) { return entry[0] === 'openChoice'; })[0][1];
+  assert.deepStrictEqual(menu.choices.map(function (choice) { return choice.value; }), ['remove-continue', 'refresh-metadata'], 'detail options must expose Continue Watching removal for that origin');
+  menu.apply(menu.choices[0]);
+  assert.deepStrictEqual(harness.calls.filter(function (entry) { return entry[0] === 'removeContinuePort'; }), [['removeContinuePort', 'movie-continue']], 'detail options must reuse the shared Continue Watching mutation port');
+  assert.strictEqual(harness.feature.snapshot().fromContinueWatching, false, 'successful removal must clear the origin action for the open detail');
+}());
+
+(function testSeasonBulkContinuesAfterIndividualFailureAndReportsPartialResult() {
+  var harness = createHarness();
+  var detail = { ratingKey: 'episode-1', type: 'episode', title: 'Episode 1', viewed: true };
+  var context = {
+    seasons: [{ ratingKey: 'season-1', title: 'Season 1' }],
+    episodes: [
+      { ratingKey: 'episode-1', title: 'Episode 1', viewed: true },
+      { ratingKey: 'episode-2', title: 'Episode 2', viewed: true }
+    ]
+  };
+  var menu;
+  var confirm;
+  harness.setSeasonEpisodes(context.episodes);
+  harness.setWatchedFailure('episode-1', true);
+  harness.feature.setPlaybackContext(detail, detail, context, 0, 0);
+  harness.controllerOptions().openDetailOptions();
+  menu = harness.calls.filter(function (entry) { return entry[0] === 'openChoice'; })[0][1];
+  menu.apply(menu.choices[1]);
+  confirm = harness.calls.filter(function (entry) { return entry[0] === 'openChoice'; })[1][1];
+  confirm.apply(confirm.choices[0]);
+  assert.deepStrictEqual(harness.calls.filter(function (entry) { return entry[0] === 'setWatched'; }), [
+    ['setWatched', 'episode-1', false],
+    ['setWatched', 'episode-2', false]
+  ], 'a failed episode must not prevent later episodes from being processed');
+  assert.ok(harness.calls.some(function (entry) { return entry[0] === 'message' && entry[1] === 'detail.seasonBulkPartial'; }), 'partial failures must be visible to the user');
+}());
 
 (function testPublicDetailSnapshotsAreMutationIsolated() {
   var harness = createHarness();
@@ -591,6 +739,31 @@ function createLifecycleHarness() {
   harness.feature.openLoaded({ ratingKey: 'movie-2', type: 'movie', title: 'Second' }, { returnView: 'home', skipSeriesLoad: true });
   harness.requests.seasons[0].callback(null, [{ ratingKey: 'episode-1', duration: 120000, viewOffset: 60000 }]);
   assert.strictEqual(harness.calls.filter(function (entry) { return entry[0] === 'reconcilePlayback'; }).length, 0, 'late progress refresh cannot patch the next detail');
+}());
+
+(function testPlaybackReturnHydratesTheCurrentSeasonAndKeepsTheActiveEpisode() {
+  var harness = createLifecycleHarness();
+  var active = { ratingKey: 'episode-4', type: 'episode', index: 4, duration: 120000, viewOffset: 30000 };
+  var context = {
+    seasons: [{ ratingKey: 'season-2', index: 2 }],
+    episodes: [active],
+    playlistQueue: false,
+    type: 'show'
+  };
+  var fresh = [
+    { ratingKey: 'episode-1', type: 'episode', index: 1, viewed: true, duration: 120000, viewOffset: 0 },
+    { ratingKey: 'episode-2', type: 'episode', index: 2, viewed: true, duration: 120000, viewOffset: 0 },
+    { ratingKey: 'episode-3', type: 'episode', index: 3, viewed: true, duration: 120000, viewOffset: 0 },
+    { ratingKey: 'episode-4', type: 'episode', index: 4, viewed: false, duration: 120000, viewOffset: 30000 }
+  ];
+
+  harness.feature.openLoaded(active, { returnView: 'home', context: context });
+  harness.feature.refreshPlaybackState('episode-4', 30);
+  harness.requests.seasons[0].callback(null, fresh);
+
+  assert.strictEqual(harness.feature.snapshot().seriesContext.episodes.length, 4, 'returning from a cross-season queue must restore the complete current season');
+  assert.strictEqual(harness.feature.snapshot().episodeIndex, 3, 'the active queue episode must remain selected after season hydration');
+  assert.strictEqual(harness.feature.snapshot().seriesContext.episodes[2].viewed, true, 'fresh Plex watched state must be reflected for previously completed episodes');
 }());
 
 (function testLeaveAndDestroyAreIdempotent() {

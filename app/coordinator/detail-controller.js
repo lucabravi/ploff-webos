@@ -15,6 +15,7 @@
       seriesContext: null,
       currentDetail: null,
       returnView: 'home',
+      fromContinueWatching: false,
       zone: 'play',
       actionIndex: 0,
       seasonIndex: 0,
@@ -88,6 +89,7 @@
       state.mediaProfileToken += 1;
       state.seriesContext = null;
       state.currentDetail = null;
+      state.fromContinueWatching = false;
       state.zone = 'play';
       state.actionIndex = 0;
       state.seasonIndex = 0;
@@ -109,6 +111,7 @@
       resetTransient();
       state.selectedItem = item;
       state.returnView = options.returnView || 'home';
+      state.fromContinueWatching = options.fromContinueWatching === true;
       state.backLockedUntil = Number(options.backLockedUntil || 0);
       call(values.onOpen, item, snapshot());
       return snapshot();
@@ -334,6 +337,12 @@
       return state.returnView;
     }
 
+    function setFromContinueWatching(value) {
+      if (state.destroyed) { return state.fromContinueWatching; }
+      state.fromContinueWatching = value === true;
+      return state.fromContinueWatching;
+    }
+
     function setPlayPending(value) {
       if (state.destroyed) { return state.playPending; }
       state.playPending = value === true;
@@ -448,10 +457,7 @@
       var code = Number(event && event.keyCode || 0);
       if (state.destroyed) { return { handled: false }; }
       if (call(values.mediaInfoOpen)) {
-        if (code === 27 || code === 461 || code === 13) { call(values.closeMediaInfo); }
-        else if (direction === 'up') { call(values.scrollMediaInfo, -1); }
-        else if (direction === 'down') { call(values.scrollMediaInfo, 1); }
-        return { handled: true };
+        return call(values.handleMediaInfoKey, event, direction) || { handled: true };
       }
       if (call(values.summaryOpen)) {
         if (code === 27 || code === 461 || code === 13) { call(values.closeSummary); }
@@ -474,12 +480,12 @@
       if (state.zone === 'nav') { call(values.activateNavigation); }
       else if (state.zone === 'seasons') { call(values.loadSeason); }
       else if (state.zone === 'episodes' && state.seriesContext) { call(values.playEpisode, state.seriesContext.episodes[state.episodeIndex]); }
-      else if (state.zone === 'audio' || state.zone === 'subtitles' || state.zone === 'version') { call(values.openChoice, state.zone); }
+      else if (state.zone === 'version') { call(values.openVersionDetails); }
+      else if (state.zone === 'audio' || state.zone === 'subtitles') { call(values.openChoice, state.zone); }
       else if (state.zone === 'summary') { call(values.openSummary); }
       else if (state.actionIndex === 1) { call(values.toggleWatched); }
       else if (state.actionIndex === 2) { call(values.toggleWatchlist); }
-      else if (state.actionIndex === 3) { call(values.refreshCurrentMetadata); }
-      else if (state.actionIndex === 4) { call(values.openMediaInfo); }
+      else if (state.actionIndex === 3) { call(values.openDetailOptions); }
       else { requestPlayback({ resume: false }); }
       return { handled: true };
     }
@@ -490,6 +496,7 @@
         seriesContext: state.seriesContext,
         currentDetail: state.currentDetail,
         returnView: state.returnView,
+        fromContinueWatching: state.fromContinueWatching,
         zone: state.zone,
         actionIndex: state.actionIndex,
         seasonIndex: state.seasonIndex,
@@ -547,6 +554,7 @@
       setBackLockedUntil: setBackLockedUntil,
       setCurrentDetail: setCurrentDetail,
       setEpisodes: setEpisodes,
+      setFromContinueWatching: setFromContinueWatching,
       setFocus: setFocus,
       setMetadataStatusTemporary: setMetadataStatusTemporary,
       setPlayPending: setPlayPending,

@@ -71,7 +71,7 @@ FakeElement.prototype.setAttribute = function (name, value) { this.attributes[na
 FakeElement.prototype.getAttribute = function (name) { return this.attributes[name]; };
 FakeElement.prototype.hasAttribute = function (name) { return Object.prototype.hasOwnProperty.call(this.attributes, name); };
 FakeElement.prototype.focus = function () { this.focused = true; };
-FakeElement.prototype.getBoundingClientRect = function () { return { top: 0, bottom: 100, width: this.clientWidth, height: this.clientHeight }; };
+FakeElement.prototype.getBoundingClientRect = function () { return this.rect || { top: 0, bottom: 100, width: this.clientWidth, height: this.clientHeight }; };
 FakeElement.prototype.getElementsByTagName = function (tagName) {
   var result = [];
   var expected = String(tagName).toUpperCase();
@@ -255,6 +255,11 @@ function modules() {
 (function testHomeRendererReconcilesWithoutHardResetAndRestoresFocus() {
   var document = new FakeDocument();
   var content = document.register('content', new FakeElement('main', ''));
+  var preview = document.register('home-preview', new FakeElement('section', 'home-preview'));
+  var previewKicker = document.register('home-preview-kicker', new FakeElement('span', ''));
+  var previewTitle = document.register('home-preview-title', new FakeElement('h1', ''));
+  var previewMeta = document.register('home-preview-meta', new FakeElement('p', ''));
+  var previewSummary = document.register('home-preview-summary', new FakeElement('p', ''));
   var navigation = document.register('navigation', new FakeElement('nav', ''));
   var backdropA = document.register('backdrop-a', new FakeElement('img', 'backdrop-image'));
   var backdropB = document.register('backdrop-b', new FakeElement('img', 'backdrop-image'));
@@ -268,6 +273,7 @@ function modules() {
   var firstSection;
   var firstCard;
   void navigation; void backdropA; void backdropB; void splash; void clockNode; void message;
+  void previewKicker; void previewTitle; void previewMeta; void previewSummary;
   controller = ShellController.create({
     modules: modules(),
     clock: clock,
@@ -296,18 +302,50 @@ function modules() {
     }
   });
   controller.useHomeRows([{ title: 'Continue', shape: 'poster', showLibraryBadge: true, items: [
-    { ratingKey: 'one', title: 'One', image: '/one.jpg', libraryTitle: 'Anime' },
+    { ratingKey: 'one', title: 'One', image: '/one.jpg', libraryTitle: 'Anime', type: 'show', year: 2026, seasonCount: 2, genre: 'Drama', summary: 'A focused Home preview.' },
     { ratingKey: 'two', title: 'Two', image: '/two.jpg' }
   ] }], 0, { focus: 'first' });
   firstSection = content.children[0];
   firstCard = firstSection.querySelector('[data-row-index="0"][data-column="0"]');
   assert.ok(firstCard && firstCard.focused, 'first Home card receives real focus');
+  assert.strictEqual(preview.className, 'home-preview', 'the Home preview becomes available with a focused media item');
+  assert.strictEqual(previewTitle.children[0].textContent, 'One', 'the Home preview follows the focused card title');
+  assert.strictEqual(previewSummary.children[0].textContent, 'A focused Home preview.', 'the Home preview reuses Home metadata without another request');
   assert.strictEqual(firstCard.querySelector('.home-library-badge').children[0].textContent, 'Anime', 'mixed Home rows display the local Plex library badge');
   assert.strictEqual(controller.selectionKey(), '["Continue|poster","rating:one"]');
+  content.scrollTop = 100;
+  content.rect = { top: 100, bottom: 700, width: 900, height: 600 };
+  firstSection.rect = { top: 90, bottom: 650, width: 900, height: 560 };
+  controller.handleHomeKey({ keyCode: 39, preventDefault: function () {} }, 'right');
+  assert.strictEqual(content.scrollTop, 100, 'horizontal movement within one Home row must not toggle its heading through vertical scroll correction');
+  assert.strictEqual(previewTitle.children[0].textContent, 'One', 'secondary Home presentation work must wait while focus is moving');
+  clock.runAll();
+  assert.strictEqual(previewTitle.children[0].textContent, 'Two', 'secondary Home presentation work must settle on the final focused card');
+  controller.handleHomeKey({ keyCode: 37, preventDefault: function () {} }, 'left');
+  content.rect = null;
+  firstSection.rect = null;
+  controller.useHomeRows([
+    { title: 'Continue', shape: 'poster', items: [{ ratingKey: 'one', title: 'One', image: '/one.jpg' }] },
+    { title: 'Recommended', shape: 'poster', items: [{ ratingKey: 'two', title: 'Two', image: '/two.jpg' }] }
+  ], 0, { focus: 'first' });
+  firstSection = content.children[0];
+  content.rect = { top: 100, bottom: 700, width: 900, height: 600 };
+  firstSection.rect = { top: 152, bottom: 452, width: 900, height: 300 };
+  content.children[1].rect = { top: 552, bottom: 852, width: 900, height: 300 };
+  controller.handleHomeKey({ keyCode: 38, preventDefault: function () {} }, 'up');
+  controller.handleHomeKey({ keyCode: 40, preventDefault: function () {} }, 'down');
+  controller.handleHomeKey({ keyCode: 40, preventDefault: function () {} }, 'down');
+  assert.strictEqual(content.scrollTop, 400, 'lower Home rows retain the same top inset as the first row');
+  controller.handleHomeKey({ keyCode: 38, preventDefault: function () {} }, 'up');
+  assert.strictEqual(content.scrollTop, 0, 'returning to the first Home row restores its full top spacing');
+  content.rect = null;
+  firstSection.rect = null;
+  content.children[1].rect = null;
   controller.useHomeRows([{ title: 'Continue', shape: 'poster', items: [
     { ratingKey: 'one', title: 'One', image: '/one.jpg' }
   ] }], 0, { focus: 'nav' });
   assert.strictEqual(controller.snapshot().focus.area, 'nav', 'Home refreshes must preserve navbar focus while a navigation preview is active');
+  assert.strictEqual(content.scrollTop, 0, 'Home refreshes with navbar focus must restore the top spacing before the first row');
   controller.useHomeRows([{ title: 'Continue', shape: 'poster', items: [
     { ratingKey: 'one', title: 'One updated', image: '/one.jpg' },
     { ratingKey: 'three', title: 'Three', image: '/three.jpg' }
@@ -455,6 +493,18 @@ function modules() {
   assert.strictEqual(controller.cardProfile().scale, 120, 'applying card scale must replace the active profile');
   assert.notStrictEqual(controller.cardProfile(), initial, 'a new scale must use its own cached profile');
   assert.strictEqual(settingsReads, 2, 'applying a changed scale must read settings exactly once');
+  controller.destroy();
+}());
+
+(function testBackdropSampleUsesAvailablePlexArtwork() {
+  var controller = ShellController.create({
+    now: function () { return 1; },
+    rows: [{ title: 'Recent', items: [
+      { ratingKey: 'poster-only', image: 'https://example.test/poster/400/600' },
+      { ratingKey: 'with-art', art: 'https://example.test/backdrop/640/360' }
+    ] }]
+  });
+  assert.strictEqual(controller.sampleBackdropSource(), 'https://example.test/backdrop/1280/720', 'backdrop samples must prefer real Plex art and normalize it for preview');
   controller.destroy();
 }());
 

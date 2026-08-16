@@ -33,6 +33,7 @@ var MODULE_FILES = [
   'player-controls-controller.js',
   'playback-controller.js',
   'player-feature-controller.js',
+  'media-context-controller.js',
   'input-controller.js',
   'pointer-controller.js',
   'application-controller.js',

@@ -32,104 +32,7 @@
             <span class="legacy-orb-spark legacy-orb-spark-a"></span>
             <span class="legacy-orb-spark legacy-orb-spark-b"></span>
           </span>
-          <svg class="processing-orb-ring" viewBox="0 0 100 100" focusable="false">
-            <circle class="idle-ring" cx="50" cy="50" r="46"></circle>
-          </svg>
-          <svg class="processing-orb-active" viewBox="0 0 100 100" focusable="false">
-            <defs>
-              <clipPath id="server-activity-orb-clip"><circle cx="50" cy="50" r="45"></circle></clipPath>
-              <linearGradient id="server-activity-status-gradient-online" x1="6" y1="18" x2="94" y2="82">
-                <stop offset="0" stop-color="#ffffff" stop-opacity=".02"></stop>
-                <stop offset=".2" stop-color="#48c774" stop-opacity=".9"></stop>
-                <stop offset=".46" stop-color="#ffffff" stop-opacity=".98"></stop>
-                <stop offset=".7" stop-color="#48c774" stop-opacity=".9"></stop>
-                <stop offset="1" stop-color="#48c774" stop-opacity=".03"></stop>
-              </linearGradient>
-              <linearGradient id="server-activity-status-gradient-local-only" x1="6" y1="18" x2="94" y2="82">
-                <stop offset="0" stop-color="#ffffff" stop-opacity=".02"></stop>
-                <stop offset=".2" stop-color="#e5a00d" stop-opacity=".9"></stop>
-                <stop offset=".46" stop-color="#ffffff" stop-opacity=".98"></stop>
-                <stop offset=".7" stop-color="#e5a00d" stop-opacity=".9"></stop>
-                <stop offset="1" stop-color="#e5a00d" stop-opacity=".03"></stop>
-              </linearGradient>
-              <linearGradient id="server-activity-status-gradient-offline" x1="6" y1="18" x2="94" y2="82">
-                <stop offset="0" stop-color="#ffffff" stop-opacity=".02"></stop>
-                <stop offset=".2" stop-color="#f05d5e" stop-opacity=".9"></stop>
-                <stop offset=".46" stop-color="#ffffff" stop-opacity=".98"></stop>
-                <stop offset=".7" stop-color="#f05d5e" stop-opacity=".9"></stop>
-                <stop offset="1" stop-color="#f05d5e" stop-opacity=".03"></stop>
-              </linearGradient>
-              <linearGradient id="server-activity-status-gradient-unknown" x1="6" y1="18" x2="94" y2="82">
-                <stop offset="0" stop-color="#ffffff" stop-opacity=".02"></stop>
-                <stop offset=".2" stop-color="#737a84" stop-opacity=".9"></stop>
-                <stop offset=".46" stop-color="#ffffff" stop-opacity=".98"></stop>
-                <stop offset=".7" stop-color="#737a84" stop-opacity=".9"></stop>
-                <stop offset="1" stop-color="#737a84" stop-opacity=".03"></stop>
-              </linearGradient>
-              <linearGradient id="server-activity-purple-gradient" x1="8" y1="15" x2="92" y2="85">
-                <stop offset="0" stop-color="#d8b4ff" stop-opacity=".04"></stop>
-                <stop offset=".23" stop-color="#dcbcff" stop-opacity=".94"></stop>
-                <stop offset=".48" stop-color="#ffffff" stop-opacity=".98"></stop>
-                <stop offset=".72" stop-color="#c797ff" stop-opacity=".9"></stop>
-                <stop offset="1" stop-color="#d8b4ff" stop-opacity=".04"></stop>
-              </linearGradient>
-              <radialGradient id="server-activity-core-gradient-online">
-                <stop offset="0" stop-color="#ffffff" stop-opacity="1"></stop>
-                <stop offset=".18" stop-color="#ffffff" stop-opacity=".94"></stop>
-                <stop offset=".43" stop-color="#48c774" stop-opacity=".72"></stop>
-                <stop offset="1" stop-color="#48c774" stop-opacity="0"></stop>
-              </radialGradient>
-              <radialGradient id="server-activity-core-gradient-local-only">
-                <stop offset="0" stop-color="#ffffff" stop-opacity="1"></stop>
-                <stop offset=".18" stop-color="#ffffff" stop-opacity=".94"></stop>
-                <stop offset=".43" stop-color="#e5a00d" stop-opacity=".72"></stop>
-                <stop offset="1" stop-color="#e5a00d" stop-opacity="0"></stop>
-              </radialGradient>
-              <radialGradient id="server-activity-core-gradient-offline">
-                <stop offset="0" stop-color="#ffffff" stop-opacity="1"></stop>
-                <stop offset=".18" stop-color="#ffffff" stop-opacity=".94"></stop>
-                <stop offset=".43" stop-color="#f05d5e" stop-opacity=".72"></stop>
-                <stop offset="1" stop-color="#f05d5e" stop-opacity="0"></stop>
-              </radialGradient>
-              <radialGradient id="server-activity-core-gradient-unknown">
-                <stop offset="0" stop-color="#ffffff" stop-opacity="1"></stop>
-                <stop offset=".18" stop-color="#ffffff" stop-opacity=".94"></stop>
-                <stop offset=".43" stop-color="#737a84" stop-opacity=".72"></stop>
-                <stop offset="1" stop-color="#737a84" stop-opacity="0"></stop>
-              </radialGradient>
-              <filter id="server-activity-fluid-filter" x="-40%" y="-40%" width="180%" height="180%">
-                <feTurbulence type="fractalNoise" baseFrequency=".008 .014" numOctaves="2" seed="13" result="noise"></feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="B"></feDisplacementMap>
-              </filter>
-              <filter id="server-activity-spark-glow" x="-300%" y="-300%" width="700%" height="700%">
-                <feGaussianBlur stdDeviation="1.1" result="blur"></feGaussianBlur>
-                <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
-              </filter>
-            </defs>
-            <circle class="orb-fill" cx="50" cy="50" r="45"></circle>
-            <circle class="orb-aura" cx="50" cy="50" r="42"></circle>
-            <g class="activity-visual" clip-path="url(#server-activity-orb-clip)">
-              <g class="fluid-field" filter="url(#server-activity-fluid-filter)">
-                <g class="fluid-layer fluid-a"><path class="wave wave-glow-status wave-a" d="M-8 63 C8 15,30 13,45 43 C59 71,78 79,108 24"></path><path class="wave wave-main-status wave-a" d="M-8 63 C8 15,30 13,45 43 C59 71,78 79,108 24"></path></g>
-                <g class="fluid-layer fluid-b"><path class="wave wave-glow-status wave-b" d="M-3 19 C28 20,24 62,54 79 C76 91,93 63,107 42"></path><path class="wave wave-main-status wave-b" d="M-3 19 C28 20,24 62,54 79 C76 91,93 63,107 42"></path></g>
-                <g class="fluid-layer fluid-c"><path class="wave wave-glow-status wave-c" d="M-7 39 C19 83,44 5,70 27 C92 46,74 74,108 87"></path><path class="wave wave-main-status wave-c" d="M-7 39 C19 83,44 5,70 27 C92 46,74 74,108 87"></path></g>
-                <g class="fluid-layer fluid-d"><path class="wave wave-glow-status wave-d" d="M-10 50 C17 8,40 20,52 46 C64 72,84 66,110 37"></path><path class="wave wave-main-status wave-d" d="M-10 50 C17 8,40 20,52 46 C64 72,84 66,110 37"></path></g>
-                <g class="fluid-layer fluid-e"><path class="wave wave-glow-status wave-e" d="M3 10 C32 21,19 56,48 68 C74 79,85 56,108 48"></path><path class="wave wave-main-status wave-e" d="M3 10 C32 21,19 56,48 68 C74 79,85 56,108 48"></path></g>
-                <g class="fluid-layer fluid-p1"><path class="wave wave-glow-purple wave-p1" d="M-5 31 C17 74,44 8,67 22 C89 34,80 68,108 76"></path><path class="wave wave-main-purple wave-p1" d="M-5 31 C17 74,44 8,67 22 C89 34,80 68,108 76"></path></g>
-                <g class="fluid-layer fluid-p2"><path class="wave wave-glow-purple wave-p2" d="M9 74 C23 49,43 35,58 48 C74 62,81 34,99 26"></path><path class="wave wave-main-purple wave-p2" d="M9 74 C23 49,43 35,58 48 C74 62,81 34,99 26"></path></g>
-                <g class="fluid-layer fluid-p3"><path class="wave wave-glow-purple wave-p3" d="M-7 55 C19 26,35 22,51 40 C68 59,80 80,108 68"></path><path class="wave wave-main-purple wave-p3" d="M-7 55 C19 26,35 22,51 40 C68 59,80 80,108 68"></path></g>
-              </g>
-              <circle class="energy-pulse" cx="50" cy="50" r="30"></circle>
-              <circle class="energy-pulse p2" cx="50" cy="50" r="30"></circle>
-              <circle class="core" cx="50" cy="50" r="14"></circle>
-              <circle class="spark s1" cx="50" cy="11" r="1.1"></circle>
-              <circle class="spark s2" cx="80" cy="50" r=".9"></circle>
-              <circle class="spark s3" cx="50" cy="82" r=".8"></circle>
-              <circle class="spark s4" cx="21" cy="50" r=".75"></circle>
-            </g>
-          </svg>
         </span>
-        <span id="server-activity-title" class="server-activity-title"></span>
       </button>
       <div id="server-activity-panel" class="server-activity-panel" aria-live="polite"></div>
       <button id="active-profile" class="active-profile is-hidden" type="button" data-profile-shortcut="true">
@@ -166,6 +69,14 @@
         <input id="setup-address" class="setup-address" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="192.168.1.10">
       </div>
       <div id="setup-actions" class="setup-actions"></div>
+    </div>
+  </section>
+  <section id="home-preview" class="home-preview is-empty" aria-live="polite">
+    <div class="home-preview-copy">
+      <span id="home-preview-kicker" class="home-preview-kicker"></span>
+      <h1 id="home-preview-title" class="home-preview-title"></h1>
+      <p id="home-preview-meta" class="home-preview-meta"></p>
+      <p id="home-preview-summary" class="home-preview-summary"></p>
     </div>
   </section>
   <main id="content" class="content"></main>
@@ -233,14 +144,94 @@
       <div id="language-editor-list" class="language-editor-list"></div>
       <div class="language-editor-actions"><button id="language-editor-back" type="button"></button></div>
     </div>
+    <div id="playback-compatibility-dialog" class="playback-compatibility-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="playback-compatibility-title" aria-describedby="playback-compatibility-notice">
+      <div class="playback-compatibility-panel">
+        <h2 id="playback-compatibility-title"></h2>
+        <p id="playback-compatibility-notice"></p>
+        <div id="playback-compatibility-status" class="playback-compatibility-status"></div>
+        <div id="playback-compatibility-list" class="playback-compatibility-list">
+          <button id="playback-compatibility-enabled" data-playback-compatibility-index="0" type="button"><span id="playback-compatibility-enabled-label"></span><span id="playback-compatibility-enabled-value"></span></button>
+          <button id="playback-compatibility-formats" data-playback-compatibility-index="1" type="button"><span id="playback-compatibility-formats-label"></span><span id="playback-compatibility-formats-value"></span></button>
+          <button id="playback-compatibility-files" data-playback-compatibility-index="2" type="button"><span id="playback-compatibility-files-label"></span><span id="playback-compatibility-files-value"></span></button>
+          <button id="playback-compatibility-reset" data-playback-compatibility-index="3" type="button"><span id="playback-compatibility-reset-label"></span><span id="playback-compatibility-reset-value"></span></button>
+        </div>
+        <div class="playback-compatibility-actions"><button id="playback-compatibility-close" data-playback-compatibility-index="4" type="button"></button></div>
+      </div>
+    </div>
   </section>
+  <div id="text-input-dialog" class="text-input-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="text-input-dialog-title" aria-describedby="text-input-dialog-hint">
+    <div class="text-input-dialog-panel">
+      <h2 id="text-input-dialog-title"></h2>
+      <p id="text-input-dialog-hint"></p>
+      <input id="text-input-dialog-field" type="text" autocomplete="off" spellcheck="false">
+      <div class="text-input-dialog-actions">
+        <button id="text-input-dialog-cancel" data-text-input-index="1" type="button"></button>
+        <button id="text-input-dialog-apply" class="is-primary" data-text-input-index="2" type="button"></button>
+      </div>
+    </div>
+  </div>
+  <div id="safe-area-dialog" class="safe-area-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="safe-area-dialog-title" aria-describedby="safe-area-dialog-hint">
+    <div class="safe-area-dialog-panel">
+      <div class="safe-area-dialog-header">
+        <h2 id="safe-area-dialog-title"></h2>
+        <p id="safe-area-dialog-hint"></p>
+      </div>
+      <div class="safe-area-stage">
+        <div class="safe-area-guide" aria-hidden="true">
+          <span class="safe-area-guide-corner is-top-left"></span>
+          <span class="safe-area-guide-corner is-top-right"></span>
+          <span class="safe-area-guide-corner is-bottom-left"></span>
+          <span class="safe-area-guide-corner is-bottom-right"></span>
+        </div>
+        <p class="safe-area-dialog-message" id="safe-area-dialog-message"></p>
+        <button id="safe-area-edge-top" class="safe-area-edge is-focused" data-safe-area-index="0" type="button"><span id="safe-area-edge-top-label"></span><strong id="safe-area-edge-top-value"></strong></button>
+        <button id="safe-area-edge-right" class="safe-area-edge" data-safe-area-index="1" type="button"><span id="safe-area-edge-right-label"></span><strong id="safe-area-edge-right-value"></strong></button>
+        <button id="safe-area-edge-bottom" class="safe-area-edge" data-safe-area-index="2" type="button"><span id="safe-area-edge-bottom-label"></span><strong id="safe-area-edge-bottom-value"></strong></button>
+        <button id="safe-area-edge-left" class="safe-area-edge" data-safe-area-index="3" type="button"><span id="safe-area-edge-left-label"></span><strong id="safe-area-edge-left-value"></strong></button>
+      </div>
+      <div class="safe-area-dialog-actions">
+        <button id="safe-area-reset" class="safe-area-action is-secondary" data-safe-area-index="4" type="button"></button>
+        <span class="safe-area-dialog-action-spacer"></span>
+        <button id="safe-area-cancel" class="safe-area-action" data-safe-area-index="5" type="button"></button>
+        <button id="safe-area-apply" class="safe-area-action is-primary" data-safe-area-index="6" type="button"></button>
+      </div>
+    </div>
+  </div>
+  <div id="subtitle-style-dialog" class="subtitle-style-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="subtitle-style-dialog-title">
+    <div class="subtitle-style-dialog-panel">
+      <h2 id="subtitle-style-dialog-title"></h2>
+      <div id="subtitle-style-dialog-preview" class="subtitle-style-dialog-preview" aria-hidden="true">
+        <span id="subtitle-style-dialog-preview-text"></span>
+      </div>
+      <div class="subtitle-style-dialog-controls">
+        <button id="subtitle-style-background" class="subtitle-style-control" data-subtitle-style-index="0" type="button"><span id="subtitle-style-background-label"></span><strong id="subtitle-style-background-value"></strong></button>
+        <button id="subtitle-style-position" class="subtitle-style-control" data-subtitle-style-index="1" type="button"><span id="subtitle-style-position-label"></span><strong id="subtitle-style-position-value"></strong></button>
+        <button id="subtitle-style-edge" class="subtitle-style-control" data-subtitle-style-index="2" type="button"><span id="subtitle-style-edge-label"></span><strong id="subtitle-style-edge-value"></strong></button>
+      </div>
+      <div class="subtitle-style-dialog-actions">
+        <button id="subtitle-style-reset" class="subtitle-style-action is-secondary" data-subtitle-style-index="3" type="button"></button>
+        <span></span>
+        <button id="subtitle-style-cancel" class="subtitle-style-action" data-subtitle-style-index="4" type="button"></button>
+        <button id="subtitle-style-apply" class="subtitle-style-action is-primary" data-subtitle-style-index="5" type="button"></button>
+      </div>
+    </div>
+  </div>
   <section id="diagnostics-view" class="diagnostics-view is-hidden" aria-live="polite">
     <h1 id="diagnostics-title" class="diagnostics-title">User diagnostics</h1>
     <p id="diagnostics-notice" class="diagnostics-notice"></p>
     <div id="diagnostics-content" class="diagnostics-content"></div>
     <div class="diagnostics-actions">
       <button id="diagnostics-refresh" data-diagnostics-action="refresh" type="button">Refresh</button>
+      <button id="diagnostics-export" data-diagnostics-action="export" type="button">Export support QR</button>
       <button id="diagnostics-back" data-diagnostics-action="back" type="button">Back</button>
+    </div>
+    <div id="diagnostics-qr-dialog" class="diagnostics-qr-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="diagnostics-qr-title">
+      <h2 id="diagnostics-qr-title"></h2>
+      <p id="diagnostics-qr-notice"></p>
+      <canvas id="diagnostics-qr-canvas" width="420" height="420"></canvas>
+      <div id="diagnostics-qr-fallback" class="diagnostics-qr-fallback is-hidden"></div>
+      <pre id="diagnostics-report-text" class="diagnostics-report-text" aria-labelledby="diagnostics-qr-title"></pre>
+      <button id="diagnostics-qr-close" data-diagnostics-qr-action="close" type="button"></button>
     </div>
   </section>
   <section id="detail-view" class="detail-view is-hidden" aria-live="polite">
@@ -258,14 +249,13 @@
         <button id="detail-play" class="detail-action" type="button">Play</button>
         <button id="detail-watched" class="detail-action detail-action-secondary" type="button">Mark watched</button>
         <button id="detail-watchlist" class="detail-action detail-action-secondary" type="button">Watchlist</button>
-        <button id="detail-refresh-metadata" class="detail-action detail-action-secondary" type="button">Refresh metadata</button>
-        <button id="detail-file-info" class="detail-action detail-action-secondary detail-info-action" type="button" aria-label="Media details">i</button>
+        <button id="detail-options" class="detail-action detail-action-secondary detail-options-action" type="button" aria-label="Media options"><span class="options-dot"></span><span class="options-dot"></span><span class="options-dot"></span></button>
       </div>
       <div id="detail-playback-controls" class="detail-playback-controls">
         <div class="detail-track-choices">
+          <button id="detail-version" class="detail-choice" type="button"><span id="detail-version-label" class="detail-choice-label">Version</span><span id="detail-version-value" class="detail-choice-value"></span><span id="detail-version-info" class="detail-version-info" aria-hidden="true">i</span></button>
           <button id="detail-audio" class="detail-choice" type="button"><span id="detail-audio-label" class="detail-choice-label">Audio</span><span id="detail-audio-value" class="detail-choice-value"></span></button>
           <button id="detail-subtitles" class="detail-choice" type="button"><span id="detail-subtitles-label" class="detail-choice-label">Subtitles</span><span id="detail-subtitles-value" class="detail-choice-value"></span></button>
-          <button id="detail-version" class="detail-choice" type="button"><span id="detail-version-label" class="detail-choice-label">Version</span><span id="detail-version-value" class="detail-choice-value"></span></button>
         </div>
       </div>
     </div>
@@ -283,14 +273,25 @@
     <div id="media-info-dialog" class="media-info-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="media-info-dialog-title" aria-describedby="media-info-dialog-hint">
       <div class="media-info-dialog-panel">
         <h2 id="media-info-dialog-title"></h2>
-        <div id="media-info-dialog-content" class="media-info-dialog-content"></div>
+        <div id="media-info-dialog-version-browser" class="media-info-dialog-version-browser is-hidden">
+          <span id="media-info-dialog-version-prev" class="media-info-dialog-version-arrow" aria-hidden="true">‹</span>
+          <button id="media-info-dialog-version-value" class="media-info-dialog-version-value" type="button"></button>
+          <span id="media-info-dialog-version-next" class="media-info-dialog-version-arrow" aria-hidden="true">›</span>
+          <span id="media-info-dialog-version-count" class="media-info-dialog-version-count"></span>
+          <span id="media-info-dialog-version-state" class="media-info-dialog-version-state"></span>
+        </div>
+        <div id="media-info-dialog-content" class="media-info-dialog-content" tabindex="-1"></div>
         <div id="media-info-dialog-hint" class="media-info-dialog-hint"></div>
-        <button id="media-info-dialog-close" class="media-info-dialog-close" type="button"></button>
+        <div class="media-info-dialog-actions">
+          <button id="media-info-dialog-close" class="media-info-dialog-close" type="button"></button>
+          <button id="media-info-dialog-apply" class="media-info-dialog-apply is-hidden" type="button"></button>
+        </div>
       </div>
     </div>
     <div id="choice-dialog" class="choice-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="choice-dialog-title">
       <div class="choice-dialog-panel">
         <h3 id="choice-dialog-title"></h3>
+        <div id="choice-dialog-preview" class="choice-dialog-preview is-hidden" aria-hidden="true"></div>
         <div id="choice-dialog-list" class="choice-dialog-list"></div>
         <div class="choice-dialog-actions"><button id="choice-dialog-cancel" type="button"></button></div>
       </div>
@@ -482,6 +483,7 @@
   <script src="chapter-state.js?v=dev"></script>
   <script src="player-chapters-view.js?v=dev"></script>
   <script src="playback-strategy.js?v=dev"></script>
+  <script src="playback-compatibility-memory.js?v=dev"></script>
   <script src="version-selection.js?v=dev"></script>
   <script src="playback-queue-model.js?v=dev"></script>
   <script src="playback-recovery.js?v=dev"></script>
@@ -494,6 +496,10 @@
   <script src="subtitle-editor-view.js?v=dev"></script>
   <script src="subtitle-offset-store.js?v=dev"></script>
   <script src="diagnostics-state.js?v=dev"></script>
+  <script src="runtime-error-store.js?v=dev"></script>
+  <script src="vendor/qrcode-generator.js?v=dev"></script>
+  <script src="support-qr.js?v=dev"></script>
+  <script src="support-snapshot.js?v=dev"></script>
   <script src="diagnostics-view.js?v=dev"></script>
   <script src="navbar-window.js?v=dev"></script>
   <script src="library-containers.js?v=dev"></script>
@@ -514,6 +520,7 @@
   <script src="build-info.js?v=dev"></script>
   <script src="config.js?v=dev"></script>
   <script src="i18n.js?v=dev"></script>
+  <script src="language-flag.js?v=dev"></script>
   <script src="locales/en.js?v=dev"></script>
   <script src="locales/it.js?v=dev"></script>
   <script src="locales/es.js?v=dev"></script>
@@ -523,10 +530,17 @@
   <script src="locales/ja.js?v=dev"></script>
   <script src="locales/ko.js?v=dev"></script>
   <script src="release-status.js?v=dev"></script>
+  <script src="theme-registry.js?v=dev"></script>
+  <script src="settings-schema.js?v=dev"></script>
   <script src="settings.js?v=dev"></script>
+  <script src="settings-backup-format.js?v=dev"></script>
+  <script src="plex-settings-backup-store.js?v=dev"></script>
+  <script src="text-input-dialog.js?v=dev"></script>
   <script src="local-data.js?v=dev"></script>
   <script src="settings-catalog.js?v=dev"></script>
   <script src="settings-view.js?v=dev"></script>
+  <script src="safe-area-dialog.js?v=dev"></script>
+  <script src="subtitle-style-dialog.js?v=dev"></script>
   <script src="t9-input.js?v=dev"></script>
   <script src="search-text.js?v=dev"></script>
   <script src="search-view.js?v=dev"></script>

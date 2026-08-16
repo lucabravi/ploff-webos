@@ -10,6 +10,7 @@
     if (snapshot.choiceDialogOpen) { return 'choice-dialog'; }
     if (snapshot.upNextLayoutOpen) { return 'up-next-layout'; }
     if (snapshot.privacyDialogOpen) { return 'privacy'; }
+    if (snapshot.playbackCompatibilityOpen) { return 'playback-compatibility'; }
     if (snapshot.appView === 'setup') { return 'setup'; }
     if (snapshot.appView === 'diagnostics') { return 'diagnostics'; }
     if (snapshot.navReorderActive) { return 'navigation-reorder'; }

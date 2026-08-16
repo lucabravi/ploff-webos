@@ -1,8 +1,8 @@
 (function (root, factory) {
   'use strict';
-  if (typeof module === 'object' && module.exports) { module.exports = factory(); }
-  else { root.PloffSetupView = factory(); }
-}(this, function () {
+  if (typeof module === 'object' && module.exports) { module.exports = factory(require('./language-flag')); }
+  else { root.PloffSetupView = factory(root.PloffLanguageFlag); }
+}(this, function (LanguageFlag) {
   'use strict';
 
   function array(value) {
@@ -164,6 +164,8 @@
       var index;
       var language;
       var option;
+      var identity;
+      var flag;
       var meta;
       reset(text('setup.stepLanguage'), text('setup.chooseLanguageTitle'), text('setup.chooseLanguageMessage'));
       list.className = 'setup-list setup-language-list';
@@ -173,7 +175,11 @@
         option = element('button', 'setup-option' + (language.code === active ? ' is-active' : ''));
         option.type = 'button';
         option.setAttribute('data-setup-language', index);
-        option.appendChild(element('span', '', language.label));
+        identity = element('span', 'setup-language-identity');
+        flag = LanguageFlag ? LanguageFlag.create(documentRef, language.code) : null;
+        if (flag) { identity.appendChild(flag); }
+        identity.appendChild(element('span', '', language.label));
+        option.appendChild(identity);
         meta = language.code === active ? '\u2713' : '';
         option.appendChild(element('span', 'setup-option-meta', meta));
         list.appendChild(option);

@@ -26,26 +26,27 @@
       setText('detail-summary-dialog-close', t('common.close'));
       values.root.setTimeout(updateSummaryOverflow, 0);
     }
-    function renderChoice(id, cyclable) {
+    function renderChoice(id, cyclable, openable) {
       var button = node(id);
       var focused = button && button.className.indexOf('is-focused') !== -1;
       if (!button) { return; }
       button.className = 'detail-choice' + (cyclable ? ' is-cyclable' : '') + (focused ? ' is-focused' : '');
-      button.disabled = !cyclable;
+      button.disabled = !(cyclable || openable);
     }
     function renderMediaControls(model) {
       var data = model || {};
       var labels = data.labels || {};
       var choices = data.choices || {};
       var content = data.values || {};
+      setText('detail-version-label', labels.version || '');
       setText('detail-audio-label', labels.audio || '');
       setText('detail-subtitles-label', labels.subtitles || '');
+      setText('detail-version-value', content.version || '');
       setText('detail-audio-value', content.audio || '');
       setText('detail-subtitles-value', content.subtitles || '');
-      setText('detail-version-value', content.version || '');
       renderChoice('detail-audio', !!choices.audio);
       renderChoice('detail-subtitles', !!choices.subtitles);
-      renderChoice('detail-version', !!choices.versions);
+      renderChoice('detail-version', !!choices.versions, choices.versionOpenable === true);
     }
     function clear() {
       setText('detail-title', ''); setText('detail-subtitle', ''); setText('detail-facts', ''); setText('detail-summary', '');

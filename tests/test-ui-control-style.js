@@ -34,6 +34,7 @@ assert.ok(/:root\s*\{[\s\S]*--primary-focus-shadow:\s*0 0 0 2px #111317, 0 0 0 6
 });
 
 assert.ok(/:root\s*\{[\s\S]*--control-surface:\s*#202328;[\s\S]*--control-surface-focused:\s*#2b2f35;[\s\S]*--control-value:\s*#c9cdd2;[\s\S]*--panel-surface:\s*#15171b;/.test(styles), 'shared control and panel surfaces must have one visual authority');
+assert.ok(/\.app-settings-list\s*\{[^}]*padding:\s*6px\s+28px\s+6px\s+6px/.test(styles), 'settings lists must reserve space for the focus ring on their first row');
 [
   'app-setting-row', 'language-editor-row', 'setting-row', 'subtitle-editor-row',
   'choice-dialog-option', 'library-filter-row', 'library-filter-option',
@@ -49,8 +50,8 @@ assert.ok(/choice-dialog-option'\s*\+\s*\(index === state\.selectedIndex \? ' is
 assert.ok(/setAttribute\('aria-selected', index === state\.selectedIndex \? 'true' : 'false'\)/.test(choiceDialog), 'choice dialogs must expose the applied value to assistive technology');
 assert.ok(/\.choice-dialog-option\.is-selected:after\s*\{[^}]*content:'\\2713'/.test(styles), 'choice dialogs must mark the applied value without replacing their vertical list');
 assert.ok(!/stepper/i.test(choiceDialog), 'the reusable modal must remain a plain vertical list instead of rendering stepped controls');
-assert.ok(/\.language-editor-actions button,\s*\.detail-summary-dialog-close,\s*\.media-info-dialog-close,\s*\.choice-dialog-actions button,\s*\.privacy-dialog-close\s*\{[^}]*background:\s*var\(--action-surface\)[^}]*color:\s*var\(--action-text\)/.test(styles), 'persistent dialog exits must share one action surface declaration');
-assert.ok(/\.language-editor-actions button\.is-focused,\s*\.detail-summary-dialog-close\.is-focused,\s*\.media-info-dialog-close\.is-focused,\s*\.choice-dialog-actions button\.is-focused,\s*\.privacy-dialog-close\.is-focused\s*\{[^}]*box-shadow:\s*var\(--focus-shadow\)/.test(styles), 'persistent dialog exits must share one neutral focus declaration');
+assert.ok(/\.language-editor-actions button,\s*\.detail-summary-dialog-close,\s*\.media-info-dialog-close,\s*\.media-info-dialog-apply,\s*\.media-info-dialog-version-value,\s*\.choice-dialog-actions button,\s*\.privacy-dialog-close\s*\{[^}]*background:\s*var\(--action-surface\)[^}]*color:\s*var\(--action-text\)/.test(styles), 'persistent dialog exits and media version controls must share one action surface declaration');
+assert.ok(/\.language-editor-actions button\.is-focused,\s*\.detail-summary-dialog-close\.is-focused,\s*\.media-info-dialog-close\.is-focused,\s*\.media-info-dialog-apply\.is-focused,\s*\.media-info-dialog-version-value\.is-focused,\s*\.choice-dialog-actions button\.is-focused,\s*\.privacy-dialog-close\.is-focused\s*\{[^}]*box-shadow:\s*var\(--focus-shadow\)/.test(styles), 'persistent dialog exits and media version controls must share one neutral focus declaration');
 assert.ok(/\.language-editor\s*\{[^}]*width:\s*620px[^}]*max-width:\s*84vw[^}]*max-height:\s*76vh[^}]*transform:\s*translate\(-50%,\s*-50%\)/.test(styles), 'priority editors must use the compact centered dialog frame');
 assert.ok(/\.language-editor-list\s*\{[^}]*width:\s*100%[^}]*max-height:\s*52vh/.test(styles), 'priority editors must give their ordered options the same usable width and list budget as choice dialogs');
 

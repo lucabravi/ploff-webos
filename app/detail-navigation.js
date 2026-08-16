@@ -38,7 +38,7 @@
         else if (direction === 'right') { state.actionIndex = clamp(state.actionIndex + 1, 0, Math.max(0, Number(options.actionCount || 4) - 1)); }
         else if (direction === 'up' && options.summaryOverflowing) { state.zone = 'summary'; }
         else if (direction === 'up' && options.hasSeries) { state.zone = 'seasons'; }
-        else if (direction === 'up') { state.zone = 'nav'; }
+        else if (direction === 'up') { state.zone = 'play'; }
         else if (direction === 'down') { state.zone = choices.length ? choices[0] : (options.hasSeries ? 'episodes' : 'play'); }
       } else if (state.zone === 'summary') {
         if (direction === 'down') { state.zone = 'play'; state.actionIndex = 0; }

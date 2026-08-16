@@ -42,13 +42,13 @@
     return true;
   }
 
-  function streamCompatible(version, capabilities) {
+  function nativeAttemptable(version, capabilities) {
     var source = version || {};
     var device = capabilities || {};
+    // Codec/container lists are conservative hints; only hard device limits block a probe.
     if (!device.directPlay) { return false; }
     if (source.height > 1080 && !device.uhd) { return false; }
     if (!supportsDynamicRange(source, device)) { return false; }
-    if (device.codecs && device.codecs.length && !contains(device.codecs, source.videoCodec)) { return false; }
     return true;
   }
 
@@ -65,28 +65,70 @@
     return source[0];
   }
 
-  function step(kind, version, videoQuality) {
-    return {
+  function sourceIsUhd(version) {
+    var source = version || {};
+    var resolution = normalized(source.videoResolution);
+    return Number(source.width || 0) >= 3840 || Number(source.height || 0) >= 2160 || /4k|uhd/.test(resolution);
+  }
+
+  function transcodeResolution(kind, version, capabilities) {
+    if (kind !== 'transcode' && kind !== 'safe-transcode') { return '3840x2160'; }
+    if (kind === 'safe-transcode') { return '1920x1080'; }
+    if (sourceIsUhd(version) && capabilities && (capabilities.uhd === true || capabilities.known === false)) { return '3840x2160'; }
+    return '1920x1080';
+  }
+
+  function step(kind, version, videoQuality, capabilities) {
+    var result = {
       kind: kind,
       mediaIndex: Number(version.mediaIndex || 0),
       partIndex: Number(version.partIndex || 0),
       videoQuality: videoQuality || 'original',
-      videoResolution: kind === 'safe-transcode' ? '1920x1080' : '3840x2160'
+      videoResolution: transcodeResolution(kind, version, capabilities)
     };
+    if (kind === 'safe-transcode') { result.safeTranscode = true; }
+    return result;
   }
 
-  function plan(mode, capabilities, versions, selectedIndex, videoQuality) {
+  function compatibilitySkip(memory, kind, version, context) {
+    if (!memory || typeof memory.shouldSkip !== 'function') { return false; }
+    return memory.shouldSkip({
+      kind: kind,
+      version: version,
+      audio: context && context.audio || null,
+      subtitles: context && context.subtitles || null,
+      context: context || {}
+    });
+  }
+
+  function addNativeSteps(result, version, quality, compatibilityMemory, compatibilityContext, capabilities) {
+    if (!compatibilitySkip(compatibilityMemory, 'direct-play', version, compatibilityContext)) {
+      result.push(step('direct-play', version, 'original', capabilities));
+    }
+    if (!compatibilitySkip(compatibilityMemory, 'direct-stream', version, compatibilityContext)) {
+      result.push(step('direct-stream', version, quality, capabilities));
+    }
+  }
+
+  function plan(mode, capabilities, versions, selectedIndex, videoQuality, compatibilityMemory, compatibilityContext) {
     var preference = mode === 'direct' || mode === 'transcode' ? mode : 'auto';
     var requested = selectedVersion(versions, selectedIndex, capabilities, false);
     var quality = videoQuality || 'original';
     var result = [];
-    if (preference !== 'transcode') {
-      if (compatible(requested, capabilities)) { result.push(step('direct-play', requested, 'original')); }
-      if (streamCompatible(requested, capabilities)) { result.push(step('direct-stream', requested, quality)); }
+    var native = nativeAttemptable(requested, capabilities);
+    var tracksRequireTranscode = capabilities && capabilities.tracksRequireTranscode === true;
+    if (preference === 'direct') {
+      result.push(step('direct-play', requested, 'original', capabilities));
+      result.push(step('direct-stream', requested, quality, capabilities));
+    } else if (preference === 'auto') {
+      if (native && !tracksRequireTranscode) { addNativeSteps(result, requested, quality, compatibilityMemory, compatibilityContext, capabilities); }
     }
     if (preference !== 'direct') {
-      result.push(step('transcode', requested, quality));
-      result.push(step('safe-transcode', requested, '8000'));
+      result.push(step('transcode', requested, quality, capabilities));
+      result.push(step('safe-transcode', requested, '8000', capabilities));
+      if (preference === 'auto' && native && tracksRequireTranscode) {
+        addNativeSteps(result, requested, quality, compatibilityMemory, compatibilityContext, capabilities);
+      }
     }
     return result;
   }

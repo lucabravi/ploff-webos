@@ -1,68 +1,36 @@
 (function (root, factory) {
   'use strict';
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./i18n'));
+    module.exports = factory(require('./settings-schema'), require('./theme-registry'));
   } else {
-    root.PloffSettings = factory(root.PloffI18n);
+    root.PloffSettings = factory(root.PloffSettingsSchema, root.PloffThemeRegistry);
   }
-}(this, function (I18n) {
+}(this, function (SettingsSchema, ThemeRegistry) {
   'use strict';
 
-  var STORAGE_KEY = 'ploff.settings.v1';
-  // Keep interface locales independent from the audio/subtitle language catalog.
-  // The registry belongs to i18n, so a translated locale is automatically valid
-  // for stored settings and Plex account-locale seeding.
-  var SUPPORTED_UI_LANGUAGES = I18n && I18n.supportedLanguages
-    ? I18n.supportedLanguages()
-    : ['en', 'it'];
-  var VOLUMES = [10, 20, 30];
-  var DELAYS = [200, 500, 1000, 2000];
-  var AUTOPLAY_DELAYS = [0, 3, 5, 10, 15];
-  var UP_NEXT_LAYOUTS = ['compact', 'bottom-panel'];
-  var SKIP_PROMPT_DURATIONS = [3, 5, 10];
-  var SUBTITLE_MODES = ['off', 'always', 'audio-mismatch', 'forced'];
-  var SUBTITLE_SOURCE_PREFERENCES = ['external', 'internal'];
-  var VIDEO_QUALITIES = ['4000', '8000', '12000', 'original'];
-  var PLAYBACK_MODES = ['auto', 'direct', 'transcode'];
-  var VIDEO_VERSION_PRIORITIES = ['resolution', 'hdr', 'quality', 'directPlay'];
-  var WHEEL_BEHAVIORS = ['items', 'page'];
-  var CARD_SCALES = [70, 80, 90, 100, 110, 120, 130];
-  var ARTWORK_QUALITIES = [70, 80, 85, 90, 100];
-  var BACKDROP_QUALITIES = [50, 60, 70, 85, 100];
-  var ACCENT_COLORS = ['cyan', 'amber', 'blue', 'green', 'pink', 'purple', 'red', 'white'];
+  var CURRENT_VERSION = 3;
+  var STORAGE_KEY = 'ploff.settings.v3';
+  var LEGACY_STORAGE_KEYS = [
+    { key: 'ploff.settings.v2', version: 2 },
+    { key: 'ploff.settings.v1', version: 1 }
+  ];
+  var SUPPORTED_UI_LANGUAGES = SettingsSchema.allowed('uiLanguage');
+  var ARTWORK_QUALITIES = SettingsSchema.allowed('artworkQuality');
+  var BACKDROP_QUALITIES = SettingsSchema.allowed('backdropQuality');
+  var VIDEO_QUALITIES = SettingsSchema.allowed('lanVideoQuality');
+  var ACCENT_COLORS = SettingsSchema.allowed('accentColor');
+  var VISUAL_THEMES = SettingsSchema.allowed('visualTheme');
+  var SETTINGS_BACKUP_MODES = SettingsSchema.allowed('settingsBackupMode');
+  var SUBTITLE_BACKGROUNDS = SettingsSchema.allowed('subtitleBackground');
+  var SUBTITLE_EDGES = SettingsSchema.allowed('subtitleEdge');
+  var SUBTITLE_POSITIONS = SettingsSchema.allowed('subtitlePosition');
+  var SAFE_AREA_INSETS = SettingsSchema.allowed('safeAreaTop');
 
   /** @returns {PloffSettingsRecord} */
   function defaults() {
-    return {
-      version: 1,
-      uiLanguage: 'en',
-      uiLanguageExplicit: false,
-      backgroundMusic: true,
-      backgroundVolume: 20,
-      backgroundDelay: 500,
-      autoplayDelay: 5,
-      upNextLayout: 'compact',
-      skipPromptDuration: 5,
-      audioLanguages: [],
-      subtitleLanguages: [],
-      subtitleSuppressedForAudio: [],
-      subtitleMode: 'audio-mismatch',
-      subtitleModeExplicit: false,
-      subtitleSourcePreference: 'external',
-      lanVideoQuality: 'original',
-      remoteVideoQuality: '8000',
-      playbackMode: 'auto',
-      videoVersionPriorities: VIDEO_VERSION_PRIORITIES.slice(),
-      wheelBehavior: 'items',
-      cardScale: 100,
-      artworkQuality: 90,
-      backdropQuality: 85,
-      accentColor: 'cyan',
-      interfaceAnimations: true,
-      searchT9Input: true,
-      showWatchlist: true,
-      showPlaylists: true
-    };
+    var result = SettingsSchema.defaults();
+    result.version = CURRENT_VERSION;
+    return result;
   }
 
   function primaryLanguage(value) {
@@ -118,42 +86,57 @@
     return result;
   }
 
+  function normalizeDefinition(definition, value, fallback) {
+    var allowed = definition.allowed || [];
+    if (definition.kind === 'ui-language') {
+      return enumValue(primaryLanguage(value), allowed, fallback);
+    }
+    if (definition.kind === 'boolean-true') { return value === true; }
+    if (definition.kind === 'boolean-false-only') { return value !== false; }
+    if (definition.kind === 'boolean-strict-default-true') {
+      return value === undefined ? fallback : value === true;
+    }
+    if (definition.kind === 'enum-number') { return enumValue(Number(value), allowed, fallback); }
+    if (definition.kind === 'nearest-number') { return nearestNumericValue(value, allowed, fallback); }
+    if (definition.kind === 'enum-string') { return enumValue(String(value || ''), allowed, fallback); }
+    if (definition.kind === 'enum') { return enumValue(value, allowed, fallback); }
+    if (definition.kind === 'language-list') { return languageList(value); }
+    if (definition.kind === 'priority-list') { return priorityList(value, allowed); }
+    return fallback;
+  }
+
   /** @returns {PloffSettingsRecord} */
   function validate(source) {
     var fallback = defaults();
     var value = source || {};
-    var uiLanguage = primaryLanguage(value.uiLanguage);
+    var definitions = SettingsSchema.all();
+    var result = defaults();
     var legacyVideoQuality = enumValue(String(value.videoQuality || ''), VIDEO_QUALITIES, '');
-    return {
-      version: 1,
-      uiLanguage: enumValue(uiLanguage, SUPPORTED_UI_LANGUAGES, fallback.uiLanguage),
-      uiLanguageExplicit: value.uiLanguageExplicit === true,
-      backgroundMusic: value.backgroundMusic !== false,
-      backgroundVolume: enumValue(Number(value.backgroundVolume), VOLUMES, fallback.backgroundVolume),
-      backgroundDelay: enumValue(Number(value.backgroundDelay), DELAYS, fallback.backgroundDelay),
-      autoplayDelay: value.autoplayDelay === undefined && value.autoplayNext === false ? 0 : enumValue(Number(value.autoplayDelay), AUTOPLAY_DELAYS, fallback.autoplayDelay),
-      upNextLayout: enumValue(value.upNextLayout, UP_NEXT_LAYOUTS, fallback.upNextLayout),
-      skipPromptDuration: enumValue(Number(value.skipPromptDuration), SKIP_PROMPT_DURATIONS, fallback.skipPromptDuration),
-      audioLanguages: languageList(value.audioLanguages),
-      subtitleLanguages: languageList(value.subtitleLanguages),
-      subtitleSuppressedForAudio: languageList(value.subtitleSuppressedForAudio),
-      subtitleMode: enumValue(value.subtitleMode, SUBTITLE_MODES, fallback.subtitleMode),
-      subtitleModeExplicit: value.subtitleModeExplicit === true,
-      subtitleSourcePreference: enumValue(value.subtitleSourcePreference, SUBTITLE_SOURCE_PREFERENCES, fallback.subtitleSourcePreference),
-      lanVideoQuality: enumValue(String(value.lanVideoQuality || ''), VIDEO_QUALITIES, legacyVideoQuality || fallback.lanVideoQuality),
-      remoteVideoQuality: enumValue(String(value.remoteVideoQuality || ''), VIDEO_QUALITIES, legacyVideoQuality || fallback.remoteVideoQuality),
-      playbackMode: enumValue(value.playbackMode, PLAYBACK_MODES, fallback.playbackMode),
-      videoVersionPriorities: priorityList(value.videoVersionPriorities, VIDEO_VERSION_PRIORITIES),
-      wheelBehavior: enumValue(value.wheelBehavior, WHEEL_BEHAVIORS, fallback.wheelBehavior),
-      cardScale: enumValue(Number(value.cardScale), CARD_SCALES, fallback.cardScale),
-      artworkQuality: value.artworkQuality === undefined ? fallback.artworkQuality : nearestNumericValue(value.artworkQuality, ARTWORK_QUALITIES, fallback.artworkQuality),
-      backdropQuality: value.backdropQuality === undefined ? fallback.backdropQuality : nearestNumericValue(value.backdropQuality, BACKDROP_QUALITIES, fallback.backdropQuality),
-      accentColor: enumValue(String(value.accentColor || ''), ACCENT_COLORS, fallback.accentColor),
-      interfaceAnimations: value.interfaceAnimations !== false,
-      searchT9Input: value.searchT9Input === undefined ? fallback.searchT9Input : value.searchT9Input === true,
-      showWatchlist: value.showWatchlist !== false,
-      showPlaylists: value.showPlaylists !== false
-    };
+    var index;
+    var definition;
+    var rawValue;
+    for (index = 0; index < definitions.length; index += 1) {
+      definition = definitions[index];
+      rawValue = value[definition.key];
+      if (definition.key === 'autoplayDelay' && rawValue === undefined && value.autoplayNext === false) {
+        rawValue = 0;
+      } else if ((definition.key === 'lanVideoQuality' || definition.key === 'remoteVideoQuality') && legacyVideoQuality) {
+        if (enumValue(String(rawValue || ''), definition.allowed || [], '') === '') { rawValue = legacyVideoQuality; }
+      } else if (definition.key === 'settingsBackupMode' && rawValue === 'sync') {
+        rawValue = 'on';
+      }
+      result[definition.key] = normalizeDefinition(definition, rawValue, fallback[definition.key]);
+    }
+    return result;
+  }
+
+
+  function visualThemeDefinition(value) {
+    return ThemeRegistry.get(value) || ThemeRegistry.get(ThemeRegistry.defaultId());
+  }
+
+  function visualThemeClassNames() {
+    return ThemeRegistry.classNames();
   }
 
   function seedFromPlex(current, account) {
@@ -177,14 +160,63 @@
     return result;
   }
 
-  function load(storage) {
-    var raw;
-    try {
-      raw = storage && storage.getItem(STORAGE_KEY);
-      return raw ? validate(JSON.parse(raw)) : defaults();
-    } catch (error) {
-      return defaults();
+  function copyRecord(source) {
+    var result = {};
+    var key;
+    source = source || {};
+    for (key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) { result[key] = source[key]; }
     }
+    return result;
+  }
+
+  function migrateV1ToV2(source) {
+    var result = copyRecord(source);
+    if (result.lanVideoQuality === undefined && result.videoQuality !== undefined) {
+      result.lanVideoQuality = result.videoQuality;
+    }
+    if (result.remoteVideoQuality === undefined && result.videoQuality !== undefined) {
+      result.remoteVideoQuality = result.videoQuality;
+    }
+    if (result.autoplayDelay === undefined && result.autoplayNext === false) { result.autoplayDelay = 0; }
+    result.version = 2;
+    return result;
+  }
+
+  function migrateV2ToV3(source) {
+    var result = copyRecord(source);
+    if (result.settingsBackupMode === 'sync') { result.settingsBackupMode = 'on'; }
+    result.version = 3;
+    return result;
+  }
+
+  function migrate(source, assumedVersion) {
+    var result = copyRecord(source);
+    var version = Number(result.version || assumedVersion || 1);
+    if (!isFinite(version) || version < 1) { version = 1; }
+    if (version > CURRENT_VERSION) { throw new Error('Ploff settings schema is newer than this application'); }
+    while (version < CURRENT_VERSION) {
+      if (version === 1) { result = migrateV1ToV2(result); }
+      else if (version === 2) { result = migrateV2ToV3(result); }
+      else { throw new Error('Ploff settings schema migration is unavailable'); }
+      version = Number(result.version || version + 1);
+    }
+    result.version = CURRENT_VERSION;
+    return result;
+  }
+
+  function load(storage) {
+    var candidates = [{ key: STORAGE_KEY, version: CURRENT_VERSION }].concat(LEGACY_STORAGE_KEYS);
+    var index;
+    var raw;
+    if (!storage || typeof storage.getItem !== 'function') { return defaults(); }
+    for (index = 0; index < candidates.length; index += 1) {
+      try {
+        raw = storage.getItem(candidates[index].key);
+        if (raw) { return validate(migrate(JSON.parse(raw), candidates[index].version)); }
+      } catch (_error) {}
+    }
+    return defaults();
   }
 
   function save(storage, value) {
@@ -197,18 +229,28 @@
   }
 
   return {
+    CURRENT_VERSION: CURRENT_VERSION,
     ACCENT_COLORS: ACCENT_COLORS.slice(),
+    VISUAL_THEMES: VISUAL_THEMES.slice(),
+    SAFE_AREA_INSETS: SAFE_AREA_INSETS.slice(),
+    SUBTITLE_BACKGROUNDS: SUBTITLE_BACKGROUNDS.slice(),
+    SUBTITLE_EDGES: SUBTITLE_EDGES.slice(),
+    SUBTITLE_POSITIONS: SUBTITLE_POSITIONS.slice(),
     ARTWORK_QUALITIES: ARTWORK_QUALITIES.slice(),
     BACKDROP_QUALITIES: BACKDROP_QUALITIES.slice(),
     VIDEO_QUALITIES: VIDEO_QUALITIES.slice(),
+    SETTINGS_BACKUP_MODES: SETTINGS_BACKUP_MODES.slice(),
     STORAGE_KEY: STORAGE_KEY,
     defaults: defaults,
     languageList: languageList,
     load: load,
+    migrate: migrate,
     primaryLanguage: primaryLanguage,
     supportedUiLanguages: function () { return SUPPORTED_UI_LANGUAGES.slice(); },
     save: save,
     seedFromPlex: seedFromPlex,
-    validate: validate
+    validate: validate,
+    visualThemeClassNames: visualThemeClassNames,
+    visualThemeDefinition: visualThemeDefinition
   };
 }));

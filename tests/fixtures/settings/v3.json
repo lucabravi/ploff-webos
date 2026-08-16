@@ -1,0 +1,11 @@
+{
+  "version": 3,
+  "uiLanguage": "de",
+  "uiLanguageExplicit": true,
+  "visualTheme": "classic",
+  "cardScale": 110,
+  "lanVideoQuality": "original",
+  "remoteVideoQuality": "8000",
+  "autoplayDelay": 10,
+  "settingsBackupMode": "on"
+}

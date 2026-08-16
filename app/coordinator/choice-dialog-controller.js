@@ -46,7 +46,7 @@
       applyCallback = next.apply || null;
       returnFocusCallback = next.returnFocus || null;
       closeCallback = next.onClose || null;
-      view.open(state.title, choices, next.selectedValue, state.variant);
+      view.open(state.title, choices, next.selectedValue, state.variant, next.previewOptions || {});
       current = view.snapshot ? view.snapshot() : {};
       state.index = Math.max(0, Number(current.index || 0));
       return true;
@@ -114,7 +114,7 @@
     }
 
     if (!View || typeof View.create !== 'function') { throw new Error('ChoiceDialogController requires ChoiceDialogView'); }
-    view = View.create({ document: values.document, t: values.t });
+    view = View.create({ document: values.document, t: values.t, CardLayout: values.CardLayout });
 
     return {
       open: open,

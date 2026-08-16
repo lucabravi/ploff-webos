@@ -34,7 +34,17 @@ roadmap.
 
 - Series seasons, episodes, specials, film details, watched state, Watchlist,
   metadata refresh, and full media technical information.
-- Audio, subtitle, and version selection through directional controls or a
+- Detail keeps Version above Audio and Subtitles. Left/Right still cycles physical
+  versions quickly; OK always opens the integrated version/technical-information
+  browser, including when Plex exposes only one file. The browser previews versions
+  without changing the active override, keeps the File/Video and Audio/Subtitles
+  technical columns, and requires explicit confirmation before applying a different
+  version.
+- Contextual media options keep metadata refresh off the primary action row and add
+  confirmed whole-season watched/unwatched mutations for the currently selected
+  season. Bulk mutations continue across individual failures, reload fresh season
+  state, and report partial results.
+- Audio and subtitle selection remains available through directional controls or a
   choice dialog.
 - Persistent media preferences with language priorities and an internal versus
   external subtitle preference.
@@ -44,6 +54,11 @@ roadmap.
 
 - Direct Play, Direct Stream, and transcode strategies with selectable
   quality and version priorities.
+- Automatic playback can remember confirmed Direct Play/Direct Stream failures:
+  persistent format rules avoid repeated incompatible attempts, while
+  file-specific exceptions expire after 30 days. Forced Direct mode always
+  tries the requested direct strategies and offers an in-player switch to
+  Automatic after a confirmed terminal failure.
 - Absolute-clock resume and seek behavior for remote arrows, timeline pointer
   input, chapters, media changes, and recovery after stream replacement.
 - Progress reporting to Plex, periodic keepalive for transcoding, watched
@@ -66,7 +81,12 @@ roadmap.
   interface animations, background theme delay, and other viewer preferences.
 - Accessible stepped selectors, explicit dialog exit actions, and lazy update checks
   exposed through the application-version row in Settings.
-- User diagnostics with network, server, device, and playback capability data.
+- User diagnostics with network, server, device, and playback capability data,
+  plus a local QR support report. The report prioritizes the most recent playback
+  failure, or falls back to the last played media, including the application
+  version, LAN/internet state, Direct Play/Direct Stream/transcoding mode,
+  bounded JavaScript errors, and technical video, audio, subtitle, delivery, and
+  recovery details without Plex credentials.
 
 ## Packaging and quality checks
 
@@ -76,3 +96,15 @@ roadmap.
   inspection that rejects development files and credential-like content.
 - Automated bundle, lint, type-check, unit, baseline, asset, LG UX, and
   dependency-audit checks.
+
+## Outside the current product scope
+
+Unless product direction changes, Ploff intentionally does not target:
+
+- Live TV or DVR;
+- music-library playback;
+- photo libraries;
+- Watch Together;
+- casting to other devices;
+- a permanent TV-hosted support service;
+- silent or automatic installation/package management from inside the TV app.
