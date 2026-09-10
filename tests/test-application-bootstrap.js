@@ -124,9 +124,11 @@ function eventTarget() {
   var project = path.join(__dirname, '..');
   var bootstrapSource = fs.readFileSync(path.join(project, 'app/coordinator/application-bootstrap.js'), 'utf8');
   var controllerSource = fs.readFileSync(path.join(project, 'app/coordinator/application-controller.js'), 'utf8');
+  var indexSource = fs.readFileSync(path.join(project, 'app/index.html'), 'utf8');
   assert.ok(bootstrapSource.split('\n').length < 100, 'the generated-entry bootstrap must remain minimal');
   assert.ok(/PloffCredentialVault\.prepare/.test(bootstrapSource), 'bootstrap must own the credential readiness gate');
   assert.ok(!/PlexClient|MediaLabels|PlayerSeekController|PlaybackQueueModel|SearchModel|LibraryContainers/.test(bootstrapSource), 'bootstrap must not contain product algorithms or media-domain logic');
+  assert.ok(indexSource.indexOf('startup-metrics.js') >= 0 && indexSource.indexOf('startup-metrics.js') < indexSource.indexOf('app.js?v=dev'), 'startup metrics must load before the generated bootstrap bundle');
   assert.ok(/ApplicationSession\.create/.test(controllerSource), 'the application controller must create one shared application session');
   assert.ok(/constructOwner\(function \(\) \{[\s\S]*ApplicationEvents\.bind/.test(controllerSource), 'application DOM events must be registered in the composition ownership stack');
   assert.ok(!/\.addEventListener\(/.test(controllerSource), 'application wiring must not bypass ApplicationEvents');
@@ -135,3 +137,26 @@ function eventTarget() {
 }());
 
 console.log('Application bootstrap checks passed');
+
+(function startupMetricsStayLocalAndFlowIntoComposition() {
+  var root = eventTarget();
+  var prepared;
+  var marks = [];
+  var metrics = {
+    mark: function (name) { marks.push(name); },
+    snapshot: function () { return { bootstrap: 0 }; }
+  };
+  root.localStorage = {};
+  root.PloffApplicationEvents = { bind: function () { return { destroy: function () {} }; } };
+  root.PloffCredentialVault = { prepare: function (_root, _storage, callback) { prepared = callback; } };
+  root.PloffStartupMetrics = { create: function () { return metrics; } };
+  var handle = Bootstrap.start(root, {}, {
+    createApplication: function (_root, _document, _storage, startupMetrics) {
+      assert.strictEqual(startupMetrics, metrics, 'bootstrap must inject the local metrics collector into composition');
+      return { destroy: function () {} };
+    }
+  });
+  assert.deepStrictEqual(marks, ['bootstrap'], 'bootstrap must mark the local startup origin before asynchronous credential readiness');
+  prepared({});
+  handle.destroy();
+}());

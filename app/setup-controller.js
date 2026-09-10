@@ -101,7 +101,6 @@
     }
 
     function cancelSessions() {
-      if (values.serverSession && values.serverSession.cancel) { values.serverSession.cancel(); }
       if (values.authSession && values.authSession.cancel) { values.authSession.cancel(); }
     }
 

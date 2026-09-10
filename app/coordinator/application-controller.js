@@ -4,91 +4,168 @@
   else { root.PloffApplicationController = factory(); }
 }(this, function () {
   'use strict';
-  function create(root, document, credentialStorage) {
+  var PLAYER_WARM_DELAY_MS = 1000;
+
+  function create(root, document, credentialStorage, startupMetrics) {
     'use strict';
-    var FocusModel = root.PloffFocusModel, NavigationModel = root.PloffNavigationModel,
-      HomeState = root.PloffHomeState, ActivityState = root.PloffActivityState,
-      NavbarWindow = root.PloffNavbarWindow, ViewState = root.PloffViewState,
-      CardLayout = root.PloffCardLayout, MediaLabels = root.PloffMediaLabels,
-      ProgressiveImages = root.PloffProgressiveImages, BackgroundAudio = root.PloffBackgroundAudio,
-      I18n = root.PloffI18n, PresentationServices = root.PloffPresentationServices,
+    var FocusModel = root.PloffFocusModel,
+      NavigationModel = root.PloffNavigationModel,
+      HomeState = root.PloffHomeState,
+      ActivityState = root.PloffActivityState,
+      NavbarWindow = root.PloffNavbarWindow,
+      ViewState = root.PloffViewState,
+      CardLayout = root.PloffCardLayout,
+      MediaLabels = root.PloffMediaLabels,
+      ProgressiveImages = root.PloffProgressiveImages,
+      BackgroundAudio = root.PloffBackgroundAudio,
+      I18n = root.PloffI18n,
+      PresentationServices = root.PloffPresentationServices,
       ShellController = root.PloffShellController,
       ShellFeatureController = root.PloffShellFeatureController;
-    var SearchModel = root.PloffSearchModel, PloffSearchView = root.PloffSearchView,
-      T9Input = root.PloffT9Input, SearchSession = root.PloffSearchSession,
-      SearchController = root.PloffSearchController, SearchFeatureController = root.PloffSearchFeatureController;
-    var LibraryFilterView = root.PloffLibraryFilterView, PloffLibraryGridView = root.PloffLibraryGridView,
-      LibraryLifecycle = root.PloffLibraryLifecycle, LibraryContainers = root.PloffLibraryContainers,
-      LibraryController = root.PloffLibraryController, LibraryFeatureController = root.PloffLibraryFeatureController,
-      WatchlistClient = root.PloffWatchlistClient, WatchlistState = root.PloffWatchlistState,
+    var SearchModel = root.PloffSearchModel,
+      PloffSearchView = root.PloffSearchView,
+      T9Input = root.PloffT9Input,
+      SearchSession = root.PloffSearchSession,
+      SearchController = root.PloffSearchController,
+      SearchFeatureController = root.PloffSearchFeatureController;
+    var LibraryFilterView = root.PloffLibraryFilterView,
+      PloffLibraryGridView = root.PloffLibraryGridView,
+      LibraryLifecycle = root.PloffLibraryLifecycle,
+      LibraryContainers = root.PloffLibraryContainers,
+      LibraryController = root.PloffLibraryController,
+      LibraryFeatureController = root.PloffLibraryFeatureController,
+      WatchlistClient = root.PloffWatchlistClient,
+      WatchlistState = root.PloffWatchlistState,
       WatchlistView = root.PloffWatchlistView;
-    var DetailEpisodeView = root.PloffDetailEpisodeView, DetailNavigation = root.PloffDetailNavigation,
-      DetailPresentationView = root.PloffDetailPresentationView, DetailPreferenceState = root.PloffDetailPreferenceState,
-      DetailController = root.PloffDetailController, DetailFeatureController = root.PloffDetailFeatureController,
-      MetadataRefresh = root.PloffMetadataRefresh, MediaPreferences = root.PloffMediaPreferences,
-      MediaProfile = root.PloffMediaProfile, MediaChoiceModel = root.PloffMediaChoiceModel, MediaInfo = root.PloffMediaInfo;
-    var ChoiceDialogView = root.PloffChoiceDialogView, ChoiceDialogController = root.PloffChoiceDialogController,
-      MediaInfoView = root.PloffMediaInfoView, MediaInfoDialogController = root.PloffMediaInfoDialogController;
-    var UpNextLayoutDialog = root.PloffUpNextLayoutDialog, UpNextState = root.PloffUpNextState,
-      UpNextTiming = root.PloffUpNextTiming, UpNextView = root.PloffUpNextView;
-    var SkipMarkerState = root.PloffSkipMarkerState, PlayerControlsState = root.PloffPlayerControlsState,
-      PlayerControlsView = root.PloffPlayerControlsView, PlayerBufferingIndicator = root.PloffPlayerBufferingIndicator,
-      ChapterState = root.PloffChapterState, PlayerChaptersView = root.PloffPlayerChaptersView,
-      PlaybackStrategy = root.PloffPlaybackStrategy, VersionSelection = root.PloffVersionSelection,
-      PlaybackQueueModel = root.PloffPlaybackQueueModel, PlaybackRecovery = root.PloffPlaybackRecovery,
-      PlaybackClock = root.PloffPlaybackClock, PlayerSeekController = root.PloffPlayerSeekController,
-      PlayerTimelinePolicy = root.PloffPlayerTimelinePolicy, EpisodeNavigation = root.PloffEpisodeNavigation,
-      ResumeChoice = root.PloffResumeChoice, SubtitleSync = root.PloffSubtitleSync,
-      SubtitleEditorView = root.PloffSubtitleEditorView, SubtitleOffsetStore = root.PloffSubtitleOffsetStore;
-    var QueueSequenceContract = root.PloffQueueSequenceContract,
-      BoundedQueueCache = root.PloffBoundedQueueCache,
-      SeriesQueueProvider = root.PloffSeriesQueueProvider,
-      PlexContainerQueueProvider = root.PloffPlexContainerQueueProvider,
-      QueueGapController = root.PloffQueueGapController,
-      QueueGapView = root.PloffQueueGapView,
-      PlaybackQueueController = root.PloffPlaybackQueueController,
-      PlayerControlsController = root.PloffPlayerControlsController, PlaybackController = root.PloffPlaybackController,
-      PlayerFeatureController = root.PloffPlayerFeatureController,
-      PlaybackCompatibilityMemory = root.PloffPlaybackCompatibilityMemory;
-    var DiagnosticsState = root.PloffDiagnosticsState, RuntimeErrorStore = root.PloffRuntimeErrorStore,
+    var DetailEpisodeView = root.PloffDetailEpisodeView,
+      DetailExtendedView = root.PloffDetailExtendedView,
+      DetailNavigation = root.PloffDetailNavigation,
+      DetailPresentationView = root.PloffDetailPresentationView,
+      DetailPreferenceState = root.PloffDetailPreferenceState,
+      DetailController = root.PloffDetailController,
+      DetailFeatureController = root.PloffDetailFeatureController,
+      MetadataRefresh = root.PloffMetadataRefresh,
+      MediaPreferences = root.PloffMediaPreferences,
+      MediaProfile = root.PloffMediaProfile,
+      MediaChoiceModel = root.PloffMediaChoiceModel,
+      MediaInfo = root.PloffMediaInfo;
+    var ChoiceDialogView = root.PloffChoiceDialogView,
+      ChoiceDialogController = root.PloffChoiceDialogController,
+      MediaInfoView = root.PloffMediaInfoView,
+      MediaInfoDialogController = root.PloffMediaInfoDialogController;
+    var UpNextLayoutDialog = root.PloffUpNextLayoutDialog;
+    var VersionSelection = root.PloffVersionSelection,
+      PlaybackQueueModel = root.PloffPlaybackQueueModel,
+      PlayerTimelinePolicy = root.PloffPlayerTimelinePolicy,
+      SubtitleSeriesOffset = root.PloffSubtitleSeriesOffset,
+      AssSubtitleRenderer = root.PloffAssSubtitleRenderer,
+      AssSubtitleRendererPool = root.PloffAssSubtitleRendererPool,
+      AssSubtitlePrefetch = root.PloffAssSubtitlePrefetch;
+    var PlaybackCompatibilityMemory = root.PloffPlaybackCompatibilityMemory;
+    var DiagnosticsState = root.PloffDiagnosticsState,
+      RuntimeErrorStore = root.PloffRuntimeErrorStore,
       DiagnosticsView = root.PloffDiagnosticsView,
-      SupportSnapshot = root.PloffSupportSnapshot, SupportQr = root.PloffSupportQr,
+      SupportSnapshot = root.PloffSupportSnapshot,
+      SupportQr = root.PloffSupportQr,
       DiagnosticsController = root.PloffDiagnosticsController,
       DiagnosticsFeatureController = root.PloffDiagnosticsFeatureController;
-    var Settings = root.PloffSettings, LocalData = root.PloffLocalData,
-      SettingsBackupFormat = root.PloffSettingsBackupFormat, PlexSettingsBackupStore = root.PloffPlexSettingsBackupStore,
-      SettingsCatalog = root.PloffSettingsCatalog, SettingsView = root.PloffSettingsView,
-      SafeAreaDialog = root.PloffSafeAreaDialog, SubtitleStyleDialog = root.PloffSubtitleStyleDialog,
+    var Settings = root.PloffSettings,
+      SettingsSchema = root.PloffSettingsSchema,
+      LocalData = root.PloffLocalData,
+      SettingsBackupFormat = root.PloffSettingsBackupFormat,
+      PlexSettingsBackupStore = root.PloffPlexSettingsBackupStore,
+      SettingsCatalog = root.PloffSettingsCatalog,
+      SettingsView = root.PloffSettingsView,
+      SafeAreaDialog = root.PloffSafeAreaDialog,
+      SubtitleStyleDialog = root.PloffSubtitleStyleDialog,
       TextInputDialog = root.PloffTextInputDialog,
       SettingsController = root.PloffSettingsController,
       SettingsFeatureController = root.PloffSettingsFeatureController;
-    var SetupView = root.PloffSetupView, SetupScanIndicator = root.PloffSetupScanIndicator,
-      SetupFocus = root.PloffSetupFocus, SetupAuthSession = root.PloffSetupAuthSession,
-      SetupController = root.PloffSetupController, SetupFeatureController = root.PloffSetupFeatureController;
-    var ServerController = root.PloffServerController, ServerFeatureController = root.PloffServerFeatureController,
-      ServerEditorView = root.PloffServerEditorView, AuthStore = root.PloffAuthStore,
-      PlexAuth = root.PloffPlexAuth, ServerStore = root.PloffServerStore,
-      ServerDiscovery = root.PloffServerDiscovery, NetworkState = root.PloffNetworkState,
-      NetworkPolicy = root.PloffNetworkPolicy, NetworkTransition = root.PloffNetworkTransition;
-    var PlexClient = root.PloffClient, PlexFeaturePorts = root.PloffPlexFeaturePorts,
+    var SetupView = root.PloffSetupView,
+      SetupScanIndicator = root.PloffSetupScanIndicator,
+      SetupFocus = root.PloffSetupFocus,
+      SetupAuthSession = root.PloffSetupAuthSession,
+      SetupController = root.PloffSetupController,
+      SetupFeatureController = root.PloffSetupFeatureController;
+    var ServerController = root.PloffServerController,
+      ServerFeatureController = root.PloffServerFeatureController,
+      ServerEditorView = root.PloffServerEditorView,
+      AuthStore = root.PloffAuthStore,
+      PlexAuth = root.PloffPlexAuth,
+      ServerStore = root.PloffServerStore,
+      ServerDiscovery = root.PloffServerDiscovery,
+      NetworkState = root.PloffNetworkState,
+      NetworkPolicy = root.PloffNetworkPolicy,
+      NetworkTransition = root.PloffNetworkTransition;
+    var PlexClient = root.PloffClient,
+      PlexFeaturePorts = root.PloffPlexFeaturePorts,
       DeviceCapabilities = root.PloffDeviceCapabilities,
-      DeviceLocale = root.PloffDeviceLocale, ApplicationEvents = root.PloffApplicationEvents,
-      ApplicationSession = root.PloffApplicationSession, InputTargetRouter = root.PloffInputTargetRouter,
-      InputController = root.PloffInputController, PointerController = root.PloffPointerController,
+      DeviceLocale = root.PloffDeviceLocale,
+      ApplicationEvents = root.PloffApplicationEvents,
+      ApplicationSession = root.PloffApplicationSession,
+      InputTargetRouter = root.PloffInputTargetRouter,
+      InputCommandRouter = root.PloffInputCommandRouter,
+      InputController = root.PloffInputController,
+      PointerController = root.PloffPointerController,
       MediaContextController = root.PloffMediaContextController,
-      ReleaseStatus = root.PloffReleaseStatus, BuildInfo = root.PloffBuildInfo || { version: 'development' };
+      ReleaseStatus = root.PloffReleaseStatus,
+      BuildInfo = root.PloffBuildInfo || { version: 'development' };
     var formatTime = PlayerTimelinePolicy.formatTime;
     var formatLongTime = PlayerTimelinePolicy.formatLongTime;
     var config = root.PloffConfig || {};
+    var assColdStartMetrics = root.PloffAssSubtitleColdStartMetrics || null;
     if (!PlexFeaturePorts) { throw new Error('ApplicationController requires PlexFeaturePorts'); }
     var serverPlexClient = PlexFeaturePorts.server(PlexClient);
     var shellPlexClient = PlexFeaturePorts.shell(PlexClient);
     var searchPlexClient = PlexFeaturePorts.search(PlexClient);
     var libraryPlexClient = PlexFeaturePorts.library(PlexClient);
     var detailPlexClient = PlexFeaturePorts.detail(PlexClient);
+    var mediaContextPlexClient = PlexFeaturePorts.mediaContext(PlexClient);
+    var settingsBackupPlexClient = PlexFeaturePorts.settingsBackup(PlexClient);
     var playerPlexClient = PlexFeaturePorts.player(PlexClient);
+    function isAssSubtitleTrack(track) {
+      var format = String(track && (track.format || track.codec || '') || '').toLowerCase();
+      return format.indexOf('ass') !== -1 || format.indexOf('ssa') !== -1;
+    }
+    function assLocalRenderingEnabled() { return !!(appSettings && appSettings.subtitleRenderingAss === true); }
+    function assSubtitlePrefetchIdentity(source, track) {
+      var value = source || {};
+      var profile = value.mediaProfile || value.profile || value;
+      var serverIdentity = serverFeature && serverFeature.mediaIdentity ? serverFeature.mediaIdentity() : {};
+      return [
+        [serverIdentity.server || config.apiBaseUrl || 'local', serverIdentity.profile || 'local'].join('|'),
+        value.ratingKey || profile.ratingKey || '',
+        value.partId || profile.partId || '',
+        value.mediaIndex !== undefined ? value.mediaIndex : profile.mediaIndex || 0,
+        value.partIndex !== undefined ? value.partIndex : profile.partIndex || 0,
+        track && track.id || ''
+      ].join('|');
+    }
+    function prefetchAssCandidate(detail, profile, resolved, priority, playback) {
+      var track = resolved && resolved.subtitleTrack;
+      if (!assLocalRenderingEnabled()) { return false; }
+      var target;
+      if (!assSubtitlePrefetch || !profile || !track || !isAssSubtitleTrack(track) ||
+          (!playback && !(track.external || track.key))) { return false; }
+      target = {
+        identity: assSubtitlePrefetchIdentity(playback || profile || detail, track),
+        detail: detail || null,
+        profile: profile,
+        playback: playback || null,
+        track: track
+      };
+      assSubtitlePrefetch.request(target, { priority: priority === 'foreground' ? 'foreground' : 'speculative' }, function (error, content) {
+        if (error || playback || typeof content !== 'string' || !assRendererPool || typeof assRendererPool.prepare !== 'function') { return; }
+        assRendererPool.prepare(content, target.identity, function () {});
+      });
+      return true;
+    }
     var authOptions = {
-      baseUrl: config.accountBaseUrl || 'https://plex.tv', clientIdentifier: PlexAuth ? PlexAuth.clientIdentifier(root.localStorage) : '', deviceName: 'Ploff', platformVersion: String(root.navigator && root.navigator.userAgent || ''), timeout: Math.min(6000, Number(config.requestTimeout || 5000)),
+      baseUrl: config.accountBaseUrl || 'https://plex.tv',
+      clientIdentifier: PlexAuth ? PlexAuth.clientIdentifier(root.localStorage) : '',
+      deviceName: 'Ploff',
+      platformVersion: String(root.navigator && root.navigator.userAgent || ''),
+      timeout: Math.min(6000, Number(config.requestTimeout || 5000)),
       version: BuildInfo.version
     };
     var serverFeature = null;
@@ -100,10 +177,21 @@
     var availableNavigationItems = navigationItems.slice();
     var destroyed = false;
     var owned = [];
+    function markStartup(name) {
+      if (startupMetrics && typeof startupMetrics.mark === 'function') { return startupMetrics.mark(name); }
+      return null;
+    }
+    function startupSnapshot() {
+      var snapshot = startupMetrics && typeof startupMetrics.snapshot === 'function' ? startupMetrics.snapshot() : {};
+      if (assColdStartMetrics && typeof assColdStartMetrics.snapshot === 'function') { snapshot.ass = assColdStartMetrics.snapshot(); }
+      return snapshot;
+    }
     function destroyOne(value) {
       if (value && typeof value.destroy === 'function') { value.destroy(); }
     }
     function destroyOwned() {
+      cancelPlayerWarmup();
+      cancelPendingPlayback();
       var cleanupError = null;
       var value;
       while (owned.length) {
@@ -131,6 +219,7 @@
       return undefined;
     }
     var appSettings = Settings.load(root.localStorage);
+    var assRenderingEnabledState = !!(appSettings && appSettings.subtitleRenderingAss === true);
     var presentationServices = constructStep(function () {
       if (!PresentationServices || typeof PresentationServices.create !== 'function') {
         throw new Error('ApplicationController requires PresentationServices');
@@ -170,7 +259,14 @@
     });
     var playbackCompatibilityMemory = constructOwner(function () {
       if (!PlaybackCompatibilityMemory || typeof PlaybackCompatibilityMemory.create !== 'function') {
-        return { shouldSkip: function () { return false; }, recordFailure: function () {}, recordSuccess: function () {}, snapshot: function () { return { formatRuleCount: 0, fileExceptionCount: 0, fileExceptionTtlDays: 30 }; }, clearFormatRules: function () {}, clearFileExceptions: function () {}, clear: function () {}, destroy: function () {} };
+        return { shouldSkip: function () { return false; },
+          recordFailure: function () {},
+          recordSuccess: function () {},
+          snapshot: function () { return { formatRuleCount: 0, fileExceptionCount: 0, fileExceptionTtlDays: 30 }; },
+          clearFormatRules: function () {},
+          clearFileExceptions: function () {},
+          clear: function () {},
+          destroy: function () {} };
       }
       return PlaybackCompatibilityMemory.create({
         storage: root.localStorage,
@@ -189,6 +285,7 @@
     }
     function setAppView(nextView) {
       var view = String(nextView || 'home');
+      if (view !== currentView()) { cancelPendingPlayback(); }
       applicationSession.update({ view: view });
       return view;
     }
@@ -212,6 +309,12 @@
     var libraryFeature = null;
     var detailFeature = null;
     var playerFeature = null;
+    var playerLoader = null;
+    var playerReadinessPending = false;
+    var playerFailure = null;
+    var pendingPlay = null;
+    var playerWarmTimer = null;
+    var playerWarmScheduled = false;
     var inputController = null;
     var pointerController = null;
     var mediaContextController = null;
@@ -223,7 +326,17 @@
         credentialStorage: credentialStorage
       },
       modules: {
-        ServerController: ServerController, ServerEditorView: ServerEditorView, ActivityState: ActivityState, AuthStore: AuthStore, LocalData: LocalData, NetworkPolicy: NetworkPolicy, NetworkState: NetworkState, NetworkTransition: NetworkTransition, PlexAuth: PlexAuth, PlexClient: serverPlexClient, ServerDiscovery: ServerDiscovery,
+        ServerController: ServerController,
+        ServerEditorView: ServerEditorView,
+        ActivityState: ActivityState,
+        AuthStore: AuthStore,
+        LocalData: LocalData,
+        NetworkPolicy: NetworkPolicy,
+        NetworkState: NetworkState,
+        NetworkTransition: NetworkTransition,
+        PlexAuth: PlexAuth,
+        PlexClient: serverPlexClient,
+        ServerDiscovery: ServerDiscovery,
         ServerStore: ServerStore, WatchlistClient: WatchlistClient,
         WatchlistState: WatchlistState
       },
@@ -247,7 +360,9 @@
         keepFocusVisible: function (container, target) {
           if (settingsFeature) { settingsFeature.keepFocusVisible(container, target); }
         },
-        pointerActive: function () { return !!(pointerController && pointerController.isSelectionActive()); }, renderActivities: function () { if (shellFeature) { shellFeature.renderServerActivities(); } }, renderProfile: function () { if (shellFeature) { shellFeature.renderActiveProfile(); } },
+        pointerActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
+        renderActivities: function () { if (shellFeature) { shellFeature.renderServerActivities(); } },
+        renderProfile: function () { if (shellFeature) { shellFeature.renderActiveProfile(); } },
         renderSettings: function () { if (settingsFeature && currentView() === 'settings') { settingsFeature.refresh(); } },
         renderNetwork: function () { if (shellFeature) { shellFeature.onNetworkPresentation(); } }
       },
@@ -256,18 +371,23 @@
           shellFeature.applyNavigationVisibility(NavigationModel.applyLibraryOrder(items, NavigationModel.load(root.localStorage)));
           shellFeature.renderNavigation();
         },
-        loadHome: function () { shellFeature.refreshHome(); }, preloadWatchlist: function () { if (libraryFeature) { libraryFeature.loadWatchlist(false); } },
+        loadHome: function () { shellFeature.refreshHome(); },
+        loaded: function () { markStartup('server-ready'); },
         seedAccountSettings: function (account) {
           appSettings = Settings.seedFromPlex(appSettings, account);
+          assRenderingEnabledState = assLocalRenderingEnabled();
           if (settingsFeature) { settingsFeature.save(); }
           shellFeature.renderNavigation();
           if (settingsFeature && currentView() === 'settings') { settingsFeature.refresh(); }
         },
-        persistSettings: function () { if (settingsFeature) { settingsFeature.save(); } }, recoverAfterNetwork: function () { recoverActiveViewAfterNetwork(); }, stopHomePolling: function () { if (shellFeature) { shellFeature.stopHomePolling(); } },
+        persistSettings: function () { if (settingsFeature) { settingsFeature.save(); } },
+        recoverAfterNetwork: function () { recoverActiveViewAfterNetwork(); },
+        stopHomePolling: function () { if (shellFeature) { shellFeature.stopHomePolling(); } },
         scheduleHomePolling: function () { if (shellFeature) { shellFeature.scheduleHomePolling(); } }
       },
       lifecycle: {
         resetContent: function () {
+          cancelPendingPlayback();
           if (!shellFeature) { return; }
           shellFeature.resetHome();
           if (libraryFeature) { libraryFeature.resetContent(); }
@@ -301,10 +421,10 @@
         deviceInfo: function () { return playbackCapabilities; },
         appVersion: BuildInfo.version,
         transport: {
-          list: PlexClient.loadSettingsBackupPlaylists,
-          create: PlexClient.createSettingsBackupPlaylist,
-          update: PlexClient.updateSettingsBackupPlaylist,
-          remove: PlexClient.deleteSettingsBackupPlaylist
+          list: settingsBackupPlexClient.loadSettingsBackupPlaylists,
+          create: settingsBackupPlexClient.createSettingsBackupPlaylist,
+          update: settingsBackupPlexClient.updateSettingsBackupPlaylist,
+          remove: settingsBackupPlexClient.deleteSettingsBackupPlaylist
         }
       });
     });
@@ -329,13 +449,128 @@
       return ReleaseStatus.create({
         root: root, storage: root.localStorage, installedVersion: BuildInfo.version,
         onChange: function () { if (settingsFeature && currentView() === 'settings') { settingsFeature.refresh(); } }
+    });
+    });
+    var assRendererPool = constructOwner(function () {
+      if (!AssSubtitleRendererPool || typeof AssSubtitleRendererPool.create !== 'function') {
+        throw new Error('ApplicationController requires AssSubtitleRendererPool');
+      }
+      return AssSubtitleRendererPool.create({
+        rendererModule: AssSubtitleRenderer,
+        root: root,
+        document: document,
+        metrics: assColdStartMetrics
       });
     });
+    if (assLocalRenderingEnabled()) { assRendererPool.prewarm(); }
+    var assGlyphWarmScheduled = false;
+    function scheduleAssGlyphWarmup() {
+      var preloader = root && root.PloffAssSubtitleWorkerPreloader;
+      var scheduler;
+      if (!assLocalRenderingEnabled() || assGlyphWarmScheduled || !preloader || typeof preloader.warm !== 'function') { return false; }
+      if (typeof preloader.start === 'function') { preloader.start(); }
+      assGlyphWarmScheduled = true;
+      scheduler = root && typeof root.setTimeout === 'function' ? root.setTimeout :
+        (typeof setTimeout === 'function' ? setTimeout : null);
+      if (!scheduler) { return preloader.warm(); }
+      scheduler(function () {
+        if (!destroyed && assLocalRenderingEnabled()) { preloader.warm(); }
+      }, 0);
+      return true;
+    }
+    var assSubtitlePrefetch = constructOwner(function () {
+      if (!AssSubtitlePrefetch || typeof AssSubtitlePrefetch.create !== 'function') {
+        throw new Error('ApplicationController requires AssSubtitlePrefetch');
+      }
+      return AssSubtitlePrefetch.create({
+        PlexClient: playerPlexClient,
+        config: config,
+        metrics: assColdStartMetrics
+      });
+    });
+    var assNextPrefetchRequest = null;
+    var assNextPrefetchGeneration = 0;
+    var assNextPrefetchKey = '';
+    function copyAssPlaybackWithoutSession(playback) {
+      var result = {};
+      var key;
+      playback = playback || {};
+      for (key in playback) {
+        if (Object.prototype.hasOwnProperty.call(playback, key)) { result[key] = playback[key]; }
+      }
+      result.transcodeSession = '';
+      result.session = '';
+      return result;
+    }
+    function selectedAssTrack(playback) {
+      var tracks = playback && playback.subtitleTracks || [];
+      var selectedId = playback && playback.options && playback.options.subtitleStreamID;
+      var index;
+      for (index = 0; index < tracks.length; index += 1) {
+        if (String(tracks[index].id || '') === String(selectedId || '')) { return tracks[index]; }
+      }
+      return null;
+    }
+    function cancelAssPrefetch(reason, preserveIdentity) {
+      var snapshot;
+      assNextPrefetchGeneration += 1;
+      if (assNextPrefetchRequest && typeof assNextPrefetchRequest.abort === 'function') { assNextPrefetchRequest.abort(); }
+      assNextPrefetchRequest = null;
+      assNextPrefetchKey = '';
+      snapshot = assSubtitlePrefetch && typeof assSubtitlePrefetch.snapshot === 'function' ? assSubtitlePrefetch.snapshot() : null;
+      if (assSubtitlePrefetch && typeof assSubtitlePrefetch.cancelSpeculative === 'function' &&
+          (!preserveIdentity || !snapshot || snapshot.activeIdentity !== preserveIdentity && snapshot.cachedIdentity !== preserveIdentity)) {
+        assSubtitlePrefetch.cancelSpeculative(reason || 'ASS subtitle prefetch cancelled');
+      }
+    }
+    function prefetchCurrentAss(detail, profile, resolved) {
+      var track = resolved && resolved.subtitleTrack;
+      if (!assLocalRenderingEnabled()) { return false; }
+      var identity;
+      if (!track || !isAssSubtitleTrack(track)) { return false; }
+      identity = assSubtitlePrefetchIdentity(profile || detail, track);
+      cancelAssPrefetch('current ASS playback requested', identity);
+      return prefetchAssCandidate(detail, profile, resolved, 'foreground');
+    }
+    function prefetchNextAss(target, preferences, requestKey) {
+      var item = target && (target.item || target);
+      if (!assLocalRenderingEnabled()) { return false; }
+      var key = String(requestKey || item && item.ratingKey || '');
+      var generation;
+      var request;
+      if (!item || !item.ratingKey || !assSubtitlePrefetch) { return false; }
+      if (key && key === assNextPrefetchKey) { return true; }
+      cancelAssPrefetch('next ASS target replaced');
+      assNextPrefetchKey = key;
+      generation = assNextPrefetchGeneration + 1;
+      assNextPrefetchGeneration = generation;
+      request = assSubtitlePrefetch.loadPlayback(item.ratingKey,
+        'ploff-ass-prefetch-' + String(new Date().getTime()), preferences || {}, function (error, loaded) {
+          var track;
+          if (generation !== assNextPrefetchGeneration || error || !loaded) { return; }
+          assNextPrefetchRequest = null;
+          track = selectedAssTrack(loaded);
+          if (!track || !isAssSubtitleTrack(track)) { return; }
+          prefetchAssCandidate(item, loaded, { subtitleTrack: track }, 'speculative', copyAssPlaybackWithoutSession(loaded));
+        });
+      if (generation === assNextPrefetchGeneration) { assNextPrefetchRequest = request || null; }
+      return true;
+    }
     shellFeature = constructOwner(function () {
       return ShellFeatureController.create({
       platform: { root: root, document: document, storage: root.localStorage },
       modules: {
-        ShellController: ShellController, HomeState: HomeState, FocusModel: FocusModel, NavigationModel: NavigationModel, NavbarWindow: NavbarWindow, CardLayout: CardLayout, MediaLabels: MediaLabels, ProgressiveImages: ProgressiveImages, BackgroundAudio: BackgroundAudio, ViewState: ViewState,
+        ShellController: ShellController,
+        HomeState: HomeState,
+        SettingsSchema: SettingsSchema,
+        FocusModel: FocusModel,
+        NavigationModel: NavigationModel,
+        NavbarWindow: NavbarWindow,
+        CardLayout: CardLayout,
+        MediaLabels: MediaLabels,
+        ProgressiveImages: ProgressiveImages,
+        BackgroundAudio: BackgroundAudio,
+        ViewState: ViewState,
         I18n: I18n
       },
       presentationServices: presentationServices,
@@ -344,9 +579,19 @@
         initialFocus: { area: 'media', navIndex: 0, rowIndex: 0, column: 0 }
       },
       state: {
-        settings: function () { return appSettings; }, authState: function () { return serverFeature.authSnapshot(); }, activeProfileVisible: function () { return !!serverFeature.activeProfile(); }, activeProfile: function () { return serverFeature.activeProfile(); }, authMode: function () { return serverFeature.authMode(); },
-        setupComplete: function () { return serverFeature.setupComplete(); }, publishActiveProfile: function (profile) { applicationSession.update({ activeProfile: profile }); }, serverActivities: function () { return serverFeature ? serverFeature.snapshot().activities : []; },
-        networkSnapshot: function () { return serverFeature.networkSnapshot(); }, currentView: function () { return currentView(); }, setView: setAppView, pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); }, navigationHasFocus: navigationHasFocus,
+        settings: function () { return appSettings; },
+        authState: function () { return serverFeature.authSnapshot(); },
+        activeProfileVisible: function () { return !!serverFeature.activeProfile(); },
+        activeProfile: function () { return serverFeature.activeProfile(); },
+        authMode: function () { return serverFeature.authMode(); },
+        setupComplete: function () { return serverFeature.setupComplete(); },
+        publishActiveProfile: function (profile) { applicationSession.update({ activeProfile: profile }); },
+        serverActivities: function () { return serverFeature ? serverFeature.snapshot().activities : []; },
+        networkSnapshot: function () { return serverFeature.networkSnapshot(); },
+        currentView: function () { return currentView(); },
+        setView: setAppView,
+        pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
+        navigationHasFocus: navigationHasFocus,
         watchlistAvailable: serverFeature.watchlistAvailable,
         themeIdentity: function () { return String(config.apiBaseUrl || '') + '|' + String(config.token || ''); },
         homeCanRefresh: function () {
@@ -354,7 +599,8 @@
         }
       },
       presentation: {
-        networkStatusLabel: function (snapshot) { return settingsFeature ? settingsFeature.networkStatusLabel(snapshot) : ''; }, networkStatusClass: function (snapshot) { return settingsFeature ? settingsFeature.networkStatusClass(snapshot) : ''; },
+        networkStatusLabel: function (snapshot) { return settingsFeature ? settingsFeature.networkStatusLabel(snapshot) : ''; },
+        networkStatusClass: function (snapshot) { return settingsFeature ? settingsFeature.networkStatusClass(snapshot) : ''; },
         animationDuration: function (milliseconds) { return settingsFeature ? settingsFeature.animationDuration(milliseconds) : milliseconds; },
         onActivityTitle: function (title) {
           if (currentView() !== 'detail' || !detailFeature) { return; }
@@ -362,8 +608,11 @@
           else if (detailSnapshot().refreshPending) { showDetailMetadataStatus(t('status.refreshing'), false); }
           else if (!detailSnapshot().metadataStatusTemporary) { hideDetailMetadataStatus(); }
         },
-        translateDetail: function () { if (detailFeature) { detailFeature.translateStatic(); } }, translateLibrary: function () { if (libraryFeature) { libraryFeature.translateStatic(); } }, translatePlayer: function () { if (playerFeature) { playerFeature.translateStatic(); } },
-        refreshSettings: function () { if (settingsFeature && currentView() === 'settings') { settingsFeature.refresh(); } }, refreshDiagnostics: function () { if (diagnosticsFeature && diagnosticsFeature.isOpen()) { diagnosticsFeature.render(); } },
+        translateDetail: function () { if (detailFeature) { detailFeature.translateStatic(); } },
+        translateLibrary: function () { if (libraryFeature) { libraryFeature.translateStatic(); } },
+        translatePlayer: function () { if (playerFeature) { playerFeature.translateStatic(); } },
+        refreshSettings: function () { if (settingsFeature && currentView() === 'settings') { settingsFeature.refresh(); } },
+        refreshDiagnostics: function () { if (diagnosticsFeature && diagnosticsFeature.isOpen()) { diagnosticsFeature.render(); } },
         hideNonHomeViews: function () {
           if (searchFeature) { searchFeature.leave({ keepImages: true, preserveBackgroundAudio: true }); }
           if (libraryFeature) { libraryFeature.hidePresentation(); }
@@ -375,11 +624,26 @@
         openSetup: openSetup
       },
       transitions: {
-        activateHome: activate, playHomeItem: playHomeItem, requestExit: requestApplicationExit, navigationMatches: navigationViewMatches, commitNavigationView: commitNavigationView, enterNavigationContent: enterNavigationContent, focusNavigationForCurrentView: focusCurrentNavigation, openProfileManager: openProfileManager, focusActivity: focusCurrentNavigation,
+        activateHome: activate,
+        playHomeItem: playHomeItem,
+        requestExit: requestApplicationExit,
+        navigationMatches: navigationViewMatches,
+        commitNavigationView: commitNavigationView,
+        enterNavigationContent: enterNavigationContent,
+        focusNavigationForCurrentView: focusCurrentNavigation,
+        openProfileManager: openProfileManager,
+        focusActivity: focusCurrentNavigation,
         scheduleAdjacentLibraryPrefetch: function () {
           if (libraryFeature) { libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), navigationItems); }
         },
-        onHomeReady: function () { if (releaseStatus) { releaseStatus.check(false); } }
+        onHomeReady: function () {
+          markStartup('first-home-content');
+          markStartup('first-focusable-ui');
+          if (libraryFeature && libraryFeature.scheduleWatchlistWarm) { libraryFeature.scheduleWatchlistWarm(); }
+          if (releaseStatus) { releaseStatus.check(false); }
+          scheduleAssGlyphWarmup();
+          schedulePlayerWarmup();
+        }
       }
     });
     });
@@ -388,16 +652,31 @@
       return LibraryFeatureController.create({
       platform: { root: root, document: document },
       modules: {
-        LibraryController: LibraryController, LibraryContainers: LibraryContainers, LibraryFilterView: LibraryFilterView, LibraryGridView: PloffLibraryGridView, LibraryLifecycle: LibraryLifecycle, PlaybackQueueModel: PlaybackQueueModel, ProgressiveImages: ProgressiveImages, SearchModel: SearchModel,
+        LibraryController: LibraryController,
+        LibraryContainers: LibraryContainers,
+        LibraryFilterView: LibraryFilterView,
+        LibraryGridView: PloffLibraryGridView,
+        LibraryLifecycle: LibraryLifecycle,
+        PlaybackQueueModel: PlaybackQueueModel,
+        ProgressiveImages: ProgressiveImages,
+        SearchModel: SearchModel,
         WatchlistState: WatchlistState, WatchlistView: WatchlistView,
         CardLayout: CardLayout
       },
       data: {
-        PlexClient: libraryPlexClient, WatchlistClient: WatchlistClient, config: config, accountToken: serverFeature.watchlistAccountToken, watchlistIdentity: serverFeature.watchlistIdentity,
+        PlexClient: libraryPlexClient,
+        WatchlistClient: WatchlistClient,
+        config: config,
+        accountToken: serverFeature.watchlistAccountToken,
+        watchlistIdentity: serverFeature.watchlistIdentity,
         watchlistAvailable: serverFeature.watchlistAvailable
       },
       state: {
-        currentView: function () { return currentView(); }, navigationIndex: shellNavigationIndex, navigationItems: function () { return navigationItems; }, setNavigationIndex: function (index) { setShellFocus({ navIndex: index }); }, homeBusy: function () { return shellFeature.isHomeLoading(); },
+        currentView: function () { return currentView(); },
+        navigationIndex: shellNavigationIndex,
+        navigationItems: function () { return navigationItems; },
+        setNavigationIndex: function (index) { setShellFocus({ navIndex: index }); },
+        homeBusy: function () { return shellFeature.isHomeLoading(); },
         pointerActive: function () {
           return !!(pointerController && (pointerController.isSelectionActive() || pointerController.isWheelNavigationActive()));
         },
@@ -405,10 +684,33 @@
         uiLanguage: function () { return appSettings.uiLanguage; }
       },
       shell: {
-        t: t, element: presentationServices.element, setText: presentationServices.setText, clearFocus: shellFeature.clearLogicalFocus, renderNavigation: shellFeature.renderNavigation, navigationFocusCount: shellFeature.navigationFocusCount,
-        navigationTarget: function (index) { return document.querySelector(shellFeature.selectorForNavIndex(index)); }, scheduleNavigationPreview: shellFeature.scheduleNavigationPreview, startNavigationHold: shellFeature.startNavigationHold, enterNavigation: shellFeature.enterActiveNavigation,
-        showMessage: shellFeature.showMessage, showViewState: shellFeature.showViewState, hideViewState: shellFeature.hideViewState, scheduleBackdrop: shellFeature.scheduleBackdrop, scheduleTheme: shellFeature.scheduleTheme, stopTheme: function () { shellFeature.stopTheme(); }, animateLibrarySurface: shellFeature.animateLibrarySurface, cardMetrics: shellFeature.cardMetrics, cardProfile: shellFeature.cardProfile,
-        mediaTitle: presentationServices.mediaTitle, mediaCardMeta: presentationServices.mediaCardMeta, mediaCardDetail: presentationServices.mediaCardDetail, mediaKey: presentationServices.mediaKey, artworkUrl: presentationServices.artworkUrl, renderedPosterSpecification: shellFeature.renderedPosterSpecification, fixedPosterSpecification: shellFeature.fixedPosterSpecification, posterLoader: shellFeature.posterLoader(),
+        t: t,
+        element: presentationServices.element,
+        setText: presentationServices.setText,
+        clearFocus: shellFeature.clearLogicalFocus,
+        renderNavigation: shellFeature.renderNavigation,
+        navigationFocusCount: shellFeature.navigationFocusCount,
+        navigationTarget: function (index) { return document.querySelector(shellFeature.selectorForNavIndex(index)); },
+        scheduleNavigationPreview: shellFeature.scheduleNavigationPreview,
+        startNavigationHold: shellFeature.startNavigationHold,
+        enterNavigation: shellFeature.enterActiveNavigation,
+        showMessage: shellFeature.showMessage,
+        showViewState: shellFeature.showViewState,
+        hideViewState: shellFeature.hideViewState,
+        scheduleBackdrop: shellFeature.scheduleBackdrop,
+        scheduleTheme: shellFeature.scheduleTheme,
+        stopTheme: function () { shellFeature.stopTheme(); },
+        animateLibrarySurface: shellFeature.animateLibrarySurface,
+        cardMetrics: shellFeature.cardMetrics,
+        cardProfile: shellFeature.cardProfile,
+        mediaTitle: presentationServices.mediaTitle,
+        mediaCardMeta: presentationServices.mediaCardMeta,
+        mediaCardDetail: presentationServices.mediaCardDetail,
+        mediaKey: presentationServices.mediaKey,
+        artworkUrl: presentationServices.artworkUrl,
+        renderedPosterSpecification: shellFeature.renderedPosterSpecification,
+        fixedPosterSpecification: shellFeature.fixedPosterSpecification,
+        posterLoader: shellFeature.posterLoader(),
         prioritizePoster: shellFeature.prioritizePoster, suspendSettings: function () { if (settingsFeature) { settingsFeature.suspend(); } },
         refreshHome: function () { shellFeature.refreshHome(); }
       },
@@ -430,26 +732,69 @@
       return DetailFeatureController.create({
       platform: { root: root, document: document, storage: root.localStorage },
       modules: {
-        DetailController: DetailController, DetailNavigation: DetailNavigation, DetailPresentationView: DetailPresentationView, DetailEpisodeView: DetailEpisodeView, DetailPreferenceState: DetailPreferenceState, MetadataRefresh: MetadataRefresh, MediaInfo: MediaInfo, MediaPreferences: MediaPreferences,
+        DetailController: DetailController,
+        DetailNavigation: DetailNavigation,
+        DetailPresentationView: DetailPresentationView,
+        DetailEpisodeView: DetailEpisodeView,
+        DetailExtendedView: DetailExtendedView,
+        DetailPreferenceState: DetailPreferenceState,
+        MetadataRefresh: MetadataRefresh,
+        MediaInfo: MediaInfo,
+        MediaPreferences: MediaPreferences,
+        SubtitleSeriesOffset: SubtitleSeriesOffset,
         MediaProfile: MediaProfile, MediaChoiceModel: MediaChoiceModel, VersionSelection: VersionSelection,
         ProgressiveImages: ProgressiveImages
       },
       data: {
-        PlexClient: detailPlexClient, config: config, mediaPreferenceIdentity: mediaPreferenceIdentity, playbackCapabilities: function () { return playbackCapabilities; }, settings: function () { return appSettings; }, activeVideoQuality: function () { return settingsFeature ? settingsFeature.activeVideoQuality() : 'original'; },
-        mediaContext: { removeFromContinueWatching: function (target, callback) { return mediaContextController && mediaContextController.removeFromContinueWatching(target, callback); } },
+        PlexClient: detailPlexClient,
+        config: config,
+        mediaPreferenceIdentity: function () {
+          var identity = serverFeature.mediaIdentity();
+          return MediaPreferences ? MediaPreferences.identity(identity.server, identity.profile) : '';
+        },
+        playbackCapabilities: function () { return playbackCapabilities; },
+        settings: function () { return appSettings; },
+        activeVideoQuality: function () { return settingsFeature ? settingsFeature.activeVideoQuality() : 'original'; },
+        mediaContext: {
+          removeFromContinueWatching: function (target, callback) {
+            return mediaContextController && mediaContextController.removeFromContinueWatching(target, callback);
+          }
+        },
         waitForActivity: function (activityId, callback) {
           if (serverFeature) { serverFeature.waitForActivity(activityId, callback); }
           else if (callback) { callback({ cancelled: true }); }
+        },
+        onAssPrefetchCandidate: function (detail, profile, resolved) {
+          return prefetchAssCandidate(detail, profile, resolved, 'speculative');
         }
       },
       shell: {
-        t: t, element: presentationServices.element, setText: presentationServices.setText, mediaTitle: presentationServices.mediaTitle, mediaMeta: presentationServices.mediaMeta, mediaDetail: presentationServices.mediaDetail, artworkUrl: presentationServices.artworkUrl, posterLoader: function () { return shellFeature.posterLoader(); },
-        loadRenderedPoster: shellFeature.loadRenderedPoster, cancelImages: shellFeature.cancelImages, activeBackdropSource: shellFeature.activeBackdropSource, scheduleBackdrop: shellFeature.scheduleDetailBackdrop, clearBackdrop: shellFeature.clearBackdrop, scheduleTheme: shellFeature.scheduleTheme,
-        showMessage: shellFeature.showMessage, showViewState: shellFeature.showViewState, hideViewState: shellFeature.hideViewState, clearFocus: shellFeature.clearLogicalFocus, navigationTarget: function (index) { return document.querySelector(shellFeature.selectorForNavIndex(index)); }, navigationIndex: shellNavigationIndex,
+        t: t,
+        element: presentationServices.element,
+        setText: presentationServices.setText,
+        mediaTitle: presentationServices.mediaTitle,
+        mediaMeta: presentationServices.mediaMeta,
+        mediaDetail: presentationServices.mediaDetail,
+        artworkUrl: presentationServices.artworkUrl,
+        posterLoader: function () { return shellFeature.posterLoader(); },
+        loadRenderedPoster: shellFeature.loadRenderedPoster,
+        cancelImages: shellFeature.cancelImages,
+        activeBackdropSource: shellFeature.activeBackdropSource,
+        scheduleBackdrop: shellFeature.scheduleDetailBackdrop,
+        clearBackdrop: shellFeature.clearBackdrop,
+        scheduleTheme: shellFeature.scheduleTheme,
+        showMessage: shellFeature.showMessage,
+        showViewState: shellFeature.showViewState,
+        hideViewState: shellFeature.hideViewState,
+        clearFocus: shellFeature.clearLogicalFocus,
+        navigationTarget: function (index) { return document.querySelector(shellFeature.selectorForNavIndex(index)); },
+        navigationIndex: shellNavigationIndex,
         navigationCount: shellFeature.navigationFocusCount,
         moveNavigation: function (effect) {
           var currentNavigationIndex = shellNavigationIndex();
-          var nextNavigationIndex = effect === 'nav-left' ? Math.max(0, currentNavigationIndex - 1) : Math.min(shellFeature.navigationFocusCount() - 1, currentNavigationIndex + 1);
+          var nextNavigationIndex = effect === 'nav-left' ? Math.max(0,
+            currentNavigationIndex - 1) : Math.min(shellFeature.navigationFocusCount() - 1,
+            currentNavigationIndex + 1);
           setShellFocus({ navIndex: nextNavigationIndex });
           shellFeature.scheduleNavigationPreview(nextNavigationIndex);
         },
@@ -460,17 +805,24 @@
         }
       },
       watchlist: {
-        available: serverFeature.watchlistAvailable, identity: serverFeature.watchlistIdentity, snapshot: function () { return libraryFeature.watchlistSnapshot(); }, findLocal: function (ratingKey) { return libraryFeature.findWatchlistLocal(ratingKey); },
+        available: serverFeature.watchlistAvailable,
+        identity: serverFeature.watchlistIdentity,
+        snapshot: function () { return libraryFeature.watchlistSnapshot(); },
+        findLocal: function (ratingKey) { return libraryFeature.findWatchlistLocal(ratingKey); },
         load: function (force, callback) { return libraryFeature.loadWatchlist(force, callback); },
         toggle: function (cloudKey, enabled, local, callback) { return libraryFeature.toggleWatchlist(cloudKey, enabled, local, callback); }
       },
       dialogs: {
-        openChoice: openChoiceDialog, mediaInfoOpen: function () { return mediaInfoDialogController.snapshot().open; }, openMediaInfo: function (model, origin) { return mediaInfoDialogController.open(model, origin); },
+        openChoice: openChoiceDialog,
+        mediaInfoOpen: function () { return mediaInfoDialogController.snapshot().open; },
+        openMediaInfo: function (model, origin) { return mediaInfoDialogController.open(model, origin); },
         openMediaVersions: function (options, origin) { return mediaInfoDialogController.openVersions(options, origin); },
         handleMediaInfoKey: function (event, direction) { return mediaInfoDialogController.handleKey(event, direction); }
       },
       state: {
-        currentView: function () { return currentView(); }, pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); }, animationsEnabled: function () { return appSettings.interfaceAnimations; },
+        currentView: function () { return currentView(); },
+        pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
+        animationsEnabled: function () { return appSettings.interfaceAnimations; },
         animationDuration: function (milliseconds) { return settingsFeature ? settingsFeature.animationDuration(milliseconds) : milliseconds; }
       },
       transitions: {
@@ -484,69 +836,256 @@
           libraryFeature.hidePresentation();
           if (settingsFeature) { settingsFeature.suspend(); }
         },
-        restoreOrigin: restoreDetailOrigin, requestPlayback: function () { return playerFeature && playerFeature.open(); },
+        restoreOrigin: restoreDetailOrigin,
+        requestPlayback: function () { return requestPlayer('detail', null); },
+        requestStandalonePlayback: function (request) { return requestPlayer('standalone', request); },
         onWatchedChanged: updateWatchedAcrossFeatures
       }
     });
     });
-    playerFeature = constructOwner(function () {
-      return PlayerFeatureController.create({
+    playerLoader = constructOwner(function () {
+      return root.PloffPlayerRuntimeLoader.create({
+        root: root, document: document,
+        onLoadStart: function () { markStartup('player-load-start'); },
+        onCodeReady: function () { markStartup('player-code-ready'); }
+      });
+    });
+    function playerPorts() {
+      return {
       platform: { root: root, document: document, storage: root.localStorage },
-      modules: {
-        PlaybackController: PlaybackController, PlaybackQueueController: PlaybackQueueController, QueueSequenceContract: QueueSequenceContract, BoundedQueueCache: BoundedQueueCache, SeriesQueueProvider: SeriesQueueProvider, PlexContainerQueueProvider: PlexContainerQueueProvider, QueueGapController: QueueGapController, QueueGapView: QueueGapView, PlayerControlsController: PlayerControlsController, PlaybackQueueModel: PlaybackQueueModel, PlayerControlsState: PlayerControlsState, PlayerControlsView: PlayerControlsView, PlayerChaptersView: PlayerChaptersView,
-        PlayerBufferingIndicator: PlayerBufferingIndicator, ChapterState: ChapterState, SkipMarkerState: SkipMarkerState, PlaybackClock: PlaybackClock, PlaybackRecovery: PlaybackRecovery, PlaybackStrategy: PlaybackStrategy, PlayerSeekController: PlayerSeekController, PlayerTimelinePolicy: PlayerTimelinePolicy,
-        EpisodeNavigation: EpisodeNavigation, ResumeChoice: ResumeChoice, SubtitleSync: SubtitleSync, SubtitleEditorView: SubtitleEditorView, SubtitleOffsetStore: SubtitleOffsetStore, VersionSelection: VersionSelection, MediaInfo: MediaInfo, MediaProfile: MediaProfile, MediaChoiceModel: MediaChoiceModel, ProgressiveImages: ProgressiveImages,
-        UpNextState: UpNextState, UpNextTiming: UpNextTiming,
-        UpNextView: UpNextView
-      },
+      assRendererPool: assRendererPool,
       data: {
-        PlexClient: playerPlexClient, config: config, playbackCapabilities: function () { return playbackCapabilities; }, compatibilityMemory: playbackCompatibilityMemory, compatibilityIdentity: function () { var server = serverFeature.activeServer(); return server && (server.machineIdentifier || server.uri || server.name) || config.apiBaseUrl || 'server'; }, compatibilityEnabled: function () { return appSettings.adaptivePlaybackMemory !== false; }, activeServer: function () { return serverFeature.activeServer(); }, subscribeNetwork: function (listener) { return serverFeature.subscribeNetwork(listener); },
+        PlexClient: playerPlexClient,
+        AssSubtitlePrefetch: assSubtitlePrefetch,
+        assSubtitlePrefetchIdentity: assSubtitlePrefetchIdentity,
+        prefetchCurrentAss: prefetchCurrentAss,
+        prefetchNextAss: prefetchNextAss,
+        cancelAssPrefetch: cancelAssPrefetch,
+        config: config,
+        playbackCapabilities: function () { return playbackCapabilities; },
+        compatibilityMemory: playbackCompatibilityMemory,
+        compatibilityIdentity: function () {
+          var server = serverFeature.activeServer();
+          return server && (server.machineIdentifier || server.uri || server.name) || config.apiBaseUrl || 'server';
+        },
+        compatibilityEnabled: function () { return appSettings.adaptivePlaybackMemory !== false; },
+        activeServer: function () { return serverFeature.activeServer(); },
+        mediaIdentity: function () { return serverFeature.mediaIdentity(); },
+        subscribeNetwork: function (listener) { return serverFeature.subscribeNetwork(listener); },
         networkAvailable: function (snapshot) { return snapshot && snapshot.lanAvailable !== false; }
       },
       shell: {
-        t: t, element: presentationServices.element, setText: presentationServices.setText, showMessage: shellFeature.showMessage, stopTheme: function () { return shellFeature.stopTheme(); }, artworkUrl: presentationServices.artworkUrl, loadRenderedPoster: shellFeature.loadRenderedPoster,
+        t: t,
+        element: presentationServices.element,
+        setText: presentationServices.setText,
+        showMessage: shellFeature.showMessage,
+        stopTheme: function () { return shellFeature.stopTheme(); },
+        artworkUrl: presentationServices.artworkUrl,
+        loadRenderedPoster: shellFeature.loadRenderedPoster,
         posterLoader: function () { return shellFeature.posterLoader(); },
         cancelImages: function (scope) { return shellFeature.cancelImages(scope); }
       },
       detail: {
-        snapshot: detailSnapshot, queueSnapshot: function () { return detailFeature ? detailFeature.queueSnapshot() : {}; }, playbackPreferences: function (versionAffinity) { return detailFeature ? detailFeature.playbackPreferences(versionAffinity) : {}; },
-        selectedMediaProfile: function () { return detailFeature ? detailFeature.selectedMediaProfile() : null; }, resolvedTracks: function () { return detailFeature ? detailFeature.resolvedTracks() : null; },
-        resolvePlaybackTracks: function (playback) { return detailFeature ? detailFeature.resolvePlaybackTracks(playback) : null; }, preferenceSnapshot: function () { return detailFeature ? detailFeature.preferenceSnapshot() : {}; },
-        setTrackPreference: function (kind, track, disabled) { return detailFeature && detailFeature.setTrackPreference(kind, track, disabled); }, setPlaybackVersion: function (mediaIndex, partIndex) { return detailFeature && detailFeature.setPlaybackVersion(mediaIndex, partIndex); },
-        saveMediaOverride: function () { return detailFeature && detailFeature.saveMediaOverride(); }, applyLocalPlaybackProgress: function (ratingKey, seconds) { return detailFeature && detailFeature.applyLocalPlaybackProgress(ratingKey, seconds); },
+        snapshot: detailSnapshot,
+        queueSnapshot: function () { return detailFeature ? detailFeature.queueSnapshot() : {}; },
+        playbackPreferences: function (versionAffinity) { return detailFeature ? detailFeature.playbackPreferences(versionAffinity) : {}; },
+        playbackPreferencesFor: function (detail, versionAffinity) { return detailFeature ? detailFeature.playbackPreferencesFor(detail, versionAffinity) : {}; },
+        selectedMediaProfile: function () { return detailFeature ? detailFeature.selectedMediaProfile() : null; },
+        resolvedTracks: function () { return detailFeature ? detailFeature.resolvedTracks() : null; },
+        resolvePlaybackTracks: function (playback) { return detailFeature ? detailFeature.resolvePlaybackTracks(playback) : null; },
+        preferenceSnapshot: function () { return detailFeature ? detailFeature.preferenceSnapshot() : {}; },
+        setTrackPreference: function (kind, track, disabled) { return detailFeature && detailFeature.setTrackPreference(kind, track, disabled); },
+        setPlaybackVersion: function (mediaIndex, partIndex) { return detailFeature && detailFeature.setPlaybackVersion(mediaIndex, partIndex); },
+        saveMediaOverride: function () { return detailFeature && detailFeature.saveMediaOverride(); },
+        applyLocalPlaybackProgress: function (ratingKey, seconds) { return detailFeature && detailFeature.applyLocalPlaybackProgress(ratingKey, seconds); },
         refreshPlaybackState: function (ratingKey, seconds) { return detailFeature && detailFeature.refreshPlaybackState(ratingKey, seconds); },
-        setPlaybackContext: function (detail, item, context, seasonIndex, episodeIndex) { return detailFeature && detailFeature.setPlaybackContext(detail, item, context, seasonIndex, episodeIndex); }, setPlaylistContext: function (context, index) { return detailFeature && detailFeature.setPlaylistContext(context, index); },
-        queueMediaProfile: function (detail) { return detailFeature && detailFeature.queueMediaProfile(detail); }, renderEpisodeContext: function () { return detailFeature && detailFeature.renderEpisodeContext(); }, openLoaded: function (detail, options) { return detailFeature && detailFeature.openLoaded(detail, options); },
-        openItem: function (item) { return openDetail(item); }, setPlayPending: function (pending) { return detailFeature && detailFeature.setPlayPending(pending); }, setFocus: function (focus) { return detailFeature && detailFeature.setFocus(focus); }, leave: function () { return detailFeature && detailFeature.leave(); },
-        hideSurface: function () { return detailFeature && detailFeature.hideSurface(); }, showSurface: function (options) { return detailFeature && detailFeature.showSurface(options); },
+        setPlaybackContext: function (detail, item, context, seasonIndex, episodeIndex) {
+          return detailFeature && detailFeature.setPlaybackContext(detail, item, context, seasonIndex, episodeIndex);
+        },
+        setPlaylistContext: function (context, index) { return detailFeature && detailFeature.setPlaylistContext(context, index); },
+        queueMediaProfile: function (detail) { return detailFeature && detailFeature.queueMediaProfile(detail); },
+        renderEpisodeContext: function () { return detailFeature && detailFeature.renderEpisodeContext(); },
+        openLoaded: function (detail, options) { return detailFeature && detailFeature.openLoaded(detail, options); },
+        openItem: function (item) { return openDetail(item); },
+        setPlayPending: function (pending) { return detailFeature && detailFeature.setPlayPending(pending); },
+        setFocus: function (focus) { return detailFeature && detailFeature.setFocus(focus); },
+        leave: function () { return detailFeature && detailFeature.leave(); },
+        hideSurface: function () { return detailFeature && detailFeature.hideSurface(); },
+        showSurface: function (options) { return detailFeature && detailFeature.showSurface(options); },
         resumeAfterPlayer: function (lockedUntil) { return detailFeature && detailFeature.resumeAfterPlayer(lockedUntil); }
       },
       library: {
-        snapshot: function () { return libraryFeature ? libraryFeature.snapshot() : {}; }, activeContainer: function () { return libraryFeature ? libraryFeature.activeContainer() : null; }, playbackContext: function () { return libraryFeature ? libraryFeature.playbackContext() : {}; },
-        focusedItem: function () { return libraryFeature ? libraryFeature.focusedItem() : null; }, pointerFocus: function (target, index, button) { return libraryFeature && libraryFeature.pointerFocus(target, index, button); },
+        snapshot: function () { return libraryFeature ? libraryFeature.snapshot() : {}; },
+        activeContainer: function () { return libraryFeature ? libraryFeature.activeContainer() : null; },
+        playbackContext: function () { return libraryFeature ? libraryFeature.playbackContext() : {}; },
+        focusedItem: function () { return libraryFeature ? libraryFeature.focusedItem() : null; },
+        pointerFocus: function (target, index, button) { return libraryFeature && libraryFeature.pointerFocus(target, index, button); },
         restoreContainerOrigin: function (options) { return libraryFeature && libraryFeature.restoreContainerOrigin(options); },
         refreshAfterPlayback: function (ratingKey, seconds) { return libraryFeature && libraryFeature.reconcilePlaybackProgress(ratingKey, seconds); }
       },
       dialogs: {
-        openChoice: function (options) { return choiceDialogController.open(options); }, openMediaInfo: function (model, origin) { return mediaInfoDialogController.open(model, origin); }, closeMediaInfo: function () { return mediaInfoDialogController.close(); },
-        mediaInfoOpen: function () { return mediaInfoDialogController.snapshot().open; }, handleMediaInfoKey: function (event, direction) { return mediaInfoDialogController.handleKey(event, direction); },
+        openChoice: function (options) { return choiceDialogController.open(options); },
+        openMediaInfo: function (model, origin) { return mediaInfoDialogController.open(model, origin); },
+        closeMediaInfo: function () { return mediaInfoDialogController.close(); },
+        mediaInfoOpen: function () { return mediaInfoDialogController.snapshot().open; },
+        handleMediaInfoKey: function (event, direction) { return mediaInfoDialogController.handleKey(event, direction); },
         scrollMediaInfo: function (direction) { return mediaInfoDialogController.scroll(direction); }
       },
       settings: {
-        settings: function () { return appSettings; }, animationDuration: function (milliseconds) { return settingsFeature ? settingsFeature.animationDuration(milliseconds) : milliseconds; }, videoQualityLabel: function (value) { return settingsFeature ? settingsFeature.videoQualityLabel(value) : String(value || ''); },
+        settings: function () { return appSettings; },
+        animationDuration: function (milliseconds) { return settingsFeature ? settingsFeature.animationDuration(milliseconds) : milliseconds; },
+        videoQualityLabel: function (value) { return settingsFeature ? settingsFeature.videoQualityLabel(value) : String(value || ''); },
         playbackPreferenceLabel: function (value) { return settingsFeature ? settingsFeature.playbackPreferenceLabel(value) : String(value || ''); },
-        connectionRouteLabel: function () { return settingsFeature ? settingsFeature.connectionRouteLabel() : ''; }
+        connectionRouteLabel: function () { return settingsFeature ? settingsFeature.connectionRouteLabel() : ''; },
+        previewSubtitleStyle: function (style) { return settingsFeature && settingsFeature.previewSubtitleStyle(style); },
+        restoreSubtitleStyle: function (style) { return settingsFeature && settingsFeature.restoreSubtitleStyle(style); },
+        commitSubtitleStyle: function (style) { return settingsFeature && settingsFeature.commitSubtitleStyle(style); },
+        commitSubtitleRendering: function (rendering) { return settingsFeature && settingsFeature.commitSubtitleRendering(rendering); },
+        persistSubtitleSize: function (size) { return settingsFeature && settingsFeature.persistSubtitleSize(size); }
       },
       diagnostics: {
-        setError: function (error) { return diagnosticsFeature && diagnosticsFeature.setError(error); }, error: function () { return diagnosticsFeature ? diagnosticsFeature.error() : null; },
+        setError: function (error) { return diagnosticsFeature && diagnosticsFeature.setError(error); },
+        error: function () { return diagnosticsFeature ? diagnosticsFeature.error() : null; },
         capturePlayback: function () { return diagnosticsFeature && diagnosticsFeature.capturePlayback(); }
       },
       state: {
-        currentView: function () { return currentView(); }, setView: setAppView, enterDetail: function () { shellFeature.hideHomeSurface(); setAppView('detail'); }, enterHome: function () { return revealHome({ focus: 'first' }); }, setPlaybackIdentity: function (identity) { return applicationSession.update({ playbackIdentity: identity || null }); }, pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
+        currentView: function () { return currentView(); },
+        setView: setAppView,
+        enterDetail: function () { shellFeature.hideHomeSurface(); setAppView('detail'); },
+        enterHome: function () { return revealHome({ focus: 'first' }); },
+        setPlaybackIdentity: function (identity) { return applicationSession.update({ playbackIdentity: identity || null }); },
+        pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
         navigationHasFocus: navigationHasFocus
       }
-    });
-    });
+      };
+    }
+    function cancelPendingPlayback() { pendingPlay = null; }
+    function cancelPlayerWarmup() {
+      if (playerWarmTimer !== null) {
+        (root.clearTimeout || clearTimeout)(playerWarmTimer);
+        playerWarmTimer = null;
+      }
+    }
+    function schedulePlayerWarmup() {
+      if (destroyed || playerWarmScheduled || playerFeature || playerReadinessPending || playerFailure) { return; }
+      playerWarmScheduled = true;
+      playerWarmTimer = (root.setTimeout || setTimeout)(function () {
+        playerWarmTimer = null;
+        if (!destroyed) { ensurePlayerReady(); }
+      }, PLAYER_WARM_DELAY_MS);
+    }
+    function playContext() {
+      var detail = detailSnapshot() || {};
+      var item = detail.selectedItem || detail.currentDetail || {};
+      var identity = serverFeature && serverFeature.mediaIdentity() || {};
+      var library = currentView() === 'library' ? libraryFeature.snapshot() : {};
+      var focus = library.grid && library.grid.focus || {};
+      var focused = currentView() === 'library' ? libraryFeature.focusedItem() || {} : {};
+      var container = currentView() === 'library' ? libraryFeature.activeContainer() || {} : {};
+      return {
+        libraryKey: String(focused.containerKey || focused.ratingKey || ''),
+        libraryIndex: focus.index, libraryRow: focus.recommendationRow,
+        libraryScope: String(container.containerKey || container.ratingKey || ''),
+        libraryGeneration: library.generation, libraryZone: library.library && library.library.zone,
+        view: currentView(), key: String(item.ratingKey || ''), generation: detail.generation,
+        detailKey: String(detail.currentDetail && detail.currentDetail.ratingKey || ''),
+        season: detail.seasonIndex, episode: detail.episodeIndex,
+        server: String(identity.server || ''), profile: String(identity.profile || '')
+      };
+    }
+    function validPendingPlay(intent) {
+      var current;
+      if (!intent || destroyed) { return false; }
+      current = playContext();
+      return intent.context.libraryKey === current.libraryKey && intent.context.libraryIndex === current.libraryIndex &&
+        intent.context.libraryRow === current.libraryRow && intent.context.libraryScope === current.libraryScope &&
+        intent.context.libraryGeneration === current.libraryGeneration && intent.context.libraryZone === current.libraryZone &&
+        intent.context.view === current.view && intent.context.key === current.key &&
+        intent.context.generation === current.generation && intent.context.detailKey === current.detailKey &&
+        intent.context.season === current.season && intent.context.episode === current.episode && intent.context.server === current.server &&
+        intent.context.profile === current.profile;
+    }
+    function finishPlayerReadiness() {
+      var intent = pendingPlay;
+      pendingPlay = null;
+      playerReadinessPending = false;
+      if (!validPendingPlay(intent)) { return; }
+      if (playerFailure) {
+        shellFeature.showMessage(t('status.playbackError'));
+        return;
+      }
+      dispatchPlayerIntent(intent.kind, intent.request);
+    }
+    function dispatchPlayerIntent(kind, request) {
+      if (kind === 'queue-key') { return playerFeature.handleQueueCapture({ keyCode: request.keyCode }); }
+      return kind === 'standalone' ? playerFeature.openStandalone(request) : playerFeature.open();
+    }
+    function ensurePlayerReady() {
+      if (destroyed) { return false; }
+      if (playerFeature || playerFailure) { finishPlayerReadiness(); return !playerFailure; }
+      if (playerReadinessPending) { return true; }
+      playerReadinessPending = true;
+      playerLoader.ensure(function (error, composition) {
+        var feature;
+        if (destroyed) { return; }
+        if (!error) {
+          // Deferred construction is NOT startup-fatal: the working Core owns
+          // its own lifetime. Player rolls back its partial construction locally.
+          try {
+            feature = composition.create(root, playerPorts());
+            if (!feature || typeof feature.open !== 'function') { throw new Error('Player feature is unavailable'); }
+          } catch (_error) { error = new Error('Player feature could not be initialized'); }
+          if (destroyed) { if (feature) { destroyOne(feature); } return; }
+          if (error && feature) {
+            try { destroyOne(feature); } catch (_cleanupError) { /* Keep deferred failure isolated from Core. */ }
+          }
+          if (!error) {
+            playerFeature = feature;
+            owned.push(feature);
+            markStartup('player-feature-ready');
+          }
+        }
+        playerFailure = error || null;
+        if (error && diagnosticsFeature) { diagnosticsFeature.setError(new Error('Player is unavailable')); }
+        finishPlayerReadiness();
+      });
+      return !playerFailure;
+    }
+    function requestPlayer(kind, request) {
+      if (destroyed) { return false; }
+      cancelPlayerWarmup();
+      if (playerFeature) { return dispatchPlayerIntent(kind, request); }
+      pendingPlay = { kind: kind, request: request, context: playContext() };
+      return ensurePlayerReady();
+    }
+    // Queue classification is already a shared Core policy. Retain only a key
+    // intent, never the original DOM event/button or a copy of the queue.
+    function deferLibraryQueueActivation(event, button) {
+      var code = button ? 13 : Number(event && event.keyCode || 0);
+      var library;
+      var item;
+      var command;
+      if (destroyed || currentView() !== 'library' || (code !== 13 && code !== 415)) { return false; }
+      if (button) {
+        if (button.disabled || !(button.hasAttribute('data-library-index') || button.hasAttribute('data-library-recommendation-row'))) { return false; }
+        libraryFeature.pointerFocus('grid', 0, button);
+      }
+      library = libraryFeature.snapshot().library || {};
+      if (library.zone !== 'grid') { return false; }
+      item = libraryFeature.focusedItem();
+      command = InputCommandRouter.playerQueue({
+        view: 'library', keyCode: code, libraryZone: library.zone,
+        focusedContainerPlayable: !!(item && item.containerKey && PlaybackQueueModel.containerKind(item)),
+        playlistContainerActive: !!PlaybackQueueModel.containerKind(libraryFeature.activeContainer()),
+        focusedPlaylistPlayable: !!(item && !item.containerKey && PlaybackQueueModel.playableItems([item]).length)
+      });
+      if (command !== 'library-start-container' && command !== 'library-open-detail' && command !== 'library-open-play') { return false; }
+      if (event && event.preventDefault) { event.preventDefault(); }
+      if (event && event.stopImmediatePropagation) { event.stopImmediatePropagation(); }
+      else if (event && event.stopPropagation) { event.stopPropagation(); }
+      requestPlayer('queue-key', { keyCode: code });
+      return true;
+    }
     function itemInContinueWatching(ratingKey) {
       var currentRows = shellFeature ? shellFeature.rows() : [];
       var rowIndex;
@@ -594,15 +1133,18 @@
       return false;
     }
     function refreshAfterMediaContextMutation() {
+      libraryFeature.reconcileContentMutation();
       shellFeature.refreshHome();
       if (currentView() === 'library' || currentView() === 'watchlist') { libraryFeature.reloadCurrent(true); }
       else if (currentView() === 'search') { searchFeature.refresh(); }
       return true;
     }
-    if (!MediaContextController || typeof MediaContextController.create !== 'function') { throw new Error('ApplicationController requires MediaContextController'); }
+    if (!MediaContextController || typeof MediaContextController.create !== 'function') {
+      throw new Error('ApplicationController requires MediaContextController');
+    }
     mediaContextController = constructOwner(function () {
       return MediaContextController.create({
-        root: root, PlexClient: PlexClient, config: config, holdDelay: 800,
+        root: root, transport: mediaContextPlexClient, config: config, holdDelay: 800,
         resolveTarget: resolveMediaContextTarget,
         openChoice: function (options) { return choiceDialogController.open(options); },
         restoreFocus: restoreMediaContextFocus,
@@ -620,39 +1162,80 @@
         var activeView = currentView();
         var homeFocus = activeView === 'home' ? shellFocusSnapshot() : null;
         var navigationFocused = homeFocus ? homeFocus.area === 'nav' : navigationHasFocus(activeView);
-        var playerSnapshot = activeView === 'player' ? playerFeature.snapshot() : {};
+        var playerSnapshot = activeView === 'player' && playerFeature ? playerFeature.snapshot() : {};
         var settingsSnapshot = activeView === 'settings' ? settingsFeature.snapshot() : {};
         var shellNavigation = shellFeature.navigationSnapshot(homeFocus);
         return {
-          appView: activeView, textInputDialogOpen: activeView === 'settings' && settingsSnapshot.textInputOpen, choiceDialogOpen: choiceDialogController.snapshot().open, upNextLayoutOpen: activeView === 'settings' && settingsSnapshot.upNext && settingsSnapshot.upNext.open, privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen, playbackCompatibilityOpen: activeView === 'settings' && settingsSnapshot.compatibilityOpen, safeAreaOpen: activeView === 'settings' && settingsSnapshot.safeAreaOpen, subtitleStyleOpen: activeView === 'settings' && settingsSnapshot.subtitleStyleOpen, updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen, viewStateOpen: shellFeature.viewStateOpen(),
-          playerMediaInfoOpen: activeView === 'player' && mediaInfoDialogController.snapshot().open, resumeChoiceOpen: activeView === 'player' && playerSnapshot.resumeChoiceOpen, queueGapOpen: activeView === 'player' && playerSnapshot.queueGapOpen, playerErrorOpen: activeView === 'player' && playerSnapshot.errorOpen, subtitleEditorOpen: activeView === 'player' && playerSnapshot.subtitleEditorOpen,
+          appView: activeView,
+          textInputDialogOpen: activeView === 'settings' && settingsSnapshot.textInputOpen,
+          choiceDialogOpen: choiceDialogController.snapshot().open,
+          upNextLayoutOpen: activeView === 'settings' && settingsSnapshot.upNext && settingsSnapshot.upNext.open,
+          privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen,
+          playbackCompatibilityOpen: activeView === 'settings' && settingsSnapshot.compatibilityOpen,
+          safeAreaOpen: activeView === 'settings' && settingsSnapshot.safeAreaOpen,
+          subtitleStyleOpen: activeView === 'settings' && settingsSnapshot.subtitleStyleOpen,
+          updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen,
+          viewStateOpen: shellFeature.viewStateOpen(),
+          playerMediaInfoOpen: activeView === 'player' && mediaInfoDialogController.snapshot().open,
+          resumeChoiceOpen: activeView === 'player' && playerSnapshot.resumeChoiceOpen,
+          queueGapOpen: activeView === 'player' && playerSnapshot.queueGapOpen,
+          playerErrorOpen: activeView === 'player' && playerSnapshot.errorOpen,
+          subtitleEditorOpen: activeView === 'player' && playerSnapshot.subtitleEditorOpen,
           playerUpNextOpen: activeView === 'player' && !!(playerSnapshot.queue && playerSnapshot.queue.upNext && playerSnapshot.queue.upNext.visible),
-          navReorderActive: navigationFocused && shellNavigation.reorderMode, navReorderReady: shellNavigation.reorderReady, navigationHasFocus: navigationFocused, navigationContentEntryFocused: navigationFocused && shellNavigation.index < navigationItems.length, navHoldActive: shellNavigation.holdActive, navHoldTriggered: shellNavigation.holdTriggered, navReorderMode: shellNavigation.reorderMode,
+          navReorderActive: navigationFocused && shellNavigation.reorderMode,
+          navReorderReady: shellNavigation.reorderReady,
+          navigationHasFocus: navigationFocused,
+          navigationContentEntryFocused: navigationFocused && shellNavigation.index < navigationItems.length,
+          navHoldActive: shellNavigation.holdActive,
+          navHoldTriggered: shellNavigation.holdTriggered,
+          navReorderMode: shellNavigation.reorderMode,
           pageScrollPendingFocus: !!(pointerController && pointerController.snapshot().pageScrollPendingFocus)
         };
       },
       overlays: {
-        textInput: function (event, direction) { return settingsFeature.handleTextInputKey(event, direction); }, choiceDialog: function (event, direction) { return choiceDialogController.handleKey(event, direction); }, upNextLayout: function (event) { return settingsFeature.handleUpNextKey(event); }, privacy: function (event) { return settingsFeature.handlePrivacyKey(event); }, playbackCompatibility: function (event, direction) { return settingsFeature.handlePlaybackCompatibilityKey(event, direction); }, safeArea: function (event, direction) { return settingsFeature.handleSafeAreaKey(event, direction); }, subtitleStyle: function (event, direction) { return settingsFeature.handleSubtitleStyleKey(event, direction); }, viewState: shellFeature.handleViewStateKey,
-        queueGap: function (event, direction) { return playerFeature.handleQueueGapKey(event, direction); }, playerMediaInfo: function (event, direction) { return mediaInfoDialogController.handleKey(event, direction); }, resumeChoice: function (event, direction) { return playerFeature.handleResumeKey(event, direction); }, playerError: function (event, direction) { return playerFeature.handleErrorKey(event, direction); },
-        subtitleEditor: function (event, direction) { return playerFeature.handleSubtitleEditorKey(event, direction); }
+        textInput: function (event, direction) { return settingsFeature.handleTextInputKey(event, direction); },
+        choiceDialog: function (event, direction) { return choiceDialogController.handleKey(event, direction); },
+        upNextLayout: function (event) { return settingsFeature.handleUpNextKey(event); },
+        privacy: function (event) { return settingsFeature.handlePrivacyKey(event); },
+        playbackCompatibility: function (event, direction) { return settingsFeature.handlePlaybackCompatibilityKey(event, direction); },
+        safeArea: function (event, direction) { return settingsFeature.handleSafeAreaKey(event, direction); },
+        subtitleStyle: function (event, direction) { return settingsFeature.handleSubtitleStyleKey(event, direction); },
+        viewState: shellFeature.handleViewStateKey,
+        queueGap: function (event, direction) { return playerFeature ? playerFeature.handleQueueGapKey(event, direction) : false; },
+        playerMediaInfo: function (event, direction) { return mediaInfoDialogController.handleKey(event, direction); },
+        resumeChoice: function (event, direction) { return playerFeature ? playerFeature.handleResumeKey(event, direction) : false; },
+        playerError: function (event, direction) { return playerFeature ? playerFeature.handleErrorKey(event, direction) : false; },
+        subtitleEditor: function (event, direction) { return playerFeature ? playerFeature.handleSubtitleEditorKey(event, direction) : false; }
       },
       domains: {
-        queueCapture: function (event) { return playerFeature.handleQueueCapture(event); }, playerQueue: function (event, direction) { return playerFeature.handleQueueKey(event, direction); }, playerControls: function (event, direction) { return playerFeature.handleControlsKey(event, direction); },
-        setup: function (event) { return setupFeature.handleKey(event); }, diagnostics: function (event, direction) { return diagnosticsFeature.handleKey(event, direction); }, settings: function (event, direction) { return settingsFeature.handleKey(event, direction); },
-        detail: function (event, direction) { return detailFeature.handleKey(event, direction); }, library: function (event, direction) { return libraryFeature.handleKey(event, direction); }, watchlist: function (event, direction) { return libraryFeature.handleKey(event, direction); },
-        search: function (event, direction) { return searchFeature.handleKey(event, direction); }, home: function (event, direction) { return shellFeature.handleHomeKey(event, direction); },
-        resetSeekRepeat: function () { playerFeature.resetSeekRepeat(); }
+        queueCapture: function (event) { return playerFeature ? playerFeature.handleQueueCapture(event) : deferLibraryQueueActivation(event); },
+        playerQueue: function (event, direction) { return playerFeature ? playerFeature.handleQueueKey(event, direction) : false; },
+        playerControls: function (event, direction) { return playerFeature ? playerFeature.handleControlsKey(event, direction) : false; },
+        setup: function (event) { return setupFeature.handleKey(event); },
+        diagnostics: function (event, direction) { return diagnosticsFeature.handleKey(event, direction); },
+        settings: function (event, direction) { return settingsFeature.handleKey(event, direction); },
+        detail: function (event, direction) { return detailFeature.handleKey(event, direction); },
+        library: function (event, direction) { return libraryFeature.handleKey(event, direction); },
+        watchlist: function (event, direction) { return libraryFeature.handleKey(event, direction); },
+        search: function (event, direction) { return searchFeature.handleKey(event, direction); },
+        home: function (event, direction) { return shellFeature.handleHomeKey(event, direction); },
+        resetSeekRepeat: function () { if (playerFeature) { playerFeature.resetSeekRepeat(); } }
       },
       contextMenu: {
         canOpen: mediaContextController.canOpen, startHold: mediaContextController.startHold,
         holding: mediaContextController.holding, releaseHold: mediaContextController.releaseHold
       },
       navigation: {
-        moveReorderedLibrary: shellFeature.moveReorderedLibrary, finishReorder: shellFeature.finishReorder, markReorderReady: shellFeature.markReorderReady, cancelHold: shellFeature.cancelNavigationHold,
+        moveReorderedLibrary: shellFeature.moveReorderedLibrary,
+        finishReorder: shellFeature.finishReorder,
+        markReorderReady: shellFeature.markReorderReady,
+        cancelHold: shellFeature.cancelNavigationHold,
         enterActiveView: shellFeature.enterActiveNavigation
       },
       lifecycle: {
-        clearWheelNavigation: function () { if (pointerController) { pointerController.clearWheelNavigation(); } }, syncPageScrollFocus: function () { if (pointerController) { pointerController.syncPageFocus(); } },
+        cancelPendingPlayback: cancelPendingPlayback,
+        clearWheelNavigation: function () { if (pointerController) { pointerController.clearWheelNavigation(); } },
+        syncPageScrollFocus: function () { if (pointerController) { pointerController.syncPageFocus(); } },
         clearPageScrollPendingFocus: function () { if (pointerController) { pointerController.clearPageScrollPendingFocus(); } }
       }
     });
@@ -662,8 +1245,8 @@
       root: root, document: document,
       sessionSnapshot: function () {
         var activeView = currentView();
-        var controls = activeView === 'player' ? playerFeature.controlsSnapshot() : {};
-        var playerSnapshot = activeView === 'player' ? playerFeature.snapshot() : {};
+        var controls = activeView === 'player' && playerFeature ? playerFeature.controlsSnapshot() : {};
+        var playerSnapshot = activeView === 'player' && playerFeature ? playerFeature.snapshot() : {};
         var settingsSnapshot = activeView === 'settings' ? settingsFeature.snapshot() : {};
         var librarySnapshot = activeView === 'library' || activeView === 'watchlist' ? libraryFeature.snapshot() : {};
         var libraryState = librarySnapshot.library || {};
@@ -673,20 +1256,45 @@
         var homeFocus = activeView === 'home' ? shellFocusSnapshot() : null;
         var shellNavigation = shellFeature.navigationSnapshot(homeFocus);
         return {
-          appView: activeView, homeArea: homeFocus ? homeFocus.area : '', libraryZone: libraryState.zone, libraryViewKey: libraryState.viewKey, watchlistZone: watchlistState.zone, searchZone: searchFocus.zone, serverEditorOpen: activeView === 'settings' && !!(serverFeature && serverFeature.editorSnapshot().open), playbackCompatibilityOpen: activeView === 'settings' && settingsSnapshot.compatibilityOpen, safeAreaOpen: activeView === 'settings' && settingsSnapshot.safeAreaOpen, subtitleStyleOpen: activeView === 'settings' && settingsSnapshot.subtitleStyleOpen,
-          languageKind: activeView === 'settings' ? settingsSnapshot.languageKind : '', summaryDialogOpen: activeView === 'detail' && detailFeature.summaryOpen(), navigationHasFocus: homeFocus ? homeFocus.area === 'nav' : navigationHasFocus(activeView), navReorderMode: shellNavigation.reorderMode, navReorderReady: shellNavigation.reorderReady, navHoldTriggered: shellNavigation.holdTriggered,
-          textInputDialogOpen: activeView === 'settings' && settingsSnapshot.textInputOpen, choiceDialogOpen: choiceDialogController.snapshot().open, privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen, updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen, resumeChoiceOpen: activeView === 'player' && playerSnapshot.resumeChoiceOpen, queueGapOpen: activeView === 'player' && playerSnapshot.queueGapOpen, subtitleEditorOpen: activeView === 'player' && playerSnapshot.subtitleEditorOpen, playerControlsMode: controls.mode, playerChapterOpen: !!(controls.chapter && controls.chapter.open),
+          appView: activeView,
+          homeArea: homeFocus ? homeFocus.area : '',
+          libraryZone: libraryState.zone,
+          libraryViewKey: libraryState.viewKey,
+          watchlistZone: watchlistState.zone,
+          searchZone: searchFocus.zone,
+          serverEditorOpen: activeView === 'settings' && !!(serverFeature && serverFeature.editorSnapshot().open),
+          playbackCompatibilityOpen: activeView === 'settings' && settingsSnapshot.compatibilityOpen,
+          safeAreaOpen: activeView === 'settings' && settingsSnapshot.safeAreaOpen,
+          subtitleStyleOpen: activeView === 'settings' && settingsSnapshot.subtitleStyleOpen,
+          languageKind: activeView === 'settings' ? settingsSnapshot.languageKind : '',
+          summaryDialogOpen: activeView === 'detail' && detailFeature.summaryOpen(),
+          navigationHasFocus: homeFocus ? homeFocus.area === 'nav' : navigationHasFocus(activeView),
+          navReorderMode: shellNavigation.reorderMode,
+          navReorderReady: shellNavigation.reorderReady,
+          navHoldTriggered: shellNavigation.holdTriggered,
+          textInputDialogOpen: activeView === 'settings' && settingsSnapshot.textInputOpen,
+          choiceDialogOpen: choiceDialogController.snapshot().open,
+          privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen,
+          updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen,
+          resumeChoiceOpen: activeView === 'player' && playerSnapshot.resumeChoiceOpen,
+          queueGapOpen: activeView === 'player' && playerSnapshot.queueGapOpen,
+          subtitleEditorOpen: activeView === 'player' && playerSnapshot.subtitleEditorOpen,
+          playerControlsMode: controls.mode,
+          playerChapterOpen: !!(controls.chapter && controls.chapter.open),
           playerSettingsOpen: controls.settingsOpen
         };
       },
       wheelBehavior: function () { return appSettings.wheelBehavior; }, inputKey: function (event) { inputController.handleKeyDown(event); },
       inputPress: function (event) { inputController.handleKeyDown(event); inputController.handleKeyUp(event); },
       capture: {
-        focus: function (button, session) { return playerFeature.pointerCaptureFocus(button, session); },
-        click: function (event, button, session) { return playerFeature.pointerCaptureClick(event, button, session); }
+        focus: function (button, session) { return playerFeature ? playerFeature.pointerCaptureFocus(button, session) : false; },
+        click: function (event, button, session) { return playerFeature ? playerFeature.pointerCaptureClick(event, button, session) : deferLibraryQueueActivation(event, button); }
       },
       focus: {
-        subtitleEditor: function (button) { return playerFeature.pointerSubtitleFocus(button); }, diagnostics: function (index) { diagnosticsFeature.focusAction(index); }, resume: function (index) { return playerFeature.pointerFocus('resume', index); }, setup: function (button) { setupFeature.focusButton(button); },
+        subtitleEditor: function (button) { return playerFeature ? playerFeature.pointerSubtitleFocus(button) : false; },
+        diagnostics: function (index) { diagnosticsFeature.focusAction(index); },
+        resume: function (index) { return playerFeature ? playerFeature.pointerFocus('resume', index) : false; },
+        setup: function (button) { setupFeature.focusButton(button); },
         navigation: function (index, view) {
           setShellFocus({ area: 'nav', navIndex: index });
           if (view === 'detail') { detailFeature.focusNavigation(); }
@@ -699,9 +1307,20 @@
         detail: function (zone, index) {
           detailFeature.pointerFocus(zone, index);
         },
-        settings: function (index) { settingsFeature.focusSetting(index); }, textInput: function (index) { settingsFeature.focusTextInput(index); }, safeArea: function (index) { settingsFeature.focusSafeArea(index); }, subtitleStyle: function (index) { settingsFeature.focusSubtitleStyle(index); }, updateDialog: function (index) { settingsFeature.focusUpdate(index); }, privacy: function (button) { settingsFeature.focusPrivacy(button); }, playbackCompatibility: function (index) { settingsFeature.focusPlaybackCompatibility(index); }, language: function (index) { settingsFeature.focusLanguage(index); }, server: function (index) { if (serverFeature) { serverFeature.focusEditor(index); } },
-        search: function (button) { searchFeature.pointerFocus(button); }, library: function (zone, index, button) { libraryFeature.pointerFocus(zone, index, button); }, libraryFilter: function (button) { libraryFeature.pointerFocus('library-filter', 0, button); },
-        watchlist: function (button) { libraryFeature.pointerFocus('watchlist', 0, button); }, player: function (zone, index) { return playerFeature.pointerFocus(zone, index); },
+        settings: function (index) { settingsFeature.focusSetting(index); },
+        textInput: function (index) { settingsFeature.focusTextInput(index); },
+        safeArea: function (index) { settingsFeature.focusSafeArea(index); },
+        subtitleStyle: function (index) { settingsFeature.focusSubtitleStyle(index); },
+        updateDialog: function (index) { settingsFeature.focusUpdate(index); },
+        privacy: function (button) { settingsFeature.focusPrivacy(button); },
+        playbackCompatibility: function (index) { settingsFeature.focusPlaybackCompatibility(index); },
+        language: function (index) { settingsFeature.focusLanguage(index); },
+        server: function (index) { if (serverFeature) { serverFeature.focusEditor(index); } },
+        search: function (button) { searchFeature.pointerFocus(button); },
+        library: function (zone, index, button) { libraryFeature.pointerFocus(zone, index, button); },
+        libraryFilter: function (button) { libraryFeature.pointerFocus('library-filter', 0, button); },
+        watchlist: function (button) { libraryFeature.pointerFocus('watchlist', 0, button); },
+        player: function (zone, index) { return playerFeature ? playerFeature.pointerFocus(zone, index) : false; },
         choice: function (index) { choiceDialogController.pointerFocus(index); }
       },
       contextMenu: {
@@ -714,15 +1333,23 @@
         finishReorder: shellFeature.finishReorder
       },
       page: {
-        restoreHome: function (row, column) { setShellFocus({ area: 'media', rowIndex: row, column: column }); }, restoreLibrary: function (button) { libraryFeature.restorePageFocus('library', button); }, restoreWatchlist: function (button) { libraryFeature.restorePageFocus('watchlist', button); },
-        restoreSearch: function (index) { searchFeature.restoreResultFocus(index); }, restoreServer: function (index) { if (serverFeature) { serverFeature.focusEditor(index); } }, restoreLanguage: function (index) { settingsFeature.focusLanguage(index); },
-        restoreSettings: function (index) { settingsFeature.focusSetting(index); }, scrollSummary: function (direction) { detailFeature.scrollSummary(direction); },
+        restoreHome: function (row, column) { setShellFocus({ area: 'media', rowIndex: row, column: column }); },
+        restoreLibrary: function (button) { libraryFeature.restorePageFocus('library', button); },
+        restoreWatchlist: function (button) { libraryFeature.restorePageFocus('watchlist', button); },
+        restoreSearch: function (index) { searchFeature.restoreResultFocus(index); },
+        restoreServer: function (index) { if (serverFeature) { serverFeature.focusEditor(index); } },
+        restoreLanguage: function (index) { settingsFeature.focusLanguage(index); },
+        restoreSettings: function (index) { settingsFeature.focusSetting(index); },
+        scrollSummary: function (direction) { detailFeature.scrollSummary(direction); },
         beginLibraryWheel: function (duration) { libraryFeature.onWheelNavigation(duration); }
       },
       player: {
-        playbackSnapshot: function () { return playerFeature.playbackSnapshot(); }, activity: function () { return playerFeature.pointerActivity(); }, renewControls: function () { return playerFeature.pointerActivity(); }, seekTimeline: function (seconds) { return playerFeature.pointerSeek(seconds); },
-        settingRows: function () { return playerFeature.settingRows(); },
-        settingIndex: function () { return playerFeature.settingIndex(); }
+        playbackSnapshot: function () { return playerFeature ? playerFeature.playbackSnapshot() : false; },
+        activity: function () { return playerFeature ? playerFeature.pointerActivity() : false; },
+        renewControls: function () { return playerFeature ? playerFeature.pointerActivity() : false; },
+        seekTimeline: function (seconds) { return playerFeature ? playerFeature.pointerSeek(seconds) : false; },
+        settingRows: function () { return playerFeature ? playerFeature.settingRows() : false; },
+        settingIndex: function () { return playerFeature ? playerFeature.settingIndex() : false; }
       }
     });
     });
@@ -736,12 +1363,26 @@
     // Search presentation, provider transport, focus, and request lifecycle are owned vertically.
     searchFeature = constructOwner(function () {
       return SearchFeatureController.create({
-      root: root, document: document, SearchController: SearchController, SearchModel: SearchModel, SearchView: PloffSearchView, SearchSession: SearchSession, T9Input: T9Input, PlexClient: searchPlexClient, WatchlistClient: WatchlistClient, config: config, navigationItems: function () { return navigationItems; },
-      allowsCloud: function () { return serverFeature.allowsCloud(); }, accountToken: serverFeature.watchlistAccountToken, provider: function () { return libraryFeature.watchlistProvider(); },
+      root: root,
+      document: document,
+      SearchController: SearchController,
+      SearchModel: SearchModel,
+      SearchView: PloffSearchView,
+      SearchSession: SearchSession,
+      T9Input: T9Input,
+      PlexClient: searchPlexClient,
+      WatchlistClient: WatchlistClient,
+      config: config,
+      navigationItems: function () { return navigationItems; },
+      allowsCloud: function () { return serverFeature.allowsCloud(); },
+      accountToken: serverFeature.watchlistAccountToken,
+      provider: function () { return libraryFeature.watchlistProvider(); },
       ensureProvider: function (callback) {
         return libraryFeature.ensureWatchlistProvider(callback);
       },
-      t9Enabled: function () { return appSettings.searchT9Input; }, navigationCount: shellFeature.navigationFocusCount, navTarget: function (index) { return document.querySelector(shellFeature.selectorForNavIndex(index)); },
+      t9Enabled: function () { return appSettings.searchT9Input; },
+      navigationCount: shellFeature.navigationFocusCount,
+      navTarget: function (index) { return document.querySelector(shellFeature.selectorForNavIndex(index)); },
       onNavigationChange: function (index) {
         setShellFocus({ navIndex: index });
         shellFeature.renderNavigation();
@@ -752,9 +1393,24 @@
         if (navigationItems[index] && navigationItems[index].kind === 'library') { shellFeature.startNavigationHold(index); }
         else { shellFeature.enterActiveNavigation(); }
       },
-      onOpenResult: openDetail, onBack: function () { transitionToHome('preserve'); }, onBackdrop: shellFeature.scheduleSearchBackdrop, onFocusItem: function (item) { shellFeature.scheduleTheme(item); }, clearFocus: shellFeature.clearLogicalFocus,
-      pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); }, prioritizePoster: shellFeature.prioritizePoster, mediaTitle: presentationServices.mediaTitle, mediaCardMeta: presentationServices.mediaCardMeta, mediaCardDetail: presentationServices.mediaCardDetail,
-      cardMetrics: shellFeature.cardMetrics, cardProfile: shellFeature.cardProfile, renderedPosterSpecification: shellFeature.renderedPosterSpecification, fixedPosterSpecification: shellFeature.fixedPosterSpecification, posterLoader: shellFeature.posterLoader(), playItem: playHomeItem, stopBackgroundAudio: shellFeature.stopTheme, cancelImages: function () { shellFeature.cancelImages('search'); },
+      onOpenResult: openDetail,
+      onBack: function () { transitionToHome('preserve'); },
+      onBackdrop: shellFeature.scheduleSearchBackdrop,
+      onFocusItem: function (item) { shellFeature.scheduleTheme(item); },
+      clearFocus: shellFeature.clearLogicalFocus,
+      pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
+      prioritizePoster: shellFeature.prioritizePoster,
+      mediaTitle: presentationServices.mediaTitle,
+      mediaCardMeta: presentationServices.mediaCardMeta,
+      mediaCardDetail: presentationServices.mediaCardDetail,
+      cardMetrics: shellFeature.cardMetrics,
+      cardProfile: shellFeature.cardProfile,
+      renderedPosterSpecification: shellFeature.renderedPosterSpecification,
+      fixedPosterSpecification: shellFeature.fixedPosterSpecification,
+      posterLoader: shellFeature.posterLoader(),
+      playItem: playHomeItem,
+      stopBackgroundAudio: shellFeature.stopTheme,
+      cancelImages: function () { shellFeature.cancelImages('search'); },
       isActive: function () { return currentView() === 'search'; }, element: presentationServices.element,
       t: t
     });
@@ -872,11 +1528,28 @@
         credentialStorage: credentialStorage
       },
       modules: {
-        SettingsController: SettingsController, Settings: Settings, SettingsCatalog: SettingsCatalog, SettingsView: SettingsView, SafeAreaDialog: SafeAreaDialog, SubtitleStyleDialog: SubtitleStyleDialog, TextInputDialog: TextInputDialog, I18n: I18n, CardLayout: CardLayout, VersionSelection: VersionSelection, ServerStore: ServerStore, ServerDiscovery: ServerDiscovery,
+        SettingsController: SettingsController,
+        InputCommandRouter: InputCommandRouter,
+        Settings: Settings,
+        SettingsCatalog: SettingsCatalog,
+        SettingsView: SettingsView,
+        SafeAreaDialog: SafeAreaDialog,
+        SubtitleStyleDialog: SubtitleStyleDialog,
+        TextInputDialog: TextInputDialog,
+        I18n: I18n,
+        CardLayout: CardLayout,
+        VersionSelection: VersionSelection,
+        ServerStore: ServerStore,
+        ServerDiscovery: ServerDiscovery,
         UpNextLayoutDialog: UpNextLayoutDialog
       },
       state: {
-        getSettings: function () { return appSettings; }, setSettings: function (next) { appSettings = next; },
+        getSettings: function () { return appSettings; }, setSettings: function (next) {
+          var assWasEnabled = assRenderingEnabledState;
+          appSettings = next;
+          assRenderingEnabledState = assLocalRenderingEnabled();
+          if (assWasEnabled && !assRenderingEnabledState) { cancelAssPrefetch('global ASS rendering disabled'); }
+        },
         publishSettings: function (next) { applicationSession.update({ settings: next }); }
       },
       presentation: {
@@ -884,7 +1557,10 @@
         pointerActive: function () { return !!(pointerController && pointerController.isSelectionActive()); }
       },
       shell: {
-        navigationIndex: shellNavigationIndex, setNavigationIndex: function (index) { setShellFocus({ navIndex: index }); }, navigationCount: shellFeature.navigationFocusCount, navigationTarget: function (navIndex) { return document.querySelector(shellFeature.selectorForNavIndex(navIndex)); },
+        navigationIndex: shellNavigationIndex,
+        setNavigationIndex: function (index) { setShellFocus({ navIndex: index }); },
+        navigationCount: shellFeature.navigationFocusCount,
+        navigationTarget: function (navIndex) { return document.querySelector(shellFeature.selectorForNavIndex(navIndex)); },
         renderNavigation: shellFeature.renderNavigation, scheduleNavigationPreview: shellFeature.scheduleNavigationPreview,
         activateNavigation: function () {
           var index = shellNavigationIndex();
@@ -904,13 +1580,20 @@
         showMessage: shellFeature.showMessage
       },
       server: {
-        config: function () { return config; }, active: function () { return serverFeature.activeServer(); }, discoveryActive: function () { return !!(serverFeature && serverFeature.snapshot().discoveryActive); }, editorSnapshot: function () { return serverFeature ? serverFeature.editorSnapshot() : { open: false, index: 0 }; },
-        renderEditor: function () { if (serverFeature) { serverFeature.renderEditor(); } }, openEditor: function () { if (serverFeature) { serverFeature.openEditor(); } }, closeEditor: function () { if (serverFeature) { serverFeature.closeEditor(); } },
+        config: function () { return config; },
+        active: function () { return serverFeature.activeServer(); },
+        discoveryActive: function () { return !!(serverFeature && serverFeature.snapshot().discoveryActive); },
+        editorSnapshot: function () { return serverFeature ? serverFeature.editorSnapshot() : { open: false, index: 0 }; },
+        renderEditor: function () { if (serverFeature) { serverFeature.renderEditor(); } },
+        openEditor: function () { if (serverFeature) { serverFeature.openEditor(); } },
+        closeEditor: function () { if (serverFeature) { serverFeature.closeEditor(); } },
         focusEditor: function (index) { if (serverFeature) { serverFeature.focusEditor(index); } },
         activateEditor: function () { if (serverFeature) { serverFeature.activateEditor(); } }
       },
       account: {
-        activeProfileTitle: shellFeature.activeProfileTitle, connected: function () { return !!serverFeature.ownerToken(); }, disconnect: function () { serverFeature.disconnect(); },
+        activeProfileTitle: shellFeature.activeProfileTitle,
+        connected: function () { return !!serverFeature.ownerToken(); },
+        disconnect: function () { serverFeature.disconnect(); },
         deleteLocalData: function () { serverFeature.deleteLocalData(); }
       },
       dialogs: {
@@ -918,7 +1601,9 @@
         openProfileManager: openProfileManager
       },
       environment: {
-        networkSnapshot: function () { return serverFeature.networkSnapshot(); }, playbackCapabilities: function () { return playbackCapabilities; }, languageCatalog: languageCatalog,
+        networkSnapshot: function () { return serverFeature.networkSnapshot(); },
+        playbackCapabilities: function () { return playbackCapabilities; },
+        languageCatalog: languageCatalog,
         accentColorValues: accentColorValues,
         playbackCompatibility: function () { return playbackCompatibilityMemory.snapshot(); },
         clearPlaybackCompatibilityFormats: function () { return playbackCompatibilityMemory.clearFormatRules(); },
@@ -967,22 +1652,32 @@
         select: function (language) { return settingsFeature.setSetupLanguage(language, true); }
       },
       server: {
-        servers: function () { return serverFeature.servers(); }, active: function () { return serverFeature.activeServer(); }, apiBaseUrl: function () { return config.apiBaseUrl || ''; },
+        servers: function () { return serverFeature.servers(); },
+        active: function () { return serverFeature.activeServer(); },
+        apiBaseUrl: function () { return config.apiBaseUrl || ''; },
         scan: function (snapshot, callback) {
           return serverFeature.discover(function (servers) { callback(null, servers); });
         },
-        normalizeManualAddress: function (value) { return serverFeature.normalizeManualAddress(value); }, probeManualAddress: function (uri, callback) { return serverFeature.probeManualAddress(uri, callback); },
+        normalizeManualAddress: function (value) { return serverFeature.normalizeManualAddress(value); },
+        probeManualAddress: function (uri, callback) { return serverFeature.probeManualAddress(uri, callback); },
         shouldOfferConnection: function (localUri, enteredUri) {
           return serverFeature.shouldOfferConnection(localUri, enteredUri);
         }
       },
       account: {
-        authSnapshot: function () { return serverFeature.authSnapshot(); }, profiles: function () { return serverFeature.profiles(); }, ownerToken: function () { return serverFeature.ownerToken(); }, createPin: function (purpose, callback) { return serverFeature.createPin(purpose, callback); },
-        pollPin: function (pinId, callback) { return serverFeature.pollPin(pinId, callback); }, loadAccountServers: function (ownerToken, callback) { return serverFeature.loadAccountServers(ownerToken, callback); }, loadProfiles: function (ownerToken, callback) { return serverFeature.loadProfiles(ownerToken, callback); },
+        authSnapshot: function () { return serverFeature.authSnapshot(); },
+        profiles: function () { return serverFeature.profiles(); },
+        ownerToken: function () { return serverFeature.ownerToken(); },
+        createPin: function (purpose, callback) { return serverFeature.createPin(purpose, callback); },
+        pollPin: function (pinId, callback) { return serverFeature.pollPin(pinId, callback); },
+        loadAccountServers: function (ownerToken, callback) { return serverFeature.loadAccountServers(ownerToken, callback); },
+        loadProfiles: function (ownerToken, callback) { return serverFeature.loadProfiles(ownerToken, callback); },
         switchProfile: function (profile, pin, callback) {
           var snapshot = setupFeature.snapshot();
           return serverFeature.switchProfile(profile, pin, {
-            selectedServer: snapshot.selectedServer || serverFeature.activeServer(), preferredConnectionUri: snapshot.preferredConnectionUri, profiles: snapshot.profiles,
+            selectedServer: snapshot.selectedServer || serverFeature.activeServer(),
+            preferredConnectionUri: snapshot.preferredConnectionUri,
+            profiles: snapshot.profiles,
             isActive: function () { return currentView() === 'setup'; }
           }, callback);
         },
@@ -1013,7 +1708,7 @@
         if (error || !status || !status.exists) { completeSetupDestination(destination); return; }
         settingsFeature.promptSettingsLoad(status, { confirmFirst: true }, function (loadError, loaded, skipped) {
           if (!skipped) { shellFeature.showMessage(t(loadError ? 'settings.backup.error' : 'settings.backup.loaded')); }
-          if (!loadError && loaded && loaded.settings) { appSettings = loaded.settings; }
+          if (!loadError && loaded && loaded.settings) { appSettings = loaded.settings; assRenderingEnabledState = assLocalRenderingEnabled(); }
           completeSetupDestination(destination);
         });
       });
@@ -1044,16 +1739,30 @@
         DiagnosticsView: DiagnosticsView, SupportSnapshot: SupportSnapshot, SupportQr: SupportQr
       },
       presentation: {
-        t: t, element: presentationServices.element, setText: presentationServices.setText, formatFileSize: function (bytes) { return MediaProfile.detailedSize(bytes, t('player.unavailable')); }, formatLongTime: formatLongTime, formatTime: formatTime,
+        t: t,
+        element: presentationServices.element,
+        setText: presentationServices.setText,
+        formatFileSize: function (bytes) { return MediaProfile.detailedSize(bytes, t('player.unavailable')); },
+        formatLongTime: formatLongTime,
+        formatTime: formatTime,
         pointerActive: function () { return !!(pointerController && pointerController.isSelectionActive()); }
       },
       state: {
-        appVersion: function () { return authOptions.version; }, config: function () { return config; }, activeServer: function () { return serverFeature.activeServer(); }, serverAddresses: function (server) { return serverFeature.addressesFor(server, false); }, authMode: function () { return serverFeature.authMode(); },
-        activeProfile: function () { return serverFeature.activeProfile(); }, playbackCapabilities: function () { return playbackCapabilities; }, networkSnapshot: function () { return serverFeature.networkSnapshot(); }, playbackSnapshot: function () { return playerFeature ? playerFeature.playbackSnapshot() : null; }, queueSnapshot: function () { return playerFeature ? playerFeature.queueSnapshot() : null; },
+        appVersion: function () { return authOptions.version; },
+        config: function () { return config; },
+        activeServer: function () { return serverFeature.activeServer(); },
+        serverAddresses: function (server) { return serverFeature.addressesFor(server, false); },
+        authMode: function () { return serverFeature.authMode(); },
+        activeProfile: function () { return serverFeature.activeProfile(); },
+        playbackCapabilities: function () { return playbackCapabilities; },
+        networkSnapshot: function () { return serverFeature.networkSnapshot(); },
+        playbackSnapshot: function () { return playerFeature ? playerFeature.playbackSnapshot() : null; },
+        queueSnapshot: function () { return playerFeature ? playerFeature.queueSnapshot() : null; },
         playbackDiagnostics: function () { return playerFeature ? playerFeature.playbackDiagnostics() : null; },
         settingsSnapshot: function () { return appSettings; },
         playbackCompatibility: function () { return playbackCompatibilityMemory.snapshot(); },
-        jsErrors: function () { return runtimeErrorStore ? runtimeErrorStore.snapshot() : []; }
+        jsErrors: function () { return runtimeErrorStore ? runtimeErrorStore.snapshot() : []; },
+        startupSnapshot: startupSnapshot
       },
       transport: {
         loadIdentity: function (callback) { return serverFeature.loadServerIdentity(callback); }
@@ -1072,11 +1781,6 @@
     });
     });
     // Media detail, seasons, episodes, preferences, and metadata refresh.
-    function mediaPreferenceIdentity(detail) {
-      var identity = serverFeature.mediaIdentity();
-      return MediaPreferences ? MediaPreferences.key(identity.server, identity.profile, detail) : '';
-    }
-
     function sameMediaItem(first, second) {
       return !!(first && second && first.ratingKey && String(first.ratingKey) === String(second.ratingKey));
     }
@@ -1091,7 +1795,10 @@
       if (view === 'home') {
         focus = shellFocusSnapshot();
         rowsValue = shellFeature.rows();
-        fromContinueWatching = focus.area === 'media' && rowsValue[focus.rowIndex] && rowsValue[focus.rowIndex].kind === 'continue' && sameMediaItem(rowsValue[focus.rowIndex].items[focus.column], item);
+        fromContinueWatching = focus.area === 'media' &&
+          rowsValue[focus.rowIndex] &&
+          rowsValue[focus.rowIndex].kind === 'continue' &&
+          sameMediaItem(rowsValue[focus.rowIndex].items[focus.column], item);
       } else if (view === 'library') {
         libraryState = libraryFeature && libraryFeature.snapshot ? libraryFeature.snapshot() : {};
         focused = libraryFeature && libraryFeature.focusedItem ? libraryFeature.focusedItem() : null;
@@ -1109,6 +1816,7 @@
     // Global input dispatch, view closure, event wiring, Home loading, bootstrap.
     function updateWatchedAcrossFeatures(ratingKey, watched) {
       shellFeature.updateWatched(ratingKey, watched);
+      libraryFeature.reconcileWatchedState(ratingKey, watched);
       if (libraryFeature.activeLibrary()) { libraryFeature.probeContinue(); }
     }
     function restoreDetailOrigin(returnView) {
@@ -1161,6 +1869,7 @@
         { target: root, name: 'resize', handler: shellFeature.onResize }
       ]);
       });
+      markStartup('composition-ready');
       DeviceCapabilities.detect(root, function (capabilities) {
         if (!destroyed) { playbackCapabilities = capabilities; }
       });

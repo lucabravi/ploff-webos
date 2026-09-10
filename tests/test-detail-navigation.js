@@ -3,7 +3,7 @@
 var assert = require('assert');
 var DetailNavigation = require('../app/detail-navigation');
 var navigation = DetailNavigation.create();
-var context = { hasSeries: true, seasonCount: 5, episodeCount: 12, choiceZones: ['version', 'audio', 'subtitles'], summaryOverflowing: true, actionCount: 4 };
+var context = { hasSeries: true, hasExtendedDetails: true, seasonCount: 5, episodeCount: 12, choiceZones: ['version', 'audio', 'subtitles'], summaryOverflowing: true, actionCount: 4 };
 
 navigation.set({ zone: 'seasons', seasonIndex: 4 });
 assert.strictEqual(navigation.navigate('right', context).state.seasonIndex, 4, 'season focus must clamp at the final tab');
@@ -21,6 +21,14 @@ navigation.set({ zone: 'episodes', episodeIndex: 11 });
 assert.strictEqual(navigation.navigate('right', context).state.episodeIndex, 11, 'episode focus must clamp at the final episode');
 assert.strictEqual(navigation.navigate('left', context).effect, 'episode-preview', 'episode movement must request its deferred metadata preview');
 assert.strictEqual(navigation.navigate('up', context).state.zone, 'subtitles', 'Up from episodes must return to the final preference');
+navigation.set({ zone: 'episodes', episodeIndex: 10 });
+assert.deepStrictEqual(navigation.navigate('down', context), { state: { zone: 'extended', actionIndex: 0, seasonIndex: 3, episodeIndex: 10 }, effect: 'extended-enter' }, 'Down from episodes must enter extended details without an activation key');
+assert.deepStrictEqual(navigation.navigate('up', { hasSeries: true, hasExtendedDetails: true, extendedAtTop: true, choiceZones: ['version', 'audio', 'subtitles'] }), { state: { zone: 'episodes', actionIndex: 0, seasonIndex: 3, episodeIndex: 10 }, effect: 'extended-leave' }, 'Up from the top extended row must return directly to episodes');
+
+
+navigation.set({ zone: 'subtitles', actionIndex: 0 });
+assert.deepStrictEqual(navigation.navigate('down', { hasSeries: false, hasExtendedDetails: true, choiceZones: ['version', 'audio', 'subtitles'] }), { state: { zone: 'extended', actionIndex: 0, seasonIndex: 3, episodeIndex: 10 }, effect: 'extended-enter' }, 'movie details must continue below the final playback preference');
+assert.deepStrictEqual(navigation.navigate('up', { hasSeries: false, hasExtendedDetails: true, extendedAtTop: true, choiceZones: ['version', 'audio', 'subtitles'] }), { state: { zone: 'subtitles', actionIndex: 0, seasonIndex: 3, episodeIndex: 10 }, effect: 'extended-leave' }, 'movie extended details must return to the final playback preference');
 
 navigation.set({ zone: 'play', actionIndex: 3 });
 assert.strictEqual(navigation.navigate('right', context).state.actionIndex, 3, 'the media options action must clamp at the final action');
@@ -31,5 +39,7 @@ assert.strictEqual(navigation.snapshot().actionIndex, 0, 'returning from summary
 
 navigation.set({ zone: 'play' });
 assert.strictEqual(navigation.navigate('up', { hasSeries: false, choiceZones: [], summaryOverflowing: false }).state.zone, 'play', 'movie actions must not move focus into the hidden detail navbar');
+navigation.set({ zone: 'play' });
+assert.deepStrictEqual(navigation.navigate('down', { hasSeries: false, hasExtendedDetails: true, choiceZones: [] }), { state: { zone: 'extended', actionIndex: 0, seasonIndex: 3, episodeIndex: 10 }, effect: 'extended-enter' }, 'movie details must follow actions directly when no playback preference rows are visible');
 
 console.log('Detail navigation checks passed');

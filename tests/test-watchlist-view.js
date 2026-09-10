@@ -65,6 +65,29 @@ cache.requests[1].callback(null, []);
 cache.view.load(false);
 assert.strictEqual(cache.requests.length, 2, 'a completed matching identity must use cached Watchlist data');
 
+var retryAfterFailure = createFixture();
+retryAfterFailure.view.load(true);
+retryAfterFailure.requests[0].callback(null, { baseUrl: 'provider' });
+retryAfterFailure.requests[1].callback(new Error('offline'));
+retryAfterFailure.view.load(false);
+assert.strictEqual(retryAfterFailure.requests.length, 3, 'a failed Watchlist load must not cache the identity and must retry on the next entry');
+assert.strictEqual(retryAfterFailure.requests[2].kind, 'load', 'a retry after a failed Watchlist load must reuse the discovered provider');
+
+var partialResolution = createFixture();
+partialResolution.view.load(true);
+partialResolution.requests[0].callback(null, { baseUrl: 'provider' });
+partialResolution.requests[1].callback(null, [
+  { ratingKey: 'cloud-ok', guid: 'guid-ok' },
+  { ratingKey: 'cloud-fail', guid: 'guid-fail' }
+]);
+partialResolution.requests[2].callback(null, { ratingKey: 'local-ok', title: 'OK' });
+partialResolution.requests[3].callback(new Error('offline'));
+assert.ok(partialResolution.view.snapshot().error, 'a local-resolution transport failure must remain visible as a retryable Watchlist error');
+assert.deepStrictEqual(partialResolution.view.snapshot().items.map(function (item) { return item.ratingKey; }), ['local-ok'], 'resolved Watchlist items should remain visible when another local lookup fails');
+assert.strictEqual(partialResolution.view.snapshot().loadedIdentity, '', 'a partially resolved Watchlist must not be cached as complete');
+partialResolution.view.load(false);
+assert.strictEqual(partialResolution.requests[4].kind, 'load', 're-entering after a partial resolution error must retry the cloud Watchlist using the discovered provider');
+
 var navigation = createFixture();
 navigation.view.seed([{ ratingKey: '1' }, { ratingKey: '2' }, { ratingKey: '3' }, { ratingKey: '4' }, { ratingKey: '5' }]);
 navigation.view.open(false);
@@ -180,7 +203,14 @@ var renderedView = WatchlistView.create({
     getElementById: function (id) { return renderedNodes[id] || null; },
     querySelector: function (selector) {
       var match = selector.match(/data-watchlist-index="(\d+)"/);
-      return match ? renderedNodes['watchlist-grid-content'].children[Number(match[1])] : null;
+      var index;
+      if (!match) { return null; }
+      for (index = 0; index < renderedNodes['watchlist-grid-content'].children.length; index += 1) {
+        if (renderedNodes['watchlist-grid-content'].children[index].getAttribute('data-watchlist-index') === match[1]) {
+          return renderedNodes['watchlist-grid-content'].children[index];
+        }
+      }
+      return null;
     }
   },
   element: renderNode,
@@ -196,5 +226,72 @@ renderedView.seed([{ ratingKey: 'one', title: 'One', libraryTitle: 'Film' }, { r
 renderedView.open(false);
 assert.strictEqual(renderedNodes['watchlist-grid-content'].children[0].querySelector('.watchlist-library-badge').textContent, 'Film', 'Watchlist cards display their resolved local library');
 assert.strictEqual(renderedNodes['watchlist-grid-content'].children[1].querySelector('.watchlist-library-badge'), null, 'Watchlist cards omit empty source badges');
+
+
+var largeNodes = {
+  'watchlist-grid-content': renderNode('div'),
+  'watchlist-grid': renderNode('div'),
+  'watchlist-status': renderNode('div')
+};
+var largeView = WatchlistView.create({
+  WatchlistState: WatchlistState,
+  document: {
+    getElementById: function (id) { return largeNodes[id] || null; },
+    querySelector: function (selector) {
+      var match = selector.match(/data-watchlist-index="(\d+)"/);
+      var index;
+      if (!match) { return null; }
+      for (index = 0; index < largeNodes['watchlist-grid-content'].children.length; index += 1) {
+        if (largeNodes['watchlist-grid-content'].children[index].getAttribute('data-watchlist-index') === match[1]) {
+          return largeNodes['watchlist-grid-content'].children[index];
+        }
+      }
+      return null;
+    }
+  },
+  element: renderNode,
+  mediaTitle: function (item) { return item.title; },
+  mediaCardMeta: function () { return ''; },
+  mediaCardDetail: function () { return ''; },
+  available: function () { return true; },
+  columns: function () { return 5; },
+  cardProfile: function () { return { metrics: { width: 200, imageHeight: 300, height: 400 }, poster: { width: 200, height: 300 }, posterGap: 20 }; },
+  clearFocus: function () {},
+  pointerSelectionActive: function () { return true; }
+});
+var largeItems = [];
+var largeIndex;
+for (largeIndex = 0; largeIndex < 100; largeIndex += 1) {
+  largeItems.push({ ratingKey: String(largeIndex), title: 'Item ' + largeIndex });
+}
+largeView.seed(largeItems);
+largeView.open(false);
+assert.strictEqual(largeView.snapshot().items.length, 100, 'Watchlist virtualization must keep the complete logical item list');
+assert.ok(largeNodes['watchlist-grid-content'].children.length <= 27, 'Watchlist virtualization must keep at most five card rows plus two spacers mounted');
+assert.strictEqual(largeNodes['watchlist-grid-content'].children[0].getAttribute('data-watchlist-index'), '0', 'the initial mounted window must preserve logical Plex order');
+largeView.setFocus(50);
+var mountedLargeCards = largeNodes['watchlist-grid-content'].children.filter(function (child) { return child.getAttribute('data-watchlist-index') !== undefined; });
+assert.ok(largeNodes['watchlist-grid-content'].children.length <= 27, 'moving through a large Watchlist must keep the mounted window bounded');
+assert.strictEqual(mountedLargeCards[0].getAttribute('data-watchlist-index'), '40', 'window remount must preserve the logical index of the first retained card');
+assert.strictEqual(mountedLargeCards[mountedLargeCards.length - 1].getAttribute('data-watchlist-index'), '64', 'window remount must preserve the logical index of the last retained card');
+var retainedLargeCard = mountedLargeCards[0];
+largeView.setFocus(51);
+mountedLargeCards = largeNodes['watchlist-grid-content'].children.filter(function (child) { return child.getAttribute('data-watchlist-index') !== undefined; });
+assert.strictEqual(mountedLargeCards[0], retainedLargeCard, 'same-window focus movement must not rebuild Watchlist cards');
+largeView.restoreFocus(99);
+mountedLargeCards = largeNodes['watchlist-grid-content'].children.filter(function (child) { return child.getAttribute('data-watchlist-index') !== undefined; });
+assert.strictEqual(largeView.snapshot().focusIndex, 99, 'restoring a logical Watchlist index must remount and focus that item');
+assert.strictEqual(mountedLargeCards[mountedLargeCards.length - 1].getAttribute('data-watchlist-index'), '99', 'restoring the final Watchlist item must mount the final logical card');
+largeView.setFocus(0);
+largeNodes['watchlist-grid'].scrollTop = 12 * 420;
+largeView.onScroll();
+mountedLargeCards = largeNodes['watchlist-grid-content'].children.filter(function (child) { return child.getAttribute('data-watchlist-index') !== undefined; });
+assert.strictEqual(largeView.snapshot().focusIndex, 0, 'page scrolling must not change logical Watchlist focus before pointer focus synchronization');
+assert.strictEqual(mountedLargeCards[0].getAttribute('data-watchlist-index'), '50', 'page scrolling must remount cards around the visible virtual row instead of exposing a blank spacer');
+assert.strictEqual(mountedLargeCards[mountedLargeCards.length - 1].getAttribute('data-watchlist-index'), '74', 'page scrolling must retain a bounded five-row Watchlist window around the visible row');
+largeNodes['watchlist-grid'].scrollTop = 999999;
+largeView.onScroll();
+mountedLargeCards = largeNodes['watchlist-grid-content'].children.filter(function (child) { return child.getAttribute('data-watchlist-index') !== undefined; });
+assert.strictEqual(mountedLargeCards[mountedLargeCards.length - 1].getAttribute('data-watchlist-index'), '99', 'out-of-range page scroll positions must clamp to the final logical Watchlist row');
 
 console.log('Watchlist view checks passed');

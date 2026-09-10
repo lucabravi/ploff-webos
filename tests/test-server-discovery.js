@@ -87,6 +87,20 @@ assert.deepStrictEqual(serviceRequest, {
 }, 'the official webOS service API must receive the base Luna service and method separately');
 assert.strictEqual(serviceDiscovery.length, 1, 'successful webOS GDM discovery must return local Plex servers');
 
+var defaultServiceTimeout = 0;
+Discovery.discover({
+  XMLHttpRequest: function () {},
+  setTimeout: function (_callback, delay) { defaultServiceTimeout = delay; return 1; },
+  clearTimeout: function () {},
+  webOS: {
+    service: {
+      request: function () {}
+    }
+  }
+}, { discoveryTimeout: 1800 }, function () {});
+assert.strictEqual(defaultServiceTimeout, 5000,
+  'GDM service discovery must keep its dedicated timeout instead of inheriting the shorter HTTP probe timeout');
+
 var stalledServiceDiscovery = 'pending';
 Discovery.discover({
   XMLHttpRequest: function () {},

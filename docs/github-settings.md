@@ -12,4 +12,4 @@ Complete this checklist when the clean repository becomes public:
 - Keep Issues enabled; disable unused Projects and Wiki features.
 - Add the repository description, homepage, and topics: `plex`, `webos`,
   `lg-tv`, `media-client`, `offline-first`, and `legacy-tv`.
-- Confirm that generic IPKs and `SHA256SUMS` are the only release assets.
+- Confirm that every release contains the generic IPK, `SHA256SUMS`, and `SBOM.spdx.json`, and that GitHub artifact attestations are visible for the IPK and published installer image.

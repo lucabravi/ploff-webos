@@ -10,14 +10,18 @@
   var ENDPOINT = 'https://api.github.com/repos/lucabravi/ploff-webos/releases/latest';
   var RELEASE_URL = 'https://github.com/lucabravi/ploff-webos/releases/latest';
 
+  function normalizedVersion(version) {
+    return String(version || '').replace(/^v/i, '');
+  }
+
   function numericParts(version) {
-    return String(version || '').replace(/^v/i, '').split(/[.-]/).map(function (part) {
+    return normalizedVersion(version).split(/[.-]/).map(function (part) {
       var value = parseInt(part, 10);
       return isFinite(value) ? value : 0;
     });
   }
 
-  function compareVersions(left, right) {
+  function legacyCompareVersions(left, right) {
     var a = numericParts(left);
     var b = numericParts(right);
     var length = Math.max(a.length, b.length);
@@ -27,6 +31,64 @@
       if ((a[index] || 0) < (b[index] || 0)) { return -1; }
     }
     return 0;
+  }
+
+  function parseSemVer(version) {
+    var match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(normalizedVersion(version));
+    if (!match) { return null; }
+    return {
+      core: [match[1], match[2], match[3]],
+      prerelease: match[4] ? match[4].split('.') : []
+    };
+  }
+
+  function compareNumericStrings(left, right) {
+    if (left.length > right.length) { return 1; }
+    if (left.length < right.length) { return -1; }
+    if (left > right) { return 1; }
+    if (left < right) { return -1; }
+    return 0;
+  }
+
+  function numericIdentifier(value) {
+    return /^(0|[1-9][0-9]*)$/.test(value);
+  }
+
+  function compareSemVer(left, right) {
+    var index;
+    var result;
+    var leftId;
+    var rightId;
+    var leftNumeric;
+    var rightNumeric;
+    for (index = 0; index < 3; index += 1) {
+      result = compareNumericStrings(left.core[index], right.core[index]);
+      if (result) { return result; }
+    }
+    if (!left.prerelease.length && !right.prerelease.length) { return 0; }
+    if (!left.prerelease.length) { return 1; }
+    if (!right.prerelease.length) { return -1; }
+    for (index = 0; index < Math.max(left.prerelease.length, right.prerelease.length); index += 1) {
+      if (index >= left.prerelease.length) { return -1; }
+      if (index >= right.prerelease.length) { return 1; }
+      leftId = left.prerelease[index];
+      rightId = right.prerelease[index];
+      if (leftId === rightId) { continue; }
+      leftNumeric = numericIdentifier(leftId);
+      rightNumeric = numericIdentifier(rightId);
+      if (leftNumeric && !rightNumeric) { return -1; }
+      if (!leftNumeric && rightNumeric) { return 1; }
+      if (leftNumeric && rightNumeric) { return compareNumericStrings(leftId, rightId); }
+      return leftId < rightId ? -1 : 1;
+    }
+    return 0;
+  }
+
+  function compareVersions(left, right) {
+    var a = parseSemVer(left);
+    var b = parseSemVer(right);
+    if (a && b) { return compareSemVer(a, b); }
+    return legacyCompareVersions(left, right);
   }
 
   function safeRead(storage) {

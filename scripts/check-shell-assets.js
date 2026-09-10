@@ -9,6 +9,13 @@ var html = fs.readFileSync(documentPath, 'utf8');
 var expression = /(?:src|href)="([^"]+)"/g;
 var match;
 var checked = 0;
+var playerPath = path.join(directory, 'player.js');
+if (!fs.existsSync(playerPath) || !fs.statSync(playerPath).isFile() || !fs.statSync(playerPath).size) {
+  throw new Error('Missing or empty deferred shell asset: player.js');
+}
+if (/<script\b[^>]*src=["'](?:\.\/)?player\.js(?:[?"'])/i.test(html)) {
+  throw new Error('Player must not be a static startup script');
+}
 
 while ((match = expression.exec(html))) {
   var reference = match[1];

@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">Ploff for Plex</h1>
-<p align="center"><strong>An offline-capable, remote-first Plex client built for legacy LG webOS TVs.</strong></p>
+<p align="center"><strong>A lightweight, customizable, TV-first Plex client for LG webOS.</strong></p>
 
 <p align="center">
   <a href="https://github.com/lucabravi/ploff-webos/actions/workflows/ci.yml"><img src="https://github.com/lucabravi/ploff-webos/actions/workflows/ci.yml/badge.svg" alt="Tests"></a>
@@ -13,12 +13,13 @@
 
 <p align="center"><em>Ploff is an unofficial community project and is not affiliated with or endorsed by Plex, Inc.</em></p>
 
+<img src="docs/screenshots/home.jpg" width="100%" alt="Ploff Home on an LG webOS TV">
+
 ## Contents
 
 - [Why Ploff](#why-ploff)
-- [Architecture at a glance](#architecture-at-a-glance)
-- [Screenshots](#screenshots)
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Installation troubleshooting](#installation-troubleshooting)
@@ -26,6 +27,7 @@
 - [Compatibility notes](#compatibility-notes)
 - [Security](#security)
 - [Privacy](PRIVACY.md)
+- [Architecture at a glance](#architecture-at-a-glance)
 - [Development](#development)
 - [Project structure and documentation](#project-structure-and-documentation)
 - [Contributing](#contributing)
@@ -33,90 +35,24 @@
 
 ## Why Ploff
 
-- **Built for the TV you already own.** Ploff is designed specifically for the
-  Chrome 53 WebView found on legacy LG webOS TVs, with a lightweight interface
-  and no runtime dependencies.
-- **Works locally without the cloud.** Local server discovery and LAN playback
-  require no Plex account. Previously linked Plex Home profiles remain
-  available when Plex cloud services are temporarily unreachable.
+- **Lightweight and polished.** Ploff is designed to run smoothly on both newer and
+  older LG webOS TVs, with a dependency-free TV runtime and an interface built for
+  the big screen rather than adapted from a desktop app.
+- **Customizable by design.** Choose from seven visual themes and tune supported
+  accent colors, card scale, artwork and backdrop quality, interface text size,
+  animations, and subtitle presentation to fit the TV and the room.
+- **Keep original video quality when possible.** Direct Play and Direct Stream are
+  preferred whenever the TV supports the media. Experimental local ASS/SSA subtitle
+  rendering can draw subtitle formats directly in Ploff when webOS cannot render them
+  natively, avoiding subtitle-driven video transcoding when possible, reducing Plex
+  Media Server load, and helping preserve original video quality.
+- **Works locally without the cloud.** Local server discovery and LAN playback require
+  no Plex account. Optional Plex linking adds Home profiles, Watchlist, remote servers,
+  Relay failover, and improved multilingual search, while previously linked profiles
+  remain available if Plex cloud services are temporarily unreachable.
 - **Designed around a remote, not a mouse.** Navigation, playback, and search,
-  including optional classic T9 input, support directional remotes and the LG
-  Magic Remote pointer from day one.
-- **No account required.** Point Ploff at a local Plex Media Server and go.
-  Optional Plex linking adds Home profiles, Watchlist, remote servers, Relay
-  failover, and improved multilingual search.
-
-## Architecture at a Glance
-
-Ploff deliberately keeps the installed TV runtime small and explicit:
-
-```text
-LG webOS TV / Chrome 53
-        |
-        v
-app/index.html + app/styles.css + generated app/app.js
-        |
-        +--> feature controllers --> shared TV views / remote + pointer input
-        |
-        +--> Plex HTTP client ----------------------> Plex Media Server
-        |
-        +--> webOS Luna service -- UDP GDM --------> local Plex discovery
-        |
-        +--> Settings / DB8 / bounded local state
-```
-
-`app/coordinator/application-controller.js` is the composition root: it wires focused
-feature controllers together but does not own their Plex requests, DOM, timers, or
-private state. Browser runtime code remains dependency-free ES5. `app/app.js` and
-`app/styles.css` are checked-in generated artifacts for the TV package and must never
-be edited directly.
-
-Local Plex discovery and LAN playback do not require Plex cloud services. Plex linking
-is optional and adds Home profiles, Watchlist, remote servers, Relay failover, and
-cloud-assisted title aliases. See [docs/architecture.md](docs/architecture.md) for the
-full ownership/data-flow model and [docs/README.md](docs/README.md) for the current
-documentation map.
-
-## Screenshots
-
-![Ploff Home on a 1080p TV](docs/screenshots/home.jpg)
-
-<details>
-<summary><strong>Click for more screenshots</strong> — browse the interface gallery</summary>
-<br>
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/catalog-filters.jpg" alt="Advanced catalog filters"></td>
-    <td width="50%"><img src="docs/screenshots/search-t9.jpg" alt="Search with optional remote T9 input"></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Advanced catalog filters</strong></td>
-    <td align="center"><strong>Search and T9 input</strong></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/library.jpg" alt="Library recommendations"></td>
-    <td width="50%"><img src="docs/screenshots/series-detail.jpg" alt="Series detail and episode navigation"></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Library recommendations</strong></td>
-    <td align="center"><strong>Series detail and episode navigation</strong></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/movie-detail.jpg" alt="Movie detail and playback choices"></td>
-    <td width="50%"><img src="docs/screenshots/settings.jpg" alt="Application settings"></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Movie detail and playback choices</strong></td>
-    <td align="center"><strong>Application settings</strong></td>
-  </tr>
-</table>
-
-</details>
-
-Screenshots use a fictional demo library and contain no personal Plex data.
-All titles, descriptions, and artwork shown are fictional and were created for
-the demo to avoid using copyrighted media.
+  including optional classic T9 input, support directional remotes and the LG Magic
+  Remote pointer from day one.
 
 ## Features
 
@@ -125,11 +61,16 @@ the demo to avoid using copyrighted media.
 - Home, search, libraries, collections, playlists, and Watchlist, all built TV-first
 - Optional classic T9 numeric search input, for remotes without a pointer
 - Progressive artwork, adjustable card sizes, independent artwork/backdrop download
-  quality, and five selectable visual themes: Simple, Cinema, Premiere, Nova, and Atelier
+  quality, and seven selectable visual themes: Immersive, Premiere, Aurora, Mahogany,
+  Atelier, Nova, and Simple
 
 ### Playback
 
 - Direct Play, Direct Stream, transcoding fallback, and playback diagnostics
+- Optional local subtitle rendering for SRT/WebVTT and experimental ASS/SSA rendering;
+  local ASS/SSA can avoid subtitle-driven video transcoding when possible, reducing
+  server load while preserving original video quality when the remaining media is
+  Direct Play compatible
 - Quality, version, audio, subtitle, synchronization, chapter, and resume controls; Detail keeps Version first and opens an integrated technical browser even when only one file exists
 - Contextual Detail media options for season watched/unwatched bulk actions with confirmation and metadata refresh
 - Remote-friendly choice dialogs for tracks, playback, and application settings
@@ -152,6 +93,29 @@ the demo to avoid using copyrighted media.
 
 - English, Italian, Spanish, French, German, Brazilian Portuguese, Japanese, and Korean
 - Automatic update checks, with a manual Settings check and QR link to the latest GitHub release
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="25%" align="center"><a href="docs/screenshots/catalog-filters.jpg"><img src="docs/screenshots/catalog-filters.jpg" width="100%" alt="Advanced catalog filters"></a><br><sub><strong>Advanced catalog filters</strong></sub></td>
+    <td width="25%" align="center"><a href="docs/screenshots/search-t9.jpg"><img src="docs/screenshots/search-t9.jpg" width="100%" alt="Search with optional remote T9 input"></a><br><sub><strong>Search and T9 input</strong></sub></td>
+    <td width="25%" align="center"><a href="docs/screenshots/library.jpg"><img src="docs/screenshots/library.jpg" width="100%" alt="Library recommendations"></a><br><sub><strong>Library recommendations</strong></sub></td>
+    <td width="25%" align="center"><a href="docs/screenshots/series-detail.jpg"><img src="docs/screenshots/series-detail.jpg" width="100%" alt="Series detail and episode navigation"></a><br><sub><strong>Series detail</strong></sub></td>
+  </tr>
+  <tr>
+    <td width="25%" align="center"><a href="docs/screenshots/player.jpg"><img src="docs/screenshots/player.jpg" width="100%" alt="Ploff player with playback controls"></a><br><sub><strong>Player controls</strong></sub></td>
+    <td width="25%" align="center"><a href="docs/screenshots/queue-up-next.jpg"><img src="docs/screenshots/queue-up-next.jpg" width="100%" alt="Playback queue and Up Next episodes"></a><br><sub><strong>Playback queue and Up Next</strong></sub></td>
+    <td width="25%" align="center"><a href="docs/screenshots/movie-detail.jpg"><img src="docs/screenshots/movie-detail.jpg" width="100%" alt="Movie detail and playback choices"></a><br><sub><strong>Movie detail</strong></sub></td>
+    <td width="25%" align="center"><a href="docs/screenshots/settings.jpg"><img src="docs/screenshots/settings.jpg" width="100%" alt="Application settings"></a><br><sub><strong>Application settings</strong></sub></td>
+  </tr>
+</table>
+
+<p align="center"><em>Click any preview to open the full-size screenshot.</em></p>
+
+Screenshots use a fictional demo library and contain no personal Plex data.
+All titles, descriptions, and artwork shown are fictional and were created for
+the demo to avoid using copyrighted media.
 
 ## Requirements
 
@@ -212,21 +176,24 @@ ares-novacom --getkey --device my-tv
 Keep Key Server enabled while running `ares-novacom`. When prompted, enter the
 passphrase shown by the Developer Mode app.
 
-Download the IPK and `SHA256SUMS` from
+Download the IPK, `SHA256SUMS`, and `SBOM.spdx.json` from
 [GitHub Releases](https://github.com/lucabravi/ploff-webos/releases), verify the
-download, then install and launch it:
+download and GitHub build provenance, then install and launch it:
 
 ```sh
 shasum -a 256 --check SHA256SUMS # macOS
 # sha256sum --check SHA256SUMS   # Linux
+gh attestation verify io.github.rhapsodos.ploff_<version>_all.ipk --repo lucabravi/ploff-webos
 ares-install --device my-tv io.github.rhapsodos.ploff_<version>_all.ipk
 ares-launch --device my-tv io.github.rhapsodos.ploff
 ```
 
 Replace `my-tv` with the name configured in `ares-setup-device`.
 
-Every tagged version publishes a generic IPK, checksum, and multi-architecture
-Docker installer. Release packages contain no Plex address or credentials.
+Every tagged version publishes a generic IPK, checksums, an SPDX JSON SBOM, and a
+multi-architecture Docker installer. GitHub artifact attestations bind the IPK
+and published container digest to the release workflow and source commit. Release
+packages contain no Plex address or credentials.
 
 </details>
 
@@ -292,6 +259,40 @@ local playback remain available offline.
 
 See [SECURITY.md](SECURITY.md) for the full threat model and private reporting
 instructions, and [PRIVACY.md](PRIVACY.md) for the data-handling policy.
+
+## Architecture at a Glance
+
+Ploff deliberately keeps the installed TV runtime small and explicit:
+
+```text
+LG webOS TV / Chrome 53 compatibility baseline
+        |
+        v
+app/index.html + app/styles.css + generated app/app.js
+        |
+        +--> Core features --> shared TV views / remote + pointer input
+        +--> deferred app/player.js --> Player composition and playback
+        |
+        +--> Plex HTTP client ----------------------> Plex Media Server
+        |
+        +--> webOS Luna service -- UDP GDM --------> local Plex discovery
+        |
+        +--> Settings / DB8 / bounded local state
+```
+
+`app/coordinator/application-controller.js` is the composition root: it wires focused
+feature controllers together but does not own their Plex requests, DOM, timers, or
+private state. It also owns the single deferred-Player readiness transition and
+post-Home warm timer. Browser runtime code remains dependency-free ES5. `app/app.js`,
+`app/player.js`, and `app/styles.css` are checked-in generated artifacts and must never
+be edited directly. Player code loads after Home is focusable or on the first playback
+request; enabled local ASS prewarm remains in Core and independent of that load.
+
+Local Plex discovery and LAN playback do not require Plex cloud services. Plex linking
+is optional and adds Home profiles, Watchlist, remote servers, Relay failover, and
+cloud-assisted title aliases. See [docs/architecture.md](docs/architecture.md) for the
+full ownership/data-flow model and [docs/README.md](docs/README.md) for the current
+documentation map.
 
 ## Development
 
@@ -388,6 +389,10 @@ requirements (`npm run verify`) applied to every change.
 ## License
 
 Released under the [MIT License](LICENSE).
+
+Packaged third-party components retain their own licenses and attribution in
+[`app/vendor/THIRD_PARTY_NOTICES.txt`](app/vendor/THIRD_PARTY_NOTICES.txt), including
+the corresponding-source provenance for the ASS renderer and the OFL-1.1 fallback font.
 
 Plex and Plex Media Server are trademarks of Plex, Inc. Ploff is independently
 developed and is not endorsed by Plex, Inc.

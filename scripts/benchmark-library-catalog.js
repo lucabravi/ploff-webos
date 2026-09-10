@@ -7,6 +7,30 @@ var SearchModel = require('../app/search-model');
 var ITEM_COUNT = Number(process.env.PLOFF_CATALOG_ITEMS || 5000);
 var ROUNDS = Number(process.env.PLOFF_CATALOG_ROUNDS || 7);
 
+var OPERATION_BUDGETS = {
+  'focus-move-integrated': {
+    appendChild: 0, createdNodes: 0, mediaDetail: 0, mediaMeta: 0, mediaTitle: 0,
+    posterJobs: 0, querySelector: 2, removeChild: 0, cardMetrics: 0, cardProfile: 0,
+    layoutReads: 4, focus: 2
+  },
+  'scroll-row-boundary': {
+    appendChild: 5.2, createdNodes: 0.2, mediaDetail: 5.2, mediaMeta: 5.2, mediaTitle: 5.2,
+    posterBatches: 1, posterCancels: 5.1, posterFullJobs: 5.2, posterJobs: 10.2,
+    posterPreviewJobs: 5.2, querySelector: 0, removeChild: 5.1, setAttribute: 15.2, cardProfile: 1
+  }
+};
+
+function operationBudgetFailures(name, operations) {
+  var budget = OPERATION_BUDGETS[name] || {};
+  var source = operations || {};
+  var failures = [];
+  Object.keys(budget).forEach(function (key) {
+    var actual = Number(source[key] || 0);
+    if (actual > budget[key]) { failures.push({ key: key, actual: actual, maximum: budget[key] }); }
+  });
+  return failures;
+}
+
 function emptyCounters() {
   return {
     appendChild: 0,
@@ -283,11 +307,15 @@ function runScenario(name, iterations, prepare, execute) {
       addCounters(totals, copyCounters(context.counters));
     }
   }
+  var operations = divideCounters(totals, iterations * ROUNDS);
+  var failures = operationBudgetFailures(name, operations);
   return {
     name: name,
     iterations: iterations,
     medianMs: Number(median(times).toFixed(3)),
-    operationsPerIteration: divideCounters(totals, iterations * ROUNDS)
+    operationsPerIteration: operations,
+    operationBudgetFailures: failures,
+    operationsWithinBudget: failures.length === 0
   };
 }
 
@@ -352,6 +380,10 @@ function print(result) {
   result.results.forEach(function (scenario) {
     console.log('\n' + scenario.name + ': ' + scenario.medianMs.toFixed(3) + ' ms / ' + scenario.iterations + ' iterations');
     console.log(JSON.stringify(scenario.operationsPerIteration));
+    if (scenario.operationBudgetFailures.length) {
+      console.error('Operation budget failures: ' + JSON.stringify(scenario.operationBudgetFailures));
+      process.exitCode = 1;
+    }
   });
   console.log('\nJSON');
   console.log(JSON.stringify(result, null, 2));
@@ -359,4 +391,11 @@ function print(result) {
 
 if (require.main === module) { print(benchmark()); }
 
-module.exports = { benchmark: benchmark, fixture: fixture, items: items, resetCounters: resetCounters };
+module.exports = {
+  OPERATION_BUDGETS: OPERATION_BUDGETS,
+  benchmark: benchmark,
+  fixture: fixture,
+  items: items,
+  operationBudgetFailures: operationBudgetFailures,
+  resetCounters: resetCounters
+};

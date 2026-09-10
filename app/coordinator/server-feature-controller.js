@@ -784,7 +784,6 @@
 
     function applyNavigation(items) { call(application.applyNavigation, items || []); }
     function loadHome() { call(application.loadHome); }
-    function preloadWatchlist() { if (watchlistAvailable()) { call(application.preloadWatchlist); } }
 
     function loadApplication() {
       var loadGeneration;
@@ -812,7 +811,6 @@
         clearFailedRoutes();
         if (items && items.length) { applyNavigation(items); }
         loadHome();
-        preloadWatchlist();
         call(application.loaded, snapshot());
       });
       if (!navigationCompleted) { track(applicationRequests, navigationRequest); }

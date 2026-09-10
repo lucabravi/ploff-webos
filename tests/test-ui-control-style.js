@@ -26,7 +26,7 @@ assert.ok(/:root\s*\{[\s\S]*--primary-focus-shadow:\s*0 0 0 2px #111317, 0 0 0 6
   '.setup-action.is-primary.is-focused',
   '.detail-action:not(.detail-action-secondary).is-focused',
   '.up-next-layout-actions button:last-child.is-focused',
-  '.subtitle-editor-commit-group button.is-primary.is-focused',
+  '.subtitle-editor-action-row button.is-primary.is-focused',
   '.autoplay-actions #autoplay-play.is-focused'
 ].forEach(function (selector) {
   var escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+');
@@ -45,7 +45,7 @@ assert.ok(/\.app-settings-list\s*\{[^}]*padding:\s*6px\s+28px\s+6px\s+6px/.test(
 });
 assert.ok(/\.choice-dialog-panel\s*\{[^}]*background:\s*var\(--panel-surface\)/.test(styles), 'the shared choice dialog must use the common panel surface');
 assert.ok(/\.player-settings\s*\{[^}]*background:\s*var\(--panel-surface\)/.test(styles), 'player settings must use the common panel surface');
-assert.ok(/\.subtitle-editor\s*\{[^}]*background:\s*var\(--panel-surface\)/.test(styles), 'subtitle settings must use the common panel surface');
+assert.ok(/\.subtitle-editor\s*\{[^}]*background:\s*rgba\(10,12,16,\.46\)/.test(styles), 'subtitle settings must use a readable transparent overlay over the video');
 assert.ok(/choice-dialog-option'\s*\+\s*\(index === state\.selectedIndex \? ' is-selected' : ''\)/.test(choiceDialog), 'choice dialogs must keep the applied value visually selected while focus moves');
 assert.ok(/setAttribute\('aria-selected', index === state\.selectedIndex \? 'true' : 'false'\)/.test(choiceDialog), 'choice dialogs must expose the applied value to assistive technology');
 assert.ok(/\.choice-dialog-option\.is-selected:after\s*\{[^}]*content:'\\2713'/.test(styles), 'choice dialogs must mark the applied value without replacing their vertical list');

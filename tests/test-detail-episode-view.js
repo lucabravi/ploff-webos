@@ -39,8 +39,10 @@ function find(root, selector, output) {
 }
 
 function episode(index, selected) {
-  return { ratingKey: 'episode-' + index, index: index, title: 'Episode title ' + index, image: 'episode-' + index + '.jpg', selected: !!selected, progress: index === 3 ? 45 : 0, viewed: index < 3 };
+  var durations = { 1: 187000, 2: 3787000, 3: 0 };
+  return { ratingKey: 'episode-' + index, index: index, title: 'Episode title ' + index, image: 'episode-' + index + '.jpg', selected: !!selected, progress: index === 3 ? 45 : 0, viewed: index < 3, duration: durations[index] };
 }
+
 
 var roots = { 'season-tabs': node('div'), 'episode-strip': node('div') };
 var batches = [];
@@ -53,7 +55,7 @@ var documentRef = {
 };
 var view = DetailEpisodeView.create({
   root: { setTimeout: function () { return 1; }, clearTimeout: function () {} }, document: documentRef,
-  element: function (tagName, className, text) { var result = node(tagName, className, text); if (tagName === 'img') { result.clientWidth = 310.9; result.clientHeight = 124.8; } return result; }, ProgressiveImages: ProgressiveImages,
+  element: function (tagName, className, text) { var result = node(tagName, className, text); if (tagName === 'img') { result.clientWidth = 310.9; result.clientHeight = 168.8; } return result; }, ProgressiveImages: ProgressiveImages,
   posterLoader: { loadBatch: function (jobs) { batches.push(jobs); }, cancelScope: function (scope) { cancelled.push(scope); } },
   onSeasonActivate: function (index) { seasonActivation = index; }, onEpisodeActivate: function (index) { episodeActivation = index; }
 });
@@ -68,8 +70,20 @@ assert.strictEqual(roots['season-tabs'].children.length, 2, 'all season tabs mus
 assert.strictEqual(roots['episode-strip'].children.length, 7, 'the five-card episode window must retain a two-card artwork buffer');
 assert.strictEqual(batches[batches.length - 1].length, 7, 'visible and buffered episode previews must be loaded as one prioritized batch');
 assert.strictEqual(batches[batches.length - 1][3].specification.width, 310, 'final episode preview must match the rendered card width');
-assert.strictEqual(batches[batches.length - 1][3].specification.height, 124, 'final episode preview must match the rendered card height');
+assert.strictEqual(batches[batches.length - 1][3].specification.height, 168, 'final episode preview must use the full 16:9-oriented artwork height');
 assert.strictEqual(find(roots['episode-strip'], '.is-buffered').length, 2, 'only the five visible episode cards may participate in layout');
+assert.strictEqual(roots['episode-strip'].children[0].querySelector('.episode-duration-badge').textContent, '03:07', 'sub-hour episode duration must zero-pad minutes and seconds');
+assert.strictEqual(roots['episode-strip'].children[1].querySelector('.episode-duration-badge').textContent, '1:03:07', 'episode duration must keep unpadded hours and padded minutes/seconds');
+assert.strictEqual(roots['episode-strip'].children[2].querySelector('.episode-duration-badge').textContent, '--:--', 'missing or non-positive episode duration must stay explicit');
+
+context.episodes[1].viewed = true;
+context.episodes[1].progress = 35;
+context.episodes[1].viewOffset = 35000;
+view.refreshPlaybackCards();
+assert.ok(roots['episode-strip'].children[1].querySelector('.episode-progress-track').className.indexOf('is-hidden') === -1,
+  'a completed episode with partial rewatch progress must still show its current progress bar');
+assert.strictEqual(roots['episode-strip'].children[1].querySelector('.episode-progress-value').style.width, '35%',
+  'rewatch progress must use the current partial percentage even when Plex still marks the episode viewed');
 
 var preservedCard = roots['episode-strip'].children[0];
 var batchCount = batches.length;

@@ -54,6 +54,7 @@
       },
       modules: {
         Settings: modules.Settings,
+        InputCommandRouter: modules.InputCommandRouter,
         SettingsCatalog: modules.SettingsCatalog,
         SettingsView: modules.SettingsView,
         I18n: modules.I18n,
@@ -223,6 +224,11 @@
       return controller[name](arg1, arg2, arg3);
     }
 
+    function invokePersistent(name, arg1, arg2, arg3) {
+      if (!active() || typeof controller[name] !== 'function') { return false; }
+      return controller[name](arg1, arg2, arg3);
+    }
+
     function chooseUpNext(value) {
       if (!active()) { return false; }
       controller.chooseUpNext(value);
@@ -271,6 +277,11 @@
       focusPlaybackCompatibility: focusPlaybackCompatibility,
       focusSafeArea: focusSafeArea,
       focusSubtitleStyle: focusSubtitleStyle,
+      previewSubtitleStyle: function (style) { return invokePersistent('previewSubtitleStyle', style); },
+      restoreSubtitleStyle: function (style) { return invokePersistent('restoreSubtitleStyle', style); },
+      commitSubtitleStyle: function (style) { return invokePersistent('commitSubtitleStyle', style); },
+      commitSubtitleRendering: function (rendering) { return invokePersistent('commitSubtitleRendering', rendering); },
+      persistSubtitleSize: function (size) { return invokePersistent('persistSubtitleSize', size); },
       focusTextInput: function (index) { return invoke('focusTextInput', index); },
       focusUpdate: focusUpdate,
       focusSetting: focusSetting,

@@ -110,6 +110,29 @@
     var pumpPaused = false;
     var destroyed = false;
 
+    function runtimeSettings() {
+      return typeof settings.runtimeSettings === 'function' ? (settings.runtimeSettings() || {}) : {};
+    }
+
+    function dataSaverEnabled() {
+      return runtimeSettings().artworkDataSaver === true;
+    }
+
+    function activePreviewLimit() {
+      return dataSaverEnabled() ? Math.min(previewLimit, 2) : previewLimit;
+    }
+
+    function activeFullLimit() {
+      return dataSaverEnabled() ? Math.min(fullLimit, 1) : fullLimit;
+    }
+
+    function requestSize(width, height) {
+      return {
+        width: Math.max(1, Math.round(Math.max(1, Number(width || 1)))),
+        height: Math.max(1, Math.round(Math.max(1, Number(height || 1))))
+      };
+    }
+
     function rememberFullUrl(url) {
       var index;
       var expired;
@@ -220,7 +243,7 @@
 
     function pumpFull() {
       var job;
-      while (activeFull < fullLimit && fullQueue.length) {
+      while (activeFull < activeFullLimit() && fullQueue.length) {
         job = fullQueue.shift();
         if (current(job)) { startFull(job); }
       }
@@ -228,7 +251,7 @@
 
     function pumpPreview() {
       var job;
-      while (activePreview < previewLimit && previewQueue.length) {
+      while (activePreview < activePreviewLimit() && previewQueue.length) {
         job = previewQueue.shift();
         if (current(job)) { startPreview(job); }
       }
@@ -370,6 +393,8 @@
       var height = Math.max(1, Number(spec.height || 224));
       var requestedFullUrl;
       var requestedPreviewUrl;
+      var fullRequestSize;
+      var previewRequestSize;
       var requestedPriority;
       var requestedPreviewOnly;
       var previous;
@@ -383,8 +408,10 @@
         clearTarget(target);
         return null;
       }
-      requestedFullUrl = settings.urlFor(source, width, height, String(spec.scope || 'default'));
-      requestedPreviewUrl = settings.urlFor(source, previewWidth, previewHeight, String(spec.scope || 'default'));
+      fullRequestSize = requestSize(width, height);
+      previewRequestSize = requestSize(previewWidth, previewHeight);
+      requestedFullUrl = settings.urlFor(source, fullRequestSize.width, fullRequestSize.height, String(spec.scope || 'default'));
+      requestedPreviewUrl = settings.urlFor(source, previewRequestSize.width, previewRequestSize.height, String(spec.scope || 'default'));
       storedSpecification = {
         source: source,
         previewWidth: previewWidth,

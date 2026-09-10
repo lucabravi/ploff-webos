@@ -98,6 +98,38 @@ resolveCallbacks.second(null, { ratingKey: 'second', title: 'Second' });
 resolveCallbacks.first(null, { ratingKey: 'first', title: 'First' });
 assert.deepStrictEqual(orderedUpdates[1].items.map(function (item) { return item.ratingKey; }), ['first', 'second'], 'cloud aliases must preserve relevance order even when metadata resolves out of order');
 
+var resolveErrorUpdates = [];
+fakeView.load('resolve-error', function (error, items, complete) {
+  resolveErrorUpdates.push({ error: error, items: items, complete: complete });
+});
+localCallbacks['resolve-error'](null, []);
+cloudCallbacks['resolve-error'](null, [
+  { defer: true, local: { ratingKey: 'resolve-error-item', title: 'Resolve error' } }
+]);
+resolveCallbacks['resolve-error-item'](new Error('Plex GUID lookup failed'));
+assert.ok(resolveErrorUpdates[1].error, 'a real Plex GUID lookup failure must not be reported as an empty successful Search');
+assert.strictEqual(resolveErrorUpdates[1].complete, true, 'a failed cloud alias resolution still completes the Search request');
+
+var cloudFallbackUpdates = [];
+fakeView.load('cloud-fallback', function (error, items, complete) {
+  cloudFallbackUpdates.push({ error: error, items: items, complete: complete });
+});
+localCallbacks['cloud-fallback'](new Error('local search failed'), []);
+cloudCallbacks['cloud-fallback'](null, [
+  { local: { ratingKey: 'cloud-fallback-item', title: 'Cloud fallback' } }
+]);
+assert.ifError(cloudFallbackUpdates[1].error);
+assert.deepStrictEqual(cloudFallbackUpdates[1].items.map(function (item) { return item.ratingKey; }), ['cloud-fallback-item'],
+  'a successfully resolved cloud alias must remain usable when the local Search endpoint failed');
+
+var cloudErrorUpdates = [];
+fakeView.load('cloud-error', function (error, items, complete) {
+  cloudErrorUpdates.push({ error: error, items: items, complete: complete });
+});
+localCallbacks['cloud-error'](null, []);
+cloudCallbacks['cloud-error'](new Error('cloud search failed'), []);
+assert.ok(cloudErrorUpdates[1].error, 'a cloud Search failure must remain visible when no local result can satisfy the query');
+
 var staleUpdates = 0;
 var staleRequest = fakeView.load('old', function () { staleUpdates += 1; });
 staleRequest.abort();

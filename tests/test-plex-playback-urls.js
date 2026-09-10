@@ -3,6 +3,8 @@
 var assert = require('assert');
 var PlaybackUrls = require('../app/plex-playback-urls');
 
+assert.strictEqual(typeof PlaybackUrls.buildPlaybackUrl, 'function', 'playback URL ownership must live in PlexPlaybackUrls');
+assert.strictEqual(typeof PlaybackUrls.buildDecisionUrl, 'function', 'decision URL ownership must live in PlexPlaybackUrls');
 assert.strictEqual(PlaybackUrls.playbackModeFromDecisions('copy', 'copy'), 'direct-stream', 'copy decisions map to Direct Stream');
 assert.strictEqual(PlaybackUrls.playbackModeFromDecisions('transcode', 'copy'), 'transcode-video', 'a video transcode keeps its distinct mode');
 assert.ok(

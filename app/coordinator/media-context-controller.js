@@ -13,6 +13,7 @@
     var holdTarget = null;
     var holdTriggered = false;
     var activeRequest = null;
+    var mutationGeneration = 0;
     var destroyed = false;
 
     function call(callback, arg1, arg2, arg3) {
@@ -21,6 +22,7 @@
     }
 
     function abortRequest() {
+      mutationGeneration += 1;
       if (activeRequest && activeRequest.abort) { activeRequest.abort(); }
       activeRequest = null;
     }
@@ -30,19 +32,22 @@
       return !!(item && item.ratingKey && (type === 'movie' || type === 'episode'));
     }
 
-    function progress(item) {
-      return Math.max(0, Number(item && item.viewOffset || 0));
+    function hasProgress(item) {
+      return Math.max(0, Number(item && item.viewOffset || 0)) > 0 || Math.max(0, Number(item && item.progress || 0)) > 0;
     }
 
     function choicesFor(target) {
       var item = target && target.item;
       var choices = [];
       if (!supported(item)) { return choices; }
-      choices.push({
-        label: call(values.t, item.viewed ? 'detail.markUnwatched' : 'detail.markWatched'),
-        value: item.viewed ? 'mark-unwatched' : 'mark-watched'
-      });
-      if (progress(item) > 0) {
+      var partial = hasProgress(item);
+      if (!item.viewed) {
+        choices.push({ label: call(values.t, 'detail.markWatched'), value: 'mark-watched' });
+      }
+      if (item.viewed || partial) {
+        choices.push({ label: call(values.t, 'detail.markUnwatched'), value: 'mark-unwatched' });
+      }
+      if (partial) {
         choices.push({ label: call(values.t, 'mediaActions.clearProgress'), value: 'clear-progress' });
         choices.push({ label: call(values.t, 'player.playFromBeginning'), value: 'play-beginning' });
       }
@@ -61,10 +66,11 @@
       return !!(target && choicesFor(target).length);
     }
 
-    function finishMutation(error, target, callback) {
+    function finishMutation(generation, error, target, callback, outcome) {
+      if (destroyed || generation !== mutationGeneration) { return; }
       activeRequest = null;
-      if (destroyed) { return; }
       if (error) {
+        if (outcome && outcome.watchedApplied === true) { call(values.refresh, target); }
         call(values.showMessage, call(values.t, 'mediaActions.error'));
         call(callback, error, target);
         return;
@@ -76,27 +82,29 @@
 
     function mutate(target, action, callback) {
       var item = target && target.item;
-      var client = values.PlexClient;
-      if (!supported(item) || !client) { return false; }
+      var transport = values.transport || {};
+      var generation;
+      if (!supported(item)) { return false; }
       abortRequest();
+      generation = mutationGeneration;
       if (action === 'mark-watched' || action === 'mark-unwatched') {
-        if (typeof client.setWatchedAndReset !== 'function') { return false; }
-        activeRequest = client.setWatchedAndReset(values.config || {}, item.ratingKey, action === 'mark-watched', function (error) {
-          finishMutation(error, target, callback);
+        if (typeof transport.setWatchedAndReset !== 'function') { return false; }
+        activeRequest = transport.setWatchedAndReset(values.config || {}, item.ratingKey, action === 'mark-watched', function (error, outcome) {
+          finishMutation(generation, error, target, callback, outcome);
         });
         return true;
       }
       if (action === 'clear-progress') {
-        if (typeof client.resetProgress !== 'function') { return false; }
-        activeRequest = client.resetProgress(values.config || {}, item.ratingKey, function (error) {
-          finishMutation(error, target, callback);
+        if (typeof transport.resetProgress !== 'function') { return false; }
+        activeRequest = transport.resetProgress(values.config || {}, item.ratingKey, function (error) {
+          finishMutation(generation, error, target, callback);
         });
         return true;
       }
       if (action === 'remove-continue') {
-        if (typeof client.removeFromContinueWatching !== 'function') { return false; }
-        activeRequest = client.removeFromContinueWatching(values.config || {}, item.ratingKey, function (error) {
-          finishMutation(error, target, callback);
+        if (typeof transport.removeFromContinueWatching !== 'function') { return false; }
+        activeRequest = transport.removeFromContinueWatching(values.config || {}, item.ratingKey, function (error) {
+          finishMutation(generation, error, target, callback);
         });
         return true;
       }

@@ -18,7 +18,7 @@
     }
 
     function searchItemsFromAttributes(attributesList, baseUrl, token, query) {
-      var seen = {};
+      var seen = Object.create(null);
       var items = [];
       var attributes;
       var item;

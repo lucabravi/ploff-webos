@@ -232,17 +232,21 @@
 
   function createPin(rootObject, options, callback) {
     return requestXml(rootObject, 'POST', endpoint(options, '/api/v2/pins'), options, '', function (error, body) {
+      var pin;
       if (error) { callback(error); return; }
-      try { callback(null, pinFromXml(body)); }
-      catch (parseError) { callback(parseError); }
+      try { pin = pinFromXml(body); }
+      catch (parseError) { callback(parseError); return; }
+      callback(null, pin);
     });
   }
 
   function pollPin(rootObject, pinId, options, callback) {
     return requestXml(rootObject, 'GET', endpoint(options, '/api/v2/pins/' + encodeURIComponent(pinId)), options, '', function (error, body) {
+      var pin;
       if (error) { callback(error); return; }
-      try { callback(null, pinFromXml(body)); }
-      catch (parseError) { callback(parseError); }
+      try { pin = pinFromXml(body); }
+      catch (parseError) { callback(parseError); return; }
+      callback(null, pin);
     });
   }
 
@@ -253,8 +257,8 @@
       try {
         users = homeUsersFromXml(body);
         if (!users.length) { throw new Error('No Plex Home profiles returned'); }
-        callback(null, users);
-      } catch (parseError) { callback(parseError); }
+      } catch (parseError) { callback(parseError); return; }
+      callback(null, users);
     });
   }
 
@@ -272,17 +276,21 @@
 
   function loadServerAccess(rootObject, accountToken, machineIdentifier, options, callback) {
     return requestXml(rootObject, 'GET', endpoint(options, '/api/v2/resources?includeHttps=1&includeRelay=1'), options, accountToken, function (error, body) {
+      var access;
       if (error) { callback(error); return; }
-      try { callback(null, serverAccessFromJson(body, machineIdentifier)); }
-      catch (parseError) { callback(parseError); }
+      try { access = serverAccessFromJson(body, machineIdentifier); }
+      catch (parseError) { callback(parseError); return; }
+      callback(null, access);
     }, 'application/json');
   }
 
   function loadAccountServers(rootObject, accountToken, options, callback) {
     return requestXml(rootObject, 'GET', endpoint(options, '/api/v2/resources?includeHttps=1&includeRelay=1'), options, accountToken, function (error, body) {
+      var servers;
       if (error) { callback(error); return; }
-      try { callback(null, accountServersFromJson(body)); }
-      catch (parseError) { callback(parseError); }
+      try { servers = accountServersFromJson(body); }
+      catch (parseError) { callback(parseError); return; }
+      callback(null, servers);
     }, 'application/json');
   }
 
@@ -323,32 +331,6 @@
     };
   }
 
-  function loadLocalServerAccess(rootObject, profileToken, server, options, callback) {
-    var connectionUri = String(server && server.uri || '').replace(/\/+$/, '');
-    var expectedIdentity = String(server && server.machineIdentifier || '');
-    var identityRequest;
-    if (!connectionUri || !profileToken) {
-      callback(new Error('Local Plex server access is incomplete'));
-      return null;
-    }
-    identityRequest = requestXml(rootObject, 'GET', connectionUri + '/identity', options, '', function (identityError, body) {
-      var identity = identityError ? '' : serverIdentityFromXml(body);
-      if (identityError || !identity || identity !== expectedIdentity) {
-        callback(identityError || new Error('Plex server identity mismatch'));
-        return;
-      }
-      requestXml(rootObject, 'GET', connectionUri + '/library/sections', options, profileToken, function (error) {
-        if (error) { callback(error); return; }
-        callback(null, {
-          token: String(profileToken),
-          machineIdentifier: expectedIdentity,
-          connectionUri: connectionUri
-        });
-      });
-    });
-    return identityRequest;
-  }
-
   function clientIdentifier(storage) {
     var value = '';
     try { value = storage && storage.getItem(CLIENT_ID_KEY) || ''; } catch (error) {}
@@ -368,7 +350,6 @@
     homeUsersFromXml: homeUsersFromXml,
     loadAccountServers: loadAccountServers,
     loadHomeUsers: loadHomeUsers,
-    loadLocalServerAccess: loadLocalServerAccess,
     loadServerAccess: loadServerAccess,
     pinFromXml: pinFromXml,
     pollPin: pollPin,

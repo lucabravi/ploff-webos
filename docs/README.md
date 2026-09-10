@@ -1,19 +1,36 @@
 # Documentation
 
-This is the authoritative index for current Ploff documentation. Completed migration
-plans and implementation checklists are intentionally not kept in the working tree;
-Git history remains the archive for that material.
+This is the authoritative index for current Ploff documentation. Older completed migration
+plans live in Git history. The September 6 checkpoint/acceptance records remain
+linked until physical-LG validation of deferred startup is complete. Active
+acceptance work and implemented architecture references are distinguished below.
 
 ## Start here
 
 - [`../README.md`](../README.md) — product overview, installation, first launch, and developer entry point.
+- [`../AGENTS.md`](../AGENTS.md) — mandatory repository rules for coding agents and automated contributors.
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — coding, compatibility, testing, and pull-request requirements.
+- [`../TODO.md`](../TODO.md) — current actionable roadmap only.
+
+## Active acceptance and checkpoint records
+
+- [`cleanup/2026-09-06-hls-player-clock-review.md`](cleanup/2026-09-06-hls-player-clock-review.md) - HLS seek/source synchronization fixes, delivery matrix, preserved DP policy, and pending physical-LG validation.
+- [`cleanup/2026-09-06-hls-player-clock-plan.md`](cleanup/2026-09-06-hls-player-clock-plan.md) - implementation checkpoints and regression evidence for the player clock review.
+
+- [`cleanup/2026-09-06-maintenance-follow-through-plan.md`](cleanup/2026-09-06-maintenance-follow-through-plan.md) - completed maintenance sequence, checkpoint gates, and final acceptance record.
+- [`cleanup/2026-09-06-startup-player-code-splitting-design.md`](cleanup/2026-09-06-startup-player-code-splitting-design.md) - implemented Core/deferred Player boundary, early ASS exception, and pending physical-LG acceptance criteria.
+- [`cleanup/2026-09-06-startup-player-code-splitting-plan.md`](cleanup/2026-09-06-startup-player-code-splitting-plan.md) - implementation/acceptance record with verified test commands and atomic activation sequencing.
 
 ## Architecture and maintenance
 
+- [`cleanup/2026-09-06-general-maintenance-review.md`](cleanup/2026-09-06-general-maintenance-review.md) - general client, model, and discovery maintenance review with checkpoint evidence.
+
+- [`cleanup/2026-09-06-settings-backup-boundary-review.md`](cleanup/2026-09-06-settings-backup-boundary-review.md) - completed ownership review and tested restore/teardown corrections; no new runtime owner.
+
 - [`architecture.md`](architecture.md) — runtime components, ownership, data flow, and compatibility constraints.
-- [`application-source-architecture.md`](application-source-architecture.md) — coordinator sources and generated `app/app.js` rules.
+- [`application-source-architecture.md`](application-source-architecture.md) — coordinator sources and generated Core/Player artifact rules.
 - [`maintenance.md`](maintenance.md) — extension boundaries, lifecycle ownership, and maintenance guardrails.
+- [`runtime-architecture-redesign.md`](runtime-architecture-redesign.md) — implemented runtime ownership boundaries and extension rules (completed 2026-08-19), not an active migration.
 - [`testing.md`](testing.md) — automated gates, memory checks, benchmarks, and physical-TV signoff.
 - [`catalog-performance.md`](catalog-performance.md) — current deterministic Library benchmark reference and retained baseline.
 
@@ -24,6 +41,10 @@ Git history remains the archive for that material.
 - [`themes.md`](themes.md) — five shipped visual themes, Chrome 53-safe styling rules, and extension workflow.
 - [`diagnostics.md`](diagnostics.md) — privacy-safe support-report boundary and export flow.
 - [`playback-invariants.md`](playback-invariants.md) — native playback, seek, subtitle, and resume invariants.
+- [`ass-local-renderer.md`](ass-local-renderer.md) — current local ASS/SSA editor policy, cold-start prewarm, worker profile, and telemetry.
+- [`virtual-playback-queue-design.md`](virtual-playback-queue-design.md) — bounded virtual playback queue architecture.
+- [`paginated-playback-queue-completion.md`](paginated-playback-queue-completion.md) — delivered paginated queue invariants.
+- [`queue-playlist-ux-design.md`](queue-playlist-ux-design.md) — queue drawer and playlist restoration behavior.
 - [`up-next-layouts.md`](up-next-layouts.md) — Up Next presentation and exhausted-queue behavior.
 
 ## Release and distribution
@@ -31,4 +52,5 @@ Git history remains the archive for that material.
 - [`github-settings.md`](github-settings.md) — expected public-repository configuration.
 - [`release-signoff/`](release-signoff/) — physical-TV release template and retained release evidence.
 - [`store-submission/`](store-submission/) — LG Content Store worksheets, reviewer guidance, and submission checklist.
+- [`benchmarks/`](benchmarks/) — retained baseline/current/stress catalog benchmark outputs.
 - [`screenshots/`](screenshots/) — current repository screenshot assets; image refresh is independent from documentation maintenance.

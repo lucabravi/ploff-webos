@@ -129,6 +129,16 @@ assert.strictEqual(catalog.batches.length, catalogFocusBatches, 'catalog focus m
 assert.strictEqual(catalog.focusEvents.length, catalogFocusEvents + 1, 'one catalog movement must publish one focus change even when the outer controller refreshes focus');
 assert.strictEqual(catalog.view.navigationSnapshot().itemCount, 40, 'navigation snapshots must expose catalog counts without copying the full item array');
 
+var watchedFocus = fixture();
+var watchedFocusItem = { ratingKey: 'watched-focus', title: 'Watched focus', image: '/watched.jpg', viewed: false };
+watchedFocus.view.setMode('catalog', true);
+watchedFocus.view.setItems([watchedFocusItem], 1);
+var watchedFocusCard = watchedFocus.roots['library-grid-content'].children[0];
+assert.strictEqual(watchedFocusCard.className.indexOf('is-viewed'), -1, 'catalog card starts with its original watched presentation');
+watchedFocusItem.viewed = true;
+watchedFocus.view.refreshFocus();
+assert.notStrictEqual(watchedFocusCard.className.indexOf('is-viewed'), -1, 'focus recovery must synchronize a mutated watched state without rebuilding the virtual catalog');
+
 var distantInitialFocus = fixture(null, { clampScrollToContent: true });
 distantInitialFocus.view.setMode('catalog', true);
 distantInitialFocus.view.setItems(items(80), 80, 47);

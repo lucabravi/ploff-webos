@@ -1,7 +1,13 @@
 'use strict';
 
 var assert = require('assert');
+var fs = require('fs');
+var path = require('path');
 var SetupController = require('../app/setup-controller');
+
+var setupControllerSource = fs.readFileSync(path.join(__dirname, '..', 'app', 'setup-controller.js'), 'utf8');
+assert.strictEqual(/\bserverSession\b/.test(setupControllerSource), false,
+  'SetupController must not retain the obsolete standalone server-session compatibility hook');
 
 function abortable() {
   return { aborted: false, abort: function () { this.aborted = true; } };
@@ -20,11 +26,9 @@ var offline = [];
 var finished = [];
 var cancelled = [];
 var disconnected = 0;
-var serverSession = { cancelled: 0, cancel: function () { this.cancelled += 1; } };
 var authSession = { cancelled: 0, cancel: function () { this.cancelled += 1; } };
 var controller = SetupController.create({
   render: function (snapshot) { renders.push(snapshot); },
-  serverSession: serverSession,
   authSession: authSession,
   scan: function (snapshot, callback) {
     var request = abortable();
@@ -325,7 +329,6 @@ controller.activate('manual');
 controller.activate('connect-manual', { address: 'plex.example.test' });
 controller.destroy();
 assert.strictEqual(probes[2].request.aborted, true, 'destroy must abort an in-flight manual probe');
-assert.strictEqual(serverSession.cancelled > 0, true, 'destroy must cancel the server session');
 assert.strictEqual(authSession.cancelled > 0, true, 'destroy must cancel the authentication session');
 probes[2].callback(null, { uri: 'https://plex.example.test' });
 assert.strictEqual(controller.snapshot().destroyed, true, 'destroyed controllers must remain inert after stale callbacks');

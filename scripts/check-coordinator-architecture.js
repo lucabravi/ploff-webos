@@ -1,6 +1,9 @@
 'use strict';
 
-var acorn = require('acorn');
+var Ast = require('./lib/es5-ast');
+var parse = Ast.parse;
+var walk = Ast.walk;
+var memberPath = Ast.memberPath;
 var fs = require('fs');
 var path = require('path');
 
@@ -9,6 +12,7 @@ var FORBIDDEN_ROOT_CONSTRUCTORS = {
   ChoiceDialogView: true,
   DetailController: true,
   DetailEpisodeView: true,
+  DetailExtendedView: true,
   DetailPreferenceState: true,
   DetailPresentationView: true,
   DiagnosticsController: true,
@@ -84,54 +88,6 @@ var FORBIDDEN_ROOT_STATE = {
   watchlistView: true
 };
 
-function parse(source, fileName) {
-  return acorn.parse(source, {
-    ecmaVersion: 5,
-    locations: true,
-    sourceFile: fileName || '',
-    allowReserved: true
-  });
-}
-
-function walk(node, parent, visit) {
-  var key;
-  var value;
-  var index;
-  if (!node || typeof node.type !== 'string') { return; }
-  visit(node, parent || null);
-  for (key in node) {
-    if (!Object.prototype.hasOwnProperty.call(node, key) || key === 'loc' || key === 'start' || key === 'end') { continue; }
-    value = node[key];
-    if (value && typeof value.type === 'string') { walk(value, node, visit); }
-    else if (Object.prototype.toString.call(value) === '[object Array]') {
-      for (index = 0; index < value.length; index += 1) {
-        if (value[index] && typeof value[index].type === 'string') { walk(value[index], node, visit); }
-      }
-    }
-  }
-}
-
-function memberProperty(node) {
-  if (!node || node.type !== 'MemberExpression') { return ''; }
-  if (!node.computed && node.property && node.property.type === 'Identifier') { return node.property.name; }
-  if (node.computed && node.property && node.property.type === 'Literal') { return String(node.property.value); }
-  return '';
-}
-
-function memberPath(node) {
-  var prefix;
-  var property;
-  if (!node) { return []; }
-  if (node.type === 'Identifier') { return [node.name]; }
-  if (node.type === 'ThisExpression') { return ['this']; }
-  if (node.type !== 'MemberExpression') { return []; }
-  prefix = memberPath(node.object);
-  property = memberProperty(node);
-  if (!prefix.length || !property) { return []; }
-  prefix.push(property);
-  return prefix;
-}
-
 function rootIdentifier(node) {
   if (!node) { return ''; }
   if (node.type === 'Identifier') { return node.name; }
@@ -188,7 +144,7 @@ function readabilityMetrics(source) {
 function analyzeSource(source, fileName) {
   var name = path.basename(fileName || '');
   var isApplication = name === 'application-controller.js';
-  var isPlayback = name === 'playback-controller.js';
+  var isNativeVideoOwner = name === 'native-video-driver.js';
   var issues = [];
   var ast = parse(source, name);
   var plexClientAliases = isApplication ? rootPlexClientAliases(ast) : {};
@@ -212,8 +168,8 @@ function analyzeSource(source, fileName) {
     if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') {
       pathParts = memberPath(node.argument || node.left);
       property = pathParts.length ? pathParts[pathParts.length - 1] : '';
-      if (!isPlayback && pathParts[0] === 'video' && (property === 'src' || property === 'currentTime')) {
-        add('native-video-write', node, 'only playback-controller.js may assign video.' + property);
+      if (!isNativeVideoOwner && pathParts[0] === 'video' && (property === 'src' || property === 'currentTime')) {
+        add('native-video-write', node, 'only native-video-driver.js may assign video.' + property);
       }
       if (isApplication) {
         if (property === 'innerHTML' || property === 'className' || property === 'textContent' ||

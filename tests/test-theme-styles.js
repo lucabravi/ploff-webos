@@ -15,13 +15,20 @@ var requiredTokens = [
 assert.strictEqual(BuildStyles.check(root), true, 'generated app/styles.css must match core plus registered theme sources');
 ThemeRegistry.all().forEach(function (theme) {
   var filePath = path.join(root, 'app', 'styles', 'themes', theme.styleFile);
+  var themeCss;
+  var rootRule;
   assert.strictEqual(fs.existsSync(filePath), true, 'registered theme stylesheet must exist: ' + theme.id);
-  assert.deepStrictEqual(ThemeContracts.validateThemeCss(theme, fs.readFileSync(filePath, 'utf8')), [], 'every theme style rule must be scoped to its body theme class: ' + theme.id);
+  themeCss = fs.readFileSync(filePath, 'utf8');
+  assert.deepStrictEqual(ThemeContracts.validateThemeCss(theme, themeCss), [], 'every theme style rule must be scoped to its body theme class: ' + theme.id);
+  rootRule = themeCss.match(new RegExp('body\\.visual-theme-' + theme.id + ' \\{[\\s\\S]*?\\}'));
+  assert.ok(rootRule && /--detail-preference-badge-background:/.test(rootRule[0]), theme.id + ' must define a theme-specific detail preference badge surface');
+  assert.ok(rootRule && /--detail-preference-badge-border:/.test(rootRule[0]), theme.id + ' must define a theme-specific detail preference badge border');
+  assert.ok(rootRule && /--detail-preference-badge-text:/.test(rootRule[0]), theme.id + ' must define a theme-specific detail preference badge text color');
 });
 assert.ok(ThemeContracts.validateThemeCss(ThemeRegistry.get('classic'), 'body.visual-theme-classic { --theme-app-background: #000; }').some(function (error) { return error.indexOf('--theme-app-text') !== -1; }), 'theme contract must reject a registered theme that omits required semantic tokens');
 
 
-['classic', 'immersive', 'premiere', 'nova', 'atelier'].forEach(function (themeId) {
+['immersive', 'premiere', 'aurora', 'mahogany', 'atelier', 'nova', 'classic'].forEach(function (themeId) {
   var theme = ThemeRegistry.get(themeId);
   var css = fs.readFileSync(path.join(root, 'app', 'styles', 'themes', theme.styleFile), 'utf8');
   var copyRule = css.match(/body\.visual-theme-[^\s]+ \.home-preview-copy \{[\s\S]*?\}/);
@@ -31,7 +38,7 @@ assert.ok(ThemeContracts.validateThemeCss(ThemeRegistry.get('classic'), 'body.vi
   assert.ok(summaryRule && !/max-width:\s*[0-9]+px/.test(summaryRule[0]), themeId + ' Home summary must be allowed to use the full hero width');
 });
 
-['premiere', 'nova', 'atelier'].forEach(function (themeId) {
+['premiere', 'nova', 'atelier', 'aurora', 'mahogany'].forEach(function (themeId) {
   var theme = ThemeRegistry.get(themeId);
   var css = fs.readFileSync(path.join(root, 'app', 'styles', 'themes', theme.styleFile), 'utf8');
   var rootRule = css.match(new RegExp('body\\.visual-theme-' + themeId + ' \\{[\\s\\S]*?\\}'));
@@ -63,12 +70,14 @@ assert.ok(/body\.visual-theme-nova \.detail-choice\.is-focused\s*\{[\s\S]*box-sh
 
 var generated = fs.readFileSync(path.join(root, 'app', 'styles.css'), 'utf8');
 var coreIndex = generated.indexOf('/* source: styles/core.css */');
-var classicIndex = generated.indexOf('/* source: styles/themes/classic.css */');
 var immersiveIndex = generated.indexOf('/* source: styles/themes/immersive.css */');
 var premiereIndex = generated.indexOf('/* source: styles/themes/premiere.css */');
-var novaIndex = generated.indexOf('/* source: styles/themes/nova.css */');
+var auroraIndex = generated.indexOf('/* source: styles/themes/aurora.css */');
+var mahoganyIndex = generated.indexOf('/* source: styles/themes/mahogany.css */');
 var atelierIndex = generated.indexOf('/* source: styles/themes/atelier.css */');
-assert.ok(coreIndex >= 0 && classicIndex > coreIndex && immersiveIndex > classicIndex && premiereIndex > immersiveIndex && novaIndex > premiereIndex && atelierIndex > novaIndex, 'generated CSS keeps core first and themes in registry order');
+var novaIndex = generated.indexOf('/* source: styles/themes/nova.css */');
+var classicIndex = generated.indexOf('/* source: styles/themes/classic.css */');
+assert.ok(coreIndex >= 0 && immersiveIndex > coreIndex && premiereIndex > immersiveIndex && auroraIndex > premiereIndex && mahoganyIndex > auroraIndex && atelierIndex > mahoganyIndex && novaIndex > atelierIndex && classicIndex > novaIndex, 'generated CSS keeps core first and themes in registry order');
 
 var indexHtml = fs.readFileSync(path.join(root, 'app', 'index.html'), 'utf8');
 assert.deepStrictEqual(ThemeContracts.requiredThemeTokens(), requiredTokens, 'theme contracts publish the semantic tokens every theme must define');
@@ -81,6 +90,11 @@ assert.strictEqual(stylesheets.length, 1, 'runtime keeps a single stylesheet lin
 assert.ok(/href=["']styles\.css\?v=dev["']/.test(stylesheets[0]), 'runtime loads only generated styles.css');
 
 var coreCss = fs.readFileSync(path.join(root, 'app', 'styles', 'core.css'), 'utf8');
+var preferenceBadgeRule = coreCss.match(/\.detail-choice-source\s*\{[^}]*\}/);
+assert.ok(preferenceBadgeRule && /font-size:\s*20px/.test(preferenceBadgeRule[0]), 'detail preference badges must respect the 20px LG TV minimum readable font size');
+assert.ok(preferenceBadgeRule && /var\(--detail-preference-badge-background/.test(preferenceBadgeRule[0]), 'detail preference badges must consume their theme surface token');
+assert.ok(preferenceBadgeRule && /var\(--detail-preference-badge-border/.test(preferenceBadgeRule[0]), 'detail preference badges must consume their theme border token');
+assert.ok(preferenceBadgeRule && /var\(--detail-preference-badge-text/.test(preferenceBadgeRule[0]), 'detail preference badges must consume their theme text token');
 requiredTokens.forEach(function (token) {
   assert.ok(coreCss.indexOf('var(' + token) !== -1, 'core stylesheet must consume semantic theme token ' + token);
 });

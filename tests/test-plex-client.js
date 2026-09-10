@@ -2,14 +2,59 @@
 
 var assert = require('assert');
 var PlexClient = require('../app/plex-client');
+var PlexUrl = require('../app/plex-url');
+var PlexPlaybackUrls = require('../app/plex-playback-urls');
+var PlexMediaMapper = require('../app/plex-media-mapper');
+var PlexMediaDocument = require('../app/plex-media-document');
+var PlexHomeModel = require('../app/plex-home-model');
+var MediaProfile = require('../app/media-profile');
+var MediaPreferences = require('../app/media-preferences');
+var PlexSearchParser = require('../app/plex-search-parser');
+var testSearchParser = PlexSearchParser.create({ mediaFromAttributes: PlexMediaMapper.mediaFromAttributes });
+
+var reviewedPublicSurface = [
+  'createSettingsBackupPlaylist', 'deleteSettingsBackupPlaylist', 'findByGuid', 'loadAccountProfile',
+  'loadActivities', 'loadExtras', 'loadHome', 'loadLibraryContainerPage',
+  'loadLibraryFilterOptions', 'loadLibraryPage', 'loadLibraryRecommendations', 'loadMediaProfile',
+  'loadMetadata', 'loadNavigation', 'loadPlayback', 'loadRecommendedItems',
+  'loadSeasonEpisodes', 'loadSeriesContext', 'loadServerIdentity', 'loadSettingsBackupPlaylists',
+  'loadSubtitleText',
+  'pingTranscode', 'posterUrl', 'preparePlayback',
+  'refreshLibrary', 'refreshLibraryMetadata',
+  'refreshMetadata', 'removeFromContinueWatching', 'resetProgress', 'rotateTranscodeSession',
+  'search', 'sendTimeline', 'setStreamSelection',
+  'setSubtitleOffset', 'setWatchedAndReset', 'updateSettingsBackupPlaylist'
+].sort();
+assert.deepStrictEqual(
+  Object.keys(PlexClient).sort(),
+  reviewedPublicSurface,
+  'PloffClient public compatibility surface must change only through an explicit reviewed contract update'
+);
+
+[
+  'attributesFromNode', 'buildDecisionUrl', 'buildLibraryBrowseUrl', 'buildLibraryRefreshUrl',
+  'buildMetadataRefreshUrl', 'buildPlaybackUrl', 'buildProgressUrl', 'buildRemoveFromContinueWatchingUrl',
+  'buildStreamSelectionUrl', 'buildWatchedUrl',
+  'buildSubtitleOffsetUrl', 'buildSubtitleStreamUrl',
+  'buildSubtitleTranscodeUrl', 'buildUrl', 'containerFromAttributes', 'detailFromAttributes',
+  'episodeFromAttributes', 'groupRecentAttributes', 'libraryFilterOptionsFromXml', 'loadLibrary',
+  'chaptersFromAttributes', 'markersFromAttributes', 'mediaFromAttributes', 'parseItems',
+  'playbackModeFromDecisions', 'playbackVersionsFromAttributes',
+  'preferredSeasonKeyFromAttributes', 'recommendationItemsFromXml', 'refreshMetadataSequence', 'parseAttributes',
+  'resolvePlaybackOptions',
+  'searchItemsFromAttributes', 'searchItemsFromXml', 'serverIdentityFromXml', 'setWatched', 'trackFromAttributes',
+  'accountProfileFromJson', 'activityIdFromResponse', 'activityItemsFromJson', 'navigationDefinitions'
+].forEach(function (name) {
+  assert.strictEqual(PlexClient[name], undefined, name + ' must remain an internal PlexClient implementation detail');
+});
 
 assert.strictEqual(
-  PlexClient.buildUrl('/plex-api/', '/hubs/home', { limit: 12 }, 'secret token'),
+  PlexUrl.buildUrl('/plex-api/', '/hubs/home', { limit: 12 }, 'secret token'),
   '/plex-api/hubs/home?limit=12&X-Plex-Token=secret%20token',
   'API URLs must normalize slashes and encode credentials'
 );
 
-var searchItems = PlexClient.searchItemsFromAttributes([
+var searchItems = testSearchParser.searchItemsFromAttributes([
   { type: 'show', ratingKey: '20', title: 'Zeta', librarySectionTitle: 'Anime', year: '2020', childCount: '5', genre: 'Animation', thumb: '/z', art: '/za' },
   { type: 'show', ratingKey: '10', title: 'Alpha', librarySectionTitle: 'Serie TV', thumb: '/a', art: '/aa' },
   { type: 'show', ratingKey: '10', title: 'Alpha duplicate', librarySectionTitle: 'Serie TV', thumb: '/dup' },
@@ -29,7 +74,7 @@ assert.deepStrictEqual(
   [2020, 5, 'Animation'],
   'top-level shows must retain card metadata used consistently across views'
 );
-var parsedCardItem = PlexClient.mediaFromAttributes(PlexClient.attributesFromNode({
+var parsedCardItem = PlexMediaMapper.mediaFromAttributes(PlexMediaDocument.attributesFromNode({
   attributes: [
     { name: 'type', value: 'show' }, { name: 'ratingKey', value: '50' }, { name: 'title', value: 'Genre Show' },
     { name: 'year', value: '2021' }, { name: 'childCount', value: '3' }
@@ -44,7 +89,7 @@ assert.deepStrictEqual(
   [2021, 3, 'Drama'],
   'Plex XML parsing must retain the primary genre and show card facts'
 );
-assert.deepStrictEqual(PlexClient.searchItemsFromAttributes([
+assert.deepStrictEqual(testSearchParser.searchItemsFromAttributes([
   { type: 'show', ratingKey: '40', title: 'Blue Box', originalTitle: 'Ao no Hako', librarySectionTitle: 'Anime' },
   { type: 'show', ratingKey: '41', title: 'Pokémon', titleSort: 'Pokemon', librarySectionTitle: 'Anime' }
 ], '/plex-api', 'token', 'pok').map(function (item) { return item.ratingKey; }), ['41'], 'ranked local search must discard related titles that do not contain the typed query');
@@ -184,25 +229,25 @@ assert.ok(
 );
 
 assert.ok(
-  /\/hubs\/continueWatching\/items\?/.test(PlexClient.buildLibraryBrowseUrl(
+  /\/hubs\/continueWatching\/items\?/.test(PlexUrl.buildLibraryBrowseUrl(
     { apiBaseUrl: '/plex-api', token: 'token' }, { key: '4' }, 'continue', {}, 0, 60
-  )) && /contentDirectoryID=4/.test(PlexClient.buildLibraryBrowseUrl(
+  )) && /contentDirectoryID=4/.test(PlexUrl.buildLibraryBrowseUrl(
     { apiBaseUrl: '/plex-api', token: 'token' }, { key: '4' }, 'continue', {}, 0, 60
   )),
   'library Continue Watching must be scoped by contentDirectoryID'
 );
-assert.ok(/\/library\/sections\/4\/collections\?/.test(PlexClient.buildLibraryBrowseUrl(
+assert.ok(/\/library\/sections\/4\/collections\?/.test(PlexUrl.buildLibraryBrowseUrl(
   { apiBaseUrl: '/plex-api', token: 'token' }, { key: '4' }, 'collections', {}, 0, 60
 )), 'library collections must use the local section endpoint');
-assert.ok(/\/playlists\?/.test(PlexClient.buildLibraryBrowseUrl(
+assert.ok(/\/playlists\?/.test(PlexUrl.buildLibraryBrowseUrl(
   { apiBaseUrl: '/plex-api', token: 'token' }, { key: '4' }, 'playlists', {}, 0, 60
 )), 'library playlists must use the local PMS playlist endpoint');
-var collectionItem = PlexClient.containerFromAttributes({
+var collectionItem = PlexMediaMapper.containerFromAttributes({
   ratingKey: '55', type: 'collection', title: 'Saga', key: '/library/collections/55/children', thumb: '/collection.jpg', childCount: '4'
 }, '/plex-api', 'token', 'collections');
 assert.strictEqual(collectionItem.containerKey, '/library/collections/55/children', 'collection cards must retain their children endpoint');
 assert.strictEqual(collectionItem.meta, '4 titles', 'collection cards must expose their item count');
-var compositeCollectionItem = PlexClient.containerFromAttributes({
+var compositeCollectionItem = PlexMediaMapper.containerFromAttributes({
   ratingKey: '56', type: 'collection', title: 'Composite', key: '/library/collections/56/children',
   thumb: '/library/collections/56/composite/1705704116?width=400&height=600', childCount: '3'
 }, '/plex-api', 'token', 'collections');
@@ -212,7 +257,7 @@ assert.strictEqual(
   'collection composite artwork must append authentication to its existing query string'
 );
 assert.deepStrictEqual(
-  PlexClient.homeDefinitions([
+  PlexHomeModel.homeDefinitions([
     { key: '2', title: 'Film', type: 'movie' },
     { key: '4', title: 'Anime', type: 'show' }
   ], {}),
@@ -223,14 +268,14 @@ assert.deepStrictEqual(
   ],
   'Home must use the all-library Continue Watching hub exposed by Plex Media Server'
 );
-assert.ok(/\/actions\/removeFromContinueWatching\?/.test(PlexClient.buildRemoveFromContinueWatchingUrl(
+assert.ok(/\/actions\/removeFromContinueWatching\?/.test(PlexUrl.buildRemoveFromContinueWatchingUrl(
   { apiBaseUrl: '/plex-api', token: 'token' }, '123'
-)) && /ratingKey=123/.test(PlexClient.buildRemoveFromContinueWatchingUrl(
+)) && /ratingKey=123/.test(PlexUrl.buildRemoveFromContinueWatchingUrl(
   { apiBaseUrl: '/plex-api', token: 'token' }, '123'
 )), 'Continue Watching removal must use the dedicated PMS action with the rating key');
-assert.strictEqual(PlexClient.recommendationHubPriority('tv.startwatching.4'), 1, 'Start Watching must have the highest recommendation priority');
-assert.strictEqual(PlexClient.recommendationHubPriority('movie.genre.2.1378'), 2, 'genre recommendations must be accepted');
-assert.strictEqual(PlexClient.recommendationHubPriority('movie.recentlyviewed.2'), 0, 'recently watched items must not be presented as new recommendations');
+assert.strictEqual(PlexHomeModel.recommendationHubPriority('tv.startwatching.4'), 1, 'Start Watching must have the highest recommendation priority');
+assert.strictEqual(PlexHomeModel.recommendationHubPriority('movie.genre.2.1378'), 2, 'genre recommendations must be accepted');
+assert.strictEqual(PlexHomeModel.recommendationHubPriority('movie.recentlyviewed.2'), 0, 'recently watched items must not be presented as new recommendations');
 var previousDomParser = global.DOMParser;
 function fakeXmlNode(name, attributes, children) {
   var pairs = Object.keys(attributes || {}).map(function (key) { return { name: key, value: String(attributes[key]) }; });
@@ -261,12 +306,12 @@ global.DOMParser = function () {
     };
   };
 };
-var recommendationRows = PlexClient.recommendationRowsFromXml('<xml/>', '/plex-api', 'token');
+var recommendationRows = PlexHomeModel.recommendationRowsFromXml('<xml/>', '/plex-api', 'token');
 assert.deepStrictEqual(recommendationRows.map(function (row) { return [row.identifier, row.items.map(function (item) { return item.ratingKey; })]; }), [
   ['tv.startwatching.4', ['100']]
 ], 'library recommendations must preserve Plex hubs while removing completed and non-recommendation rows');
 assert.deepStrictEqual(
-  PlexClient.mergeRecommendedItems([
+  PlexHomeModel.mergeRecommendedItems([
     [{ ratingKey: 'movie-1' }, { ratingKey: 'movie-2' }, { ratingKey: 'shared' }],
     [{ ratingKey: 'show-1' }, { ratingKey: 'shared' }, { ratingKey: 'show-2' }]
   ], 6).map(function (item) { return item.ratingKey; }),
@@ -312,6 +357,66 @@ function completeRecommendationRequest(index) {
 PlexClient.loadRecommendedItems({ apiBaseUrl: '/bounded-a', token: 'a', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function () {});
 assert.strictEqual(boundedRecommendationXhrs.length, 6, 'Home recommendation caching must evict old server/profile identities instead of growing for the lifetime of the app');
 completeRecommendationRequest(5);
+var failedRecommendationXhrs = [];
+global.XMLHttpRequest = function () {
+  failedRecommendationXhrs.push(this);
+  this.open = function () {};
+  this.send = function () {};
+  this.abort = function () {};
+};
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/recommendation-retry', token: 'retry', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function (error, items) {
+  assert.ifError(error);
+  assert.deepStrictEqual(items, [], 'failed supplemental Home recommendations may still fall back to an empty row set');
+});
+failedRecommendationXhrs[0].status = 500;
+failedRecommendationXhrs[0].readyState = 4;
+failedRecommendationXhrs[0].responseText = '';
+failedRecommendationXhrs[0].onreadystatechange();
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/recommendation-retry', token: 'retry', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function () {});
+assert.strictEqual(failedRecommendationXhrs.length, 2,
+  'a failed Home recommendation fallback must not be cached as valid; the next load must retry Plex');
+
+var recommendationRaceParser = global.DOMParser;
+var recommendationRaceXhrs = [];
+var recommendationRaceCached = [];
+global.DOMParser = function () {
+  this.parseFromString = function (text) {
+    var ratingKey = text === '<new/>' ? 'new' : 'old';
+    return {
+      getElementsByTagName: function (name) {
+        if (name !== 'Hub') { return []; }
+        return [fakeXmlNode('Hub', { title: 'Start Watching', hubIdentifier: 'tv.startwatching.4' }, [
+          fakeXmlNode('Directory', { type: 'show', ratingKey: ratingKey, title: ratingKey, thumb: '/' + ratingKey })
+        ])];
+      }
+    };
+  };
+};
+global.XMLHttpRequest = function () {
+  recommendationRaceXhrs.push(this);
+  this.open = function () {};
+  this.send = function () {};
+  this.abort = function () {};
+};
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/recommendation-race', token: 'race', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function () {});
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/recommendation-race', token: 'race', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function () {});
+recommendationRaceXhrs[1].status = 200;
+recommendationRaceXhrs[1].readyState = 4;
+recommendationRaceXhrs[1].responseText = '<new/>';
+recommendationRaceXhrs[1].onreadystatechange();
+recommendationRaceXhrs[0].status = 200;
+recommendationRaceXhrs[0].readyState = 4;
+recommendationRaceXhrs[0].responseText = '<old/>';
+recommendationRaceXhrs[0].onreadystatechange();
+PlexClient.loadRecommendedItems({ apiBaseUrl: '/recommendation-race', token: 'race', itemLimit: 12 }, [{ key: '4', title: 'Anime', type: 'show' }], function (error, items) {
+  assert.ifError(error);
+  recommendationRaceCached = items;
+});
+assert.strictEqual(recommendationRaceXhrs.length, 2, 'the third recommendation load must read the completed cache instead of starting another request');
+assert.strictEqual(recommendationRaceCached[0].ratingKey, 'new',
+  'an older concurrent recommendation callback must not overwrite cache populated by a newer request');
+global.DOMParser = recommendationRaceParser;
+
 var nativeRecommendationDate = global.Date;
 var recommendationNow = 10000;
 global.Date = function () { return { getTime: function () { return recommendationNow; } }; };
@@ -340,9 +445,9 @@ global.DOMParser = function () {
     };
   };
 };
-assert.deepStrictEqual(PlexClient.parseAttributes('<xml/>').map(function (item) { return item.ratingKey; }), ['23829'], 'the local Plex parser must retain Playlist nodes returned by the global playlist endpoint');
+assert.deepStrictEqual(PlexMediaDocument.parseAttributes('<xml/>').map(function (item) { return item.ratingKey; }), ['23829'], 'the local Plex parser must retain Playlist nodes returned by the global playlist endpoint');
 global.DOMParser = previousDomParser;
-var ratingCatalogUrl = PlexClient.buildLibraryBrowseUrl(
+var ratingCatalogUrl = PlexUrl.buildLibraryBrowseUrl(
   { apiBaseUrl: '/plex-api', token: 'token' },
   { key: '4' },
   'catalog',
@@ -353,7 +458,17 @@ var ratingCatalogUrl = PlexClient.buildLibraryBrowseUrl(
 assert.ok(/\/library\/sections\/4\/all\?/.test(ratingCatalogUrl), 'catalog must use the selected library endpoint');
 assert.ok(/sort=audienceRating%3Adesc/.test(ratingCatalogUrl) && /unwatched=0/.test(ratingCatalogUrl), 'catalog URL must carry server-side rating and watched controls');
 assert.ok(/X-Plex-Container-Start=60/.test(ratingCatalogUrl) && /X-Plex-Container-Size=60/.test(ratingCatalogUrl), 'catalog URL must carry page boundaries');
-var filteredYearCatalogUrl = PlexClient.buildLibraryBrowseUrl(
+var unwatchedRatingCatalogUrl = PlexUrl.buildLibraryBrowseUrl(
+  { apiBaseUrl: '/plex-api', token: 'token' },
+  { key: '4' },
+  'catalog',
+  { sort: 'audienceRating', direction: 'desc', watched: 'unwatched' },
+  0,
+  60
+);
+assert.ok(/sort=audienceRating%3Adesc/.test(unwatchedRatingCatalogUrl) && /unwatched=1/.test(unwatchedRatingCatalogUrl),
+  'the reported rating-desc plus unwatched combination must keep both controls in the authoritative Plex query');
+var filteredYearCatalogUrl = PlexUrl.buildLibraryBrowseUrl(
   { apiBaseUrl: '/plex-api', token: 'token' },
   { key: '4' },
   'catalog',
@@ -363,7 +478,7 @@ var filteredYearCatalogUrl = PlexClient.buildLibraryBrowseUrl(
 );
 assert.ok(/sort=year%3Adesc/.test(filteredYearCatalogUrl), 'catalog must support server-side year sorting');
 assert.ok(/year=2025/.test(filteredYearCatalogUrl) && /genre=12/.test(filteredYearCatalogUrl) && /resolution=4k/.test(filteredYearCatalogUrl) && /hdr=1/.test(filteredYearCatalogUrl), 'catalog must carry selected advanced filters, including HDR');
-assert.ok(/hdr=0/.test(PlexClient.buildLibraryBrowseUrl(
+assert.ok(/hdr=0/.test(PlexUrl.buildLibraryBrowseUrl(
   { apiBaseUrl: '/plex-api', token: 'token' },
   { key: '4' },
   'catalog',
@@ -373,7 +488,7 @@ assert.ok(/hdr=0/.test(PlexClient.buildLibraryBrowseUrl(
 )), 'catalog must preserve the explicit SDR filter');
 
 assert.deepStrictEqual(
-  PlexClient.mediaFromAttributes({
+  PlexMediaMapper.mediaFromAttributes({
     title: 'La decisione',
     grandparentTitle: 'Example Show',
     parentTitle: 'Stagione 4',
@@ -403,12 +518,12 @@ assert.deepStrictEqual(
 );
 
 assert.strictEqual(
-  PlexClient.mediaFromAttributes({ type: 'show', ratingKey: '7', title: 'Rated', audienceRating: '8.4' }, '/plex-api', 'token').rating,
+  PlexMediaMapper.mediaFromAttributes({ type: 'show', ratingKey: '7', title: 'Rated', audienceRating: '8.4' }, '/plex-api', 'token').rating,
   8.4,
   'library cards must retain the Plex audience rating'
 );
 assert.deepStrictEqual(
-  PlexClient.mediaFromAttributes({ type: 'movie', title: 'Example', year: '2025' }, '/plex-api', ''),
+  PlexMediaMapper.mediaFromAttributes({ type: 'movie', title: 'Example', year: '2025' }, '/plex-api', ''),
   {
     title: 'Example',
     meta: 'Movie - 2025',
@@ -422,13 +537,13 @@ assert.deepStrictEqual(
 );
 
 assert.strictEqual(
-  PlexClient.mediaFromAttributes({ type: 'show', ratingKey: '8', title: 'Example Show', year: '2024' }, '/plex-api', '').year,
+  PlexMediaMapper.mediaFromAttributes({ type: 'show', ratingKey: '8', title: 'Example Show', year: '2024' }, '/plex-api', '').year,
   2024,
   'series catalog items must retain their Plex year for visible year sorting'
 );
 
 assert.deepStrictEqual(
-  PlexClient.mediaFromAttributes({
+  PlexMediaMapper.mediaFromAttributes({
     title: 'Stagione 3',
     parentTitle: 'Mushoku Tensei',
     index: '3',
@@ -450,7 +565,7 @@ assert.deepStrictEqual(
   'season metadata must show its series, season number and episode count'
 );
 
-var grouped = PlexClient.groupRecentAttributes([
+var grouped = PlexMediaMapper.groupRecentAttributes([
   { type: 'episode', title: 'Uno', grandparentTitle: 'Serie A', parentTitle: 'Stagione 1', parentIndex: '1', index: '1', parentRatingKey: '10', parentThumb: '/season-a', grandparentArt: '/art-a' },
   { type: 'episode', title: 'Due', grandparentTitle: 'Serie A', parentTitle: 'Stagione 1', parentIndex: '1', index: '2', parentRatingKey: '10', parentThumb: '/season-a', grandparentArt: '/art-a' },
   { type: 'episode', title: 'Tornare a casa', grandparentTitle: 'Grand Blue', parentTitle: 'Stagione 3', parentIndex: '3', index: '2', parentRatingKey: '20', thumb: '/episode-b', art: '/art-b' }
@@ -466,7 +581,7 @@ assert.deepStrictEqual(
 );
 
 assert.deepStrictEqual(
-  PlexClient.sectionDefinitions([
+  PlexHomeModel.sectionDefinitions([
     { key: '2', title: 'Film', type: 'movie' },
     { key: '4', title: 'Anime', type: 'show' },
     { key: '1', title: 'Programmi TV', type: 'show' }
@@ -479,13 +594,45 @@ assert.deepStrictEqual(
   'library sections must produce one recently-added row each'
 );
 
-assert.deepStrictEqual(
-  PlexClient.navigationDefinitions([
-    { key: '2', title: 'Film', type: 'movie' },
-    { key: '4', title: 'Anime', type: 'show' },
-    { key: '9', title: 'Musica', type: 'artist' }
-  ]),
-  [
+(function navigationLoadingKeepsLibraryFilteringAndStaticEntries() {
+  var previousXhr = global.XMLHttpRequest;
+  var previousParser = global.DOMParser;
+  var navigationXhr;
+  var navigationItems = null;
+  function node(attributes) {
+    return {
+      nodeType: 1,
+      nodeName: 'Directory',
+      attributes: Object.keys(attributes).map(function (key) { return { name: key, value: String(attributes[key]) }; }),
+      childNodes: []
+    };
+  }
+  global.XMLHttpRequest = function () {
+    navigationXhr = this;
+    this.open = function (method, url) { this.method = method; this.url = url; };
+    this.send = function () {};
+  };
+  global.DOMParser = function () {
+    this.parseFromString = function () {
+      return {
+        documentElement: { childNodes: [
+          node({ key: '2', title: 'Film', type: 'movie' }),
+          node({ key: '4', title: 'Anime', type: 'show' }),
+          node({ key: '9', title: 'Musica', type: 'artist' })
+        ] },
+        getElementsByTagName: function () { return []; }
+      };
+    };
+  };
+  PlexClient.loadNavigation({ apiBaseUrl: '/plex-api', token: 'token' }, function (error, items) {
+    assert.ifError(error);
+    navigationItems = items;
+  });
+  navigationXhr.status = 200;
+  navigationXhr.readyState = 4;
+  navigationXhr.responseText = '<xml/>';
+  navigationXhr.onreadystatechange();
+  assert.deepStrictEqual(navigationItems, [
     { title: 'Home', kind: 'home', labelKey: 'nav.home' },
     { title: 'Film', kind: 'library', key: '2', type: 'movie' },
     { title: 'Anime', kind: 'library', key: '4', type: 'show' },
@@ -493,12 +640,13 @@ assert.deepStrictEqual(
     { title: 'Playlists', kind: 'playlists', labelKey: 'nav.playlists' },
     { title: 'Cerca', kind: 'search', labelKey: 'nav.search' },
     { title: 'Impostazioni', kind: 'settings', labelKey: 'nav.settings' }
-  ],
-  'navigation must be generated from compatible Plex libraries with static search and settings entries'
-);
+  ], 'navigation loading must filter incompatible Plex libraries and append static entries');
+  global.XMLHttpRequest = previousXhr;
+  global.DOMParser = previousParser;
+}());
 
 assert.deepStrictEqual(
-  PlexClient.detailFromAttributes({
+  PlexMediaMapper.detailFromAttributes({
     ratingKey: '23581',
     type: 'episode',
     grandparentRatingKey: '100',
@@ -538,7 +686,7 @@ assert.deepStrictEqual(
 );
 
 assert.deepStrictEqual(
-  PlexClient.mediaFromAttributes({
+  PlexMediaMapper.mediaFromAttributes({
     ratingKey: 'playlist-s2e1',
     type: 'episode',
     grandparentTitle: 'The Quintessential Quintuplets',
@@ -565,7 +713,7 @@ assert.deepStrictEqual(
 );
 
 assert.deepStrictEqual(
-  PlexClient.episodeFromAttributes({
+  PlexMediaMapper.episodeFromAttributes({
     ratingKey: '44', parentIndex: '2', index: '3', title: 'La decisione', thumb: '/episode', viewCount: '1',
     viewOffset: '360000', duration: '1440000', year: '2026'
   }, '/plex-api', '', '44', 2025),
@@ -577,24 +725,24 @@ assert.deepStrictEqual(
   'episode rows must retain the episode year ahead of the season fallback'
 );
 assert.strictEqual(
-  PlexClient.episodeFromAttributes({ ratingKey: '45', parentIndex: '2', index: '4', title: 'Next' }, '/plex-api', '', '', 2025).year,
+  PlexMediaMapper.episodeFromAttributes({ ratingKey: '45', parentIndex: '2', index: '4', title: 'Next' }, '/plex-api', '', '', 2025).year,
   2025,
   'episode rows must fall back to the season year when Plex omits the episode year'
 );
 
 assert.strictEqual(
-  PlexClient.mediaFromAttributes({ type: 'movie', ratingKey: 'movie-1', title: 'Film', viewCount: '1' }, '/plex-api', '').viewed,
+  PlexMediaMapper.mediaFromAttributes({ type: 'movie', ratingKey: 'movie-1', title: 'Film', viewCount: '1' }, '/plex-api', '').viewed,
   true,
   'watched movies must expose their watched state on every card view'
 );
 assert.strictEqual(
-  PlexClient.mediaFromAttributes({ type: 'show', ratingKey: 'show-1', title: 'Serie', leafCount: '12', viewedLeafCount: '12' }, '/plex-api', '').viewed,
+  PlexMediaMapper.mediaFromAttributes({ type: 'show', ratingKey: 'show-1', title: 'Serie', leafCount: '12', viewedLeafCount: '12' }, '/plex-api', '').viewed,
   true,
   'fully watched series must expose their watched state on every card view'
 );
 
 assert.strictEqual(
-  PlexClient.preferredSeasonKeyFromAttributes([
+  PlexMediaMapper.preferredSeasonKeyFromAttributes([
     { ratingKey: 'specials', index: '0', leafCount: '2', viewedLeafCount: '0' },
     { ratingKey: 'season-1', index: '1', leafCount: '12', viewedLeafCount: '12' },
     { ratingKey: 'season-2', index: '2', leafCount: '12', viewedLeafCount: '4' }
@@ -604,7 +752,7 @@ assert.strictEqual(
 );
 
 assert.strictEqual(
-  PlexClient.preferredSeasonKeyFromAttributes([
+  PlexMediaMapper.preferredSeasonKeyFromAttributes([
     { ratingKey: 'specials', index: '0', leafCount: '2', viewedLeafCount: '0' },
     { ratingKey: 'season-1', index: '1', leafCount: '12', viewedLeafCount: '12' },
     { ratingKey: 'season-2', index: '2', leafCount: '12', viewedLeafCount: '4' }
@@ -614,7 +762,7 @@ assert.strictEqual(
 );
 
 assert.strictEqual(
-  PlexClient.preferredSeasonKeyFromAttributes([
+  PlexMediaMapper.preferredSeasonKeyFromAttributes([
     { ratingKey: 'specials', index: '0', leafCount: '2', viewedLeafCount: '0' },
     { ratingKey: 'season-1', index: '1', leafCount: '12', viewedLeafCount: '12' }
   ], ''),
@@ -623,7 +771,7 @@ assert.strictEqual(
 );
 
 assert.strictEqual(
-  PlexClient.preferredSeasonKeyFromAttributes([
+  PlexMediaMapper.preferredSeasonKeyFromAttributes([
     { ratingKey: 'specials', index: '0', leafCount: '2', viewedLeafCount: '0' }
   ], ''),
   'specials',
@@ -631,17 +779,15 @@ assert.strictEqual(
 );
 
 assert.strictEqual(
-  PlexClient.detailFromAttributes({ ratingKey: 'show-1', type: 'show', title: 'Example' }, '/plex-api', '').showRatingKey,
+  PlexMediaMapper.detailFromAttributes({ ratingKey: 'show-1', type: 'show', title: 'Example' }, '/plex-api', '').showRatingKey,
   'show-1',
   'top-level shows must identify themselves as their series context'
 );
 
-var playback = PlexClient.playbackFromAttributes(
+var playback = PlexMediaMapper.playbackFromAttributes(
   { ratingKey: '23581', type: 'episode', title: 'Daikanyama e la ragazza', viewOffset: '720000' },
   { container: 'mkv', videoCodec: 'hevc', audioCodec: 'aac' },
   { key: '/library/parts/32305/file.mkv', file: '/media/Anime/Episode 03.mkv', size: '1572864000', duration: '1470030' },
-  '/plex-api',
-  'token',
   'session-1',
   [
     { id: '10', streamType: '2', codec: 'aac', language: 'Japanese', selected: '1' },
@@ -655,9 +801,11 @@ var playback = PlexClient.playbackFromAttributes(
     { type: 'intro', startTimeOffset: '500', endTimeOffset: '400' }
   ]
 );
+playback.sourceUrl = PlexPlaybackUrls.hlsUrlFor(playback, '/plex-api', 'token', playback.options);
+playback.hlsUrl = playback.sourceUrl;
 
-assert.strictEqual(typeof PlexClient.chaptersFromAttributes, 'function', 'the Plex client must expose chapter parsing');
-var parsedChapters = PlexClient.chaptersFromAttributes([
+assert.strictEqual(typeof PlexMediaMapper.chaptersFromAttributes, 'function', 'the Plex client must expose chapter parsing');
+var parsedChapters = PlexMediaMapper.chaptersFromAttributes([
   { index: '2', title: 'Opening', startTimeOffset: '10000', endTimeOffset: '20000', thumb: '/library/metadata/1/chapter/2' },
   { index: '1', tag: 'Prologue', startTimeOffset: '0', endTimeOffset: '10000', thumb: '/library/metadata/1/chapter/1' },
   { index: '3', title: 'Broken end', startTimeOffset: '30000', endTimeOffset: '20000', thumb: '/broken' },
@@ -671,14 +819,12 @@ assert.deepStrictEqual(parsedChapters.map(function (chapter) {
   [2, 'Opening', 10000, 20000]
 ], 'chapter parsing must validate offsets and sort Plex chapters chronologically');
 assert.ok(/\/library\/metadata\/1\/chapter\/1\?X-Plex-Token=token/.test(parsedChapters[0].thumb), 'chapter thumbnails must retain local Plex authentication');
-assert.deepStrictEqual(PlexClient.chaptersFromAttributes([], '/plex-api', 'token'), [], 'media without chapters must expose an empty chapter list');
+assert.deepStrictEqual(PlexMediaMapper.chaptersFromAttributes([], '/plex-api', 'token'), [], 'media without chapters must expose an empty chapter list');
 
-var chapterPlayback = PlexClient.playbackFromAttributes(
+var chapterPlayback = PlexMediaMapper.playbackFromAttributes(
   { ratingKey: 'chapter-media', type: 'episode', title: 'Chapter example' },
   { container: 'mkv', videoCodec: 'h264' },
   { key: '/library/parts/chapter/file.mkv', duration: '80000' },
-  '/plex-api',
-  'token',
   'chapter-session',
   [],
   [],
@@ -693,7 +839,7 @@ var secondTranscodeSession = PlexClient.rotateTranscodeSession(playback, 1000);
 assert.strictEqual(playback.session, stablePlaybackSession, 'rotating an HLS stream must not replace the stable Plex playback session');
 assert.notStrictEqual(firstTranscodeSession, secondTranscodeSession, 'every HLS rebuild must use a fresh transcode namespace even within the same millisecond');
 assert.strictEqual(playback.transcodeSession, secondTranscodeSession, 'the active transcode session must remain available for keepalive requests');
-var rotatedPlaybackUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, playback.options);
+var rotatedPlaybackUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, playback.options);
 assert.ok(new RegExp('session=' + secondTranscodeSession).test(rotatedPlaybackUrl), 'HLS segment URLs must use the fresh transcode namespace');
 assert.ok(new RegExp('transcodeSessionId=' + secondTranscodeSession).test(rotatedPlaybackUrl), 'Plex must receive the fresh transcode session identifier');
 assert.ok(new RegExp('X-Plex-Session-Identifier=' + secondTranscodeSession).test(rotatedPlaybackUrl), 'HLS requests must not reuse the stable timeline session identifier');
@@ -713,7 +859,7 @@ assert.ok(new RegExp('session=' + secondTranscodeSession).test(pingXhr.url), 'tr
 assert.ok(/X-Plex-Token=token/.test(pingXhr.url), 'transcode keepalive must authenticate against the local Plex server');
 global.XMLHttpRequest = previousPingXhr;
 
-var playbackVersions = PlexClient.playbackVersionsFromAttributes([
+var playbackVersions = PlexMediaMapper.playbackVersionsFromAttributes([
   {
     media: { id: 'm0', container: 'mp4', videoCodec: 'h264', width: '1920', height: '1080', videoResolution: '1080' },
     parts: [{ part: { id: 'p0', key: '/library/parts/p0/file.mp4', file: '/media/1080.mp4', size: '1000', duration: '10000' }, streams: [] }]
@@ -749,34 +895,20 @@ assert.ok(/\/video\/:\/transcode\/universal\/start\.m3u8/.test(playback.hlsUrl),
 assert.ok(/path=%2Flibrary%2Fmetadata%2F23581/.test(playback.hlsUrl), 'HLS URL must target the selected metadata item');
 
 assert.strictEqual(
-  PlexClient.buildLibraryRefreshUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '7', false),
+  PlexUrl.buildLibraryRefreshUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '7', false),
   '/plex-api/library/sections/7/refresh?X-Plex-Token=token',
   'library refresh must target the selected section'
 );
 assert.strictEqual(
-  PlexClient.buildLibraryRefreshUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '7', true),
+  PlexUrl.buildLibraryRefreshUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '7', true),
   '/plex-api/library/sections/7/refresh?force=1&X-Plex-Token=token',
   'full library metadata refresh must request a forced section refresh'
 );
 assert.strictEqual(
-  PlexClient.buildMetadataRefreshUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '42'),
+  PlexUrl.buildMetadataRefreshUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '42'),
   '/plex-api/library/metadata/42/refresh?X-Plex-Token=token',
   'media metadata refresh must target the selected metadata item'
 );
-assert.strictEqual(typeof PlexClient.activityItemsFromJson, 'function', 'Plex client must expose documented server activity parsing');
-assert.deepStrictEqual(PlexClient.activityItemsFromJson(JSON.stringify({
-  MediaContainer: {
-    size: 2,
-    Activity: [
-      { uuid: 'scan-1', type: 'library.update.section', title: 'Scanning TV', subtitle: 'Example Show', progress: 42, cancellable: true },
-      { uuid: 'credits-1', type: 'media.generate.credits', title: 'Detecting Credits', progress: -1, cancellable: false }
-    ]
-  }
-})), [
-  { id: 'scan-1', type: 'library.update.section', title: 'Scanning TV', subtitle: 'Example Show', progress: 42, cancellable: true },
-  { id: 'credits-1', type: 'media.generate.credits', title: 'Detecting Credits', subtitle: '', progress: -1, cancellable: false }
-], 'Plex activities must retain identity, labels, progress and cancellation state');
-assert.deepStrictEqual(PlexClient.activityItemsFromJson('{"MediaContainer":{"size":0}}'), [], 'an idle Plex server must expose an empty activity list');
 var previousRefreshXhr = global.XMLHttpRequest;
 var refreshXhrs = [];
 global.XMLHttpRequest = function () {
@@ -784,27 +916,17 @@ global.XMLHttpRequest = function () {
   this.open = function (method, url) { this.method = method; this.url = url; };
   this.send = function () {};
 };
-var refreshSequenceError = 'pending';
-PlexClient.refreshMetadataSequence({ apiBaseUrl: '/plex-api', token: 'token' }, ['episode', 'season', 'show'], function (error) {
-  refreshSequenceError = error;
-});
-assert.deepStrictEqual(refreshXhrs.map(function (xhr) { return [xhr.method, xhr.url]; }), [
-  ['PUT', '/plex-api/library/metadata/episode/refresh?X-Plex-Token=token']
-], 'metadata hierarchy refresh must begin with the current media only');
-refreshXhrs[0].status = 200; refreshXhrs[0].readyState = 4; refreshXhrs[0].onreadystatechange();
-refreshXhrs[1].status = 200; refreshXhrs[1].readyState = 4; refreshXhrs[1].onreadystatechange();
-refreshXhrs[2].status = 200; refreshXhrs[2].readyState = 4; refreshXhrs[2].onreadystatechange();
-assert.deepStrictEqual(refreshXhrs.map(function (xhr) { return xhr.url; }), [
-  '/plex-api/library/metadata/episode/refresh?X-Plex-Token=token',
-  '/plex-api/library/metadata/season/refresh?X-Plex-Token=token',
-  '/plex-api/library/metadata/show/refresh?X-Plex-Token=token'
-], 'episode metadata refresh must proceed current media, current season, then series');
-assert.strictEqual(refreshSequenceError, null, 'metadata hierarchy refresh must complete after the series');
 var libraryRefreshDone = false;
-PlexClient.refreshLibraryMetadata({ apiBaseUrl: '/plex-api', token: 'token' }, '7', function (error) { libraryRefreshDone = !error; });
-assert.strictEqual(refreshXhrs[3].method, 'POST', 'library refresh requests must use the Plex POST endpoint');
-refreshXhrs[3].status = 200; refreshXhrs[3].readyState = 4; refreshXhrs[3].onreadystatechange();
+var libraryRefreshActivity = '';
+PlexClient.refreshLibraryMetadata({ apiBaseUrl: '/plex-api', token: 'token' }, '7', function (error, activityId) {
+  libraryRefreshDone = !error;
+  libraryRefreshActivity = activityId;
+});
+assert.strictEqual(refreshXhrs[0].method, 'POST', 'library refresh requests must use the Plex POST endpoint');
+refreshXhrs[0].getResponseHeader = function (name) { return name === 'X-Plex-Activity' ? 'metadata-42' : ''; };
+refreshXhrs[0].status = 200; refreshXhrs[0].readyState = 4; refreshXhrs[0].onreadystatechange();
 assert.strictEqual(libraryRefreshDone, true, 'forced library metadata refresh must report success');
+assert.strictEqual(libraryRefreshActivity, 'metadata-42', 'forced library metadata refresh must expose the Plex activity UUID');
 global.XMLHttpRequest = previousRefreshXhr;
 
 var previousActivityXhr = global.XMLHttpRequest;
@@ -826,21 +948,23 @@ assert.ok(/\/activities\?X-Plex-Token=token/.test(activityXhr.url), 'activity po
 assert.strictEqual(activityXhr.headers.Accept, 'application/json', 'activity polling must request the documented JSON representation');
 activityXhr.status = 200;
 activityXhr.readyState = 4;
-activityXhr.responseText = '{"MediaContainer":{"size":1,"Activity":{"uuid":"one","title":"Refreshing metadata","progress":7}}}';
+activityXhr.responseText = JSON.stringify({ MediaContainer: { size: 2, Activity: [
+  { uuid: 'scan-1', type: 'library.update.section', title: 'Scanning TV', subtitle: 'Example Show', progress: 42, cancellable: true },
+  { uuid: 'credits-1', type: 'media.generate.credits', title: 'Detecting Credits', progress: -1, cancellable: false }
+] } });
 activityXhr.onreadystatechange();
-assert.strictEqual(loadedActivities[0].id, 'one', 'single Plex activity objects must normalize to a list');
+assert.deepStrictEqual(loadedActivities, [
+  { id: 'scan-1', type: 'library.update.section', title: 'Scanning TV', subtitle: 'Example Show', progress: 42, cancellable: true },
+  { id: 'credits-1', type: 'media.generate.credits', title: 'Detecting Credits', subtitle: '', progress: -1, cancellable: false }
+], 'activity loading must retain identity, labels, progress and cancellation state');
 global.XMLHttpRequest = previousActivityXhr;
-
-assert.strictEqual(PlexClient.activityIdFromResponse({
-  getResponseHeader: function (name) { return name === 'X-Plex-Activity' ? 'metadata-42' : ''; }
-}), 'metadata-42', 'refresh responses must expose their Plex activity UUID');
 assert.ok(/session=session-1/.test(playback.hlsUrl), 'HLS URL must carry the playback session');
 assert.ok(/transcodeType=video/.test(playback.hlsUrl), 'HLS URL must identify a video transcode');
 assert.ok(/transcodeSessionId=session-1/.test(playback.hlsUrl), 'HLS URL must identify the transcode session');
 assert.ok(/location=lan/.test(playback.hlsUrl), 'HLS URL must identify LAN playback');
 assert.ok(/fastSeek=1/.test(playback.hlsUrl), 'offset HLS sessions must make Plex jump to the requested source position');
 assert.ok(
-  /fastSeek=1/.test(PlexClient.buildPlaybackUrl(
+  /fastSeek=1/.test(PlexPlaybackUrls.buildPlaybackUrl(
     { apiBaseUrl: '/plex-api', token: 'token' },
     playback,
     Object.assign({}, playback.options, { offset: 0 })
@@ -859,12 +983,12 @@ assert.ok(/audioStreamID=10/.test(playback.hlsUrl), 'selected audio must be sent
 assert.ok(/subtitleStreamID=20/.test(playback.hlsUrl), 'selected subtitles must be sent to the transcoder');
 
 assert.deepStrictEqual(
-  PlexClient.trackFromAttributes({ id: '12', index: '3', language: 'Italiano', languageTag: 'it-IT', languageCode: 'ita', codec: 'srt', key: '/library/streams/12', offset: '450', forced: '1', selected: '1', title: 'Forced signs', displayTitle: 'Italiano (SRT External)', extendedDisplayTitle: 'Italiano (SRT External)', channels: '2', audioChannelLayout: 'stereo' }),
+  MediaProfile.trackFromAttributes({ id: '12', index: '3', language: 'Italiano', languageTag: 'it-IT', languageCode: 'ita', codec: 'srt', key: '/library/streams/12', offset: '450', forced: '1', selected: '1', title: 'Forced signs', displayTitle: 'Italiano (SRT External)', extendedDisplayTitle: 'Italiano (SRT External)', channels: '2', audioChannelLayout: 'stereo' }),
   { id: '12', language: 'Italiano', languageTag: 'it', languageCode: 'it', codec: 'srt', bitrate: 0, samplingRate: 0, bitDepth: 0, profile: '', forced: true, selected: true, title: 'Forced signs', index: 3, key: '/library/streams/12', external: true, format: 'srt', offset: 450, displayTitle: 'Italiano (SRT External)', extendedDisplayTitle: 'Italiano (SRT External)', channels: 2, channelLayout: 'stereo' },
   'track metadata must retain normalized language, forced and display information'
 );
 
-var preferred = PlexClient.resolvePlaybackOptions({
+var preferred = MediaPreferences.resolvePlaybackOptions({
   audioTracks: [
     { id: '1', languageTag: 'en', selected: true },
     { id: '2', languageTag: 'ja', selected: false }
@@ -879,12 +1003,14 @@ var preferred = PlexClient.resolvePlaybackOptions({
   subtitleLanguages: ['it', 'en'],
   subtitleSuppressedForAudio: ['ja'],
   subtitleMode: 'always',
-  videoQuality: 'original'
+  videoQuality: 'original',
+  subtitleSize: 150
 });
 assert.strictEqual(preferred.audioStreamID, '2', 'the first available audio priority must win');
 assert.strictEqual(preferred.subtitleStreamID, '', 'subtitle suppression for the selected audio language must win');
+assert.strictEqual(preferred.subtitleSize, 150, 'playback resolution must stay synchronized with the global subtitle size');
 
-var duplicateSubtitlePreference = PlexClient.resolvePlaybackOptions({
+var duplicateSubtitlePreference = MediaPreferences.resolvePlaybackOptions({
   audioTracks: [{ id: 'a-it', languageTag: 'it', selected: true }],
   subtitleTracks: [
     { id: 'sub-internal', languageTag: 'it', codec: 'ass', external: false },
@@ -894,7 +1020,7 @@ var duplicateSubtitlePreference = PlexClient.resolvePlaybackOptions({
 }, { subtitleLanguages: ['it'], subtitleMode: 'always', subtitleSourcePreference: 'external' });
 assert.strictEqual(duplicateSubtitlePreference.subtitleStreamID, 'sub-external', 'playback loading must use the same automatic external subtitle preference as media detail');
 
-var mismatchPreferences = PlexClient.resolvePlaybackOptions({
+var mismatchPreferences = MediaPreferences.resolvePlaybackOptions({
   audioTracks: [
     { id: '1', languageTag: 'it', selected: false },
     { id: '2', languageTag: 'ja', selected: true }
@@ -913,7 +1039,7 @@ var mismatchPreferences = PlexClient.resolvePlaybackOptions({
 assert.strictEqual(mismatchPreferences.audioStreamID, '2', 'Japanese audio must retain its priority');
 assert.strictEqual(mismatchPreferences.subtitleStreamID, '4', 'audio mismatch must compare Japanese audio against the preferred Italian subtitle language');
 
-var matchingPreferences = PlexClient.resolvePlaybackOptions({
+var matchingPreferences = MediaPreferences.resolvePlaybackOptions({
   audioTracks: [{ id: '1', languageTag: 'it', selected: true }],
   subtitleTracks: [{ id: '4', languageTag: 'it', selected: false, forced: false }],
   options: { subtitleSize: 100, offset: 0 }
@@ -925,7 +1051,7 @@ var matchingPreferences = PlexClient.resolvePlaybackOptions({
 });
 assert.strictEqual(matchingPreferences.subtitleStreamID, '', 'matching Italian audio and subtitle language must not enable subtitles automatically');
 
-var fallbackPreferences = PlexClient.resolvePlaybackOptions({
+var fallbackPreferences = MediaPreferences.resolvePlaybackOptions({
   audioTracks: [{ id: '1', languageTag: 'en', selected: true }],
   subtitleTracks: [{ id: '4', languageTag: 'it', selected: false, forced: true }],
   options: { subtitleSize: 120, offset: 45 }
@@ -940,13 +1066,13 @@ assert.deepStrictEqual(fallbackPreferences, {
   audioStreamID: '1', subtitleStreamID: '4', subtitleSize: 120, offset: 45, videoQuality: '8000', playbackMode: 'auto'
 }, 'missing audio priorities must preserve Plex selection and forced subtitles');
 
-var originalUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+var originalUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 0, videoQuality: 'original'
 });
-var limitedUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+var limitedUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 0, videoQuality: '8000', videoResolution: '1920x1080'
 });
-var safeTranscodeUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+var safeTranscodeUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 0,
   videoQuality: '8000', videoResolution: '1920x1080', playbackMode: 'transcode', safeTranscode: true
 });
@@ -956,58 +1082,82 @@ assert.ok(/maxVideoBitrate=8000/.test(limitedUrl), 'limited quality must send th
 assert.ok(/videoResolution=1920x1080/.test(limitedUrl), 'the safe fallback must be able to request a 1080p ceiling');
 assert.ok(/videoCodec=h264&audioCodec=aac/.test(decodeURIComponent(safeTranscodeUrl)), 'the safe fallback must constrain Plex to the broadly supported H.264/AAC profile');
 assert.ok(!/videoCodec=h264,hevc/.test(decodeURIComponent(safeTranscodeUrl)), 'the safe fallback must not reuse the broad codec profile');
-var localSubtitleUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+var localSubtitleUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '20', subtitleSize: 100, localSubtitleOverlay: true, offset: 0, videoQuality: 'original'
 });
 assert.ok(/subtitles=none/.test(localSubtitleUrl), 'locally synchronized embedded subtitles must keep the Plex video stream subtitle-free');
 assert.ok(!/subtitleStreamID=20/.test(localSubtitleUrl), 'local subtitle overlays must not also burn the same stream into video');
+var serverSubtitleUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+  audioStreamID: '10', subtitleStreamID: '20', subtitleSize: 100, localSubtitleOverlay: false, offset: 0,
+  videoQuality: 'original', playbackMode: 'transcode', delivery: 'transcode'
+});
+assert.ok(/subtitleStreamID=20/.test(serverSubtitleUrl) && /subtitles=burn/.test(serverSubtitleUrl) && /advancedSubtitles=burn/.test(serverSubtitleUrl), 'disabled local rendering must preserve the selected subtitle for Plex rendering');
+assert.ok(/directStream=0/.test(serverSubtitleUrl), 'server subtitle rendering must disable Direct Stream');
 
-var indexedUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+var indexedUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 0, videoQuality: 'original',
   mediaIndex: 1, partIndex: 2, delivery: 'direct-stream'
 });
 assert.ok(/mediaIndex=1/.test(indexedUrl) && /partIndex=2/.test(indexedUrl), 'Plex HLS must target the selected media version indexes');
-var directUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, {
+var directUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, {
   partKey: '/library/parts/p1/file.mkv'
 }, { delivery: 'direct-play' });
 assert.strictEqual(directUrl, '/plex-api/library/parts/p1/file.mkv?X-Plex-Token=token', 'Direct Play must use the selected Plex part without Universal HLS');
 
-var forcedTranscodeUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+var forcedTranscodeUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 0, videoQuality: 'original', playbackMode: 'transcode'
 });
 assert.ok(/directStream=0/.test(forcedTranscodeUrl), 'Force transcode must disable Plex Direct Stream');
-var accurateSeekUrl = PlexClient.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
+var accurateSeekUrl = PlexPlaybackUrls.buildPlaybackUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, {
   audioStreamID: '10', subtitleStreamID: '', subtitleSize: 100, offset: 1798,
   videoQuality: 'original', playbackMode: 'auto'
 });
 assert.ok(/directStream=1/.test(accurateSeekUrl) && /directStreamAudio=1/.test(accurateSeekUrl), 'terminal Direct Stream seeks must remain Direct Stream');
 assert.ok(/directStream=1/.test(originalUrl), 'Auto mode must retain Plex Direct Stream fallback');
 
-assert.strictEqual(PlexClient.playbackModeFromDecisions('copy', 'copy'), 'direct-stream', 'copied audio and video must be described as Direct Stream');
-assert.strictEqual(PlexClient.playbackModeFromDecisions('copy', 'transcode'), 'transcode-audio', 'audio-only conversion must be explicit');
-assert.strictEqual(PlexClient.playbackModeFromDecisions('transcode', 'copy'), 'transcode-video', 'video-only conversion must be explicit');
-assert.strictEqual(PlexClient.playbackModeFromDecisions('transcode', 'transcode'), 'transcode-audio-video', 'combined conversion must be explicit');
+assert.strictEqual(PlexPlaybackUrls.playbackModeFromDecisions('copy', 'copy'), 'direct-stream', 'copied audio and video must be described as Direct Stream');
+assert.strictEqual(PlexPlaybackUrls.playbackModeFromDecisions('copy', 'transcode'), 'transcode-audio', 'audio-only conversion must be explicit');
+assert.strictEqual(PlexPlaybackUrls.playbackModeFromDecisions('transcode', 'copy'), 'transcode-video', 'video-only conversion must be explicit');
+assert.strictEqual(PlexPlaybackUrls.playbackModeFromDecisions('transcode', 'transcode'), 'transcode-audio-video', 'combined conversion must be explicit');
 
-assert.deepStrictEqual(
-  PlexClient.accountProfileFromJson(JSON.stringify({ locale: 'it-IT', profile: { defaultAudioLanguage: 'ja', defaultSubtitleLanguage: 'it' } })),
-  { locale: 'it-IT', profile: { defaultAudioLanguage: 'ja', defaultSubtitleLanguage: 'it' } },
-  'Plex account locale and playback profile must be parsed without installation-specific values'
-);
+(function accountProfileLoadingKeepsLocaleAndPlaybackPreferences() {
+  var previousXhr = global.XMLHttpRequest;
+  var accountXhr;
+  var loadedProfile = null;
+  global.XMLHttpRequest = function () {
+    accountXhr = this;
+    this.open = function (method, url) { this.method = method; this.url = url; };
+    this.send = function () {};
+  };
+  PlexClient.loadAccountProfile({ token: 'token' }, function (error, profile) {
+    assert.ifError(error);
+    loadedProfile = profile;
+  });
+  accountXhr.status = 200;
+  accountXhr.readyState = 4;
+  accountXhr.responseText = JSON.stringify({ locale: 'it-IT', profile: { defaultAudioLanguage: 'ja', defaultSubtitleLanguage: 'it' } });
+  accountXhr.onreadystatechange();
+  assert.deepStrictEqual(loadedProfile,
+    { locale: 'it-IT', profile: { defaultAudioLanguage: 'ja', defaultSubtitleLanguage: 'it' } },
+    'account profile loading must preserve locale and playback language preferences');
+  global.XMLHttpRequest = previousXhr;
+}());
 
-var themed = PlexClient.detailFromAttributes({
+var themed = PlexMediaMapper.detailFromAttributes({
   ratingKey: '8', type: 'episode', grandparentRatingKey: '4', parentRatingKey: '6', parentIndex: '1', index: '2',
   title: 'Episode', grandparentTitle: 'Show', grandparentTheme: '/library/metadata/4/theme/1'
 }, '/plex-api', 'token');
 assert.strictEqual(themed.themeKey, 'show:4', 'episodes in one series must share a logical theme key');
 assert.ok(/\/library\/metadata\/4\/theme\/1/.test(themed.themeUrl), 'series theme URL must be exposed to the audio controller');
 
-assert.strictEqual(PlexClient.mediaFromAttributes({
+assert.strictEqual(PlexMediaMapper.mediaFromAttributes({
   ratingKey: '8', type: 'episode', grandparentRatingKey: '4', title: 'Episode', grandparentTitle: 'Show'
 }, '/plex-api', '').themeLookupKey, 'show:4', 'home episodes must share a series-level lazy theme cache key');
-assert.ok(/\/:\/scrobble/.test(PlexClient.buildWatchedUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', true)), 'watched items must use scrobble');
-assert.ok(/\/:\/unscrobble/.test(PlexClient.buildWatchedUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', false)), 'unwatched items must use unscrobble');
-assert.ok(/\/:\/progress\?/.test(PlexClient.buildProgressUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', 0)), 'progress reset must use the Plex progress endpoint');
-assert.ok(/key=23581/.test(PlexClient.buildProgressUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', 0)) && /time=0/.test(PlexClient.buildProgressUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', 0)), 'progress reset must include the media key and zero time');
+assert.ok(/\/:\/scrobble/.test(PlexUrl.buildWatchedUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', true)), 'watched items must use scrobble');
+assert.ok(/\/:\/unscrobble/.test(PlexUrl.buildWatchedUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', false)), 'unwatched items must use unscrobble');
+assert.ok(/\/:\/progress\?/.test(PlexUrl.buildProgressUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', -1)), 'progress reset must use the Plex progress endpoint');
+assert.ok(/key=23581/.test(PlexUrl.buildProgressUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', -1)) && /time=-1/.test(PlexUrl.buildProgressUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', -1)), 'progress reset must preserve the Plex beginning sentinel');
+assert.ok(/state=stopped/.test(PlexUrl.buildProgressUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', -1)), 'progress reset must report a stopped playback state to Plex');
 var previousMutationXhr = global.XMLHttpRequest;
 var mutationXhrs = [];
 global.XMLHttpRequest = function () {
@@ -1019,9 +1169,20 @@ var watchedResetResult = 'pending';
 PlexClient.setWatchedAndReset({ apiBaseUrl: '/plex-api', token: 'token' }, '23581', true, function (error) { watchedResetResult = error || null; });
 assert.ok(/\/:\/scrobble/.test(mutationXhrs[0].url), 'watched mutation must run before progress reset');
 mutationXhrs[0].status = 200; mutationXhrs[0].readyState = 4; mutationXhrs[0].onreadystatechange();
-assert.ok(/\/:\/progress/.test(mutationXhrs[1].url) && /time=0/.test(mutationXhrs[1].url), 'watched mutation must explicitly reset progress to zero');
+assert.ok(/\/:\/progress/.test(mutationXhrs[1].url) && /time=-1/.test(mutationXhrs[1].url), 'watched mutation must explicitly clear the resume point');
 mutationXhrs[1].status = 200; mutationXhrs[1].readyState = 4; mutationXhrs[1].onreadystatechange();
 assert.strictEqual(watchedResetResult, null, 'watched and progress reset must report combined success');
+var partialWatchedError = null;
+var partialWatchedOutcome = null;
+PlexClient.setWatchedAndReset({ apiBaseUrl: '/plex-api', token: 'token' }, '23582', false, function (error, outcome) {
+  partialWatchedError = error || null;
+  partialWatchedOutcome = outcome || null;
+});
+mutationXhrs[2].status = 200; mutationXhrs[2].readyState = 4; mutationXhrs[2].onreadystatechange();
+mutationXhrs[3].status = 500; mutationXhrs[3].readyState = 4; mutationXhrs[3].onreadystatechange();
+assert.ok(partialWatchedError, 'a failed progress reset must still surface an error');
+assert.deepStrictEqual(partialWatchedOutcome, { watchedApplied: true, progressReset: false },
+  'a partial watched mutation must report that Plex already changed watched state so callers can reconcile instead of staying stale');
 global.XMLHttpRequest = previousMutationXhr;
 var previousGuidXhr = global.XMLHttpRequest;
 var guidXhr;
@@ -1037,16 +1198,26 @@ assert.ok(/includeGuids=1/.test(guidXhr.url), 'GUID resolution must request GUID
 guidRequest.abort();
 assert.strictEqual(guidXhr.aborted, true, 'local GUID resolution must be abortable');
 global.XMLHttpRequest = previousGuidXhr;
-assert.ok(/\/library\/parts\/99\?audioStreamID=10&subtitleStreamID=20&allParts=1/.test(PlexClient.buildStreamSelectionUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '99', '10', '20')), 'track selection must update the Plex media part');
+assert.ok(/\/library\/parts\/99\?audioStreamID=10&subtitleStreamID=20&allParts=1/.test(PlexPlaybackUrls.buildStreamSelectionUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '99', '10', '20')), 'track selection must update the Plex media part');
 var subtitleTrack = { id: '20', index: 4, codec: 'srt', format: 'srt', key: '/library/streams/20', external: true };
-assert.ok(/\/library\/streams\/20\?/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external subtitle preview must preserve the exact Plex stream key');
-assert.ok(!/\/library\/streams\/20\.vtt\?/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external subtitle preview must not append an unsupported extension to a Plex stream key');
-assert.ok(/encoding=utf-8/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)) && /format=webvtt/.test(PlexClient.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external text must request UTF-8 WebVTT');
-var embeddedSubtitleUrl = PlexClient.buildSubtitleTranscodeUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, { id: '21', index: 5, codec: 'srt', external: false });
+assert.ok(/\/library\/streams\/20\?/.test(PlexPlaybackUrls.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external subtitle preview must preserve the exact Plex stream key');
+assert.ok(!/\/library\/streams\/20\.vtt\?/.test(PlexPlaybackUrls.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external subtitle preview must not append an unsupported extension to a Plex stream key');
+assert.ok(/encoding=utf-8/.test(PlexPlaybackUrls.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)) && /format=webvtt/.test(PlexPlaybackUrls.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, subtitleTrack)), 'external text must request UTF-8 WebVTT');
+var externalAssUrl = PlexPlaybackUrls.buildSubtitleStreamUrl({ apiBaseUrl: '/plex-api', token: 'token' }, { id: '23', codec: 'ass', format: 'ass', key: '/library/streams/23', external: true });
+assert.ok(/\/library\/streams\/23\?/.test(externalAssUrl) && /format=ass/.test(externalAssUrl), 'external ASS preview must preserve the Plex stream key and request raw ASS');
+var embeddedSubtitleUrl = PlexPlaybackUrls.buildSubtitleTranscodeUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, { id: '21', index: 5, codec: 'srt', external: false });
 assert.ok(/\/video\/:\/transcode\/universal\/subtitles\?/.test(embeddedSubtitleUrl), 'embedded subtitle preview must use the universal subtitle endpoint');
 assert.ok(/subtitleStreamID=21/.test(embeddedSubtitleUrl) && /mediaIndex=0/.test(embeddedSubtitleUrl) && /partIndex=0/.test(embeddedSubtitleUrl), 'embedded subtitle conversion must target the exact playback stream and part');
 assert.ok(/format=webvtt/.test(embeddedSubtitleUrl) && /advancedSubtitles=text/.test(embeddedSubtitleUrl), 'embedded text conversion must request a browser-readable text format');
-assert.ok(/\/library\/streams\/20\?offset=-300/.test(PlexClient.buildSubtitleOffsetUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '20', -300)), 'external subtitle offsets must use the writable stream resource and retain their signed millisecond value');
+var activeSubtitlePlayback = Object.assign({}, playback, { transcodeSession: 'active-transcode-session' });
+var activeEmbeddedSubtitleUrl = PlexPlaybackUrls.buildSubtitleTranscodeUrl({ apiBaseUrl: '/plex-api', token: 'token' }, activeSubtitlePlayback, { id: '21', index: 5, codec: 'srt', external: false });
+assert.ok(/session=active-transcode-session/.test(activeEmbeddedSubtitleUrl) && /transcodeSessionId=active-transcode-session/.test(activeEmbeddedSubtitleUrl),
+  'embedded subtitle conversion must reuse the active Universal Transcode session');
+assert.ok(/X-Plex-Session-Identifier=active-transcode-session/.test(activeEmbeddedSubtitleUrl),
+  'embedded subtitle conversion must bind the request to the active Plex session identifier');
+var embeddedAssUrl = PlexPlaybackUrls.buildSubtitleTranscodeUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, { id: '24', index: 6, codec: 'ssa', format: 'ssa', external: false });
+assert.ok(/subtitleStreamID=24/.test(embeddedAssUrl) && /format=ass/.test(embeddedAssUrl) && /advancedSubtitles=text/.test(embeddedAssUrl), 'embedded ASS/SSA preview must request raw ASS text for the local renderer');
+assert.ok(/\/library\/streams\/20\?offset=-300/.test(PlexPlaybackUrls.buildSubtitleOffsetUrl({ apiBaseUrl: '/plex-api', token: 'token' }, '20', -300)), 'external subtitle offsets must use the writable stream resource and retain their signed millisecond value');
 
 var previousSubtitleXhr = global.XMLHttpRequest;
 var subtitleXhrs = [];
@@ -1071,24 +1242,45 @@ PlexClient.loadSubtitleText({ apiBaseUrl: '/plex-api', token: 'token' }, playbac
 }, function () {});
 assert.ok(/\/library\/streams\/22\?/.test(subtitleXhrs[1].url), 'a subtitle stream key must be used exactly even when Plex omits the external flag');
 subtitleXhrs[1].status = 200; subtitleXhrs[1].readyState = 4; subtitleXhrs[1].responseText = 'WEBVTT\n'; subtitleXhrs[1].onreadystatechange();
+var activeSessionPlayback = Object.assign({}, playback, { transcodeSession: 'active-subtitle-session' });
+PlexClient.loadSubtitleText({ apiBaseUrl: '/plex-api', token: 'token' }, activeSessionPlayback, {
+  id: 'embedded-active', codec: 'srt', external: false
+}, function () {});
+assert.ok(/\/video\/:\/transcode\/universal\/subtitles\?/.test(subtitleXhrs[2].url), 'an embedded subtitle on an active transcode must be fetched directly');
+assert.ok(/session=active-subtitle-session/.test(subtitleXhrs[2].url), 'the active transcode session must be reused without a second decision request');
+subtitleXhrs[2].status = 200; subtitleXhrs[2].readyState = 4; subtitleXhrs[2].responseText = 'WEBVTT\n'; subtitleXhrs[2].onreadystatechange();
+var directPlayback = Object.assign({}, playback, { transcodeSession: '', sourceUrl: '/library/parts/direct.mkv' });
+var directSubtitleText = '';
+PlexClient.loadSubtitleText({ apiBaseUrl: '/plex-api', token: 'token' }, directPlayback, {
+  id: 'embedded-direct', codec: 'srt', external: false
+}, function (error, text) { assert.ifError(error); directSubtitleText = text; });
+assert.ok(/\/video\/:\/transcode\/universal\/decision\?/.test(subtitleXhrs[3].url),
+  'Direct Play embedded subtitles must initialize an isolated temporary Universal session');
+assert.strictEqual(directPlayback.transcodeSession, '', 'temporary subtitle extraction must not mutate the active playback session');
+subtitleXhrs[3].status = 200; subtitleXhrs[3].readyState = 4; subtitleXhrs[3].responseText = '<MediaContainer />'; subtitleXhrs[3].onreadystatechange();
+assert.ok(/\/video\/:\/transcode\/universal\/subtitles\?/.test(subtitleXhrs[4].url), 'the temporary decision must be followed by the subtitle resource request');
+subtitleXhrs[4].status = 200; subtitleXhrs[4].readyState = 4; subtitleXhrs[4].responseText = 'WEBVTT\n\n00:01.000 --> 00:02.000\nTest\n'; subtitleXhrs[4].onreadystatechange();
+assert.strictEqual(directSubtitleText, 'WEBVTT\n\n00:01.000 --> 00:02.000\nTest\n', 'temporary extraction must return the complete converted subtitle resource');
+assert.ok(/\/video\/:\/transcode\/universal\/stop\?/.test(subtitleXhrs[5].url), 'the isolated subtitle session must be stopped after extraction');
+subtitleXhrs[5].status = 200; subtitleXhrs[5].readyState = 4; subtitleXhrs[5].responseText = ''; subtitleXhrs[5].onreadystatechange();
 var offsetSaved = false;
 PlexClient.setSubtitleOffset({ apiBaseUrl: '/plex-api', token: 'token' }, '20', -300, function (error) { offsetSaved = !error; });
-assert.strictEqual(subtitleXhrs[2].method, 'PUT', 'subtitle offset persistence must use PUT');
-subtitleXhrs[2].status = 200; subtitleXhrs[2].readyState = 4; subtitleXhrs[2].responseText = ''; subtitleXhrs[2].onreadystatechange();
+assert.strictEqual(subtitleXhrs[6].method, 'PUT', 'subtitle offset persistence must use PUT');
+subtitleXhrs[6].status = 200; subtitleXhrs[6].readyState = 4; subtitleXhrs[6].responseText = ''; subtitleXhrs[6].onreadystatechange();
 assert.strictEqual(offsetSaved, true, 'successful Plex offset writes must complete');
 var identity = null;
 PlexClient.loadServerIdentity({ apiBaseUrl: '/plex-api', token: 'token' }, function (error, value) { assert.ifError(error); identity = value; });
-assert.strictEqual(subtitleXhrs[3].url, '/plex-api/identity', 'server diagnostics must use the public identity endpoint without disclosing a token');
-subtitleXhrs[3].status = 200; subtitleXhrs[3].readyState = 4; subtitleXhrs[3].responseText = '<MediaContainer friendlyName="Mac Mini" version="1.41.7" machineIdentifier="abcdef" />'; subtitleXhrs[3].onreadystatechange();
+assert.strictEqual(subtitleXhrs[7].url, '/plex-api/identity', 'server diagnostics must use the public identity endpoint without disclosing a token');
+subtitleXhrs[7].status = 200; subtitleXhrs[7].readyState = 4; subtitleXhrs[7].responseText = '<MediaContainer friendlyName="Mac Mini" version="1.41.7" machineIdentifier="abcdef" />'; subtitleXhrs[7].onreadystatechange();
 assert.deepStrictEqual(identity, { name: 'Mac Mini', version: '1.41.7', machineIdentifier: 'abcdef' }, 'server identity parsing must retain only diagnostic fields');
 global.XMLHttpRequest = previousSubtitleXhr;
 assert.ok(
-  /\/video\/:\/transcode\/universal\/decision/.test(PlexClient.buildDecisionUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, playback.options)),
+  /\/video\/:\/transcode\/universal\/decision/.test(PlexPlaybackUrls.buildDecisionUrl({ apiBaseUrl: '/plex-api', token: 'token' }, playback, playback.options)),
   'playback must initialize the Plex transcode decision before opening HLS'
 );
 
 assert.deepStrictEqual(
-  PlexClient.mediaFromAttributes({
+  PlexMediaMapper.mediaFromAttributes({
     title: 'Alien',
     year: '1979',
     type: 'movie',

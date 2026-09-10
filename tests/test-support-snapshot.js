@@ -65,6 +65,19 @@ var failedPlayback = {
   attempts: ['direct-play', 'direct-stream', 'transcode'],
   fallback: 'transcode',
   state: 'stream-error',
+  clockRepairCount: 2,
+  offsetBase: 120,
+  nativeCurrentTime: 15,
+  nativeAbsoluteTime: 135,
+  bufferStartNative: 10,
+  bufferStartPublic: 130,
+  bufferStartOffsetBase: 120,
+  bufferRecoveryAccepted: false,
+  bufferRecoveryReason: 'forward-jump',
+  bufferRecoveryInitialReason: 'native-domain-flip',
+  bufferRecoveryDelta: 5,
+  bufferRecoveryTarget: 130,
+  bufferRecoveryCandidate: 135,
   nativeReadyState: 3,
   nativeNetworkState: 2,
   nativeErrorCode: 4,
@@ -85,6 +98,7 @@ var report = SupportSnapshot.create({
   network: { status: 'local-only', lanAvailable: true, internetAvailable: false, localAddress: '192.168.0.20' },
   settings: { version: 3, visualTheme: 'immersive', playbackMode: 'auto', settingsBackupMode: 'on', adaptivePlaybackMemory: true, token: 'must-not-leak' },
   compatibility: { schemaVersion: 3, ruleVersion: 1, updatedAt: 1800000000000, deviceModel: 'LG TV', runtime: 'webOS 4 / Chrome 53', appVersion: '1.0.7', formatRuleCount: 2, fileExceptionCount: 3, fileExceptionTtlDays: 30, token: 'must-not-leak' },
+  startup: { bootstrap: 0, firstFocusableUi: 49, secret: 'must-not-export' },
   playback: lastPlayback,
   failurePlayback: failedPlayback,
   error: new Error('Playback failed at https://192.168.0.7/video?X-Plex-Token=secret'),
@@ -121,6 +135,7 @@ assert.strictEqual(report.playback.media.subtitleTracks.length, 1, 'only the sel
 assert.strictEqual(report.playback.attempts.join(','), 'direct-play,direct-stream,transcode', 'fallback attempts must remain available');
 assert.deepStrictEqual(report.settings, { schemaVersion: 3, visualTheme: 'immersive', playbackMode: 'auto', settingsBackupMode: 'on', adaptivePlaybackMemory: true }, 'support reports must include only allow-listed settings');
 assert.deepStrictEqual(report.compatibility, { schemaVersion: 3, ruleVersion: 1, updatedAt: 1800000000000, deviceModel: 'LG TV', runtime: 'webOS 4 / Chrome 53', appVersion: '1.0.7', formatRuleCount: 2, fileExceptionCount: 3, fileExceptionTtlDays: 30 }, 'support reports must include safe compatibility summary metadata');
+assert.strictEqual(report.startup, undefined, 'local startup milestones must stay out of the exportable support report');
 assert.ok(report.body.indexOf('settings: schema=3 / theme=immersive / playback=auto / save=on / memory=on') !== -1, 'QR report must include current safe settings');
 assert.ok(report.body.indexOf('compat: schema=3 / rule=1 / formats=2 / files=3 / ttl=30d') !== -1, 'QR report must include compatibility summary');
 assert.strictEqual(report.profile.accountToken, undefined, 'credentials must never enter the report');
@@ -145,6 +160,8 @@ assert.ok(report.body.indexOf('net: local-only / LAN online / internet offline')
 assert.ok(report.body.indexOf('method: Transcoding (audio/video)') !== -1, 'the QR report must label audio/video transcoding clearly');
 assert.ok(report.body.indexOf('queue: playlist / Demo playlist / 5/20') !== -1, 'the QR report must include queue context compactly');
 assert.ok(report.body.indexOf('native: ready=3 / network=2 / error=4') !== -1, 'the QR report must include native media state');
+assert.deepStrictEqual(report.playback.clock, { offsetBase: 120, nativeCurrentTime: 15, nativeAbsoluteTime: 135, bufferStartNative: 10, bufferStartPublic: 130, bufferStartOffsetBase: 120, recoveryAccepted: false, recoveryReason: 'forward-jump', recoveryInitialReason: 'native-domain-flip', recoveryDelta: 5, recoveryTarget: 130, recoveryCandidate: 135 }, 'support reports must allow-list bounded buffering clock diagnostics');
+assert.ok(report.body.indexOf('clock: offset=120 / native=15 / absolute=135 / buffer=130@10+120 / recovery=forward-jump / initial=native-domain-flip / delta=5 / accepted=false') !== -1, 'QR diagnostics must explain the buffering clock decision without URLs or subtitle data');
 assert.ok(report.body.indexOf('sub-settings: offset=-100ms / size=125%') !== -1, 'the QR report must include active subtitle settings');
 assert.ok(report.body.indexOf('Ploff support report') === -1, 'the QR report must not repeat its enclosing modal title');
 assert.ok(report.body.indexOf('js-error[1]:') !== -1 && report.body.indexOf('Uncaught decoder UI error') !== -1, 'the QR report must include collected JavaScript errors');

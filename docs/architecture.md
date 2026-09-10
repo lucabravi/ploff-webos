@@ -10,7 +10,8 @@ Media Server over the local network.
 TV shell (index.html, styles.css, generated app.js)
   |
   +-- ApplicationController (composition only)
-  |     +-- Shell / Search / Library / Detail / Player / Settings / Setup / Server / Diagnostics
+  |     +-- Shell / Search / Library / Detail / Settings / Setup / Server / Diagnostics
+  |     +-- PlayerRuntimeLoader --> player.js --> PlayerComposition --> Player
   |     +-- explicit semantic ports between feature owners
   |
   +-- PlexClient / PlexHttp --------------------------> Plex Media Server
@@ -18,8 +19,8 @@ TV shell (index.html, styles.css, generated app.js)
   +-- Settings / credential vault / bounded caches --> TV-local persistence
 ```
 
-The application has one shared DOM, one generated stylesheet, and one generated ES5
-coordinator bundle. Feature controllers own their own DOM, timers, requests, and
+The application has one shared DOM, one generated stylesheet, a generated ES5 Core
+coordinator bundle (`app.js`), and one deferred Player bundle (`player.js`). Feature controllers own their own DOM, timers, requests, and
 mutable state. Cross-feature communication goes through explicit ports supplied by the
 composition root rather than through shared controller internals.
 
@@ -35,8 +36,9 @@ composition root rather than through shared controller internals.
   cross-feature ports, starts the application, and owns only global bindings.
 - `app/coordinator/application-bootstrap.js` is the minimal credential-readiness
   and unload gate. It contains no media or navigation algorithms.
-- `app/app.js` is the single generated coordinator artifact executed by webOS.
-  It is checked in for packaging and must never be edited manually.
+- `app/app.js` contains the Core loader and coordinator modules. `app/player.js`
+  contains Player-only support modules, controllers, and `PlayerComposition`. Both
+  are generated, checked in for packaging, and never edited manually.
 - `app/i18n.js` is the small locale registry; `app/locales/` contains one
   complete offline locale file per supported interface language.
 - `webos-service/` provides UDP-based Plex GDM discovery because browser code
@@ -92,32 +94,38 @@ app/coordinator/
   plex-container-queue-provider.js
   series-queue-provider.js
   playback-queue-controller.js
+  player-queue-controller.js
   queue-gap-controller.js
   player-controls-controller.js
   playback-controller.js
   choice-dialog-controller.js
   media-info-dialog-controller.js
   player-feature-controller.js
+  player-composition.js
   input-controller.js
   pointer-controller.js
   application-controller.js
   application-bootstrap.js
 app/application-session.js
+app/player-runtime-loader.js
 app/queue-gap-view.js
 ```
 
 Every coordinator file is an independent UMD module and is included directly in
 the syntax, lint, and `checkJs` validation scope. `scripts/build-app.js` concatenates these files
-in one explicit order, with `application-bootstrap.js` last, to produce the
-single ES5 `app/app.js` loaded by webOS.
+with explicit Core and Player manifests, with `application-bootstrap.js` last in
+Core and `player-composition.js` last in Player. The Core prelude contains the small
+`player-runtime-loader.js`; there is no static `player.js` script in `index.html`.
 
 `application-controller.js` creates one `ApplicationSession`, constructs feature
 controllers with explicit callbacks, binds every global application event
 through `ApplicationEvents`, invokes startup, and owns application teardown. It
-performs no Plex transport, feature DOM mutation, or feature timer work. Owners
+performs no Plex transport, feature DOM mutation, or feature timer work. Its one
+Player warm timer belongs to application readiness, not playback scheduling. Owners
 are registered in construction order and destroyed in exact reverse order;
-constructor, event-binding, and startup failures clean all earlier owners before
-the original error is rethrown. `ApplicationEvents.bind()` also rolls back prior
+initial constructor, event-binding, and startup failures clean all earlier owners before
+the original error is rethrown. Deferred Player failure is deliberately different:
+partial Player construction rolls back locally and leaves the functioning Core alive. `ApplicationEvents.bind()` also rolls back prior
 listeners when registration fails partway and continues teardown if one listener
 removal throws.
 `search-feature-controller.js` composes Search transport, DOM measurement,
@@ -154,18 +162,23 @@ focus only through `setFocus()`. The composition root supplies explicit data,
 presentation, and transition ports; it no longer owns Home/navbar rendering,
 shell artwork/theme work, shell timers, or mutable Shell focus.
 `detail-feature-controller.js` composes `DetailController`,
-`DetailPresentationView`, `DetailEpisodeView`, and
+`DetailPresentationView`, `DetailEpisodeView`, `DetailExtendedView`, and
 `DetailPreferenceState`; it owns the Detail DOM surface, metadata and series
 loading, media preferences, watched/Watchlist mutations, metadata refresh,
-playback-progress reconciliation, focus, transitions, image scope, and
-idempotent teardown. The root communicates with Detail only through semantic
-operations and no longer mutates the Detail surface directly.
+playback-progress reconciliation, focus, transitions, image scopes, and
+idempotent teardown. `DetailExtendedView` owns the bounded lower-pane cast/extras
+DOM window; the feature controller starts root-title metadata/extras work only on
+first entry to that pane and owns cancellation through the normal Detail request
+lifecycle. The root communicates with Detail only through semantic operations and
+no longer mutates the Detail surface directly.
 `player-feature-controller.js` privately composes `PlaybackController`,
-`PlaybackQueueController`, and `PlayerControlsController`; it owns Player DOM,
-queue and controls presentation, resume/error/subtitle overlays, Up Next,
-playlist playback orchestration, Player timers/listeners, and feature teardown.
-`PlaybackQueueController` coordinates the bounded Series and Plex-container
-providers through semantic occurrence results. `QueueGapController` and
+`PlaybackQueueController`, `PlayerQueueController`, and `PlayerControlsController`; it owns
+cross-owner Player screen orchestration, controls/panel presentation, resume/error/subtitle
+overlays, Up Next, playlist playback use cases, Player timers/listeners, and feature teardown.
+`PlayerQueueController` exclusively owns queue drawer presentation state, retained occurrence
+cards, focus/navigation, artwork prefetch, and bounded queue DOM reconciliation.
+`PlaybackQueueController` remains the logical queue/domain owner and coordinates the bounded Series
+and Plex-container providers through semantic occurrence results. `QueueGapController` and
 `queue-gap-view.js` own the shared incomplete-sequence decision without exposing
 provider state through `ApplicationSession`. The native-video algorithms remain
 exclusively in `playback-controller.js`.
@@ -182,7 +195,7 @@ and teardown through one reverse ownership stack.
 `npm run check:architecture` uses an ECMAScript 5 AST to reject direct root Plex
 transport, feature presentation mutation, root-owned feature timers, private
 controller construction, mutable snapshot aliases, and native-video writes outside
-`playback-controller.js`. Reverse teardown, partial-construction cleanup, startup,
+`native-video-driver.js`. Reverse teardown, partial-construction cleanup, startup,
 and cross-feature restoration are verified by executable composition tests instead
 of source regexes. Physical and overlong line counts are reported as readability
 metrics rather than a hard target: explicit ports are preferable to compression or
@@ -268,30 +281,47 @@ results.
 The native HTML5 player uses a bounded delivery ladder: compatible Direct Play,
 Plex Direct Stream, requested transcoding, then a conservative 8 Mbps fallback.
 Direct Play is enabled only for capabilities reported by webOS and is skipped
-when the chosen tracks require Plex processing. Playback diagnostics show the
+when the chosen tracks require Plex processing; Automatic mode does not fall
+back to native delivery after that point, because it would silently lose the
+selected server-rendered track. Playback diagnostics show the
 source version, device UHD/HDR support, and effective delivery mode. Progress
 is reported back to Plex throughout playback. A discontinuity-resistant clock
 freezes during buffering and stream replacement, while explicit seeks remain
 free to move backward. Direct Play follows native `seekable` ranges and is
-retained whenever webOS reaches the requested point; failed seeks and decoder
-clock regressions recover through an offset-capable Direct Stream before any
-transcoding fallback. The clock and seeking rules verified on the target TV are
+retained whenever webOS reaches the requested point. Recovery keeps a technically
+usable Direct Play delivery sticky: a guarded cold reopen retries that delivery,
+and another incident while it settles does not consume Direct Stream automatically.
+Only classified compatibility evidence permits an automatic delivery fallback. The clock and seeking rules verified on the target TV are
 documented in [`playback-invariants.md`](playback-invariants.md).
 
-The final `playback-controller.js` remains the sole owner of the native video
-element, assignments to `video.src` and `video.currentTime`, stream namespace,
-stream rebuild, playback clock, timeline reporting, recovery, and subtitle
-preview lifecycle. Its public API is regression-frozen to `open`, `close`,
+`NativeVideoDriver` is the sole owner of the native video element and all physical
+`video.src`/`video.currentTime` writes, commands, events, and observations.
+`PlaybackReposition` owns absolute/native seek decisions, target verification, and bounded
+Direct Play decoder settlement without advancing the fallback plan. `PlaybackSession` owns
+lifecycle/transient playback state and stale-start rejection. `PlaybackTimeline` owns the stable
+absolute clock, public time, progress/end estimate, reporting suppression, Plex timeline reports,
+and transcode keepalive. `SubtitleRuntime` owns active local subtitle payloads, renderer lifecycle,
+failure state, runtime editor eligibility, offsets, and rendering. `PlaybackController` remains the
+cross-owner use-case facade for stream namespace/rebuild, recovery, tracks/versions, Plex subtitle
+requests/writes, subtitle preview timers, and reposition orchestration. Its public API is
+regression-frozen to `open`, `close`,
 `toggle`, `seekAbsolute`, `changeTrack`, `changeVersion`, `startAdjacent`,
 `startItem`, subtitle-editor operations, `snapshot`, `diagnostics`, and
 `destroy`. Moving presentation or wiring does not authorize changing play/pause,
 resume, seek, offset, rebuild, recovery, reporting, keepalive, buffering, track,
 version, or subtitle-timing semantics.
 
-Advanced synchronization is limited to text subtitles that Plex can expose as
-WebVTT. External offsets are persisted by Plex; embedded text offsets are
-stored locally per server, media part, and stream. Image subtitles and ASS/SSA
-remain available for ordinary playback but disable the advanced editor.
+Advanced synchronization supports SRT/WebVTT plus external and embedded ASS/SSA. Embedded ASS/SSA
+enters the editor only as a playback-settings source: Plex may expose a converted payload, so Ploff
+does not claim to edit the original ASS document or override its styles. External SRT/WebVTT offsets
+may still be persisted by Plex; local ASS/SSA timing is retained through Ploff's media/season subtitle
+presentation state, while embedded stream offsets also use the local per-server, part, and stream
+fallback. ASS/SSA uses
+the vendored JavascriptSubtitlesOctopus renderer over the native video and receives only the
+confirmed playback clock plus the draft offset; it never owns `video.src` or `video.currentTime`.
+Forced Transcode keeps ASS/SSA on Plex's burn-in path but leaves supported timing controls available;
+local-only size and appearance controls remain disabled. PGS, VobSub, and other image subtitles remain on Plex's normal playback path and are
+not timing-editable. See `docs/ass-local-renderer.md` for the current cold-start/worker architecture.
 
 ## Plex parsing ownership
 
@@ -303,9 +333,17 @@ and `hasMore` rules everywhere. This preserves server offsets when several episo
 one card or invalid container entries are omitted.
 
 Metadata requests for playback and technical media details retain independent request and
-cancellation lifecycles, but share one Video/Media/Part/Stream document traversal. The parsed
+cancellation lifecycles, but share the pure `PlexMediaDocument` Video/Media/Part/Stream
+traversal. Plex attribute-to-record mapping for cards, details, seasons, episodes, and containers
+is owned by the pure `PlexMediaMapper`; transport code no longer owns or re-exports
+presentation-neutral record construction. `PlexClient` owns the request lifecycles and consumes the parser result; the
 ordered version groups feed both playback version selection and `MediaProfile`, preventing the
 two surfaces from assigning different media or part indexes.
+
+Home row definitions and recommendation shaping are owned by `PlexHomeModel`. The model converts
+compatible library sections into Home rows, filters/prioritizes Plex recommendation hubs, maps their
+items through `PlexMediaMapper`, and performs deterministic cross-library recommendation merging.
+`PlexClient` retains recommendation request/cache/concurrency ownership and consumes the model result.
 
 `MediaProfile` is the authoritative source for Plex track normalization. `PlexClient` delegates
 playback track records to it, while `MediaProfile` applies presentation-only formatting such as
@@ -362,3 +400,28 @@ Lifecycle guidance for the modular coordinator is documented in
 [`maintenance.md`](maintenance.md). Behavioral ownership is frozen by the focused
 controller, feature, composition, lifecycle, and bundle contract tests described in
 [`testing.md`](testing.md).
+
+## Player source and clock transactions
+
+The player has one public absolute media clock, owned by `PlaybackTimeline` over
+`PlaybackClock`. DP uses the full-file native clock. HLS (remux, audio conversion,
+video conversion and conservative transcoding) translates native time using the
+active source offset exactly once. A Plex decision label does not introduce a
+second client-side clock or a subtitle-only timing correction.
+
+`PlaybackController.beginSourceSwitch` is a shared orchestration step, not another
+owner: it retires buffering/resume work, asks `PlaybackSession` to establish source
+readiness, freezes the media checkpoint, and resets the applicable local ASS epoch.
+A delayed resume must still belong to that playback generation and transcode session.
+For HLS replacement, a queued canplay without future data cannot authorize the source.
+
+`PlaybackReposition` owns bounded decoded-seek settlement. Existing DP startup and
+seekable-range policy stays intact; explicit native HLS seeks instead require the
+same source offset and buffered-range evidence. Both notify the same absolute clock
+and subtitle discontinuity path. Ordinary buffer repair is not an unlimited license
+to rebase time. Local ASS/SRT and the subtitle editor consume that confirmed clock;
+server-rendered captions remain server-owned. `SubtitleRuntime` selects the active
+editor or normal local owner consistently when priming and pausing the ASS clock.
+
+See the [clock review](cleanup/2026-09-06-hls-player-clock-review.md) for the tested
+event orders, compatibility limits and physical-device acceptance work.

@@ -1,0 +1,87 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer allowSync='1' identifier='com.plexapp.plugins.library' librarySectionID='fixture-id-001' librarySectionTitle='Anime' librarySectionUUID='fixture-uuid-001' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632' size='1'>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='6.5' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1431508' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-056' index='1' key='/library/metadata/fixture-id-144' lastViewedAt='1705158321' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='嫌いなクラスメイト' originallyAvailableAt='2022-10-05' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-144' summary='Minoru Kageno è all&apos;apparenza un normale liceale, ma nel privato si allena per diventare un eroe forte che combatte il male. Quando una sua compagna di classe sarà rapita per denaro, dovrà entrare in azione per salvarla.' thumb='/library/metadata/fixture-id-144/thumb/1783339286' title='Il compagno di classe odiato' type='episode' updatedAt='1783339286' viewCount='2' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1214' container='mkv' duration='1431508' hasVoiceActivity='1' height='1080' id='fixture-id-145' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1431508' file='/fixtures/media/S01E01.mkv' id='fixture-id-146' key='/library/parts/fixture-id-146/1705155470/file.mkv' size='230709716' videoProfile='main 10'>
+<Stream bitDepth='10' bitrate='1054' chromaLocation='left' chromaSubsampling='4:2:0' codec='hevc' codedHeight='1080' codedWidth='1920' colorRange='tv' default='1' displayTitle='1080p' extendedDisplayTitle='[Judas] x265 10b (1080p HEVC Main 10)' frameRate='23.976' height='1080' id='fixture-id-377' index='0' language='日本語' languageCode='jpn' languageTag='ja' level='150' profile='main 10' refFrames='1' streamType='1' title='[Judas] x265 10b' width='1920'>
+</Stream>
+<Stream audioChannelLayout='stereo' bitrate='159' channels='2' codec='aac' default='1' displayTitle='日本語 (AAC Stereo)' extendedDisplayTitle='Japanese (日本語 AAC Stereo)' id='fixture-id-378' index='1' language='日本語' languageCode='jpn' languageTag='ja' profile='lc' samplingRate='48000' selected='1' streamType='2' title='Japanese'>
+</Stream>
+<Stream bitrate='0' canAutoSync='0' codec='ass' default='1' displayTitle='Italiano' extendedDisplayTitle='Italian (Italiano ASS)' id='fixture-id-379' index='2' language='Italiano' languageCode='ita' languageTag='it' selected='1' streamType='3' title='Italian'>
+</Stream>
+<Stream bitrate='0' canAutoSync='0' codec='ass' displayTitle='English' extendedDisplayTitle='English (ASS)' id='fixture-id-380' index='3' language='English' languageCode='eng' languageTag='en' streamType='3' title='English'>
+</Stream>
+<Stream canAutoSync='0' codec='ass' displayTitle='Italiano' extendedDisplayTitle='Italiano (ASS External)' format='ass' id='fixture-id-381' key='/library/streams/fixture-id-381' language='Italiano' languageCode='ita' languageTag='it' streamType='3'>
+</Stream>
+</Part>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='3488' container='mkv' duration='1421100' hasVoiceActivity='1' height='1080' id='fixture-id-147' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421100' file='/fixtures/media/The Eminence in Shadow - S01E01 - The Hated Classmate.mkv' id='fixture-id-148' key='/library/parts/fixture-id-148/1769027990/file.mkv' size='633656132' videoProfile='main'>
+<Stream bitDepth='10' bitrate='3086' chromaSubsampling='4:2:0' codec='av1' codedHeight='1080' codedWidth='1920' colorPrimaries='bt709' colorRange='tv' colorSpace='bt709' colorTrc='bt709' default='1' displayTitle='1080p' extendedDisplayTitle='1080p (AV1)' frameRate='23.976' height='1080' id='fixture-id-382' index='0' language='English' languageCode='eng' languageTag='en' level='8' profile='main' refFrames='1' streamType='1' width='1920'>
+</Stream>
+<Stream audioChannelLayout='stereo' bitrate='190' channels='2' codec='opus' default='1' displayTitle='日本語 (OPUS Stereo)' extendedDisplayTitle='日本語 (OPUS Stereo)' id='fixture-id-383' index='1' language='日本語' languageCode='jpn' languageTag='ja' samplingRate='48000' selected='1' streamType='2'>
+</Stream>
+<Stream audioChannelLayout='stereo' bitrate='189' channels='2' codec='opus' displayTitle='English (OPUS Stereo)' extendedDisplayTitle='English (OPUS Stereo)' id='fixture-id-384' index='2' language='English' languageCode='eng' languageTag='en' samplingRate='48000' streamType='2'>
+</Stream>
+<Stream bitrate='0' canAutoSync='0' codec='ass' default='1' displayTitle='Italiano' extendedDisplayTitle='Dialoghi (Italiano ASS)' id='fixture-id-385' index='3' language='Italiano' languageCode='ita' languageTag='it' selected='1' streamType='3' title='Dialoghi'>
+</Stream>
+<Stream bitrate='11' canAutoSync='0' codec='ass' displayTitle='English' extendedDisplayTitle='Full Subtitles [Shadow Garden] (English ASS)' id='fixture-id-386' index='4' language='English' languageCode='eng' languageTag='en' streamType='3' title='Full Subtitles [Shadow Garden]'>
+</Stream>
+<Stream bitrate='11' canAutoSync='0' codec='ass' displayTitle='English Forced' extendedDisplayTitle='Signs/Songs [Shadow Garden] (English ASS)' forced='1' id='fixture-id-387' index='5' language='English' languageCode='eng' languageTag='en' streamType='3' title='Signs/Songs [Shadow Garden]'>
+</Stream>
+</Part>
+</Media>
+<Image alt='Il compagno di classe odiato' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Il compagno di classe odiato' type='snapshot' url='/library/metadata/5420/thumb/1783339286'/>
+<Image alt='Il compagno di classe odiato' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Il compagno di classe odiato' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='040c1d' bottomRight='061225' topLeft='020c17' topRight='030414'/>
+<Guid id='fixture-id-388'/>
+<Guid id='fixture-id-389'/>
+<Guid id='fixture-id-390'/>
+<Rating image='imdb://image.rating' type='audience' value='7.3'/>
+<Rating image='themoviedb://image.rating' type='audience' value='6.5'/>
+<Director filter='director=765' id='fixture-id-391' tag='Kazuya Nakanishi' tagKey='5e164cbb316a39003ef96b1e'/>
+<Writer filter='writer=263' id='fixture-id-392' tag='Kanichi Kato' tagKey='6001d393558218002b04b024'/>
+<Role filter='actor=7155' id='fixture-id-015' role='Cid Kagenou / Shadow (voice)' tag='Seiichiro Yamashita' tagKey='5d776c7a96b655001fe320b4' thumb='https://metadata-static.plex.tv/0/people/0cae0431355cda6f04a38d0c90fb336c.jpg'/>
+<Role filter='actor=672' id='fixture-id-017' role='Alpha (voice)' tag='Asami Seto' tagKey='5d776a06f617c90020167e8a' thumb='https://metadata-static.plex.tv/e/people/ee96b345c14d1de12dac966a05fe39da.jpg'/>
+<Role filter='actor=673' id='fixture-id-025' role='Alexia Midgar (voice)' tag='Kana Hanazawa' tagKey='5d77686c61141d001fb1a7db' thumb='https://metadata-static.plex.tv/c/people/c3e1925fa41fb02a5bf81ed525166635.jpg'/>
+<Role filter='actor=669' id='fixture-id-014' role='Beta (voice)' tag='Inori Minase' tagKey='5d776d80ad5437001f7d7bab' thumb='https://metadata-static.plex.tv/8/people/8a8e3f3cad7768922bd84dca6a31d207.jpg'/>
+<Role filter='actor=670' id='fixture-id-016' role='Gamma (voice)' tag='Suzuko Mimori' tagKey='5d776b1547dd6e001f6daebd' thumb='https://metadata-static.plex.tv/f/people/fdd587a9bd0661cd1f43a8ae995090c7.jpg'/>
+<Role filter='actor=671' id='fixture-id-022' role='Rose Oriana (voice)' tag='Haruka Shiraishi' tagKey='5d7768cc47dd6e001f6bedcc' thumb='https://metadata-static.plex.tv/5/people/5ebba953a97106b39722d3e816db6acd.jpg'/>
+<Role filter='actor=674' id='fixture-id-018' role='Delta (voice)' tag='Fairouz Ai' tagKey='5f3fc6ad58b26e00425c172f' thumb='https://metadata-static.plex.tv/a/people/a772e2962d89a3fbf78860452a3fb039.jpg'/>
+<Role filter='actor=102' id='fixture-id-027' role='Sherry Barnett (voice)' tag='Saya Aizawa' tagKey='5f406d7802101b0040fe25ee' thumb='https://metadata-static.plex.tv/6/people/6d1d6604cc15f9235fb11ac47981093a.jpg'/>
+<Role filter='actor=13368' id='fixture-id-019' role='Epsilon (voice)' tag='Hisako Kanemoto' tagKey='5f4004fa8642250042808f7e' thumb='https://metadata-static.plex.tv/9/cc68393fae/people/90fdd1845e096ee8952e214fc081c024.jpg'/>
+<Role filter='actor=675' id='fixture-id-023' role='Skel Etal (voice)' tag='Yoshitsugu Matsuoka' tagKey='5d7768a133f255001e85b5f5' thumb='https://metadata-static.plex.tv/2/people/299e9612ada944c02af9132ac3ee2b02.jpg'/>
+<Role filter='actor=677' id='fixture-id-028' role='Zeta (voice)' tag='Ayaka Asai' tagKey='5d776c0496b655001fe234f7' thumb='https://metadata-static.plex.tv/a/people/aaf54b8442b6f55d00ce57916e22aeb6.jpg'/>
+<Role filter='actor=17863' id='fixture-id-024' role='Po Tato (voice)' tag='Shin Matsushige' tagKey='5f3fcebac63b480040d76499' thumb='https://metadata-static.plex.tv/b/people/bce78318b373d62ecc325413ca2060e6.jpg'/>
+<Role filter='actor=679' id='fixture-id-020' role='Eta (voice)' tag='Reina Kondo' tagKey='5d9c08d7ba6eb9001fbab4e7' thumb='https://metadata-static.plex.tv/5/people/544f2c30a6824c89c083927725282390.jpg'/>
+<Role filter='actor=680' id='fixture-id-026' role='Iris Midgar (voice)' tag='Yoko Hikasa' tagKey='5d776a2196b655001fde4274' thumb='https://metadata-static.plex.tv/f/people/f4a7133e568f0cc06748b04198212995.jpg'/>
+<Role filter='actor=681' id='fixture-id-021' role='Claire Kagenou (voice)' tag='Rina Hidaka' tagKey='5d7768c19ab54400214eb1f6' thumb='https://metadata-static.plex.tv/8/people/833b61e0fb1f779359a8e777ddea87e1.jpg'/>
+<Role filter='actor=717' id='fixture-id-076' role='Akane Nishino (voice)' tag='Yui Horie' tagKey='5d77684654c0f0001f3055a7' thumb='https://metadata-static.plex.tv/3/people/36b55172217bddcbe2bb57374cd5359e.jpg'/>
+<Role filter='actor=718' id='fixture-id-077' role='Kidnapper (voice)' tag='Chikahiro Kobayashi' tagKey='5f40339052f2000041526d05' thumb='https://metadata-static.plex.tv/d/people/d23c0398bbf7555c87cf3e394599fb34.jpg'/>
+<Role filter='actor=20411' id='fixture-id-078' role='Kidnapper (voice)' tag='Makoto Furukawa' tagKey='5f3ff1545a76a80042d0ff9c' thumb='https://metadata-static.plex.tv/b/people/b4777293646b217ab86ba2349703bd33.jpg'/>
+<Role filter='actor=12004' id='fixture-id-037' role='Driver (voice)' tag='Reigo Yamaguchi' tagKey='5f3fc6aece2564003f85957f' thumb='https://metadata-static.plex.tv/0/people/0ab80ba75f75abb8a4860c002e48ee0e.jpg'/>
+<Role filter='actor=17404' id='fixture-id-101' role='Girl (voice)' tag='Eri Yukimura' tagKey='5f406fe8c63b480040e7548c' thumb='https://metadata-static.plex.tv/4/people/4eb3f38c3c235d01e7dd094519838f0a.jpg'/>
+<Role filter='actor=695' id='fixture-id-063' role='Boy (voice)' tag='Shogo Sakata' tagKey='5d77707dfb0d55001f5f1916' thumb='https://metadata-static.plex.tv/0/people/098c8a9d8e313c73cc397bfc703a3b05.jpg'/>
+<Role filter='actor=17420' id='fixture-id-088' role='Boy (voice)' tag='Katsumi Fukuhara' tagKey='5d9c08d34eefaa001f5e4005' thumb='https://metadata-static.plex.tv/e/people/e72cca68b49dc88487fb6012bbf13583.jpg'/>
+<Role filter='actor=721' id='fixture-id-102' role='Homeroom Teacher (voice)' tag='Aiko Okubo' tagKey='5d9c083fe98e47001eb0b141' thumb='https://metadata-static.plex.tv/b/people/b650dd521dff091c41f964596cd9acdd.jpg'/>
+<Role filter='actor=23638' id='fixture-id-033' role='Announcer (voice)' tag='Junichi Yanagita' tagKey='5dcfca2deb43ea001f4ac94c' thumb='https://metadata-static.plex.tv/a/people/a3c07019e2e3f70f408ec7af6312bc88.jpg'/>
+<Producer filter='producer=19241' id='fixture-id-393' tag='Kazufumi Kikushima' tagKey='5f406bbcbf3e560040c28d13'/>
+<Producer filter='producer=18636' id='fixture-id-394' tag='Hajime Maruyama' tagKey='5e62461175440e0041faef7d'/>
+<Producer filter='producer=19242' id='fixture-id-395' tag='Takeo Mizuguchi' tagKey='6353a57a9a5b9cfb52884fb1'/>
+<Producer filter='producer=19243' id='fixture-id-396' tag='Hiroto Utsunomiya' tagKey='62bc6357d879102cb44c8fa4'/>
+<Producer filter='producer=19244' id='fixture-id-397' tag='Shota Watase' tagKey='5f406de0fea1a1003fa7e92c'/>
+<Chapter endTimeOffset='152010' filter='thumb=5633' id='fixture-id-398' index='1' startTimeOffset='0' tag='Part A' thumb='/library/media/19187/chapterImages/1'/>
+<Chapter endTimeOffset='1012580' filter='thumb=5634' id='fixture-id-399' index='2' startTimeOffset='152010' tag='Part B' thumb='/library/media/19187/chapterImages/2'/>
+<Chapter endTimeOffset='1074100' filter='thumb=4824' id='fixture-id-400' index='3' startTimeOffset='1012580' tag='ED' thumb='/library/media/19187/chapterImages/3'/>
+<Chapter endTimeOffset='1329930' filter='thumb=5669' id='fixture-id-401' index='4' startTimeOffset='1074100' tag='Outro' thumb='/library/media/19187/chapterImages/4'/>
+<Chapter endTimeOffset='1431510' filter='thumb=4822' id='fixture-id-402' index='5' startTimeOffset='1329930' tag='OP' thumb='/library/media/19187/chapterImages/5'/>
+<Marker endTimeOffset='1368358' id='fixture-id-403' startTimeOffset='1334358' type='credits'>
+<Attributes id='fixture-id-403' version='4'/>
+</Marker>
+<Marker endTimeOffset='1431509' final='1' id='fixture-id-403' startTimeOffset='1416358' type='credits'>
+<Attributes id='fixture-id-403' version='4'/>
+</Marker>
+</Video>
+</MediaContainer>

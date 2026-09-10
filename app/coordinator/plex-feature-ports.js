@@ -46,21 +46,38 @@
 
   function detail(client) {
     return select(client, [
-      'loadMediaProfile', 'loadMetadata', 'loadSeasonEpisodes', 'loadSeriesContext',
+      'loadExtras', 'loadMediaProfile', 'loadMetadata', 'loadSeasonEpisodes', 'loadSeriesContext',
       'refreshMetadata', 'setWatchedAndReset'
     ]);
   }
 
+  function mediaContext(client) {
+    return select(client, ['removeFromContinueWatching', 'resetProgress', 'setWatchedAndReset']);
+  }
+
+  function settingsBackup(client) {
+    return select(client, [
+      'loadSettingsBackupPlaylists', 'createSettingsBackupPlaylist',
+      'updateSettingsBackupPlaylist', 'deleteSettingsBackupPlaylist'
+    ]);
+  }
+
   function player(client) {
-    return client;
+    return select(client, [
+      'loadLibraryContainerPage', 'loadMetadata', 'loadPlayback', 'loadSeasonEpisodes',
+      'loadSubtitleText', 'pingTranscode', 'posterUrl', 'preparePlayback',
+      'rotateTranscodeSession', 'sendTimeline', 'setStreamSelection', 'setSubtitleOffset'
+    ]);
   }
 
   return {
     detail: detail,
     library: library,
+    mediaContext: mediaContext,
     player: player,
     search: search,
     server: server,
+    settingsBackup: settingsBackup,
     shell: shell
   };
 }));

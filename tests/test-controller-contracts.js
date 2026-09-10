@@ -25,7 +25,9 @@ var controllerFiles = [
   'detail-controller.js',
   'detail-feature-controller.js',
   'playback-queue-controller.js',
+  'player-queue-controller.js',
   'player-controls-controller.js',
+  'player-subtitle-editor-controller.js',
   'player-feature-controller.js',
   'playback-controller.js',
   'input-controller.js',
@@ -42,6 +44,8 @@ assert.strictEqual(fs.existsSync(path.join(coordinatorRoot, 'setup-feature-contr
 assert.strictEqual(fs.existsSync(path.join(coordinatorRoot, 'server-feature-controller.js')), true, 'server-feature-controller.js must exist');
 assert.strictEqual(fs.existsSync(path.join(coordinatorRoot, 'detail-feature-controller.js')), true, 'detail-feature-controller.js must exist');
 assert.strictEqual(fs.existsSync(path.join(coordinatorRoot, 'player-feature-controller.js')), true, 'player-feature-controller.js must exist');
+assert.strictEqual(fs.existsSync(path.join(coordinatorRoot, 'player-queue-controller.js')), true, 'player-queue-controller.js must exist');
+assert.strictEqual(fs.existsSync(path.join(coordinatorRoot, 'player-subtitle-editor-controller.js')), true, 'player-subtitle-editor-controller.js must exist');
 
 controllerFiles.forEach(function (filename) {
   var modulePath = path.join(coordinatorRoot, filename);
@@ -60,6 +64,11 @@ controllerFiles.forEach(function (filename) {
 
 (function playbackPublicContractRemainsStable() {
   var PlaybackController = require(path.join(coordinatorRoot, 'playback-controller.js'));
+  var NativeVideoDriver = require(path.join(root, 'app/native-video-driver.js'));
+  var PlaybackReposition = require(path.join(root, 'app/playback-reposition.js'));
+  var PlaybackSession = require(path.join(root, 'app/playback-session.js'));
+  var PlaybackTimeline = require(path.join(root, 'app/playback-timeline.js'));
+  var SubtitleRuntime = require(path.join(root, 'app/subtitle-runtime.js'));
   var video = {
     paused: true,
     addEventListener: function () {},
@@ -74,6 +83,11 @@ controllerFiles.forEach(function (filename) {
     root: {},
     document: {},
     video: video,
+    NativeVideoDriver: NativeVideoDriver,
+    PlaybackReposition: PlaybackReposition,
+    PlaybackSession: PlaybackSession,
+    PlaybackTimeline: PlaybackTimeline,
+    SubtitleRuntime: SubtitleRuntime,
     PlexClient: {},
     PlaybackClock: { create: function () { return {}; } },
     PlaybackRecovery: { create: function () { return { plan: [], index: 0, status: 'idle', attempts: 0 }; } },
@@ -82,12 +96,14 @@ controllerFiles.forEach(function (filename) {
     PlayerTimelinePolicy: {},
     PlayerBufferingIndicator: { create: function () { return { stop: function () {}, signal: function () {} }; } },
     SubtitleSync: {},
+    SubtitleEditorSession: require(path.join(root, 'app/subtitle-editor-session.js')),
     SubtitleOffsetStore: {}
   });
   assert.deepStrictEqual(Object.keys(controller).sort(), [
     'applySubtitleEditor', 'cancelSubtitleEditor', 'changeTrack', 'changeVersion', 'close', 'destroy',
-    'diagnostics', 'open', 'openSubtitleEditor', 'seekAbsolute', 'snapshot', 'startAdjacent', 'startItem', 'toggle'
-  ], 'PlaybackController public methods must remain unchanged during composition-root cleanup');
+    'diagnostics', 'open', 'openSubtitleEditor', 'seekAbsolute', 'snapshot', 'startAdjacent', 'startItem',
+    'subtitleEditorAvailability', 'toggle'
+  ], 'PlaybackController public methods must match the explicitly reviewed playback boundary');
   controller.destroy();
 }());
 

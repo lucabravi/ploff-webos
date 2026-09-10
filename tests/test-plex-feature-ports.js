@@ -6,12 +6,15 @@ var PlexFeaturePorts = require('../app/coordinator/plex-feature-ports');
 var names = [
   'findByGuid', 'loadAccountProfile', 'loadActivities', 'loadHome',
   'loadLibraryContainerPage', 'loadLibraryFilterOptions', 'loadLibraryPage',
-  'loadLibraryRecommendations', 'loadMediaProfile', 'loadMetadata',
+  'loadLibraryRecommendations', 'loadExtras', 'loadMediaProfile', 'loadMetadata',
   'loadNavigation', 'loadPlayback', 'loadSeasonEpisodes', 'loadSeriesContext',
   'loadServerIdentity', 'loadSubtitleText', 'pingTranscode', 'posterUrl',
   'preparePlayback', 'refreshLibrary', 'refreshLibraryMetadata',
   'refreshMetadata', 'rotateTranscodeSession', 'search', 'sendTimeline',
-  'setStreamSelection', 'setSubtitleOffset', 'setWatchedAndReset', 'unexpected'
+  'setStreamSelection', 'setSubtitleOffset', 'setWatchedAndReset',
+  'removeFromContinueWatching', 'resetProgress', 'loadSettingsBackupPlaylists',
+  'createSettingsBackupPlaylist', 'updateSettingsBackupPlaylist',
+  'deleteSettingsBackupPlaylist', 'unexpected'
 ];
 var client = { marker: 'plex-client' };
 var calls = [];
@@ -43,10 +46,21 @@ verify(PlexFeaturePorts.library, [
   'refreshLibraryMetadata'
 ]);
 verify(PlexFeaturePorts.detail, [
-  'loadMediaProfile', 'loadMetadata', 'loadSeasonEpisodes', 'loadSeriesContext',
+  'loadExtras', 'loadMediaProfile', 'loadMetadata', 'loadSeasonEpisodes', 'loadSeriesContext',
   'refreshMetadata', 'setWatchedAndReset'
 ]);
-assert.strictEqual(PlexFeaturePorts.player(client), client, 'the Player port must preserve the exact PlexClient object and its complete playback API');
+verify(PlexFeaturePorts.mediaContext, [
+  'removeFromContinueWatching', 'resetProgress', 'setWatchedAndReset'
+]);
+verify(PlexFeaturePorts.settingsBackup, [
+  'loadSettingsBackupPlaylists', 'createSettingsBackupPlaylist',
+  'updateSettingsBackupPlaylist', 'deleteSettingsBackupPlaylist'
+]);
+verify(PlexFeaturePorts.player, [
+  'loadLibraryContainerPage', 'loadMetadata', 'loadPlayback', 'loadSeasonEpisodes',
+  'loadSubtitleText', 'pingTranscode', 'posterUrl', 'preparePlayback',
+  'rotateTranscodeSession', 'sendTimeline', 'setStreamSelection', 'setSubtitleOffset'
+]);
 assert.throws(function () {
   PlexFeaturePorts.search({ search: function () {} });
 }, /PlexFeaturePorts requires PlexClient\.findByGuid/, 'a missing declared operation must fail fast during composition');

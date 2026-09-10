@@ -52,8 +52,8 @@ var selectedTracks = PlaybackStrategy.plan('auto', {
   directPlay: true, codecs: ['h264'], containers: ['mkv'], uhd: false, hdr10: false, tracksRequireTranscode: true
 }, [versions[0]], 0, 'original');
 assert.deepStrictEqual(selectedTracks.map(function (step) { return step.kind; }), [
-  'transcode', 'safe-transcode', 'direct-play', 'direct-stream'
-], 'Automatic playback must retain a native fallback when the selected audio or subtitle track prefers transcoding');
+  'transcode', 'safe-transcode'
+], 'Automatic playback must keep server-rendered audio or subtitle tracks on the Plex path');
 
 var directPlan = PlaybackStrategy.plan('direct', capable, versions, 1, 'original');
 assert.deepStrictEqual(directPlan.map(function (step) { return step.kind; }), ['direct-play', 'direct-stream'], 'Direct-only mode must never silently transcode');

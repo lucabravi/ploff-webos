@@ -28,6 +28,7 @@
       filters: copyFilters(values.activeFilters, keys),
       draftFilters: copyFilters(values.activeFilters, keys),
       options: null,
+      optionsFailed: false,
       context: null,
       contextKey: '',
       pickerKey: '',
@@ -192,7 +193,7 @@
     function loadOptions() {
       var token;
       var request;
-      if (!values.loadOptions || state.options || state.request) { return; }
+      if (!values.loadOptions || (state.options && !state.optionsFailed) || state.request) { return; }
       token = state.requestToken + 1;
       state.requestToken = token;
       request = values.loadOptions(state.context, function (error, result) {
@@ -200,6 +201,7 @@
         state.request = null;
         if (!state.open) { return; }
         state.options = error ? (values.fallbackOptions ? values.fallbackOptions(error, state.context) : {}) : (result || {});
+        state.optionsFailed = !!error;
         render();
         focusTarget();
       });
@@ -212,6 +214,7 @@
       state.filters = copyFilters(filters, keys);
       state.draftFilters = copyFilters(state.filters, keys);
       state.options = null;
+      state.optionsFailed = false;
       state.context = null;
       state.contextKey = '';
       state.pickerKey = '';
@@ -225,6 +228,7 @@
       if (nextContextKey !== state.contextKey) {
         cancelRequest();
         state.options = null;
+        state.optionsFailed = false;
         state.contextKey = nextContextKey;
       }
       state.context = context;

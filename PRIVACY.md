@@ -13,7 +13,8 @@ Depending on the features you use, Ploff can access:
 - profile names and profile images;
 - Plex Media Server addresses and identifiers;
 - library metadata, artwork, filenames, and media technical information;
-- playback position, watched state, subtitle offsets, and media preferences;
+- playback position, watched state, subtitle offsets and presentation profiles,
+  and semantic media preferences;
 - application settings and navigation preferences.
 
 This information is required to connect to the server selected by the user,
@@ -22,7 +23,10 @@ display its library, play media, and preserve application preferences.
 ## Data Storage
 
 Ploff stores account tokens, cached profiles, server addresses, playback
-preferences, subtitle offsets, and application settings locally on the TV.
+preferences, subtitle offsets, subtitle presentation profiles, and application
+settings locally on the TV. Media selections and presentation profiles are
+scoped to the selected Plex server and active Plex Home profile where needed;
+they are not shared between profiles.
 Plex tokens and cached Plex Home profile credentials are stored in a private,
 app-owned webOS DB8 record. The packaged TV app does not store them in browser
 `localStorage`. If private DB8 is unavailable, credentials are kept only in
@@ -55,8 +59,9 @@ TV and server.
 Persisted account tokens and cached Plex Home profiles remain on the TV until the user
 selects **Disconnect Plex**, selects **Delete all local data**, clears the
 application's data, or uninstalls Ploff. **Delete all local data** also removes
-saved servers, settings, media preferences, subtitle offsets, navigation
-preferences, and the local client identifier, then restarts onboarding.
+saved servers, settings, media preferences, subtitle presentation profiles,
+subtitle offsets, navigation preferences, and the local client identifier, then
+restarts onboarding.
 
 Ploff does not retain a separate server-side copy of this information, so the
 developer cannot retrieve or delete data stored on a user's TV.

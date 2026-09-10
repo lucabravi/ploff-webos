@@ -9,6 +9,7 @@
   'use strict';
 
   var DEFAULT_PRIORITIES = ['resolution', 'hdr', 'quality', 'directPlay'];
+  var MIN_AFFINITY_SCORE = 350;
   var CODEC_EFFICIENCY = {
     av1: 1.35,
     hevc: 1.2,
@@ -118,6 +119,11 @@
     var score = 0;
     var largerBitrate;
     if (!current || !preferred) { return 0; }
+    if (current.videoCodec && preferred.videoCodec && current.videoCodec !== preferred.videoCodec) { return 0; }
+    if (current.container && preferred.container && current.container !== preferred.container) { return 0; }
+    if (current.width && current.height && preferred.width && preferred.height &&
+        (current.width !== preferred.width || current.height !== preferred.height)) { return 0; }
+    if (current.hdr !== preferred.hdr) { return 0; }
     if (current.hdr === preferred.hdr) { score += 100; }
     if (current.width === preferred.width && current.height === preferred.height && current.height) { score += 400; }
     if (current.videoCodec && current.videoCodec === preferred.videoCodec) { score += 240; }
@@ -127,7 +133,11 @@
     return score;
   }
 
-  function selectAffine(versions, preferred, capabilities, mode, priorities) {
+  function matchesAffinity(version, preferred) {
+    return affinityScore(version, preferred) >= MIN_AFFINITY_SCORE;
+  }
+
+  function findAffine(versions, preferred, capabilities, mode) {
     var candidates = eligible(versions, capabilities, mode);
     var best = null;
     var bestScore = 0;
@@ -135,9 +145,11 @@
       var score = affinityScore(version, preferred);
       if (score > bestScore) { best = version; bestScore = score; }
     });
-    return best && bestScore >= 350
-      ? best
-      : selectAutomatic(versions, capabilities, mode, priorities);
+    return best && bestScore >= MIN_AFFINITY_SCORE ? best : null;
+  }
+
+  function selectAffine(versions, preferred, capabilities, mode, priorities) {
+    return findAffine(versions, preferred, capabilities, mode) || selectAutomatic(versions, capabilities, mode, priorities);
   }
 
   function select(versions, options) {
@@ -165,7 +177,9 @@
     DEFAULT_PRIORITIES: DEFAULT_PRIORITIES.slice(),
     affinityScore: affinityScore,
     effectivePriorities: effectivePriorities,
+    findAffine: findAffine,
     isPrioritySupported: isPrioritySupported,
+    matchesAffinity: matchesAffinity,
     normalizePriorities: normalizePriorities,
     select: select,
     selectAffine: selectAffine,

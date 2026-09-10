@@ -21,7 +21,9 @@ assert.deepStrictEqual(defaults.videoVersionPriorities, ['resolution', 'hdr', 'q
 assert.strictEqual(defaults.lanVideoQuality, 'original', 'LAN playback must default to original quality');
 assert.strictEqual(defaults.remoteVideoQuality, '8000', 'remote playback must default to a bounded quality');
 assert.strictEqual(defaults.wheelBehavior, 'items', 'the Magic Remote wheel must default to moving the selection');
-assert.strictEqual(defaults.cardScale, 100, 'poster cards must keep the current Home size by default');
+assert.strictEqual(defaults.cardScale, 90, 'new installations must default poster cards to 90%');
+assert.strictEqual(defaults.uiTextScale, 100, 'UI text must preserve the current 100% scale by default');
+assert.strictEqual(defaults.artworkDataSaver, false, 'artwork data saver must be opt-in');
 assert.deepStrictEqual(Settings.ARTWORK_QUALITIES, [70, 80, 85, 90, 100], 'artwork quality must expose the approved high-resolution steps');
 assert.deepStrictEqual(Settings.BACKDROP_QUALITIES, [50, 60, 70, 85, 100], 'backdrop quality must expose the approved wider steps');
 assert.deepStrictEqual(Settings.VIDEO_QUALITIES, ['4000', '8000', '12000', 'original'], 'video quality must expose an increasing scale with Original at the maximum step');
@@ -32,10 +34,17 @@ assert.strictEqual(defaults.backgroundDelay, 500, 'theme audio must default to a
 assert.strictEqual(defaults.searchT9Input, true, 'T9 search input must be enabled by default');
 assert.strictEqual(defaults.showWatchlist, true, 'Watchlist navigation must remain visible by default');
 assert.strictEqual(defaults.showPlaylists, true, 'Playlist navigation must remain visible by default');
+assert.deepStrictEqual(defaults.homeRows, ['continue', 'recommended', 'recent'], 'all current Home row groups must remain visible in the historical order by default');
 assert.strictEqual(defaults.settingsBackupMode, 'off', 'Plex settings backup automation must remain opt-in');
 assert.strictEqual(defaults.subtitleBackground, 'off', 'subtitle background must preserve the existing transparent default');
 assert.strictEqual(defaults.subtitlePosition, 7, 'subtitle position must preserve the existing seven-percent baseline');
 assert.strictEqual(defaults.subtitleEdge, 'shadow', 'subtitle text must preserve the existing shadow default');
+assert.strictEqual(Settings.validate({ subtitleEdge: 'double-outline-shadow' }).subtitleEdge, 'double-outline-shadow', 'the stronger subtitle edge mode must be persisted when selected');
+assert.strictEqual(defaults.subtitleSize, 100, 'subtitle size must default to the current player size');
+assert.strictEqual(Settings.validate({ subtitleSize: 150 }).subtitleSize, 150, 'supported subtitle sizes must be accepted globally');
+assert.strictEqual(Settings.validate({ subtitleSize: 175 }).subtitleSize, 175, 'the added 175% subtitle step must be accepted globally');
+assert.strictEqual(Settings.validate({ subtitleSize: 200 }).subtitleSize, 200, 'the maximum 200% subtitle step must be accepted globally');
+assert.strictEqual(Settings.validate({ subtitleSize: 110 }).subtitleSize, 100, 'unsupported subtitle sizes must fall back to the global default');
 assert.deepStrictEqual([defaults.safeAreaTop, defaults.safeAreaRight, defaults.safeAreaBottom, defaults.safeAreaLeft], [0, 0, 0, 0], 'TV safe-area calibration must default to the full application canvas');
 
 var validated = Settings.validate({
@@ -94,7 +103,18 @@ assert.deepStrictEqual(
 );
 assert.strictEqual(Settings.validate({ cardScale: 70 }).cardScale, 70, 'the smallest supported poster scale must be accepted');
 assert.strictEqual(Settings.validate({ cardScale: 130 }).cardScale, 130, 'the largest supported poster scale must be accepted');
-assert.strictEqual(Settings.validate({ cardScale: 75 }).cardScale, 100, 'unsupported poster scales must safely fall back to 100%');
+assert.strictEqual(Settings.validate({ cardScale: 75 }).cardScale, 90, 'unsupported poster scales must safely fall back to the 90% default');
+assert.strictEqual(Settings.validate({ uiTextScale: 115 }).uiTextScale, 115, 'supported UI text scales must be accepted');
+assert.strictEqual(Settings.validate({ uiTextScale: 112 }).uiTextScale, 100, 'unsupported UI text scales must fall back to 100%');
+assert.strictEqual(Settings.validate({ artworkDataSaver: true }).artworkDataSaver, true, 'artwork data saver may be enabled explicitly');
+assert.strictEqual(Settings.validate({ artworkDataSaver: 'true' }).artworkDataSaver, false, 'artwork data saver must reject string truthiness');
+assert.strictEqual(Settings.validate({ artworkDataSaver: true, artworkQuality: 100, backdropQuality: 100 }).artworkQuality, 80, 'lightweight image loading must cap artwork quality at 80%');
+assert.strictEqual(Settings.validate({ artworkDataSaver: true, artworkQuality: 100, backdropQuality: 100 }).backdropQuality, 70, 'lightweight image loading must cap backdrop quality at 70%');
+assert.strictEqual(Settings.validate({ artworkDataSaver: true, artworkQuality: 70, backdropQuality: 60 }).artworkQuality, 70, 'lightweight image loading must preserve lower artwork quality choices');
+assert.strictEqual(Settings.validate({ artworkDataSaver: true, artworkQuality: 70, backdropQuality: 60 }).backdropQuality, 60, 'lightweight image loading must preserve lower backdrop quality choices');
+var lightweightDisabled = Settings.validate({ artworkDataSaver: false, artworkQuality: 80, backdropQuality: 70 });
+assert.strictEqual(lightweightDisabled.artworkQuality, 80, 'disabling lightweight image loading must not restore a hidden higher artwork quality');
+assert.strictEqual(lightweightDisabled.backdropQuality, 70, 'disabling lightweight image loading must not restore a hidden higher backdrop quality');
 assert.strictEqual(Settings.validate({ accentColor: 'amber' }).accentColor, 'amber', 'supported accent colors must be preserved');
 assert.strictEqual(Settings.validate({ accentColor: 'purple' }).accentColor, 'purple', 'purple must be available as an accent color');
 assert.strictEqual(Settings.validate({ accentColor: 'white' }).accentColor, 'white', 'white must be available as an accent color');
@@ -109,6 +129,10 @@ assert.strictEqual(Settings.validate({ searchT9Input: false }).searchT9Input, fa
 assert.strictEqual(Settings.validate({}).searchT9Input, true, 'stored settings without a T9 preference must receive the new default');
 assert.strictEqual(Settings.validate({ showWatchlist: false }).showWatchlist, false, 'Watchlist navigation may be hidden independently');
 assert.strictEqual(Settings.validate({ showPlaylists: false }).showPlaylists, false, 'Playlist navigation may be hidden independently');
+assert.deepStrictEqual(Settings.validate({ homeRows: ['recent', 'continue'] }).homeRows, ['recent', 'continue'], 'Home rows must preserve the chosen visible order');
+assert.deepStrictEqual(Settings.validate({ homeRows: ['recent', 'bogus', 'recent', 'recommended'] }).homeRows, ['recent', 'recommended'], 'Home rows must drop invalid and duplicate entries without restoring hidden groups');
+assert.deepStrictEqual(Settings.validate({ homeRows: [] }).homeRows, [], 'users may hide every configurable Home row group');
+assert.deepStrictEqual(Settings.validate({ homeRows: 'recent' }).homeRows, ['continue', 'recommended', 'recent'], 'invalid non-array Home row preferences must fall back to the safe default');
 assert.strictEqual(Settings.validate({ settingsBackupMode: 'on' }).settingsBackupMode, 'on', 'automatic backup may be enabled explicitly');
 assert.strictEqual(Settings.validate({ settingsBackupMode: 'sync' }).settingsBackupMode, 'on', 'legacy sync mode must migrate to automatic save');
 assert.strictEqual(Settings.validate({ settingsBackupMode: 'invalid' }).settingsBackupMode, 'off', 'unknown backup modes must fall back safely');
@@ -174,6 +198,11 @@ var storage = {
 };
 Settings.save(storage, validated);
 assert.deepStrictEqual(Settings.load(storage), validated, 'saved settings must round-trip through localStorage');
+var cappedSaved = Settings.save(storage, { artworkDataSaver: true, artworkQuality: 100, backdropQuality: 100 });
+assert.strictEqual(cappedSaved.artworkQuality, 80, 'saving lightweight image loading must persist the capped artwork quality immediately');
+assert.strictEqual(cappedSaved.backdropQuality, 70, 'saving lightweight image loading must persist the capped backdrop quality immediately');
+assert.strictEqual(Settings.load(storage).artworkQuality, 80, 'reloading lightweight image settings must retain the capped artwork quality');
+assert.strictEqual(Settings.load(storage).backdropQuality, 70, 'reloading lightweight image settings must retain the capped backdrop quality');
 storageValue = '{broken';
 assert.deepStrictEqual(Settings.load(storage), Settings.defaults(), 'invalid storage must safely fall back to defaults');
 assert.doesNotThrow(function () {
@@ -213,5 +242,6 @@ var loadedV3 = Settings.load(storageFrom({ 'ploff.settings.v3': JSON.stringify(v
 assert.strictEqual(loadedV3.version, 3, 'current fixture settings must load without a migration hop');
 assert.strictEqual(loadedV3.uiLanguage, 'de', 'current fixture settings must preserve current schema values');
 assert.strictEqual(loadedV3.cardScale, 110, 'current fixture settings must preserve current presentation values');
+assert.deepStrictEqual(loadedV3.homeRows, ['continue', 'recommended', 'recent'], 'existing v3 installations created before Home-row preferences must receive the safe visible default');
 
 console.log('Settings checks passed');

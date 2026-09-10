@@ -1,4 +1,7 @@
 body.visual-theme-classic {
+  --detail-preference-badge-background: rgba(255,255,255,.08);
+  --detail-preference-badge-border: rgba(255,255,255,.28);
+  --detail-preference-badge-text: #dfe3e8;
   --theme-app-background: #0b0c0e;
   --theme-app-text: #f5f5f5;
   --theme-scroll-track: #292d32;
