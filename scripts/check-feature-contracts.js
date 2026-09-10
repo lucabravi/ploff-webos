@@ -55,7 +55,10 @@ function objectMethods(objectExpression) {
 }
 
 function exportedMethods(source, fileName) {
-  var ast = parse(source, fileName);
+  return exportedMethodsFromAst(parse(source, fileName));
+}
+
+function exportedMethodsFromAst(ast) {
   var creates = [];
   var candidates = [];
   walk(ast, function (node) {
@@ -84,7 +87,10 @@ function exportedMethods(source, fileName) {
 }
 
 function memberUses(source, variableName, fileName) {
-  var ast = parse(source, fileName);
+  return memberUsesFromAst(parse(source, fileName), variableName);
+}
+
+function memberUsesFromAst(ast, variableName) {
   var uses = {};
   walk(ast, function (node) {
     var name = '';
@@ -106,7 +112,7 @@ function runtimeFiles(rootDirectory) {
       if (stat.isDirectory()) {
         if (name === 'vendor' || name === 'node_modules' || name === 'dist' || name === 'build') { return; }
         visit(full);
-      } else if (/\.js$/.test(name) && relative !== 'app/app.js') {
+      } else if (/\.js$/.test(name) && relative !== 'app/app.js' && relative !== 'app/player.js') {
         result.push(full);
       }
     });
@@ -128,16 +134,23 @@ function difference(left, right) {
 function analyzeProject(rootDirectory) {
   var files = runtimeFiles(rootDirectory);
   var contracts = readContracts(rootDirectory);
+  var asts = {};
   var report = { features: {}, unused: [], undeclared: [], contractDrift: [] };
+  // Invocation-local inventory: parse each current source once without retaining
+  // stale ASTs across subsequent checks or exposing them in the public report.
+  files.forEach(function (file) {
+    asts[file] = parse(fs.readFileSync(file, 'utf8'), path.relative(rootDirectory, file));
+  });
   FEATURES.forEach(function (feature) {
     var featurePath = path.join(rootDirectory, feature.file);
-    var exports = exportedMethods(fs.readFileSync(featurePath, 'utf8'), feature.file);
+    if (!asts[featurePath]) { throw new Error('Missing feature source: ' + feature.file); }
+    var exports = exportedMethodsFromAst(asts[featurePath]);
     var usedMap = { destroy: true };
     var used;
     var declared = contracts[feature.name] || exports.slice();
     files.forEach(function (file) {
       if (file === featurePath) { return; }
-      memberUses(fs.readFileSync(file, 'utf8'), feature.variable, path.relative(rootDirectory, file)).forEach(function (name) { usedMap[name] = true; });
+      memberUsesFromAst(asts[file], feature.variable).forEach(function (name) { usedMap[name] = true; });
     });
     used = Object.keys(usedMap).sort();
     difference(exports, used).forEach(function (name) { report.unused.push(feature.name + '.' + name); });

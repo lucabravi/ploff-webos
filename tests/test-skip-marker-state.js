@@ -47,6 +47,16 @@ assert.strictEqual(state.visible, false, 'a hidden prompt must not immediately r
 
 state = SkipMarkerState.update(state, markers, 85000, 9000, 3);
 assert.strictEqual(state.marker.key, 'credits:80000:90000', 'the first credits interval must be detected independently');
+var consumed = SkipMarkerState.dismiss(state, true);
+assert.strictEqual(consumed.consumed, true, 'activating a marker must remember that this interval was consumed');
+consumed = SkipMarkerState.showForControls(consumed, markers[1]);
+assert.strictEqual(consumed.visible, false, 'a consumed marker must stay hidden when controls refresh inside the same interval');
+consumed = SkipMarkerState.update(consumed, markers, 85000, 10000, 3);
+assert.strictEqual(consumed.visible, false, 'a consumed marker must stay hidden while a pending seek has not left its interval');
+consumed = SkipMarkerState.update(consumed, markers, 90000, 11000, 3);
+assert.strictEqual(consumed.marker, null, 'leaving a consumed marker must clear its consumed state');
+consumed = SkipMarkerState.update(consumed, markers, 85000, 12000, 3);
+assert.strictEqual(consumed.visible, true, 're-entering a marker after leaving it must allow a fresh skip prompt');
 state = SkipMarkerState.dismiss(state);
 assert.strictEqual(state.visible, false, 'activating a prompt must dismiss it');
 

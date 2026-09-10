@@ -83,3 +83,16 @@ assert.ok(maximumPreviewJobs <= 5, 'ten-thousand-item scrolling must load at mos
 assert.ok(maximumCancels <= 5, 'ten-thousand-item scrolling must cancel at most the leaving row');
 
 console.log('Library grid hot-path checks passed');
+
+(function benchmarkOperationBudgetsAreExecutableRegressionGuards() {
+  var focusFailures = Benchmark.operationBudgetFailures('focus-move-integrated', focusContext.counters);
+  var rowFailures = Benchmark.operationBudgetFailures('scroll-row-boundary', context.counters);
+  var badFocus = {};
+  Object.keys(focusContext.counters).forEach(function (key) { badFocus[key] = focusContext.counters[key]; });
+  badFocus.querySelector = 3;
+  assert.deepStrictEqual(focusFailures, [], 'current focus operations must fit the benchmark-derived deterministic budget');
+  assert.deepStrictEqual(rowFailures, [], 'current row-boundary operations must fit the benchmark-derived deterministic budget');
+  assert.ok(Benchmark.operationBudgetFailures('focus-move-integrated', badFocus).some(function (failure) {
+    return failure.key === 'querySelector';
+  }), 'the deterministic guard must reject a focus regression without relying on wall-clock time');
+}());

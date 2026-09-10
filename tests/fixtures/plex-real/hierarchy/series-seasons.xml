@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer allowSync='1' art='/library/metadata/fixture-id-002/art/1786263822' identifier='com.plexapp.plugins.library' key='345' librarySectionID='fixture-id-001' librarySectionTitle='Anime' librarySectionUUID='fixture-uuid-001' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632' nocache='1' parentIndex='1' parentTitle='Sample Series' parentYear='2022' size='3' summary='Synthetic fixture description.' theme='/library/metadata/fixture-id-002/theme/1786263822' thumb='/library/metadata/fixture-id-002/thumb/1786263822' title1='Sample Series' title2='Sample Series' viewGroup='season' viewMode='65593'>
+<Directory key='/library/metadata/fixture-id-002/allLeaves' leafCount='32' thumb='/library/metadata/fixture-id-002/thumb/1786263822' title='Sample Media 1' viewedLeafCount='32'/>
+<Directory addedAt='1705156264' art='/library/metadata/fixture-id-142/art/1782161989' guid='fixture-guid-002' index='1' key='/library/metadata/fixture-id-142/children' lastViewedAt='1705158321' leafCount='20' parentGuid='plex://show/603a881229be08002d3dee69' parentIndex='1' parentKey='/library/metadata/fixture-id-002' parentRatingKey='fixture-id-002' parentSlug='sample-series' parentStudio='Nexus' parentTheme='/library/metadata/345/theme/1786263822' parentThumb='/library/metadata/345/thumb/1786263822' parentTitle='Sample Series' ratingKey='fixture-id-142' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-142/thumb/1782161989' title='Season 1' type='season' updatedAt='1782161989' viewCount='13' viewedLeafCount='20' year='2022'>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/5418/thumb/1782161989'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='9c3729' bottomRight='672d27' topLeft='501911' topRight='2e6190'/>
+</Directory>
+<Directory addedAt='1697300954' art='/library/metadata/fixture-id-143/art/1782161990' guid='fixture-guid-003' index='2' key='/library/metadata/fixture-id-143/children' lastViewedAt='1784971387' leafCount='12' parentGuid='plex://show/603a881229be08002d3dee69' parentIndex='1' parentKey='/library/metadata/fixture-id-002' parentRatingKey='fixture-id-002' parentSlug='sample-series' parentStudio='Nexus' parentTheme='/library/metadata/345/theme/1786263822' parentThumb='/library/metadata/345/thumb/1786263822' parentTitle='Sample Series' ratingKey='fixture-id-143' skipCount='6' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-143/thumb/1782161990' title='Season 2' type='season' updatedAt='1782161990' viewCount='20' viewedLeafCount='12' year='2023'>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/3417/thumb/1782161990'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/3417/art/1782161990'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='9c3729' bottomRight='672d27' topLeft='501911' topRight='2e6190'/>
+</Directory>
+</MediaContainer>

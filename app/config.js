@@ -6,6 +6,7 @@
     serverName: '',
     discoveryHosts: [],
     discoveryTimeout: 1800,
+    discoveryServiceTimeout: 5000,
     accountBaseUrl: 'https://plex.tv',
     token: '',
     itemLimit: 12,

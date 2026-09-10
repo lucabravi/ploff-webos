@@ -30,17 +30,29 @@
     return next;
   }
 
-  function fail(state, offline, position) {
-    var next = clone(state);
-    next.position = Math.max(0, Number(position || next.position || 0));
-    if (offline) {
-      next.status = 'waiting-network';
-    } else if (next.index + 1 < next.plan.length) {
+  function incompatibility(error, source) {
+    var code = Number(error && error.code || 0);
+    if (source === 'native' && code === 3) { return 'media-decode'; }
+    if (source === 'native' && code === 4) { return 'media-source-unsupported'; }
+    if (source !== 'prepare' && source !== 'rebuild') { return ''; }
+    // Transport error codes and incidental words ("decoder timeout") are not MediaError evidence.
+    return /^(unsupported (codec|container|format|direct playback)|(?:codec|container|format) (?:is )?not supported)$/i.test(String(error && error.message || '')) ? 'unsupported-format' : '';
+  }
+
+  function fallback(state, offline, position, error, source) {
+    var next = failCurrent(state, offline, position);
+    if (!offline && (incompatibility(error, source) || (current(state) && current(state).kind === 'transcode' && error)) && next.index + 1 < next.plan.length) {
       next.index += 1;
       next.status = 'retrying';
-    } else {
-      next.status = 'failed';
     }
+    return next;
+  }
+
+  function failCurrent(state, offline, position) {
+    var next = clone(state);
+    var target = position === undefined || position === null ? next.position : position;
+    next.position = Math.max(0, Number(target || 0));
+    next.status = offline ? 'waiting-network' : 'failed';
     return next;
   }
 
@@ -58,7 +70,6 @@
 
   function retry(state) {
     var next = clone(state);
-    next.index = 0;
     next.status = 'retrying';
     next.attempts = 0;
     return next;
@@ -67,9 +78,6 @@
   function rebuild(state, position) {
     var next = clone(state);
     next.position = Math.max(0, Number(position || 0));
-    if (current(next) && current(next).kind === 'direct-play' && next.index + 1 < next.plan.length) {
-      next.index += 1;
-    }
     next.status = 'retrying';
     return next;
   }
@@ -86,7 +94,10 @@
     canRetry: canRetry,
     create: create,
     current: current,
-    fail: fail,
+    fail: failCurrent,
+    failCurrent: failCurrent,
+    fallback: fallback,
+    incompatibility: incompatibility,
     online: online,
     playing: playing,
     rebuild: rebuild,

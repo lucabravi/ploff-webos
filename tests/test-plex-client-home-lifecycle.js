@@ -59,6 +59,51 @@ xhrs[1].responseText = '<rows/>';
 lateRowCompletion();
 assert.strictEqual(callbacks, 0, 'aborted Home work must not publish a late result');
 
+xhrs = [];
+timers = {};
+nextTimer = 1;
+var partialResult = null;
+function sectionNode() {
+  var attributes = { key: '4', title: 'Anime', type: 'show' };
+  return {
+    nodeType: 1,
+    nodeName: 'Directory',
+    attributes: Object.keys(attributes).map(function (key) { return { name: key, value: attributes[key] }; }),
+    childNodes: [],
+    getAttribute: function (key) { return attributes[key] === undefined ? null : String(attributes[key]); }
+  };
+}
+global.DOMParser = function () {
+  this.parseFromString = function (text) {
+    return {
+      documentElement: { childNodes: text === '<sections/>' ? [sectionNode()] : [] },
+      getElementsByTagName: function () { return []; }
+    };
+  };
+};
+PlexClient.loadHome({ apiBaseUrl: '/partial-home', token: '' }, function (error, rows) {
+  partialResult = { error: error, rows: rows || [] };
+});
+xhrs[0].status = 200;
+xhrs[0].readyState = 4;
+xhrs[0].responseText = '<sections/>';
+xhrs[0].onreadystatechange();
+assert.strictEqual(xhrs.length, 4, 'a Home library starts Continue, Recent and recommendation requests after section discovery');
+xhrs[1].status = 200;
+xhrs[1].readyState = 4;
+xhrs[1].responseText = '<empty/>';
+xhrs[1].onreadystatechange();
+xhrs[2].status = 500;
+xhrs[2].readyState = 4;
+xhrs[2].responseText = '';
+xhrs[2].onreadystatechange();
+xhrs[3].status = 200;
+xhrs[3].readyState = 4;
+xhrs[3].responseText = '<empty/>';
+xhrs[3].onreadystatechange();
+assert.ok(partialResult && partialResult.error,
+  'Home must preserve a base source failure when the other completed rows contain no visible media');
+
 global.XMLHttpRequest = previousXhr;
 global.DOMParser = previousDomParser;
 global.setTimeout = previousSetTimeout;

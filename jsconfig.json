@@ -18,6 +18,7 @@
   "exclude": [
     "app/config.local.js",
     "app/app.js",
+    "app/player.js",
     "app/vendor",
     "dist",
     "node_modules"

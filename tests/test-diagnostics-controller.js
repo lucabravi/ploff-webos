@@ -43,6 +43,7 @@ var controller = DiagnosticsController.create({
           device: values.device,
           network: values.network,
           playback: values.playback,
+          startup: values.startup,
           error: String(values.error || '').replace(/token=[^\s]+/g, 'token=[redacted]')
         };
         renderedSnapshots.push(result);
@@ -80,6 +81,7 @@ var controller = DiagnosticsController.create({
     compatibility: function () { return { schemaVersion: 3, formatRuleCount: 2 }; },
     playback: function () { playbackReads += 1; return { state: 'playing', fileName: 'episode.mkv' }; },
     jsErrors: function () { return [{ type: 'error', message: 'runtime failure' }]; },
+    startup: function () { return { bootstrap: 0, compositionReady: 12 }; },
     loadIdentity: function (callback) {
       identityCallback = callback;
       return { abort: function () { aborted = true; } };
@@ -103,6 +105,7 @@ assert.strictEqual(snapshot.profile.name, 'Luca', 'profile diagnostics remain in
 assert.strictEqual(snapshot.device.modelName, 'LG TV', 'device diagnostics remain independent');
 assert.strictEqual(snapshot.network.status, 'online', 'network diagnostics remain independent');
 assert.strictEqual(snapshot.playback.fileName, 'episode.mkv', 'playback diagnostics remain independent');
+assert.deepStrictEqual(snapshot.startup, { bootstrap: 0, compositionReady: 12 }, 'startup diagnostics must remain local snapshot data');
 
 controller.capturePlayback();
 controller.setError('failure token=secret');

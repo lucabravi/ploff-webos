@@ -9,7 +9,7 @@ trap 'rm -rf "$STAGE" "$SERVICE_STAGE"' EXIT HUP INT TERM
 
 node "$ROOT/scripts/build-app.js" --check
 cp -R "$ROOT/app/." "$STAGE/"
-rm -rf "$STAGE/source"
+rm -rf "$STAGE/source" "$STAGE/coordinator" "$STAGE/styles"
 cp "$ROOT/webos-shell-app/appinfo.json" "$STAGE/appinfo.json"
 cp "$ROOT/webos-shell-app/icon.png" "$STAGE/icon.png"
 cp "$ROOT/webos-shell-app/largeIcon.png" "$STAGE/largeIcon.png"
@@ -19,6 +19,11 @@ cp -R "$ROOT/webos-service/." "$SERVICE_STAGE/"
 APP_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/webos-shell-app/appinfo.json" | head -n 1)
 test -n "$APP_VERSION" || { echo "unable to read the webOS application version" >&2; exit 1; }
 printf '%s\n' "(function (root) { 'use strict'; root.PloffBuildInfo = { version: '$APP_VERSION' }; }(this));" > "$STAGE/build-info.js"
+
+# Production keeps the source index modular for development, then collapses the
+# initial browser modules into one ordered ES5 bundle for the TV package. Lazy
+# ASS/SSA worker assets are not index scripts and remain separate.
+node "$ROOT/scripts/build-production-runtime.js" "$STAGE"
 
 # A content-derived suffix prevents webOS from reusing stale assets when local
 # development builds intentionally retain the same semantic app version.

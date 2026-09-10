@@ -1,0 +1,55 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer allowSync='1' identifier='com.plexapp.plugins.library' librarySectionID='fixture-id-245' librarySectionTitle='Film' librarySectionUUID='fixture-uuid-002' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632' size='1'>
+<Video addedAt='1714029302' art='/library/metadata/fixture-id-343/art/1784627627' audienceRating='6.6' audienceRatingImage='imdb://image.rating' contentRating='PG' duration='4339335' guid='fixture-guid-055' key='/library/metadata/fixture-id-343' lastViewedAt='1719917409' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2015-08-22' ratingKey='fixture-id-343' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-343/thumb/1784627627' title='Sample Film 5' type='movie' updatedAt='1784627627' viewCount='1' year='2015'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='3768' container='mp4' duration='4339335' has64bitOffsets='0' hasVoiceActivity='1' height='1080' id='fixture-id-344' optimizedForStreaming='1' videoCodec='h264' videoFrameRate='24p' videoProfile='high' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mp4' duration='4339335' file='/fixtures/media/fixture-media-ec40f4a93a.mp4' has64bitOffsets='0' id='fixture-id-345' key='/library/parts/fixture-id-345/1714027863/file.mp4' optimizedForStreaming='1' size='2043653847' videoProfile='high'>
+<Stream bitDepth='8' bitrate='3635' chromaLocation='left' chromaSubsampling='4:2:0' codec='h264' codedHeight='1088' codedWidth='1920' default='1' displayTitle='Sample Display' extendedDisplayTitle='Sample Display' frameRate='23.976' hasScalingMatrix='0' height='1080' id='fixture-id-346' index='0' language='日本語' languageCode='jpn' languageTag='ja' level='50' profile='high' refFrames='6' scanType='progressive' streamIdentifier='1' streamType='1' width='1920'>
+</Stream>
+<Stream audioChannelLayout='stereo' bitrate='128' channels='2' codec='aac' default='1' displayTitle='Sample Display' extendedDisplayTitle='Sample Display' id='fixture-id-347' index='1' language='日本語' languageCode='jpn' languageTag='ja' profile='lc' samplingRate='48000' selected='1' streamIdentifier='2' streamType='2'>
+</Stream>
+</Part>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/6176/thumb/1784627627'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/6176/art/1784627627'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/6176/squareArt/1784627627'/>
+<UltraBlurColors bottomLeft='713b84' bottomRight='933d4e' topLeft='0e0311' topRight='2f030c'/>
+<Genre filter='genre=14' id='fixture-id-005' tag='Anime'/>
+<Genre filter='genre=9' id='fixture-id-003' tag='Fantasy'/>
+<Genre filter='genre=7' id='fixture-id-006' tag='Animazione'/>
+<Genre filter='genre=6' id='fixture-id-004' tag='Action'/>
+<Genre filter='genre=8' id='fixture-id-008' tag='Commedia'/>
+<Genre filter='genre=51' id='fixture-id-348' tag='Romance'/>
+<Genre filter='genre=12' id='fixture-id-349' tag='Fantascienza'/>
+<Genre filter='genre=13' id='fixture-id-350' tag='Thriller'/>
+<Genre filter='genre=11' id='fixture-id-351' tag='Dramma'/>
+<Country filter='country=37' id='fixture-id-010' tag='Japan'/>
+<Guid id='fixture-id-352'/>
+<Guid id='fixture-id-353'/>
+<Guid id='fixture-id-354'/>
+<Rating image='imdb://image.rating' type='audience' value='6.6'/>
+<Rating image='themoviedb://image.rating' type='audience' value='7.3'/>
+<Director filter='director=12565' id='fixture-id-355' tag='Keitaro Motonaga' tagKey='5d77688a594b2b001e68f11a'/>
+<Writer filter='writer=21175' id='fixture-id-356' tag='Koushi Tachibana' tagKey='5dcfc6505ecbb0001f908c0b'/>
+<Role filter='actor=1392' id='fixture-id-357' role='Character 787432' tag='Performer 1023214' tagKey='5d7768505af944001f1fef6d' thumb='https://metadata-static.plex.tv/3/people/fixture-person-6065898'/>
+<Role filter='actor=2205' id='fixture-id-358' role='Character 6444230' tag='Performer 5824120' tagKey='5d77697551dd69001fe1747a' thumb='https://metadata-static.plex.tv/6/people/fixture-person-14688123'/>
+<Role filter='actor=14110' id='fixture-id-359' role='Character 12131238' tag='Performer 9573198' tagKey='5d776b8823d5a3001f5116e7' thumb='https://metadata-static.plex.tv/2/people/fixture-person-4983256'/>
+<Role filter='actor=16' id='fixture-id-360' role='Character 13745752' tag='Performer 9105921' tagKey='5d776a04594b2b001e6b0aab' thumb='https://metadata-static.plex.tv/5/people/fixture-person-377429'/>
+<Role filter='actor=9129' id='fixture-id-361' role='Character 13630774' tag='Performer 3083799' tagKey='5d77686a33f255001e8556eb' thumb='https://metadata-static.plex.tv/d/people/fixture-person-9970500'/>
+<Role filter='actor=2143' id='fixture-id-362' role='Character 4307082' tag='Performer 8089022' tagKey='5d776b30594b2b001e6d23ea' thumb='https://metadata-static.plex.tv/d/people/fixture-person-5828827'/>
+<Role filter='actor=12423' id='fixture-id-363' role='Character 5616402' tag='Performer 11678809' tagKey='5d776b8823d5a3001f5116e8' thumb='https://metadata-static.plex.tv/people/fixture-person-8872216'/>
+<Role filter='actor=12434' id='fixture-id-364' role='Character 5014365' tag='Performer 11059857' tagKey='5d776b8823d5a3001f5116e9' thumb='https://metadata-static.plex.tv/c/people/fixture-person-9926898'/>
+<Role filter='actor=33063' id='fixture-id-365' role='Character 16743140' tag='Performer 2575248' tagKey='6a0bef10593dab57b8bfc31c' thumb='https://metadata-static.plex.tv/3/people/fixture-person-10032038'/>
+<Role filter='actor=752' id='fixture-id-057' role='Character 9588429' tag='Performer 15131356' tagKey='5d776837f59e580021898dc7' thumb='https://metadata-static.plex.tv/d/people/fixture-person-14767978'/>
+<Role filter='actor=7333' id='fixture-id-366' role='Character 4431095' tag='Performer 10380582' tagKey='5d77684ee870fd001f19dcad' thumb='https://metadata-static.plex.tv/8/people/fixture-person-3510406'/>
+<Role filter='actor=3118' id='fixture-id-367' role='Character 4139755' tag='Performer 3502546' tagKey='5d776d55fb0d55001f59d7cd' thumb='https://metadata-static.plex.tv/3/people/fixture-person-14665036'/>
+<Role filter='actor=1399' id='fixture-id-368' role='Character 1167359' tag='Performer 10035672' tagKey='5d776888ad5437001f748fc1' thumb='https://metadata-static.plex.tv/5/people/fixture-person-8051765'/>
+<Role filter='actor=12428' id='fixture-id-369' role='Character 15508143' tag='Performer 16254939' tagKey='5d776a2196b655001fde4276' thumb='https://metadata-static.plex.tv/6/people/fixture-person-16628928'/>
+<Role filter='actor=20392' id='fixture-id-370' role='Character 5217266' tag='Performer 14179535' tagKey='5d776b8823d5a3001f5116ee' thumb='https://image.tmdb.org/t/p/original/4DpFDTNlhyr49zp454erVIWfF5R.jpg'/>
+<Role filter='actor=12578' id='fixture-id-371' role='Character 12453984' tag='Performer 5633578' tagKey='5d776b8823d5a3001f5116ef' thumb='https://metadata-static.plex.tv/people/fixture-person-12325752'/>
+<Role filter='actor=2262' id='fixture-id-372' role='Character 12453984' tag='Performer 15578319' tagKey='5d776b8823d5a3001f5116f0' thumb='https://metadata-static.plex.tv/4/people/fixture-person-1288968'/>
+<Role filter='actor=10133' id='fixture-id-373' role='Character 1280249' tag='Performer 4902875' tagKey='5d77697551dd69001fe1747d' thumb='https://metadata-static.plex.tv/people/fixture-person-4909030'/>
+<Role filter='actor=18119' id='fixture-id-374' role='Character 13354066' tag='Performer 13298805' tagKey='5f40025903883a0040b070df' thumb='https://metadata-static.plex.tv/f/people/fixture-person-8107999'/>
+<Role filter='actor=26861' id='fixture-id-375' role='Character 16097401' tag='Performer 16546380' tagKey='69437b5e712de62172010601'/>
+<Producer filter='producer=7585' id='fixture-id-376' tag='Chiaki Kurakane' tagKey='5d776a8b9ab544002150043c'/>
+</Video>
+</MediaContainer>

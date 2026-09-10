@@ -2,7 +2,50 @@
 
 All notable changes to Ploff are documented in this file.
 
-## [Unreleased]
+## [1.0.7] - 2026-09-11
+
+### Added
+
+- Optional local text subtitle rendering for SRT/WebVTT and ASS/SSA during Direct Play. Plex's normal subtitle path remains the default, and image subtitles remain unchanged.
+- Advanced Subtitle Settings now includes ASS/SSA timing support, local text-subtitle preview, per-track presentation data, and capability-gated controls for embedded and external tracks.
+- Subtitle presentation adds the local-renderer status pill, the optional double-outline/shadow edge, and 175%/200% size choices across Settings, Player, and the editor.
+- Subtitle preferences can now be retained for the relevant media/season and semantic subtitle track, so changing language does not discard the settings of another track.
+- Two additional Chrome 53-safe visual themes are available: Aurora, with a polar-night palette, and Mahogany, styled as a warm wooden media library.
+- Home rows can be hidden and reordered from the Home item ordering setting.
+- Up Next now supports configurable layouts, next-item artwork, and a generalized queue flow for series, playlists, collections, and mixed media.
+- Detail media options can mark every earlier episode in the selected season as watched, with confirmation, fresh Plex data, and partial-failure reporting.
+- Media Detail now has a remote-first lower pane for genres, directors, cast, trailers, and extras, with bounded artwork and lazy extra loading.
+- Accessibility and performance settings now include global interface text scaling and Lightweight image loading, with bounded artwork quality and progressive-image work.
+- Player Media Details now exposes the complete playback recovery trace, and an opt-in Web Inspector capture correlates buffering, seeks, source/recovery generations, native media events, and subtitle timing without exporting credentials, URLs, or subtitle text.
+- Release artifacts now include an SPDX SBOM, GitHub artifact attestations, immutable build references, and explicit third-party notices for bundled subtitle-rendering assets.
+
+### Changed
+
+- Player startup now loads a small Core first and defers `player.js` until Home is usable or playback is requested. The same readiness path also prewarms the enabled local ASS renderer without creating a second worker.
+- The Chrome 53 ASS/SSA worker now uses a Ploff-specific profile and an external static-memory asset: parseable worker JavaScript falls from 3,412,826 to 2,381,374 bytes while libass/FreeType/fontconfig data and rendering semantics remain unchanged.
+- Local ASS/SSA startup now preloads one persistent worker, warms a real glyph when idle time is available, reuses metadata for earlier external-track preparation, and bounds prepared lookahead and RGBA memory.
+- Subtitle lifecycle and presentation now use explicit renderer ownership, seek discontinuity gates, decoder settlement, and validity windows so local overlays follow the video clock through seek, buffer repair, and editor preview. Plex/native rendering remains the default path when local rendering is not selected.
+- Player and subtitle choices now resolve through the shared settings/season/media cascade, while global renderer ownership remains separate from per-track presentation values.
+- Playback recovery now distinguishes same-delivery retry/reopen from an explicit compatibility fallback. Direct Play remains selected through recoverable seek, buffering, clock, terminal, and stream-switch events; Direct Stream is selected only by an explicit incompatibility decision.
+- Direct Stream rebuilds retain their selected delivery and use the recovered HLS/native timeline instead of consuming the next playback-plan entry as a generic recovery step.
+- Browsing work is more predictive but bounded: likely destinations and artwork are warmed after Home is usable, stale requests are cancelled, and deeper images are promoted lazily without competing with active playback.
+- New installations now default poster-card sizing to 90%; existing saved choices remain unchanged.
+- Production IPK staging now combines the core startup modules into one ordered ES5 `core.js` while keeping the development source modular and subtitle worker/runtime assets separate.
+- Player, Plex, Settings, and diagnostics ownership boundaries were narrowed and verified with focused contracts, lifecycle tests, type checks, memory checks, and ES5/Chrome 53 gates.
+
+### Fixed
+
+- Home and its hero now reconcile late Plex/NAS media instead of remaining empty or showing stale presentation; empty and filtered states remain usable with the remote.
+- Watched state and progress now reconcile consistently between Player, Detail, Home, Library filters, and Plex after completion, rewatch, refresh, or a partial server response.
+- Playback and queue actions now reject stale selections, pagination, recovery callbacks, and near-end targets, preventing obsolete media from resuming or overwriting newer intent.
+- Skip Intro/Skip Credits now appears through the compact Player action path and stays suppressed after activation and its bounded seek settlement.
+- The first-run local Plex discovery window is now independent from the shorter HTTP probe timeout, fixing slow or missed LAN discovery on webOS.
+- Plex failures now report partial success honestly: accepted watched/progress mutations remain visible, unsuccessful writes are not presented as complete, and failed stream selection stops cleanly.
+- Settings backup restore no longer resumes onboarding or writes through a destroyed owner, and duplicate legacy credential records cannot make an older token win after restart.
+- Partial and completed media actions now expose the correct watched/unwatched choices; clearing progress uses Plex's stopped sentinel and no longer masquerades as a zero-position update.
+- Chapter and episode previews no longer show the browser broken-image glyph when artwork is absent or fails; duration badges and progress bars keep their intended geometry.
+- Initial startup seeks preserve autoplay intent, and post-seek/reopen playback resumes when the user had been playing rather than remaining paused unexpectedly.
+- Release update comparison now follows SemVer prerelease precedence, while the existing fallback remains available for development version strings.
 
 ## [1.0.6] - 2026-08-16
 
@@ -315,8 +358,9 @@ All notable changes to Ploff are documented in this file.
 [1.0.4]: https://github.com/lucabravi/ploff-webos/compare/v1.0.3...v1.0.4
 [1.0.5]: https://github.com/lucabravi/ploff-webos/compare/v1.0.4...v1.0.5
 [1.0.6]: https://github.com/lucabravi/ploff-webos/compare/v1.0.5...v1.0.6
+[1.0.7]: https://github.com/lucabravi/ploff-webos/compare/v1.0.6...v1.0.7
 [1.0.3]: https://github.com/lucabravi/ploff-webos/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/lucabravi/ploff-webos/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/lucabravi/ploff-webos/compare/v1.0.0...v1.0.1
 
-[Unreleased]: https://github.com/lucabravi/ploff-webos/compare/v1.0.6...HEAD
+[Unreleased]: https://github.com/lucabravi/ploff-webos/compare/v1.0.7...HEAD

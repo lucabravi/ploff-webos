@@ -44,6 +44,92 @@ Ploff does not upload the report. Do not add an automatic network upload, clipbo
 or file-download dependency to this flow without a separate design review; those APIs are not
 reliable enough across the supported legacy webOS range.
 
+## Buffering-clock evidence
+
+Playback diagnostics expose a deliberately small clock record so a rare webOS decoder reset can
+be distinguished from a subtitle-renderer problem. `PlaybackController.diagnostics()` records:
+
+- current `offsetBase`;
+- raw native `video.currentTime`;
+- the separately derived `offsetBase + video.currentTime` value;
+- the public/native/offset checkpoint captured when `waiting`/`stalled` began or a
+  low-readyState `timeupdate` defensively inferred the same buffering incident;
+- final or in-progress recovery acceptance, short reason, initial rejection reason, delta,
+  target, and candidate;
+- cumulative bounded clock-repair count.
+
+The completed recovery retains its originating buffering checkpoint until another incident or
+playback reset, so a support report captured after playback resumes still explains what happened.
+Reasons are fixed short values such as `accepted`, `transient-recovered`, `forward-jump`,
+`backward-jump`, `native-domain-flip`, `offset-changed`, `invalid-sample`, `explicit-seek`,
+`ended`, and `native-error`.
+
+`DiagnosticsFeatureController` forwards only those explicit fields and `support-snapshot.js`
+projects them again into the safe `playback.clock` object and compact QR payload. Do not export the
+video source URL, Plex token, subtitle content, arbitrary error objects, or a raw playback/session
+object alongside this clock record.
+
+
+## Manual unbounded Web Inspector capture
+
+Rare playback/decoder failures may need more history than the bounded support report can retain. Ploff
+therefore exposes `PloffDebugCapture` specifically for an attached Web Inspector / Codex debugging
+session.
+
+This collector is **opt-in and inactive by default**. A normal Ploff launch retains no continuous raw
+ASS/playback trace. Starting a debug capture clears any previous session and then retains events without
+a time or entry limit until it is explicitly stopped or the WebView is destroyed. Because this is
+intentionally unbounded, use it only while a debugger is attached and do not leave it running for an
+unattended viewing session.
+
+The collector is shipped as `app/debug-capture.js` but is deliberately excluded from the normal
+startup bundle. Load it from the Web Inspector only when needed; the playback controller discovers a
+late-loaded collector dynamically:
+
+```js
+var s = document.createElement('script')
+s.src = 'debug-capture.js?v=dev'
+s.onload = function () { PloffDebugCapture.start() }
+document.head.appendChild(s)
+```
+
+After `onload`, `PloffDebugCapture.status()` must report `active: true` and `unbounded: true`. When the visible failure occurs, add a marker
+without reloading or leaving the Player:
+
+```js
+PloffDebugCapture.mark('desync-visible')
+```
+
+Then export the complete session:
+
+```js
+PloffDebugCapture.export()
+```
+
+For a text payload that Codex can save from DevTools, evaluate:
+
+```js
+JSON.stringify(PloffDebugCapture.export())
+```
+
+After the payload has been saved, stop collection:
+
+```js
+PloffDebugCapture.stop()
+```
+
+The capture combines privacy-filtered events from two sources:
+
+- Player lifecycle: native `waiting`/`stalled`/`canplay`/`playing`/`seeking`/`seeked`/`timeupdate`,
+  buffering checkpoints and resume assessments, indicator grace/watchdog callbacks, explicit seeks,
+  rebuild/source preparation/application, source/buffer/recovery generations, `offsetBase`, raw native
+  time, derived native absolute time, public/subtitle clock, decoder-settlement state and clock repairs;
+- ASS renderer timing: controller/renderer/worker samples, prepared-frame lifecycle, playback epoch,
+  render generation, validity windows, libass/render/transport/RAF timing and final presented media time.
+
+The playback bridge rejects unknown payload fields; the ASS bridge retains its existing per-stage allowlist. The collector also rejects secret-bearing field names and does not retain source URLs, Plex tokens, arbitrary settings, subtitle text or raw runtime/session objects. This manual trace is separate from the normal
+bounded support-report export and must never be auto-enabled by Settings, startup code or playback state.
+
 ## Extending diagnostics
 
 1. Identify the smallest technical field needed for troubleshooting.
@@ -60,6 +146,8 @@ reliable enough across the supported legacy webOS range.
 ## Relevant tests
 
 - `tests/test-support-snapshot.js` — allowlists, sanitization, QR budgets, compact report content.
+- `tests/test-diagnostics-feature-controller.js` — explicit forwarding of the bounded playback-clock
+  allowlist into the support-report boundary.
 - `tests/test-diagnostics-view.js` — diagnostics lifecycle, QR rendering, visible text fallback.
 - `tests/test-diagnostics-controller.js` / `tests/test-diagnostics-feature-controller.js` — feature
   ownership and routing.

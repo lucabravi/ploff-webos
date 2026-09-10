@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer size='1' allowSync='1' identifier='com.plexapp.plugins.library' librarySectionID='fixture-library-001' librarySectionTitle='Anime' librarySectionUUID='fixture-uuid-001' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632'>
+  <Video ratingKey='fixture-rating-008' key='/library/metadata/fixture-rating-008' parentRatingKey='fixture-rating-002' grandparentRatingKey='fixture-rating-003' guid='fixture-guid-008' parentGuid='fixture-guid-002' grandparentGuid='fixture-guid-003' grandparentSlug='sample-series' type='episode' title='Episode 27' titleSort='Sample Sort' grandparentKey='/library/metadata/fixture-rating-003' parentKey='/library/metadata/fixture-rating-002' librarySectionTitle='Anime' librarySectionID='fixture-library-001' librarySectionKey='/library/sections/fixture-library-001' grandparentTitle='Sample Series' parentTitle='Season 1' originalTitle='Synthetic original title' contentRating='it/VM14' summary='Synthetic fixture description.' index='2' parentIndex='1' audienceRating='6.3' viewCount='4' lastViewedAt='1687419790' year='2022' thumb='/library/metadata/fixture-rating-008/thumb/1785008108' art='/library/metadata/fixture-rating-002/art/1782161989' parentThumb='/library/metadata/fixture-rating-002/thumb/1782161989' grandparentThumb='/library/metadata/fixture-rating-003/thumb/1786263822' grandparentArt='/library/metadata/fixture-rating-003/art/1786263822' grandparentTheme='/library/metadata/fixture-rating-003/theme/1786263822' duration='1431509' originallyAvailableAt='2022-10-12' addedAt='1705156264' updatedAt='1785008108' audienceRatingImage='themoviedb://image.rating' chapterSource='media'>
+    <Media id='fixture-media-008' duration='1431509' bitrate='1564' width='1920' height='1080' aspectRatio='1.78' audioChannels='2' audioCodec='aac' videoCodec='hevc' videoResolution='1080' container='mkv' videoFrameRate='24p' audioProfile='lc' videoProfile='main 10' hasVoiceActivity='1'>
+      <Part id='fixture-part-009' key='/library/parts/fixture-part-009/1705155472/file.mkv' duration='1431509' file='/fixtures/media/fixture-media-9555a56538.mkv' size='279877222' audioProfile='lc' container='mkv' videoProfile='main 10'>
+        <Stream id='fixture-stream-041' streamType='1' default='1' codec='hevc' index='0' bitrate='1564' language='日本語' languageTag='ja' languageCode='jpn' bitDepth='10' chromaLocation='left' chromaSubsampling='4:2:0' codedHeight='1080' codedWidth='1920' colorRange='tv' frameRate='23.976' height='1080' level='150' profile='main 10' refFrames='1' title='Sample Media 1' width='1920' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-042' streamType='2' selected='1' default='1' codec='aac' index='1' channels='2' bitrate='159' language='日本語' languageTag='ja' languageCode='jpn' audioChannelLayout='stereo' profile='lc' samplingRate='48000' title='Sample Media 1' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-043' streamType='3' canAutoSync='0' default='1' codec='ass' index='2' bitrate='0' language='Italiano' languageTag='it' languageCode='ita' title='Sample Media 1' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-044' streamType='3' canAutoSync='0' codec='ass' index='3' bitrate='0' language='English' languageTag='en' languageCode='eng' title='Sample Media 1' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-045' key='/library/streams/fixture-stream-045' streamType='3' canAutoSync='0' selected='1' codec='ass' language='Italiano' languageTag='it' languageCode='ita' format='ass' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+      </Part>
+    </Media>
+    <Media id='fixture-media-009' duration='1421104' bitrate='4659' width='1920' height='1080' aspectRatio='1.78' audioChannels='2' audioCodec='opus' videoCodec='av1' videoResolution='1080' container='mkv' videoFrameRate='24p' videoProfile='main' hasVoiceActivity='1'>
+      <Part id='fixture-part-010' key='/library/parts/fixture-part-010/1769027128/file.mkv' duration='1421104' file='/fixtures/media/fixture-media-c60842cbea.mkv' size='827656146' container='mkv' videoProfile='main'>
+        <Stream id='fixture-stream-046' streamType='1' default='1' codec='av1' index='0' bitrate='4659' language='English' languageTag='en' languageCode='eng' bitDepth='10' chromaSubsampling='4:2:0' codedHeight='1080' codedWidth='1920' colorPrimaries='bt709' colorRange='tv' colorSpace='bt709' colorTrc='bt709' frameRate='23.976' height='1080' level='8' profile='main' refFrames='1' width='1920' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-047' streamType='2' selected='1' default='1' codec='opus' index='1' channels='2' bitrate='187' language='日本語' languageTag='ja' languageCode='jpn' audioChannelLayout='stereo' samplingRate='48000' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-048' streamType='2' codec='opus' index='2' channels='2' bitrate='188' language='English' languageTag='en' languageCode='eng' audioChannelLayout='stereo' samplingRate='48000' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-049' streamType='3' canAutoSync='0' selected='1' default='1' codec='ass' index='3' bitrate='0' language='Italiano' languageTag='it' languageCode='ita' title='Sample Media 1' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-050' streamType='3' canAutoSync='0' codec='ass' index='4' bitrate='14' language='English' languageTag='en' languageCode='eng' title='Sample Media 1' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+        <Stream id='fixture-stream-051' streamType='3' canAutoSync='0' forced='1' codec='ass' index='5' bitrate='14' language='English' languageTag='en' languageCode='eng' title='Sample Media 1' displayTitle='Sample Display' extendedDisplayTitle='Sample Display'> </Stream>
+      </Part>
+    </Media>
+    <Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+    <Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/5419/thumb/1785008108'/>
+    <Image alt='Synthetic media artwork' type='background' url='/library/metadata/5418/art/1782161989'/>
+    <Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+    <UltraBlurColors topLeft='282353' topRight='1c1539' bottomRight='3d3b3a' bottomLeft='171030'/>
+    <Guid id='imdb://tt22541828'/>
+    <Guid id='tmdb://3976935'/>
+    <Guid id='tvdb://9360997'/>
+    <Rating image='imdb://image.rating' value='7.3' type='audience'/>
+    <Rating image='themoviedb://image.rating' value='6.3' type='audience'/>
+    <Director id='765' filter='director=765' tag='Kazuya Nakanishi' tagKey='5e164cbb316a39003ef96b1e'/>
+    <Writer id='263' filter='writer=263' tag='Kanichi Kato' tagKey='6001d393558218002b04b024'/>
+    <Role id='7155' filter='actor=7155' tag='Performer 7482038' tagKey='5d776c7a96b655001fe320b4' role='Character 8056737' thumb='https://plex.example.test/0/people/fixture-person-8880939'/>
+    <Role id='672' filter='actor=672' tag='Performer 3486581' tagKey='5d776a06f617c90020167e8a' role='Character 10681110' thumb='https://plex.example.test/e/people/fixture-person-950545'/>
+    <Role id='673' filter='actor=673' tag='Performer 9443462' tagKey='5d77686c61141d001fb1a7db' role='Character 16099076' thumb='https://plex.example.test/c/people/fixture-person-4327833'/>
+    <Role id='669' filter='actor=669' tag='Performer 5248029' tagKey='5d776d80ad5437001f7d7bab' role='Character 13841160' thumb='https://plex.example.test/8/people/fixture-person-15949545'/>
+    <Role id='670' filter='actor=670' tag='Performer 10726425' tagKey='5d776b1547dd6e001f6daebd' role='Character 14459371' thumb='https://plex.example.test/f/people/fixture-person-1352168'/>
+    <Role id='671' filter='actor=671' tag='Performer 9447636' tagKey='5d7768cc47dd6e001f6bedcc' role='Character 8033692' thumb='https://plex.example.test/5/people/fixture-person-11854839'/>
+    <Role id='674' filter='actor=674' tag='Performer 9015161' tagKey='5f3fc6ad58b26e00425c172f' role='Character 6523998' thumb='https://plex.example.test/a/people/fixture-person-5568351'/>
+    <Role id='102' filter='actor=102' tag='Performer 4175652' tagKey='5f406d7802101b0040fe25ee' role='Character 7832146' thumb='https://plex.example.test/6/people/fixture-person-8050243'/>
+    <Role id='13368' filter='actor=13368' tag='Performer 576161' tagKey='5f4004fa8642250042808f7e' role='Character 8415888' thumb='https://plex.example.test/9/cc68393fae/people/fixture-person-15756009'/>
+    <Role id='675' filter='actor=675' tag='Performer 15817597' tagKey='5d7768a133f255001e85b5f5' role='Character 2664042' thumb='https://plex.example.test/2/people/fixture-person-4268012'/>
+    <Role id='677' filter='actor=677' tag='Performer 14636524' tagKey='5d776c0496b655001fe234f7' role='Character 6421949' thumb='https://plex.example.test/a/people/fixture-person-11957837'/>
+    <Role id='17863' filter='actor=17863' tag='Performer 15967352' tagKey='5f3fcebac63b480040d76499' role='Character 13246169' thumb='https://plex.example.test/b/people/fixture-person-593375'/>
+    <Role id='679' filter='actor=679' tag='Performer 16598644' tagKey='5d9c08d7ba6eb9001fbab4e7' role='Character 6504860' thumb='https://plex.example.test/5/people/fixture-person-11168445'/>
+    <Role id='680' filter='actor=680' tag='Performer 3468376' tagKey='5d776a2196b655001fde4274' role='Character 16197309' thumb='https://plex.example.test/f/people/fixture-person-3067809'/>
+    <Role id='681' filter='actor=681' tag='Performer 3140172' tagKey='5d7768c19ab54400214eb1f6' role='Character 12759629' thumb='https://plex.example.test/8/people/fixture-person-16558636'/>
+    <Role id='724' filter='actor=724' tag='Performer 1216452' tagKey='5d7768377228e5001f1ded3c' role='Character 6649755' thumb='https://plex.example.test/7/people/fixture-person-5920968'/>
+    <Role id='706' filter='actor=706' tag='Performer 13736716' tagKey='5d776af796b655001fdff0a0' role='Character 1306510' thumb='https://plex.example.test/7/people/fixture-person-13670886'/>
+    <Role id='707' filter='actor=707' tag='Performer 2355915' tagKey='5d77687054c0f0001f30879b' role='Character 14333632' thumb='https://plex.example.test/5/people/fixture-person-1873924'/>
+    <Role id='17864' filter='actor=17864' tag='Performer 7347851' tagKey='5d776eed594b2b001e732d1f' role='Character 5878351' thumb='https://plex.example.test/f/people/fixture-person-15932222'/>
+    <Role id='1909' filter='actor=1909' tag='Performer 9713238' tagKey='5f4045ab8642250042871a46' role='Character 6029886' thumb='https://plex.example.test/5/people/fixture-person-12323221'/>
+    <Role id='687' filter='actor=687' tag='Performer 15574129' tagKey='5f4057bb1ae71000410c83c6' role='Character 12791147' thumb='https://plex.example.test/b/people/fixture-person-13873098'/>
+    <Producer id='19241' filter='producer=19241' tag='Kazufumi Kikushima' tagKey='5f406bbcbf3e560040c28d13'/>
+    <Producer id='18636' filter='producer=18636' tag='Hajime Maruyama' tagKey='5e62461175440e0041faef7d'/>
+    <Producer id='19242' filter='producer=19242' tag='Takeo Mizuguchi' tagKey='6353a57a9a5b9cfb52884fb1'/>
+    <Producer id='19243' filter='producer=19243' tag='Hiroto Utsunomiya' tagKey='62bc6357d879102cb44c8fa4'/>
+    <Producer id='19244' filter='producer=19244' tag='Shota Watase' tagKey='5f406de0fea1a1003fa7e92c'/>
+  </Video>
+</MediaContainer>

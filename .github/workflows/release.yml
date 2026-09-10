@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, plex-local-build]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,9 +35,11 @@ jobs:
 
   package-ipk:
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, plex-local-build]
     permissions:
       contents: write
+      attestations: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -51,34 +53,65 @@ jobs:
         run: |
           ./scripts/package-tv-shell.sh
           ./scripts/inspect-ipk.sh
-      - name: Prepare release assets
+      - name: Resolve packaged IPK
         run: |
           APP_ID=$(node -p "require('./webos-shell-app/appinfo.json').id")
           APP_VERSION=$(node -p "require('./webos-shell-app/appinfo.json').version")
           PACKAGE="dist/${APP_ID}_${APP_VERSION}_all.ipk"
-          PACKAGE_NAME=$(basename "$PACKAGE")
           test -f "$PACKAGE"
-          (cd dist && sha256sum "$PACKAGE_NAME") > SHA256SUMS
           echo "PACKAGE=$PACKAGE" >> "$GITHUB_ENV"
+      - name: Extract packaged payload for SBOM
+        run: |
+          SBOM_ROOT=$(mktemp -d "$RUNNER_TEMP/ploff-ipk-sbom.XXXXXX")
+          ar -p "$PACKAGE" data.tar.gz | tar -xzf - -C "$SBOM_ROOT"
+          echo "SBOM_ROOT=$SBOM_ROOT" >> "$GITHUB_ENV"
+      - name: Generate SPDX SBOM for packaged payload
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: ${{ env.SBOM_ROOT }}
+          format: spdx-json
+          output-file: dist/SBOM.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Attest IPK build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ env.PACKAGE }}
+      - name: Attest IPK SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ env.PACKAGE }}
+          sbom-path: dist/SBOM.spdx.json
+      - name: Prepare release assets
+        run: |
+          PACKAGE_NAME=$(basename "$PACKAGE")
+          test -f dist/SBOM.spdx.json
+          (cd dist && sha256sum "$PACKAGE_NAME" SBOM.spdx.json) > SHA256SUMS
+          node scripts/extract-release-notes.js "$GITHUB_REF_NAME" > RELEASE_NOTES.md
+          printf '\n---\nVerified release. Includes the generic IPK, SHA-256 checksums, SPDX SBOM, and GitHub artifact attestations.\n' >> RELEASE_NOTES.md
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$PACKAGE" SHA256SUMS --clobber
+            gh release upload "$GITHUB_REF_NAME" "$PACKAGE" SHA256SUMS dist/SBOM.spdx.json --clobber
+            gh release edit "$GITHUB_REF_NAME" \
+              --notes-file RELEASE_NOTES.md \
+              --title "Ploff $GITHUB_REF_NAME"
           else
-            gh release create "$GITHUB_REF_NAME" "$PACKAGE" SHA256SUMS \
-              --generate-notes \
-              --notes "Verified Ploff release for legacy LG webOS TVs. Includes the generic IPK and SHA-256 checksums." \
+            gh release create "$GITHUB_REF_NAME" "$PACKAGE" SHA256SUMS dist/SBOM.spdx.json \
+              --notes-file RELEASE_NOTES.md \
               --title "Ploff $GITHUB_REF_NAME"
           fi
 
   publish-image:
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, plex-local-build]
     permissions:
       contents: read
       packages: write
+      attestations: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -100,10 +133,17 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+      - id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      - name: Attest published container provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/ploff-webos-installer
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

@@ -57,6 +57,36 @@ assert.strictEqual(I18n.t('it', 'media.episodeCount', { count: 3 }), '3 episodi'
 assert.strictEqual(I18n.t('en', 'settings.wheelBehavior'), 'Wheel action', 'wheel behavior must have portable English copy');
 assert.strictEqual(I18n.t('it', 'settings.wheelItems'), 'Sposta la selezione', 'Italian wheel item mode must use user-friendly copy');
 assert.strictEqual(I18n.t('it', 'settings.backgroundMusic'), 'Musica del tema', 'Italian settings must identify Plex theme music explicitly');
+var subtitleOriginLabels = {
+  en: ['Prefer external files', 'Prefer embedded'],
+  it: ['Preferisci file esterni', 'Preferisci incorporati'],
+  es: ['Preferir archivos externos', 'Preferir integrados'],
+  fr: ['Préférer les fichiers externes', 'Préférer les sous-titres intégrés'],
+  de: ['Externe Dateien bevorzugen', 'Eingebettete Untertitel bevorzugen'],
+  pt: ['Preferir arquivos externos', 'Preferir legendas incorporadas'],
+  ja: ['外部ファイルを優先', '埋め込み字幕を優先'],
+  ko: ['외부 파일 우선', '내장 자막 우선']
+};
+Object.keys(subtitleOriginLabels).forEach(function (locale) {
+  assert.strictEqual(I18n.t(locale, 'settings.preferExternalSubtitles'), subtitleOriginLabels[locale][0], locale + ' external subtitle preference must describe external files');
+  assert.strictEqual(I18n.t(locale, 'settings.preferInternalSubtitles'), subtitleOriginLabels[locale][1], locale + ' embedded subtitle preference must use embedded terminology');
+});
+var homeOrderingLabels = {
+  en: 'Home item ordering',
+  it: 'Ordinamento elementi home',
+  es: 'Orden de elementos de Inicio',
+  fr: 'Ordre des éléments d’accueil',
+  de: 'Reihenfolge der Home-Elemente',
+  pt: 'Ordem dos itens da tela inicial',
+  ja: 'ホーム項目の並び順',
+  ko: '홈 항목 순서'
+};
+Object.keys(homeOrderingLabels).forEach(function (locale) {
+  var label = homeOrderingLabels[locale];
+  assert.strictEqual(I18n.t(locale, 'settings.homeRows'), label, locale + ' Home ordering setting must use the new navigation label');
+  assert.ok(I18n.t(locale, 'state.homeRowsHidden').indexOf(label) !== -1, locale + ' hidden Home state must reference the renamed settings destination');
+  assert.ok(I18n.t(locale, 'state.homeRowsUnavailable').indexOf(label) !== -1, locale + ' unavailable Home state must reference the renamed settings destination');
+});
 assert.strictEqual(I18n.t('it', 'settings.backup.title'), 'Impostazioni Ploff salvate', 'Italian saved-settings title must describe the stored result rather than the save action');
 assert.strictEqual(I18n.t('it', 'settings.backup.chooseSave'), 'Scegli le impostazioni salvate', 'Italian load flow must consistently refer to saved settings');
 assert.strictEqual(I18n.t('it', 'settings.backup.loadOtherDeviceHint'), 'Le impostazioni verranno copiate su questa TV senza modificarne l’identità del dispositivo.', 'Italian cross-device copy hint must use natural device-identity wording');
@@ -77,16 +107,35 @@ assert.strictEqual(I18n.t('it', 'player.transcodeShort'), 'Trascodifica', 'effec
 assert.strictEqual(I18n.t('en', 'player.resumeFrom', { time: '00:13:13' }), 'Resume from 00:13:13', 'resume copy must expose the absolute saved time');
 assert.strictEqual(I18n.t('it', 'player.playFromBeginning'), 'Riproduci dall’inizio', 'restart copy must be available in Italian');
 assert.strictEqual(I18n.t('it', 'detail.mediaOptions'), 'Opzioni media', 'Italian detail media options must be localized');
+['en', 'it', 'es', 'fr', 'de', 'pt', 'ja', 'ko'].forEach(function (locale) {
+  ['detail.preferenceEpisode', 'detail.preferenceSeason', 'detail.preferenceMedia'].forEach(function (key) {
+    assert.ok(!/^\(.*\)$/.test(I18n.t(locale, key)), locale + ' preference provenance pills must not duplicate their rounded border with wrapping parentheses');
+  });
+});
 assert.strictEqual(I18n.t('en', 'detail.markSeasonWatched'), 'Mark season as watched', 'season bulk watched action must have portable English copy');
 assert.strictEqual(I18n.t('it', 'detail.markSeasonUnwatched'), 'Segna stagione come non vista', 'season bulk unwatched action must be localized in Italian');
 assert.strictEqual(I18n.t('it', 'detail.markSeasonWatchedConfirm', { count: 10 }), 'Segnare come visti tutti i 10 episodi della stagione?', 'season bulk confirmation must expose the affected episode count');
 assert.strictEqual(I18n.t('it', 'detail.seasonBulkPartial', { count: 2 }), '2 episodi non sono stati aggiornati', 'partial season bulk failures must be localized and quantified');
+assert.strictEqual(I18n.t('en', 'detail.moreDetails'), 'More details', 'extended media details must have portable English copy');
+assert.strictEqual(I18n.t('it', 'detail.moreDetails'), 'Altri dettagli', 'the lower detail affordance must be localized in Italian');
+assert.strictEqual(I18n.t('it', 'detail.genres'), 'Generi', 'extended genre metadata must be localized in Italian');
+assert.strictEqual(I18n.t('it', 'detail.directors'), 'Regia', 'extended director metadata must use natural Italian copy');
+assert.strictEqual(I18n.t('it', 'detail.extrasLoading'), 'Caricamento extra...', 'lazy extras loading must remain localized without blocking focus');
 assert.strictEqual(I18n.t('it', 'mediaDetails.versionTitle'), 'Versione media', 'integrated version details title must be localized');
 assert.strictEqual(I18n.t('it', 'mediaDetails.versionHint'), 'Sinistra e Destra cambiano anteprima. Giù apre i dettagli.', 'version browser navigation hint must be localized');
 assert.strictEqual(I18n.t('it', 'mediaDetails.active'), 'Attiva', 'active version state must be localized');
 assert.strictEqual(I18n.t('it', 'mediaDetails.preview'), 'Anteprima', 'preview version state must be localized');
 assert.strictEqual(I18n.t('it', 'mediaDetails.useVersion'), 'Usa questa versione', 'version confirmation action must be localized');
 assert.strictEqual(I18n.t('en', 'player.advancedSubtitles'), 'Advanced subtitle settings', 'advanced subtitle settings must have portable English copy');
+assert.strictEqual(I18n.t('en', 'player.automatic'), 'Automatic', 'Player automatic selectors must use canonical Automatic copy');
+assert.strictEqual(I18n.t('it', 'player.automatic'), 'Automatico', 'Italian Player automatic selectors must use canonical Automatico copy');
+assert.strictEqual(I18n.t('en', 'player.subtitleScopeGlobal'), 'Global defaults', 'advanced subtitle scope status must identify global inheritance');
+assert.strictEqual(I18n.t('it', 'player.subtitleScopeSeason'), 'Preferenze stagione', 'advanced subtitle scope status must identify season inheritance in Italian');
+assert.strictEqual(I18n.t('it', 'player.subtitleScopeEpisode'), 'Personalizzato per questa puntata', 'episode-scoped subtitle preferences must be explicit in Italian');
+assert.strictEqual(I18n.t('en', 'player.subtitleScopeUnsaved'), 'Unsaved changes', 'advanced subtitle editor must label draft-only changes');
+assert.strictEqual(I18n.t('it', 'player.subtitleReset'), 'Ripristina preferenze sottotitoli', 'subtitle reset dialog title must be localized in Italian');
+assert.strictEqual(I18n.t('it', 'player.subtitleResetEpisode'), 'Ripristina questa puntata', 'episode subtitle reset must be localized in Italian');
+assert.strictEqual(I18n.t('it', 'player.subtitleResetSeason'), 'Ripristina questa stagione', 'season subtitle reset must be localized in Italian');
 assert.strictEqual(I18n.t('it', 'player.subtitleUnsupported'), 'Non supportato', 'unsupported subtitle timing must be explained in Italian');
 assert.strictEqual(I18n.t('en', 'player.chapters'), 'Chapters', 'chapter navigation must have portable English copy');
 assert.strictEqual(I18n.t('it', 'player.chapter'), 'Capitolo', 'individual chapter fallback titles must be localized in Italian');
@@ -96,6 +145,14 @@ assert.strictEqual(I18n.t('de', 'player.play'), 'Abspielen', 'German player cont
 assert.strictEqual(I18n.t('ko', 'player.directPlay'), '다이렉트 재생', 'Korean Direct Play terminology must be natural for video playback');
 assert.strictEqual(I18n.t('en', 'diagnostics.delivery'), 'Playback method', 'diagnostics must identify the effective playback method');
 assert.strictEqual(I18n.t('it', 'settings.subtitleSuppression'), 'Nascondi sottotitoli con audio in', 'subtitle suppression must make its language-list semantics clear');
+assert.strictEqual(I18n.t('it', 'settings.uiTextScale'), 'Dimensione testo interfaccia', 'Italian text scaling must be explicit that it affects the interface');
+assert.strictEqual(I18n.t('en', 'settings.lanVideoQuality'), 'Default LAN video quality', 'global LAN quality must be labeled as a default');
+assert.strictEqual(I18n.t('it', 'settings.remoteVideoQuality'), 'Qualità video remota predefinita', 'global remote quality must be labeled as a default in Italian');
+assert.strictEqual(I18n.t('it', 'settings.playbackMode'), 'Modalità riproduzione predefinita', 'global playback mode must be labeled as a default in Italian');
+assert.strictEqual(I18n.t('en', 'player.videoQuality'), 'Video quality', 'player quality must remain a current-playback override label');
+assert.strictEqual(I18n.t('it', 'player.playbackMode'), 'Modalità riproduzione', 'player playback mode must remain distinct from the global default label');
+assert.strictEqual(I18n.t('it', 'settings.subtitleEdge.double-outline-shadow'), 'Contorno doppio + ombra', 'the stronger subtitle edge mode must be localized in Italian');
+assert.strictEqual(I18n.t('en', 'settings.subtitleEdge.double-outline-shadow'), 'Double outline + shadow', 'the stronger subtitle edge mode must have portable English copy');
 assert.strictEqual(I18n.t('ja', 'player.queueGapTitle'), '再生順に欠落があります', 'Japanese gap copy must use playback terminology instead of technical sequence jargon');
 assert.strictEqual(I18n.t('ko', 'player.queueGapStay'), '현재 영상 계속 보기', 'Korean gap cancellation must explain that current playback continues');
 assert.ok(englishKeys.indexOf('status.searchPending') === -1, 'obsolete pre-search placeholder copy must not remain in locale dictionaries');
@@ -156,3 +213,9 @@ I18n.supportedLanguages().forEach(function (locale) {
 });
 
 console.log('i18n checks passed');
+assert.strictEqual(I18n.t('it', 'player.subtitleRenderingAssEnableGlobalConfirm'), 'Il rendering dei sottotitoli esterni di tipo .ASS / .SSA è un\'impostazione globale ed è attualmente disabilitato. Vuoi attivarlo globalmente?');
+assert.strictEqual(I18n.t('it', 'player.subtitleRenderingAssDisableGlobalConfirm'), 'Il rendering dei sottotitoli esterni di tipo .ASS / .SSA è un\'impostazione globale. Vuoi disattivarlo globalmente?');
+assert.strictEqual(I18n.t('it', 'player.subtitleRenderingSrtEnableGlobalConfirm'), 'Il rendering dei sottotitoli SRT / WebVTT sul dispositivo è un\'impostazione globale ed è attualmente disabilitato. Vuoi attivarlo globalmente?');
+assert.strictEqual(I18n.t('it', 'player.subtitleRenderingSrtDisableGlobalConfirm'), 'Il rendering dei sottotitoli SRT / WebVTT sul dispositivo è un\'impostazione globale. Vuoi disattivarlo globalmente?');
+assert.strictEqual(I18n.t('en', 'common.yes'), 'Yes');
+assert.strictEqual(I18n.t('en', 'common.no'), 'No');

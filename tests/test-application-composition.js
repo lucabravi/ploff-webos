@@ -1,227 +1,9 @@
 'use strict';
 
 var assert = require('assert');
-var fs = require('fs');
-var path = require('path');
 var ApplicationController = require('../app/coordinator/application-controller');
-var ApplicationSession = require('../app/application-session');
-var PlexFeaturePorts = require('../app/coordinator/plex-feature-ports');
-var PresentationServices = require('../app/coordinator/presentation-services');
 var Settings = require('../app/settings');
-
-function eventTarget(name) {
-  return {
-    name: name,
-    addEventListener: function () {},
-    removeEventListener: function () {}
-  };
-}
-
-function createHarness(options) {
-  var values = options || {};
-  var sourcePath = path.join(__dirname, '../app/coordinator/application-controller.js');
-  var source = fs.readFileSync(sourcePath, 'utf8');
-  var moduleNames = source.match(/root\.Ploff[A-Za-z0-9_]+/g) || [];
-  var root = { localStorage: values.localStorage || {}, navigator: { userAgent: 'composition-test' }, location: {} };
-  var calls = [];
-  var createOrder = [];
-  var destroyOrder = [];
-  var created = {};
-  var capturedOptions = {};
-  var nodes = {};
-  var deviceCallback = null;
-  var sessionUpdates = [];
-  var sessionSnapshotCalls = 0;
-  var invocations = [];
-
-  moduleNames.forEach(function (entry) { root[entry.slice(5)] = {}; });
-
-  root.PloffPlexFeaturePorts = PlexFeaturePorts;
-  root.PloffBuildInfo = values.BuildInfo || { version: 'test' };
-  if (values.PlaybackCompatibilityMemory) { root.PloffPlaybackCompatibilityMemory = values.PlaybackCompatibilityMemory; }
-  root.PloffPresentationServices = PresentationServices;
-  root.PloffClient = {};
-  [
-    'findByGuid', 'loadAccountProfile', 'loadActivities', 'loadHome',
-    'loadLibraryContainerPage', 'loadLibraryFilterOptions', 'loadLibraryPage',
-    'loadLibraryRecommendations', 'loadMediaProfile', 'loadMetadata',
-    'loadNavigation', 'loadPlayback', 'loadSeasonEpisodes', 'loadSeriesContext',
-    'loadServerIdentity', 'loadSubtitleText', 'pingTranscode', 'posterUrl',
-    'preparePlayback', 'refreshLibrary', 'refreshLibraryMetadata',
-    'refreshMetadata', 'rotateTranscodeSession', 'search', 'sendTimeline',
-    'setStreamSelection', 'setSubtitleOffset', 'setWatchedAndReset', 'resetProgress', 'removeFromContinueWatching', 'unexpected'
-    , 'loadSettingsBackupPlaylists', 'createSettingsBackupPlaylist', 'updateSettingsBackupPlaylist', 'deleteSettingsBackupPlaylist'
-  ].forEach(function (name) { root.PloffClient[name] = function () {}; });
-
-  function recordCall(name) {
-    calls.push(name);
-    if (typeof values.onCall === 'function') { values.onCall(name); }
-  }
-
-  function owner(name) {
-    var target = {
-      destroy: function () {
-        recordCall('destroy:' + name);
-        destroyOrder.push(name);
-        if (values.failDestroy === name) { throw new Error('destroy failed: ' + name); }
-      }
-    };
-    return new Proxy(target, {
-      get: function (object, property) {
-        if (!Object.prototype.hasOwnProperty.call(object, property)) {
-          object[property] = function () {
-            var args = Array.prototype.slice.call(arguments);
-            var methodKey = name + '.' + String(property);
-            recordCall(String(property) + ':' + name);
-            invocations.push({ owner: name, method: String(property), args: args });
-            if (values.failStartup === methodKey) {
-              throw new Error('startup failed: ' + methodKey);
-            }
-            if (values.methodHandlers && Object.prototype.hasOwnProperty.call(values.methodHandlers, methodKey)) {
-              return values.methodHandlers[methodKey].apply(null, args);
-            }
-            if (values.methodReturns && Object.prototype.hasOwnProperty.call(values.methodReturns, methodKey)) {
-              return values.methodReturns[methodKey];
-            }
-            if (property === 'navigationItems') { return []; }
-            if (property === 'focusState') { return { area: 'media', navIndex: 0, rowIndex: 0, column: 0 }; }
-            if (property === 'snapshot') { return {}; }
-            return undefined;
-          };
-        }
-        return object[property];
-      }
-    });
-  }
-
-  function factory(name) {
-    return {
-      create: function (factoryOptions) {
-        recordCall('create:' + name);
-        createOrder.push(name);
-        capturedOptions[name] = factoryOptions;
-        if (values.failCreate === name) { throw new Error('create failed: ' + name); }
-        created[name] = owner(name);
-        return created[name];
-      }
-    };
-  }
-
-  root.PloffSettings = values.Settings || {
-    load: function () { return {}; },
-    seedFromPlex: function (settings) { return settings; }
-  };
-  root.PloffPlexAuth = { clientIdentifier: function () { return 'composition-test'; } };
-  root.PloffReleaseStatus = {
-    create: function () {
-      return { check: function () { recordCall('release:check'); }, snapshot: function () { return { status: 'unknown', installedVersion: 'test' }; }, destroy: function () { recordCall('release:destroy'); } };
-    }
-  };
-  root.PloffPlayerTimelinePolicy = {
-    formatTime: function () { return ''; },
-    formatLongTime: function () { return ''; }
-  };
-  root.PloffNavigationModel = {
-    load: function () { return []; },
-    applyLibraryOrder: function (items) { return items || []; }
-  };
-  root.PloffDeviceLocale = { detect: function (_root, _supported, callback) { callback('en'); } };
-  root.PloffApplicationSession = {
-    create: function (initial) {
-      var session;
-      var destroySession;
-      var updateSession;
-      recordCall('create:session');
-      createOrder.push('session');
-      if (values.failCreate === 'session') { throw new Error('create failed: session'); }
-      session = ApplicationSession.create(initial);
-      destroySession = session.destroy;
-      updateSession = session.update;
-      var snapshotSession = session.snapshot;
-      session.snapshot = function () {
-        sessionSnapshotCalls += 1;
-        return snapshotSession();
-      };
-      session.update = function (patch) {
-        sessionUpdates.push(patch);
-        return updateSession(patch);
-      };
-      session.destroy = function () {
-        recordCall('destroy:session');
-        destroyOrder.push('session');
-        if (values.failDestroy === 'session') { throw new Error('destroy failed: session'); }
-        destroySession();
-      };
-      created.session = session;
-      return session;
-    }
-  };
-
-  [
-    ['PloffServerFeatureController', 'server'],
-    ['PloffPlexSettingsBackupStore', 'settingsBackup'],
-    ['PloffChoiceDialogController', 'choice'],
-    ['PloffMediaInfoDialogController', 'mediaInfo'],
-    ['PloffShellFeatureController', 'shell'],
-    ['PloffLibraryFeatureController', 'library'],
-    ['PloffDetailFeatureController', 'detail'],
-    ['PloffPlayerFeatureController', 'player'],
-    ['PloffMediaContextController', 'mediaContext'],
-    ['PloffInputController', 'input'],
-    ['PloffPointerController', 'pointer'],
-    ['PloffSearchFeatureController', 'search'],
-    ['PloffSettingsFeatureController', 'settings'],
-    ['PloffSetupFeatureController', 'setup'],
-    ['PloffDiagnosticsFeatureController', 'diagnostics']
-  ].forEach(function (pair) { root[pair[0]] = factory(pair[1]); });
-
-  root.PloffApplicationEvents = {
-    bind: function (entries) {
-      recordCall('create:events');
-      createOrder.push('events');
-      capturedOptions.events = entries;
-      if (values.failCreate === 'events') { throw new Error('create failed: events'); }
-      created.events = owner('events');
-      return created.events;
-    }
-  };
-  root.PloffDeviceCapabilities = {
-    detect: function (_root, callback) {
-      recordCall('startup:device');
-      if (values.failStartup === 'device') { throw new Error('startup failed: device'); }
-      if (values.deferDevice) { deviceCallback = callback; }
-      else { callback(values.deviceCapabilities || {}); }
-    }
-  };
-
-  nodes.document = eventTarget('document');
-  nodes.root = eventTarget('root');
-  root.addEventListener = nodes.root.addEventListener;
-  root.removeEventListener = nodes.root.removeEventListener;
-
-  return {
-    root: root,
-    document: {
-      hidden: false,
-      getElementById: function (id) {
-        if (!nodes[id]) { nodes[id] = eventTarget(id); }
-        return nodes[id];
-      },
-      createElement: function (tagName) { return eventTarget(tagName); },
-      querySelector: function () { return null; }
-    },
-    calls: calls,
-    createOrder: createOrder,
-    destroyOrder: destroyOrder,
-    created: created,
-    capturedOptions: capturedOptions,
-    sessionUpdates: sessionUpdates,
-    sessionSnapshotCalls: function () { return sessionSnapshotCalls; },
-    invocations: invocations,
-    completeDevice: function (capabilities) { if (deviceCallback) { deviceCallback(capabilities || {}); } }
-  };
-}
-
+var createHarness = require('./helpers/application-composition-harness').createHarness;
 
 (function onboardingDelegatesToTheReusableSettingsLoadFlow() {
   var status = {
@@ -285,7 +67,7 @@ function createHarness(options) {
 }());
 
 var expectedCreation = [
-  'session', 'server', 'settingsBackup', 'choice', 'mediaInfo', 'shell', 'library', 'detail', 'player',
+  'session', 'server', 'settingsBackup', 'choice', 'mediaInfo', 'assPool', 'assPrefetch', 'shell', 'library', 'detail', 'playerLoader',
   'mediaContext', 'input', 'pointer', 'search', 'settings', 'setup', 'diagnostics', 'events'
 ];
 
@@ -308,12 +90,37 @@ var expectedCreation = [
   application.destroy();
 }());
 
+(function watchedChangesInvalidateLibraryStateAcrossFeatureBoundaries() {
+  var harness = createHarness({
+    methodReturns: { 'library.activeLibrary': { key: '1', title: 'Anime' } }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var onWatchedChanged = harness.capturedOptions.detail.transitions.onWatchedChanged;
+  onWatchedChanged('show-42', true);
+  assert.ok(harness.invocations.some(function (entry) {
+    return entry.owner === 'library' && entry.method === 'reconcileWatchedState' &&
+      entry.args[0] === 'show-42' && entry.args[1] === true;
+  }), 'watched changes must invalidate Library membership/cache state before returning from Detail');
+  application.destroy();
+}());
+
+(function mediaContextMutationsInvalidateLibraryDataOutsideTheLibrarySurface() {
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.capturedOptions.mediaContext.refresh({ item: { ratingKey: 'movie-7' }, view: 'home' });
+  assert.ok(harness.invocations.some(function (entry) {
+    return entry.owner === 'library' && entry.method === 'reconcileContentMutation';
+  }), 'media-context mutations from Home/Search/Detail must invalidate cached Library data before a later re-entry');
+  application.destroy();
+}());
+
 (function updateCheckStartsOnlyFromThePostHomeHook() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
   assert.strictEqual(harness.calls.indexOf('release:check'), -1, 'application construction must not start the update request');
   harness.capturedOptions.shell.transitions.onHomeReady();
   assert.ok(harness.calls.indexOf('release:check') >= 0, 'the first successful Home presentation owns the lazy update trigger');
+  assert.ok(harness.calls.indexOf('scheduleWatchlistWarm:library') >= 0, 'the first successful Home presentation must schedule background Watchlist warming');
   application.destroy();
 }());
 
@@ -339,7 +146,7 @@ var expectedCreation = [
   }, /create failed: search/, 'the original constructor error must be rethrown');
   assert.deepStrictEqual(
     harness.destroyOrder,
-    ['pointer', 'input', 'mediaContext', 'player', 'detail', 'library', 'shell', 'mediaInfo', 'choice', 'settingsBackup', 'server', 'session'],
+    ['pointer', 'input', 'mediaContext', 'playerLoader', 'detail', 'library', 'shell', 'assPrefetch', 'assPool', 'mediaInfo', 'choice', 'settingsBackup', 'server', 'session'],
     'a middle constructor failure must clean every earlier owner in reverse order'
   );
 }());
@@ -351,7 +158,7 @@ var expectedCreation = [
   }, /create failed: search/, 'cleanup failure must not replace the original construction error');
   assert.deepStrictEqual(
     harness.destroyOrder,
-    ['pointer', 'input', 'mediaContext', 'player', 'detail', 'library', 'shell', 'mediaInfo', 'choice', 'settingsBackup', 'server', 'session'],
+    ['pointer', 'input', 'mediaContext', 'playerLoader', 'detail', 'library', 'shell', 'assPrefetch', 'assPool', 'mediaInfo', 'choice', 'settingsBackup', 'server', 'session'],
     'cleanup must continue after one owner destroy throws'
   );
 }());
@@ -460,6 +267,7 @@ var expectedCreation = [
 (function returningFromPlayerClosesTheHomeSurfaceBeforeDetailIsShown() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var state = harness.capturedOptions.player.state;
   var start = harness.calls.length;
 
@@ -582,6 +390,7 @@ var expectedCreation = [
     }
   });
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var invocationsBefore;
   var sessionState;
   var eventInvocations;
@@ -648,6 +457,7 @@ var expectedCreation = [
 (function playlistRestorePortPreservesOriginAndCurrentQueueItem() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var restore = harness.capturedOptions.player.library.restoreContainerOrigin;
   var received = null;
   var request = {
@@ -677,6 +487,7 @@ var expectedCreation = [
 (function playerMediaInfoCloseRestoresPlayerSettingsThroughComposition() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var openMediaInfo = harness.capturedOptions.player.dialogs.openMediaInfo;
   var closeCallback = harness.capturedOptions.mediaInfo.onClosed;
   var start;
@@ -732,6 +543,7 @@ var expectedCreation = [
 (function playlistAndPlayerMediaInfoPortsPreserveReturnContext() {
   var harness = createHarness({ methodReturns: { 'library.restoreContainerOrigin': true } });
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var queueItems = [{ ratingKey: 'first' }, { ratingKey: 'playing' }, { ratingKey: 'last' }];
   var origin = { kind: 'playlist', containerRatingKey: 'playlist-7' };
   var invocation;
@@ -816,6 +628,7 @@ var expectedCreation = [
 (function lateDeviceCapabilityCallbackCannotMutateDestroyedComposition() {
   var harness = createHarness({ deferDevice: true });
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var playbackCapabilities = harness.capturedOptions.player.data.playbackCapabilities;
   assert.strictEqual(playbackCapabilities().directPlay, false);
   application.destroy();
@@ -827,6 +640,7 @@ var expectedCreation = [
 (function diagnosticsPortsResolveLivePlaybackAndServerOwners() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var options = harness.capturedOptions.diagnostics;
   var start = harness.calls.length;
 
@@ -847,6 +661,7 @@ var expectedCreation = [
 (function injectsSharedPresentationServicesOutsideShell() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var services = harness.capturedOptions.shell.presentationServices;
 
   assert.strictEqual(typeof services.t, 'function', 'composition must construct the shared translation service');
@@ -863,6 +678,7 @@ var expectedCreation = [
 (function injectsNarrowPlexPortsPerFeature() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   function keys(value) { return Object.keys(value || {}).sort(); }
 
   assert.deepStrictEqual(keys(harness.capturedOptions.server.modules.PlexClient), [
@@ -880,22 +696,253 @@ var expectedCreation = [
     'refreshLibraryMetadata'
   ], 'Library must receive only library and container transport');
   assert.deepStrictEqual(keys(harness.capturedOptions.detail.data.PlexClient), [
-    'loadMediaProfile', 'loadMetadata', 'loadSeasonEpisodes', 'loadSeriesContext',
+    'loadExtras', 'loadMediaProfile', 'loadMetadata', 'loadSeasonEpisodes', 'loadSeriesContext',
     'refreshMetadata', 'setWatchedAndReset'
   ], 'Detail must receive only detail, series, mutation, and refresh transport');
-  assert.strictEqual(
-    harness.capturedOptions.player.data.PlexClient,
-    harness.root.PloffClient,
-    'Player must receive the exact original PlexClient object so playback APIs and semantics remain unchanged'
-  );
+  assert.deepStrictEqual(keys(harness.capturedOptions.player.data.PlexClient), [
+    'loadLibraryContainerPage', 'loadMetadata', 'loadPlayback', 'loadSeasonEpisodes',
+    'loadSubtitleText', 'pingTranscode', 'posterUrl', 'preparePlayback',
+    'rotateTranscodeSession', 'sendTimeline', 'setStreamSelection', 'setSubtitleOffset'
+  ], 'Player must receive only playback, queue, metadata, artwork, subtitle, and timeline transport');
+  assert.deepStrictEqual(keys(harness.capturedOptions.mediaContext.transport), [
+    'removeFromContinueWatching', 'resetProgress', 'setWatchedAndReset'
+  ], 'Media Context must receive only its three mutation operations');
+  assert.strictEqual(harness.capturedOptions.mediaContext.PlexClient, undefined, 'Media Context must not receive the complete Plex client');
+  assert.deepStrictEqual(keys(harness.capturedOptions.settingsBackup.transport), [
+    'create', 'list', 'remove', 'update'
+  ], 'Settings backup must receive only its four playlist persistence operations');
+  assert.notStrictEqual(harness.capturedOptions.settingsBackup.transport.list, harness.root.PloffClient.loadSettingsBackupPlaylists,
+    'Settings backup transport must come through the reviewed Plex feature-port boundary instead of the raw client');
 
   application.destroy();
 }());
 
 
+(function playerCompositionPublishesNativeVideoDriverCapability() {
+  var NativeVideoDriver = { create: function () {} };
+  var harness = createHarness({ NativeVideoDriver: NativeVideoDriver });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
+
+  assert.strictEqual(harness.capturedOptions.player.modules.NativeVideoDriver, NativeVideoDriver,
+    'Application composition must pass NativeVideoDriver through the Player module boundary');
+  application.destroy();
+}());
+
+(function playerCompositionPublishesPlaybackRepositionCapability() {
+  var PlaybackReposition = { create: function () {} };
+  var harness = createHarness({ PlaybackReposition: PlaybackReposition });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
+
+  assert.strictEqual(harness.capturedOptions.player.modules.PlaybackReposition, PlaybackReposition,
+    'Application composition must pass PlaybackReposition through the Player module boundary');
+  application.destroy();
+}());
+
+(function playerCompositionPublishesPlaybackSessionCapability() {
+  var PlaybackSession = { create: function () {} };
+  var harness = createHarness({ PlaybackSession: PlaybackSession });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
+
+  assert.strictEqual(harness.capturedOptions.player.modules.PlaybackSession, PlaybackSession,
+    'Application composition must pass PlaybackSession through the Player module boundary');
+  application.destroy();
+}());
+
+(function playerCompositionPublishesPlaybackTimelineCapability() {
+  var PlaybackTimeline = { create: function () {} };
+  var harness = createHarness({ PlaybackTimeline: PlaybackTimeline });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
+
+  assert.strictEqual(harness.capturedOptions.player.modules.PlaybackTimeline, PlaybackTimeline,
+    'Application composition must pass PlaybackTimeline through the Player module boundary');
+  application.destroy();
+}());
+
+(function playerCompositionPublishesSubtitleRuntimeCapability() {
+  var SubtitleRuntime = { create: function () {} };
+  var harness = createHarness({ SubtitleRuntime: SubtitleRuntime });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
+
+  assert.strictEqual(harness.capturedOptions.player.modules.SubtitleRuntime, SubtitleRuntime,
+    'Application composition must pass SubtitleRuntime through the Player module boundary');
+  application.destroy();
+}());
+
+(function applicationStartupPrewarmsTheApplicationAssPoolAndPlayerReceivesItsFactory() {
+  var prewarms = 0;
+  var destroyed = 0;
+  var receivedRendererModule = null;
+  var html5Renderer = { create: function () {} };
+  var libassRenderer = { create: function () {} };
+  var pooledFactory = { create: function () {} };
+  var pool = {
+    prewarm: function () { prewarms += 1; },
+    create: pooledFactory.create,
+    destroy: function () { destroyed += 1; }
+  };
+  var harness = createHarness({
+    AssHtml5SubtitleRenderer: html5Renderer,
+    AssSubtitleRenderer: libassRenderer,
+    AssSubtitleRendererPool: { create: function (options) { receivedRendererModule = options.rendererModule; return pool; } },
+    Settings: { load: function () { return { subtitleRenderingAss: true }; }, seedFromPlex: function (settings) { return settings; } }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  assert.strictEqual(prewarms, 1, 'ASS warmup must start during application composition');
+  harness.capturedOptions.shell.transitions.onHomeReady();
+  assert.strictEqual(prewarms, 1, 'Home readiness must not start a second ASS warmup');
+  assert.strictEqual(harness.created.player, undefined, 'ASS prewarm must not depend on Player construction');
+  harness.warmPlayer();
+  assert.strictEqual(harness.capturedOptions.player.modules.AssSubtitleRenderer, pool,
+    'Player subtitle runtime must receive the application-owned renderer pool');
+  assert.strictEqual(receivedRendererModule, libassRenderer,
+    'the production local ASS pool must use the optimized libass renderer even when an experimental renderer is present');
+  application.destroy();
+  assert.strictEqual(destroyed, 1, 'application teardown must destroy the warm ASS worker');
+}());
+
+(function firstHomeReadyDefersOneShotLegacyGlyphWarmupUntilAfterPresentation() {
+  var warms = 0;
+  var scheduled = [];
+  var preloader = { warm: function () { warms += 1; return true; } };
+  var harness = createHarness({
+    AssSubtitleWorkerPreloader: preloader,
+    Settings: { load: function () { return { subtitleRenderingAss: true }; }, seedFromPlex: function (settings) { return settings; } },
+    setTimeout: function (callback, delay) { scheduled.push({ callback: callback, delay: delay }); return scheduled.length; }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  assert.strictEqual(warms, 0, 'expensive glyph warmup must not compete with initial Home construction');
+  harness.capturedOptions.shell.transitions.onHomeReady();
+  assert.strictEqual(warms, 0, 'Home-ready hook must yield one paint before starting expensive worker-side rasterization');
+  assert.strictEqual(scheduled.filter(function (entry) { return entry.delay === 0; }).length, 1, 'first Home readiness must schedule exactly one deferred ASS glyph warmup');
+  assert.strictEqual(scheduled[0].delay, 0, 'ASS glyph warmup remains the earliest deferred work');
+  assert.ok(scheduled[1].delay > 0, 'Player must have a separate later warm timer');
+  scheduled.shift().callback();
+  assert.strictEqual(warms, 1, 'deferred Home callback must start the legacy worker glyph warmup');
+  harness.capturedOptions.shell.transitions.onHomeReady();
+  assert.strictEqual(scheduled.filter(function (entry) { return entry.delay === 0; }).length, 0, 'later Home presentations must not schedule another synthetic warmup');
+  assert.strictEqual(warms, 1, 'legacy glyph warmup must remain one-shot for the application lifetime');
+  application.destroy();
+}());
+
+(function disabledGlobalAssRenderingSkipsAllProactiveAssWork() {
+  var prewarms = 0;
+  var warms = 0;
+  var scheduled = [];
+  var pool = {
+    prewarm: function () { prewarms += 1; },
+    create: function () {},
+    destroy: function () {}
+  };
+  var preloader = {
+    start: function () { throw new Error('disabled ASS must not start the preloader'); },
+    warm: function () { warms += 1; return true; }
+  };
+  var harness = createHarness({
+    AssSubtitleRendererPool: { create: function () { return pool; } },
+    AssSubtitleWorkerPreloader: preloader,
+    Settings: { load: function () { return { subtitleRenderingAss: false }; }, seedFromPlex: function (settings) { return settings; } },
+    setTimeout: function (callback, delay) { scheduled.push({ callback: callback, delay: delay }); return scheduled.length; }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  assert.strictEqual(prewarms, 0, 'disabled global ASS rendering must skip application pool prewarm');
+  harness.capturedOptions.shell.transitions.onHomeReady();
+  assert.strictEqual(scheduled.filter(function (entry) { return entry.delay === 0; }).length, 0, 'disabled global ASS rendering must not schedule Home glyph warmup');
+  assert.strictEqual(warms, 0, 'disabled global ASS rendering must not warm the worker');
+  assert.strictEqual(harness.capturedOptions.detail.data.onAssPrefetchCandidate(
+    { ratingKey: 'ep' },
+    { ratingKey: 'ep', partId: 'part' },
+    { subtitleTrack: { id: 'ass', format: 'ass', codec: 'ass', external: true, key: '/sub.ass' } }
+  ), false, 'disabled global ASS rendering must reject speculative ASS prefetch candidates');
+  application.destroy();
+}());
+
+(function disablingGlobalAssCancelsPendingProactiveWork() {
+  var warms = 0;
+  var scheduled = [];
+  var cancelled = 0;
+  var prefetchOwner = {
+    request: function () { return true; },
+    snapshot: function () { return { activeIdentity: 'active-ass', cachedIdentity: '' }; },
+    cancelSpeculative: function () { cancelled += 1; },
+    destroy: function () {}
+  };
+  var harness = createHarness({
+    AssSubtitlePrefetch: { create: function () { return prefetchOwner; } },
+    AssSubtitleWorkerPreloader: { start: function () { return true; }, warm: function () { warms += 1; return true; } },
+    Settings: { load: function () { return { subtitleRenderingAss: true }; }, seedFromPlex: function (settings) { return settings; } },
+    setTimeout: function (callback, delay) { scheduled.push({ callback: callback, delay: delay }); return scheduled.length; }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.capturedOptions.shell.transitions.onHomeReady();
+  assert.strictEqual(scheduled.filter(function (entry) { return entry.delay === 0; }).length, 1, 'enabled ASS may schedule the deferred Home warmup');
+  harness.capturedOptions.settings.state.setSettings({ subtitleRenderingAss: false });
+  assert.strictEqual(cancelled, 1, 'disabling global ASS must cancel speculative prefetch already in flight');
+  scheduled[0].callback();
+  assert.strictEqual(warms, 0, 'a Home warmup scheduled while enabled must be skipped if ASS becomes globally disabled before it runs');
+  application.destroy();
+}());
+
+
+(function disablingGlobalAssDetectsInPlaceSettingsMutation() {
+  var cancelled = 0;
+  var prefetchOwner = {
+    request: function () { return true; },
+    snapshot: function () { return { activeIdentity: 'active-ass', cachedIdentity: '' }; },
+    cancelSpeculative: function () { cancelled += 1; },
+    destroy: function () {}
+  };
+  var harness = createHarness({
+    AssSubtitlePrefetch: { create: function () { return prefetchOwner; } },
+    Settings: { load: function () { return { subtitleRenderingAss: true }; }, seedFromPlex: function (settings) { return settings; } }
+  });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  var sharedSettings = harness.capturedOptions.settings.state.getSettings();
+  sharedSettings.subtitleRenderingAss = false;
+  harness.capturedOptions.settings.state.setSettings(sharedSettings);
+  assert.strictEqual(cancelled, 1,
+    'ASS disable must be detected even when SettingsController mutates the shared settings object before publishing it');
+  application.destroy();
+}());
+
+(function compositionSharesOneAssPrefetchOwnerAcrossDetailAndPlayer() {
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
+  assert.strictEqual(typeof harness.capturedOptions.assPrefetch.PlexClient.loadPlayback, 'function',
+    'ASS prefetch must receive the Player playback-loading capability');
+  assert.strictEqual(harness.capturedOptions.assPrefetch.PlexClient.unexpected, undefined,
+    'ASS prefetch must not receive the unrestricted PlexClient compatibility surface');
+  assert.strictEqual(typeof harness.capturedOptions.detail.data.onAssPrefetchCandidate, 'function',
+    'Detail must receive the current-item ASS prefetch publication port');
+  assert.strictEqual(harness.capturedOptions.player.data.AssSubtitlePrefetch, harness.created.assPrefetch,
+    'Player must receive the application-owned one-entry ASS prefetch owner');
+  assert.strictEqual(typeof harness.capturedOptions.player.data.prefetchCurrentAss, 'function',
+    'Player must receive the foreground current-item promotion port');
+  assert.strictEqual(typeof harness.capturedOptions.player.data.prefetchNextAss, 'function',
+    'Player must receive the timed next-item prefetch port');
+  application.destroy();
+}());
+
+(function playerCompositionPublishesPlayerQueueCapability() {
+  var PlayerQueueController = { create: function () {} };
+  var harness = createHarness({ PlayerQueueController: PlayerQueueController });
+  var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
+
+  assert.strictEqual(harness.capturedOptions.player.modules.PlayerQueueController, PlayerQueueController,
+    'Application composition must pass PlayerQueueController through the Player module boundary');
+  application.destroy();
+}());
+
 (function serverSwitchLifecycleSuspendsSettingsAndReloadsHome() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var transition = harness.capturedOptions.server.transitions.serverSwitched;
   var start;
 
@@ -933,6 +980,7 @@ var expectedCreation = [
 (function playbackIdentityLifecycleUsesSharedApplicationSession() {
   var harness = createHarness();
   var application = ApplicationController.create(harness.root, harness.document, {});
+  harness.warmPlayer();
   var state = harness.capturedOptions.player.state;
   var identity = { ratingKey: 'episode-42', serverMachineIdentifier: 'server-a' };
 
@@ -958,3 +1006,21 @@ var expectedCreation = [
 }());
 
 console.log('Application composition checks passed');
+
+(function startupMilestonesUseExistingCompositionLifecycleBoundaries() {
+  var marks = [];
+  var snapshot = { bootstrap: 0, compositionReady: 12, serverReady: 25, firstHomeContent: 48, firstFocusableUi: 48 };
+  var metrics = {
+    mark: function (name) { marks.push(name); },
+    snapshot: function () { return snapshot; }
+  };
+  var harness = createHarness();
+  var application = ApplicationController.create(harness.root, harness.document, {}, metrics);
+  assert.deepStrictEqual(marks, ['composition-ready'], 'composition must mark readiness only after all owners are constructed');
+  harness.capturedOptions.server.application.loaded();
+  assert.deepStrictEqual(marks, ['composition-ready', 'server-ready'], 'server readiness must use the existing successful application-loaded boundary');
+  harness.capturedOptions.shell.transitions.onHomeReady();
+  assert.deepStrictEqual(marks, ['composition-ready', 'server-ready', 'first-home-content', 'first-focusable-ui'], 'Home readiness must mark content and focus only at the existing post-focus boundary');
+  assert.strictEqual(harness.capturedOptions.diagnostics.state.startupSnapshot(), snapshot, 'diagnostics must expose the bounded local startup snapshot without telemetry');
+  application.destroy();
+}());

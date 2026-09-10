@@ -37,6 +37,12 @@
     var activeViewState = null;
     var homeRefreshVisualActive = false;
     var homeRefreshVisualTimer = null;
+    var lastHomeInteractionAt = 0;
+    var homeSourceRows = [];
+    var homeSourceGeneration = 0;
+    var watchedProjections = {};
+    var pendingHomeRows = null;
+    var pendingHomeApplyTimer = null;
     var serverActivityVisualState = 'idle';
     var serverActivityVisualTarget = 'idle';
     var serverActivityTransitionTimer = null;
@@ -78,14 +84,56 @@
     function navigationItems() { return controller.navigationItems(); }
     function rows() { return controller.rows(); }
 
-    function updateWatched(ratingKey, watched) {
-      var currentRows = rows();
+    function now() {
+      if (root.Date && typeof root.Date.now === 'function') { return root.Date.now(); }
+      return Date.now ? Date.now() : new Date().getTime();
+    }
+
+    function clearPendingHomeApplyTimer() {
+      if (pendingHomeApplyTimer !== null && root.clearTimeout) { root.clearTimeout(pendingHomeApplyTimer); }
+      pendingHomeApplyTimer = null;
+    }
+
+    function clearPendingHomeApply() {
+      clearPendingHomeApplyTimer();
+      pendingHomeRows = null;
+    }
+
+    function applyPendingHomeRows() {
+      var nextRows = pendingHomeRows;
+      pendingHomeRows = null;
+      pendingHomeApplyTimer = null;
+      if (destroyed || !nextRows) { return; }
+      if (currentView() === 'home') {
+        useHomeRows(nextRows, 0, {
+          focus: focusState().area === 'nav' ? 'nav' : 'preserve',
+          selectionKey: controller.selectionKey()
+        });
+      } else {
+        controller.setRows(nextRows);
+        controller.markHomeDirty();
+      }
+    }
+
+    function schedulePendingHomeApply(delay) {
+      clearPendingHomeApplyTimer();
+      if (!root.setTimeout) { applyPendingHomeRows(); return; }
+      pendingHomeApplyTimer = root.setTimeout(applyPendingHomeRows, Math.max(0, Number(delay) || 0));
+    }
+
+    function noteHomeInteraction() {
+      if (destroyed || currentView() !== 'home') { return; }
+      lastHomeInteractionAt = now();
+      if (pendingHomeRows) { schedulePendingHomeApply(700); }
+    }
+
+    function projectWatchedState(targetRows, ratingKey, watched) {
       var rowIndex;
       var itemIndex;
       var item;
-      for (rowIndex = 0; rowIndex < currentRows.length; rowIndex += 1) {
-        for (itemIndex = 0; itemIndex < (currentRows[rowIndex].items || []).length; itemIndex += 1) {
-          item = currentRows[rowIndex].items[itemIndex];
+      for (rowIndex = 0; rowIndex < (targetRows || []).length; rowIndex += 1) {
+        for (itemIndex = 0; itemIndex < (targetRows[rowIndex].items || []).length; itemIndex += 1) {
+          item = targetRows[rowIndex].items[itemIndex];
           if (String(item.ratingKey || '') === String(ratingKey || '')) {
             item.viewed = watched;
             item.viewOffset = 0;
@@ -93,6 +141,22 @@
           }
         }
       }
+    }
+
+    function applyWatchedProjections(targetRows) {
+      var key;
+      for (key in watchedProjections) {
+        if (Object.prototype.hasOwnProperty.call(watchedProjections, key)) {
+          projectWatchedState(targetRows, key.slice(1), watchedProjections[key]);
+        }
+      }
+    }
+
+    function updateWatched(ratingKey, watched) {
+      watchedProjections['$' + String(ratingKey || '')] = watched === true;
+      projectWatchedState(rows(), ratingKey, watched);
+      projectWatchedState(homeSourceRows, ratingKey, watched);
+      projectWatchedState(pendingHomeRows, ratingKey, watched);
       return controller.refreshHome();
     }
 
@@ -100,22 +164,62 @@
       return call(presentationServices.t, key, parameters);
     }
 
+    function homeRowsHiddenBySettings() {
+      var current = settings();
+      return !!(current.homeRows && current.homeRows.length === 0);
+    }
+
+    function homeRowsUnavailableBySettings() {
+      var current = settings();
+      var preferred;
+      if (!current.homeRows || !current.homeRows.length || !homeSourceRows.length) { return false; }
+      preferred = preferredHomeRows(homeSourceRows);
+      if (HomeState && typeof HomeState.normalizeRows === 'function') { preferred = HomeState.normalizeRows(preferred); }
+      return !preferred.length;
+    }
+
+    function preferredHomeRows(nextRows) {
+      var current = settings();
+      var configurableKinds = modules.SettingsSchema && modules.SettingsSchema.allowed
+        ? modules.SettingsSchema.allowed('homeRows')
+        : null;
+      (nextRows || []).forEach(function (row) { if (row.recommendation) { row.title = t('home.recommended'); } });
+      if (!HomeState || typeof HomeState.applyRowPreferences !== 'function') { return (nextRows || []).slice(); }
+      return HomeState.applyRowPreferences(nextRows || [], current.homeRows, configurableKinds);
+    }
+
     function loadHome(callback) {
-      if (typeof data.loadHome === 'function') { return data.loadHome(callback); }
-      if (!PlexClient || typeof PlexClient.loadHome !== 'function') { call(callback, new Error('Home transport unavailable'), []); return null; }
-      return PlexClient.loadHome(config, function (error, nextRows) {
-        (nextRows || []).forEach(function (row) { if (row.recommendation) { row.title = t('home.recommended'); } });
+      return loadHomeRequest(callback, true);
+    }
+
+    function loadHomeRequest(callback, retainSource) {
+      var sourceGeneration = homeSourceGeneration;
+      retainSource = retainSource !== false;
+      if (retainSource) {
+        sourceGeneration += 1;
+        homeSourceGeneration = sourceGeneration;
+      }
+      function finish(error, nextRows) {
+        if (!error) {
+          nextRows = (nextRows || []).slice();
+          applyWatchedProjections(nextRows);
+          if (retainSource && !destroyed && sourceGeneration === homeSourceGeneration) { homeSourceRows = nextRows; }
+          nextRows = preferredHomeRows(nextRows);
+        }
         call(callback, error, nextRows || []);
-      });
+      }
+      if (typeof data.loadHome === 'function') { return data.loadHome(finish); }
+      if (!PlexClient || typeof PlexClient.loadHome !== 'function') { call(callback, new Error('Home transport unavailable'), []); return null; }
+      return PlexClient.loadHome(config, finish);
     }
 
     function loadBackdropPreview(callback) {
       var source = controller.sampleBackdropSource ? controller.sampleBackdropSource() : '';
       if (source) { call(callback, null, source); return null; }
-      return loadHome(function (error, nextRows) {
+      return loadHomeRequest(function (error, nextRows) {
         var sample = !error && controller.sampleBackdropSource ? controller.sampleBackdropSource(nextRows) : '';
         call(callback, error || (!sample ? new Error('Backdrop preview unavailable') : null), sample || '');
-      });
+      }, false);
     }
 
     function loadThemeMetadata(ratingKey, callback) {
@@ -226,6 +330,20 @@
       callback = action === 'retry' ? current.retry : current.back;
       hideViewState();
       call(callback);
+    }
+
+    function showPassiveHomeState(messageKey) {
+      var actions;
+      var section;
+      if (destroyed || !document) { return false; }
+      hideViewState();
+      actions = document.getElementById('view-state-actions');
+      section = document.getElementById('view-state');
+      setText('view-state-title', t('state.empty'));
+      setText('view-state-message', t(messageKey));
+      if (actions) { actions.innerHTML = ''; }
+      if (section) { section.className = 'view-state'; }
+      return true;
     }
 
     function showViewState(kind, scope, retryAction, backAction) {
@@ -451,6 +569,7 @@
       var preview = document && document.getElementById ? document.getElementById('home-preview') : null;
       var body = document && document.body;
       clearNavigationSurfaceAnimation();
+      hideViewState();
       if (content) { content.style.display = 'none'; }
       if (preview) { preview.style.display = 'none'; }
       if (body) { body.className = String(body.className || '').replace(/\s*is-home-surface-active/g, ''); }
@@ -513,7 +632,7 @@
 
     function refreshHome() {
       if (destroyed) { return false; }
-      if (currentView() === 'home' && !rows().length && !passiveHomeState('state.homeLoading')) {
+      if (currentView() === 'home' && !rows().length && !homeRowsHiddenBySettings() && !homeRowsUnavailableBySettings() && !passiveHomeState('state.homeLoading')) {
         showViewState('loading', 'home', null, null);
       }
       controller.refreshHome();
@@ -536,53 +655,81 @@
       showHomeSurface();
       if (focusMode === 'nav' || focusMode === 'first') { call(controller.resetHomeScroll); }
       call(presentation.hideNonHomeViews);
-      if (rows().length) {
-        if (controller.isHomeDirty()) {
-          useHomeRows(rows(), 0, { focus: focusMode, selectionKey: controller.selectionKey() });
-        } else {
-          baseFocus = focusMode === 'nav'
-            ? { area: 'nav', navIndex: 0, rowIndex: 0, column: 0 }
-            : (focusMode === 'first'
-              ? { area: 'media', navIndex: 0, rowIndex: 0, column: 0 }
-              : { area: 'media', navIndex: 0, rowIndex: focus.rowIndex || 0, column: focus.column || 0 });
-          selectedHomeKey = focusMode === 'preserve' ? controller.selectionKey() : '';
-          controller.setFocus(HomeState.restoreFocus(rows(), baseFocus, selectedHomeKey));
-          if (focusMode === 'first' || (selectedHomeKey && HomeState.selectionKey(rows(), focusState()) !== selectedHomeKey)) {
-            content = document && document.getElementById ? document.getElementById('content') : null;
-            if (content) { content.scrollTop = 0; }
-          }
-          controller.updateFocus();
+      if (controller.isHomeDirty() && homeSourceRows.length) {
+        clearPendingHomeApply();
+        useHomeRows(preferredHomeRows(homeSourceRows), 0, { focus: focusMode, selectionKey: controller.selectionKey() });
+      } else if (rows().length) {
+        baseFocus = focusMode === 'nav'
+          ? { area: 'nav', navIndex: 0, rowIndex: 0, column: 0 }
+          : (focusMode === 'first'
+            ? { area: 'media', navIndex: 0, rowIndex: 0, column: 0 }
+            : { area: 'media', navIndex: 0, rowIndex: focus.rowIndex || 0, column: focus.column || 0 });
+        selectedHomeKey = focusMode === 'preserve' ? controller.selectionKey() : '';
+        controller.setFocus(HomeState.restoreFocus(rows(), baseFocus, selectedHomeKey));
+        if (focusMode === 'first' || (selectedHomeKey && HomeState.selectionKey(rows(), focusState()) !== selectedHomeKey)) {
+          content = document && document.getElementById ? document.getElementById('content') : null;
+          if (content) { content.scrollTop = 0; }
         }
+        controller.updateFocus();
       }
+      if (!rows().length && (homeRowsHiddenBySettings() || homeRowsUnavailableBySettings())) { handleHomeEmpty(); }
       controller.scheduleHomePolling();
       if (homeOptions.refresh !== false) { refreshHome(); }
       return focusState();
     }
 
     function handleHomeEmpty() {
-      if (currentView() === 'home' && !passiveHomeState('state.homeEmpty')) {
+      if (currentView() !== 'home') { return; }
+      if (homeRowsHiddenBySettings()) {
+        showPassiveHomeState('state.homeRowsHidden');
+        return;
+      }
+      if (homeRowsUnavailableBySettings()) {
+        showPassiveHomeState('state.homeRowsUnavailable');
+        return;
+      }
+      if (!passiveHomeState('state.homeEmpty')) {
         showViewState('empty', 'home', null, presentation.openSetup);
       }
     }
 
     function onHomeResult(error, nextRows, changed, initial) {
+      var elapsed;
       var focusMode;
       if (destroyed) { return; }
       if (error) {
+        if (currentView() === 'home' && !rows().length && (homeRowsHiddenBySettings() || homeRowsUnavailableBySettings())) {
+          controller.completeStartup();
+          handleHomeEmpty();
+          return;
+        }
         if (currentView() === 'home' && !rows().length) {
           controller.completeStartup();
           if (!passiveHomeState('state.homeError')) { showViewState('error', 'home', refreshHome, presentation.openSetup); }
         }
         return;
       }
+      applyWatchedProjections(nextRows);
       if (!changed) {
         if (currentView() === 'home' && rows().length) { hideViewState(); }
         return;
       }
       if (currentView() === 'home') {
-        focusMode = focusState().area === 'nav' ? 'nav' : (initial ? 'first' : 'preserve');
+        if (!initial && lastHomeInteractionAt) {
+          elapsed = Math.max(0, now() - lastHomeInteractionAt);
+          if (elapsed < 700) {
+            pendingHomeRows = (nextRows || []).slice();
+            if (pendingHomeApplyTimer === null) { schedulePendingHomeApply(700 - elapsed); }
+            return;
+          }
+        }
+        clearPendingHomeApply();
+        focusMode = !rows().length && !lastHomeInteractionAt && nextRows && nextRows.length
+          ? 'first'
+          : (focusState().area === 'nav' ? 'nav' : (initial ? 'first' : 'preserve'));
         useHomeRows(nextRows, 0, { focus: focusMode, selectionKey: controller.selectionKey() });
       } else {
+        clearPendingHomeApply();
         controller.setRows(nextRows);
         controller.markHomeDirty();
       }
@@ -851,6 +998,7 @@
       resizeTimer = null;
       clearServerActivityTransition();
       clearHomeRefreshVisualTimer();
+      clearPendingHomeApply();
       if (clockTimer !== null && root.clearInterval) { root.clearInterval(clockTimer); }
       clockTimer = null;
       hideViewState();
@@ -877,6 +1025,7 @@
       Image: root.Image,
       previewConcurrency: 6,
       fullConcurrency: 3,
+      runtimeSettings: settings,
       isAttached: function (target) { return !!(document && document.body && document.body.contains && document.body.contains(target)); },
       urlFor: function (source, width, height, scope) {
         var size = qualityAdjustedSize(width, height, scope);
@@ -960,7 +1109,7 @@
       cardMetrics: function () { return controller.cardMetrics(); },
       cardProfile: function () { return controller.cardProfile(); },
       clearBackdrop: function () { return controller.clearBackdrop(); },
-      clearHome: function () { return controller.clearHome(); },
+      clearHome: function () { homeSourceRows = []; return controller.clearHome(); },
       clearHomeSurface: clearHomeSurface,
       clearLogicalFocus: function () { return controller.clearLogicalFocus(); },
       completeStartup: function () { return controller.completeStartup(); },
@@ -970,7 +1119,10 @@
       finishReorder: finishReorder,
       focusHomeStart: function () { return controller.focusHomeStart(); },
       focusState: focusSnapshot,
-      handleHomeKey: function (event, direction) { return controller.handleHomeKey(event, direction); },
+      handleHomeKey: function (event, direction) {
+        if (direction === 'up' || direction === 'down' || direction === 'left' || direction === 'right') { noteHomeInteraction(); }
+        return controller.handleHomeKey(event, direction);
+      },
       handleViewStateKey: handleViewStateKey,
       hideHomeSurface: hideHomeSurface,
       hideViewState: hideViewState,
@@ -996,7 +1148,13 @@
       renderRows: function () { return controller.renderRows(); },
       renderedPosterSpecification: renderedPosterSpecification,
       fixedPosterSpecification: fixedPosterSpecification,
-      resetHome: function () { return controller.resetHome(); },
+      resetHome: function () {
+        clearPendingHomeApply();
+        lastHomeInteractionAt = 0;
+        homeSourceGeneration += 1;
+        homeSourceRows = [];
+        return controller.resetHome();
+      },
       rows: rows,
       scheduleBackdrop: scheduleBackdrop,
       scheduleDetailBackdrop: function (item) { return controller.scheduleDetailBackdrop(item); },
@@ -1005,7 +1163,7 @@
       scheduleSearchBackdrop: function (item) { return controller.scheduleSearchBackdrop(item); },
       scheduleTheme: function (item) { return controller.scheduleTheme(item); },
       selectorForNavIndex: selectorForNavIndex,
-      setFocus: function (next) { return controller.setFocus(next); },
+      setFocus: function (next) { noteHomeInteraction(); return controller.setFocus(next); },
       showHomeSurface: showHomeSurface,
       showMessage: function (text) { return controller.showMessage(text); },
       showViewState: showViewState,

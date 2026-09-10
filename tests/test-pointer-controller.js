@@ -111,6 +111,7 @@ controller = PointerController.create({
     diagnostics: function (index) { calls.push('focus-diagnostics:' + index); },
     updateDialog: function (index) { calls.push('focus-update:' + index); },
     resume: function (index) { calls.push('focus-resume:' + index); },
+    detail: function (zone, index) { calls.push('focus-detail:' + zone + ':' + index); },
     player: function (zone, index) { calls.push('focus-player:' + zone + ':' + index); }
   },
   contextMenu: {
@@ -284,9 +285,17 @@ controller.handleClick({ target: searchKey });
 assert.ok(calls.indexOf('focus-search') >= 0, 'pointer clicks must first synchronize Search focus');
 assert.deepStrictEqual(pressedCodes, [13, 13, 13], 'Search clicks must activate through the same semantic OK path');
 
+var pressesBeforeExtendedExtra = pressedCodes.length;
+session.appView = 'detail';
+var extendedExtra = button({ 'data-extra-position': '2' });
+controller.handleClick({ target: extendedExtra });
+assert.ok(calls.indexOf('focus-detail:extra:2') >= 0, 'Magic Remote clicks on extended extras must synchronize the selected trailer occurrence');
+assert.strictEqual(pressedCodes.length, pressesBeforeExtendedExtra + 1, 'Magic Remote clicks on extended extras must activate through the shared semantic OK path');
+session.appView = 'search';
+
 var nativeOption = button({ 'data-up-next-layout': 'compact' });
 controller.handleClick({ target: nativeOption });
-assert.deepStrictEqual(pressedCodes, [13, 13, 13], 'controls with dedicated native click handling must not activate stale logical focus');
+assert.deepStrictEqual(pressedCodes, [13, 13, 13, 13], 'controls with dedicated native click handling must not activate stale logical focus');
 
 controller.destroy();
 controller.destroy();
@@ -309,6 +318,23 @@ assert.strictEqual(Object.keys(root.timers).length, 0, 'destroy must cancel poin
   assert.ok(!/var (suppressNextPointerClick|pointerOriginX|pointerOriginY|pointerOriginTarget|pointerPrimed|pointerSelectionActive|pointerSuppressedUntil|pointerCurrentButton|wheelDebounceTimer|pageScrollPendingFocus|wheelPointerLocked|wheelPointerLockX|wheelPointerLockY|pointerLastX|pointerLastY)/.test(runtime), 'pointer state must no longer be owned by the shared runtime');
   assert.ok(builder.MODULE_FILES.indexOf('pointer-controller.js') !== -1 && !Object.prototype.hasOwnProperty.call(builder, 'LEGACY_FILES'), 'the generated bundle must load the controller instead of the deleted fragment');
   assert.ok(/name: 'mouseover', handler: pointerController\.handleOver/.test(wiring) && /name: 'click', handler: pointerController\.handleClick, options: true/.test(wiring), 'all Magic Remote events must bind directly to the pointer controller');
+}());
+
+
+(function testPointerFocusRoutingDelegatesBySurface() {
+  var fs = require('fs');
+  var path = require('path');
+  var source = fs.readFileSync(path.join(__dirname, '../app/coordinator/pointer-controller.js'), 'utf8');
+  [
+    'syncOverlayFocus', 'syncNavigationFocus', 'syncDetailFocus', 'syncSettingsFocus',
+    'syncSearchFocus', 'syncLibraryFocus', 'syncPlayerFocus', 'syncPlayerDialogFocus'
+  ].forEach(function (name) {
+    assert.ok(new RegExp('function ' + name + '\\(').test(source), 'pointer focus routing must delegate to ' + name);
+  });
+  var start = source.indexOf('    function syncPointerFocus(button) {');
+  var end = source.indexOf('    function notePlayerPointerActivity(', start);
+  var body = source.slice(start, end);
+  assert.ok(body.split('\n').length <= 45, 'syncPointerFocus must remain a compact surface dispatcher');
 }());
 
 console.log('Pointer controller checks passed');

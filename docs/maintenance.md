@@ -1,17 +1,17 @@
 # Runtime Maintenance
 
-`app/app.js` is generated. Edit the independent UMD modules under
-`app/coordinator/`, then run:
+`app/app.js` and `app/player.js` are generated. Edit the independent UMD modules
+under `app/coordinator/` and the support/loader files named by `scripts/build-app.js`, then run:
 
 ```sh
 npm run build:app
 npm run verify
 ```
 
-Never add JavaScript back under `app/source/` and never edit `app/app.js`
+Never add JavaScript back under `app/source/` and never edit `app/app.js` or `app/player.js`
 manually. `app/.modular-coordinator` and the baseline checks enforce both rules.
-The builder removes blank-only lines from the generated runtime bundle while preserving
-every executable source line; tests compare against the same deterministic compaction.
+The builder applies deterministic ES5 token minification after assembling the
+explicit source manifests; tests compare normalized ASTs and generated freshness.
 
 
 ## Visual theme maintenance
@@ -80,8 +80,12 @@ presence and the absence of sensitive neighbours. See [`diagnostics.md`](diagnos
 Keep one owner for every mutable lifecycle:
 
 - domain state, timers, and requests stay in the corresponding controller;
-- native video, `video.src`, `video.currentTime`, playback clock, recovery,
-  reporting, keepalive, and subtitle preview stay in `playback-controller.js`;
+- native video commands/observations stay in `native-video-driver.js`; seek decision and decoder
+  settlement policy stay in `playback-reposition.js`; lifecycle/transient playback state stays in
+  `playback-session.js`; stable playback clock, progress/end estimate, reporting suppression, Plex
+  timeline reporting, and transcode keepalive stay in `playback-timeline.js`; active local subtitle
+  state/rendering stays in `subtitle-runtime.js`; cross-owner rebuild/recovery, Plex subtitle
+  transport, and subtitle preview orchestration stay in `playback-controller.js`;
 - automatic playback compatibility memory is owned by the application
   composition root and receives only semantic version/context requests from
   `playback-controller.js`; it must never select a different media file or
@@ -117,10 +121,12 @@ Keep one owner for every mutable lifecycle:
   progress reconciliation, focus, transitions, image scope, and teardown
   stay in `detail-feature-controller.js`; consumers use semantic operations
   and never retain its controller or view instances;
-- Player DOM, queue and controls presentation, resume/error/subtitle overlays,
-  Up Next, playlist playback orchestration, Player timers/listeners, and
-  teardown stay in `player-feature-controller.js`; its private domain
-  controllers are never retained by the composition root;
+- Player screen orchestration, controls/panel presentation, resume/error/subtitle overlays,
+  Up Next, playlist playback use cases, Player timers/listeners, and teardown stay in
+  `player-feature-controller.js`; queue drawer presentation state, retained occurrence cards,
+  focus/navigation, artwork prefetch, and queue DOM reconciliation stay in
+  `player-queue-controller.js`; logical queue/provider/occurrence state stays in
+  `playback-queue-controller.js`. These private owners are never retained by the composition root;
 - shared choice and media-information dialog state, DOM, callbacks, input, and
   teardown stay in `choice-dialog-controller.js` and
   `media-info-dialog-controller.js`;
@@ -133,9 +139,10 @@ Keep one owner for every mutable lifecycle:
   root must contain no direct Plex transport, feature DOM mutation, feature
   timer/request lifecycle, dynamic router, context, service locator, or generic
   event bus;
-- Plex transport exposure is restricted by `plex-feature-ports.js`; non-Player
-  features receive fail-fast forwarding ports, while Player receives the exact
-  existing `PloffClient` object without wrappers or semantic changes;
+- Plex transport exposure is restricted by `plex-feature-ports.js`; Server, Shell,
+  Search, Library, Detail, Media Context, and Player receive fail-fast forwarding
+  ports containing only their declared operations, while pure XML traversal and
+  media mapping stay in `plex-media-document.js` and `plex-media-mapper.js`;
 - pure translation, DOM text, media-label, identity, and artwork helpers come from
   `presentation-services.js`; do not route generic utilities through Shell;
 - credential readiness and the outer unload handle stay in
@@ -159,10 +166,11 @@ state in the root. Detail composition is owned by
 views, mutate `detail-view`, duplicate Detail timers/requests, or apply late
 mutation and progress callbacks outside the feature generation boundary. Player
 composition is owned by `player-feature-controller.js`; the root must not
-construct the three Player domain controllers, render Player DOM, bind
+construct its private Player owners, render Player DOM, bind
 Player-specific clicks, retain Player timers, or accept late callbacks outside
 the feature generation boundary. Native source/time writes must remain confined
-to `playback-controller.js`. Shared dialogs must be opened through semantic
+to `native-video-driver.js`; queue drawer presentation state must remain confined to
+`player-queue-controller.js`. Shared dialogs must be opened through semantic
 controller operations rather than by retaining view instances or apply/focus
 callbacks in the root.
 
@@ -236,7 +244,11 @@ another presentation snapshot.
 ### Runtime bundle budget
 
 The generated coordinator bundle currently uses adjustable engineering guardrails
-of 800,000 raw bytes and 165,000 gzip bytes. They are regression alarms, not a
+of 900,000 raw bytes and 190,000 gzip bytes. Startup also has explicit trend alarms: at most
+130 local script tags, 2,050,000 aggregate initial JavaScript bytes, 210,000 generated CSS raw
+bytes, and 40,000 CSS gzip bytes. The post-instrumentation 2026-08-19 baseline is 124 local scripts, 1,920,866
+initial JavaScript bytes, 185,407 CSS raw bytes, and 29,546 CSS gzip bytes. These are regression
+alarms, not a
 platform limit or a mandatory product ceiling. The thresholds may be raised
 intentionally when useful functionality requires it, after measuring startup,
 memory, and responsiveness on legacy TVs. New work must still keep source code
@@ -254,8 +266,8 @@ Coordinator source files remain fully formatted and authoritative.
 
 `npm run check:architecture` enforces the final static root boundary through an
 ECMAScript 5 AST: no direct `PlexClient` transport, feature presentation mutation,
-root-owned feature timer, private domain-controller construction, native-video write
-outside `playback-controller.js`, mutable snapshot alias, or legacy source/adapter.
+root-owned feature timer, private domain-controller construction, native-video write outside
+`native-video-driver.js`, mutable snapshot alias, or legacy source/adapter.
 The command reports line count and overlong lines as non-blocking readability
 metrics. `tests/test-application-composition.js` is the authority for behavioral
 claims such as reverse teardown, partial-construction cleanup, startup order, and
@@ -263,11 +275,104 @@ cross-feature restoration; do not replace those tests with source regexes. Do no
 reduce the root by hiding explicit dependencies in a generic context; reduce it only
 when a real owner can accept a coherent responsibility.
 
+## Maintainability boundary guard
+
+`npm run check:maintainability` is a fast deterministic AST gate and is part of
+`npm run verify`. It protects risks demonstrated by the 2026-08-18 hardening audit and the
+2026-08-19 runtime architecture redesign:
+
+- runtime Advanced Subtitle Settings eligibility and session-local subtitle failure state are owned
+  by `subtitle-runtime.js`; presentation code may use `SubtitleSync.classify()`
+  for labels/rendering choices, but must not call `SubtitleSync.availability()`,
+  recreate `subtitleEditorTrackAllowed()`, or retain `failedSubtitleStreams`;
+- mutation/control of the native `#player-video` element is owned only by
+  `native-video-driver.js`; the gate follows direct lookups and local aliases and rejects
+  source/time/property writes plus `load()`, `play()`, `pause()`, or source removal outside
+  the driver. `PlaybackController` owns orchestration and `PlaybackReposition` owns seek
+  decisions/settlement, so neither may command the element directly;
+- direct `PlexClient.sendTimeline()` and `PlexClient.pingTranscode()` calls are owned only by
+  `playback-timeline.js`. `PlaybackController` may coordinate suppression, clock anchoring, and
+  reporting state through `PlaybackTimeline`, but must not regain direct timeline/keepalive
+  transport;
+- `playback-reposition.js` must remain independent from `PlaybackRecovery`. Reposition owns
+  seek decisions, native-target verification, and decoder settlement; fallback-plan advancement
+  remains a recovery concern and must never become a generic seek implementation;
+- queue drawer retained-card, prefetch, render-token, spacer, focus/navigation, and playback-marker
+  presentation state belongs to `player-queue-controller.js`. Logical queue/provider/occurrence
+  state remains separate in `playback-queue-controller.js`;
+- the reviewed input dispatchers remain routing functions rather than regrowing into
+  monoliths. `library-controller.js:handleKey`,
+  `player-controls-controller.js:handleKey`, and
+  `pointer-controller.js:syncPointerFocus` each use a deliberately loose trend
+  budget of 40 source lines and 20 `if` statements.
+
+The input budgets are regression alarms, not style targets. The post-hardening
+measurements are 26/12, 22/13, and 25/9 respectively. A deliberate redesign may
+change a budget only together with focused tests and an architectural review; do not
+raise a threshold merely to make a growing dispatcher pass.
+
+## Maintainability hardening outcome (2026-08-18)
+
+The final audit compares the current tree with the pre-hardening `8dc5944` baseline:
+
+| Measure | `8dc5944` baseline | Post-hardening |
+| --- | ---: | ---: |
+| `player-feature-controller.js` | 3213 lines | 2889 lines |
+| `playback-controller.js` | 2384 lines | 2353 lines |
+| `plex-client.js` | 2201 lines | 1721 lines |
+| `application-controller.js` | 1185 lines; 81 lines >200 chars; max 769 | 1566 lines; 0 lines >200 chars; max 158 |
+| Library `handleKey()` | 106 lines / 47 `if` | 26 / 12 |
+| Player Controls `handleKey()` | 78 / 35 | 22 / 13 |
+| Pointer `syncPointerFocus()` | 88 / 39 | 25 / 9 |
+| full application typecheck | 15 diagnostics | 0 diagnostics |
+
+The composition root intentionally has more physical lines because dependency maps
+are now formatted for review instead of compressed into very long literals; its
+ownership did not expand. The target of the initiative was single-owner policy,
+reviewable wiring, cohesive pure modules, clean contracts, and bounded hot paths—not
+an arbitrary project-wide line-count reduction.
+
 `tests/test-controller-contracts.js` freezes the `PlaybackController` method set.
 Moving Player presentation or wiring is allowed, but changing play/pause,
 resume, seek, offset, rebuild, recovery, reporting, keepalive, buffering,
 track/version, or subtitle-timing logic requires a concrete defect, a focused
 regression, and explicit review against `docs/playback-invariants.md`.
+Those names describe externally visible playback semantics rather than historical file ownership;
+clock/reporting/keepalive implementation is currently owned by `PlaybackTimeline` behind the
+unchanged facade.
+
+## Runtime architecture redesign outcome (2026-08-19)
+
+The redesign starts from the post-hardening `0497e12` tree and keeps `8dc5944` as the older
+pre-hardening reference. Line counts are evidence of responsibility movement, not a target: new
+owners intentionally add small focused modules while the orchestration facades shed private state
+and low-level policy.
+
+| Measure | `8dc5944` | `0497e12` | Runtime redesign tree |
+| --- | ---: | ---: | ---: |
+| `player-feature-controller.js` | 3213 lines | 2889 lines | 2388 lines |
+| `playback-controller.js` | 2384 lines | 2353 lines | 2151 lines |
+| `plex-client.js` | 2201 lines | 1721 lines | 1701 lines |
+| `PloffClient` public exports | 81 | 81 | 74 |
+| `application-controller.js` | 1185 lines; 81 lines >200 chars; max 769 | 1566 lines; 0 >200; max 158 | 1576 lines; 0 >200; max 158 |
+| Library `handleKey()` | 106 lines / 47 `if` | 26 / 12 | 26 / 12 |
+| Player Controls `handleKey()` | 78 / 35 | 22 / 13 | 22 / 13 |
+| Pointer `syncPointerFocus()` | 88 / 39 | 25 / 9 | 25 / 9 |
+
+The extracted runtime owners are intentionally small and independently testable:
+`NativeVideoDriver` 42 lines, `PlaybackReposition` 103, `PlaybackSession` 206,
+`PlaybackTimeline` 154, `SubtitleRuntime` 217, and `PlayerQueueController` 628. The Player facade
+re-audit found no second cohesive presentation owner after queue extraction, so further splitting
+for line-count reduction alone is explicitly out of scope.
+
+The September 2026 evidence-based cleanup re-ran the Plex consumer audit after feature ownership
+settled. Pure URL, media mapping/parsing, playback-option and Home/recommendation shaping moved to
+`PlexUrl`, `PlexPlaybackUrls`, `PlexMediaDocument`, `PlexMediaMapper`, `MediaPreferences`, and the
+cohesive `PlexHomeModel`. `PloffClient` is now a 36-operation reviewed transport facade: 35 retained
+exports have production consumers; `loadRecommendedItems` is intentionally test-visible because its
+direct tests protect recommendation cache/LRU, concurrency, retry and stale-response races. Settings
+backup also uses the reviewed `PlexFeaturePorts.settingsBackup()` boundary instead of four raw client
+methods. Do not widen the facade or ports for fixture convenience.
 
 Compatibility memory is consulted only by Automatic mode. Forced Direct mode
 always attempts Direct Play and Direct Stream for the selected version; after a
@@ -304,14 +409,20 @@ preview or full URL, but must never retain a finished job graph.
 
 ## Plex transport ports
 
-Do not pass the complete `PloffClient` object to Server, Shell, Search, Library, or
-Detail. Update the relevant named port in `plex-feature-ports.js`, add a focused port
-test, and verify the composition test before exposing a new transport operation.
-Forwarders must preserve arguments, return values, and `PloffClient` as `this`. Player
-is intentionally different: `PlexFeaturePorts.player()` returns the exact original
-client object. Do not wrap, subset, or reinterpret it; preserve the public
-`PlaybackController` API and every semantic invariant in
-`docs/playback-invariants.md`.
+Do not pass the complete `PloffClient` object into feature/controller code. Update the
+relevant named port in `plex-feature-ports.js`, add a focused port test, and verify the
+composition test before exposing a new transport operation. Forwarders must preserve
+arguments, return values, and `PloffClient` as `this`. Player is no longer a full-client
+exception: `PlexFeaturePorts.player()` exposes only the operations used by Player,
+Playback, and queue loading. Any addition to that port must preserve the public
+`PlaybackController` API and every semantic invariant in `docs/playback-invariants.md`.
+
+`PloffClient` remains a shipped transport/compatibility facade, but public surface is consumer-reviewed
+rather than frozen. Pure parser/mapping/URL/Home shaping belongs in focused owners and feature/controller
+code must use `PlexFeaturePorts`. `loadRecommendedItems` is the only retained operation without a direct
+production consumer because it is the precise test seam for recommendation transport/cache races. Do not
+add another compatibility-only export without a concrete production, migration, or equally precise
+behavioral-test need.
 
 ## Plex parsing boundaries
 
@@ -321,13 +432,22 @@ Never calculate continuation from rendered cards: `pageItemCount` must be captur
 filtering and before Recently Added grouping so Plex offsets remain exact.
 
 Keep `/library/metadata/...` request lifecycles separate, but parse Video/Media/Part/Stream trees
-through `mediaDocumentFromXml()`. Playback and media detail may select or present those groups
-differently; they must not reimplement the XML traversal.
+through `plex-media-document.js`. Generic top-level item parsing (`attributesFromDocument` / `parseAttributes`) and node extraction belong to that module and must not be re-exported through `PlexClient`; Playback and media detail must consume the same parser result and must not reimplement the XML traversal.
 
-Add track fields through `MediaProfile.trackFromAttributes()` first. `PlexClient.trackFromAttributes()`
-is a compatibility-preserving delegation for playback records. Presentation-only casing belongs
-in `MediaProfile` and must not leak back into playback matching, subtitle synchronization, or
-stored preferences.
+Map Plex attributes into cards, detail records, seasons, episodes, containers, chapters, timeline markers,
+playback session records, and playback-version records through `plex-media-mapper.js`. Keep that module transport-free: `PlexClient` attaches playback source URLs after mapping through `plex-playback-urls.js`. Pure URL construction for library browse,
+watched/progress mutations, refresh endpoints, assets, and generic Plex query encoding belongs to
+`plex-url.js`; request ownership, pagination, caching, and response policy remain in `PlexClient`.
+
+Keep Home row definitions and Plex recommendation shaping in `plex-home-model.js`. That module owns
+section-to-row conversion, recommendation-hub priority/filtering, XML-to-recommendation rows, and
+round-robin recommendation merging. `PlexClient` owns only the requests, cache/concurrency lifecycle,
+and invokes the model; do not re-export the pure Home/recommendation helpers through the client facade.
+
+Add track fields through `MediaProfile.trackFromAttributes()` first. Do not re-export that mapper from
+`PlexClient`: presentation-only casing belongs in `MediaProfile` and must not leak back into playback
+matching, subtitle synchronization, or stored preferences.
+Materialize playback track/size/quality/mode preferences through `MediaPreferences.resolvePlaybackOptions()`; `PlexClient` consumes that result but does not own or re-export preference policy.
 
 
 Keep raw XHR lifecycle rules in `plex-http.js`. `PlexClient`, `PlexAuth`, and `WatchlistClient`
@@ -335,6 +455,18 @@ should provide endpoint-specific headers, timeout, and error factories rather th
 ready-state, timeout, synchronous-failure, or abort handling. Completed and aborted
 requests must detach their XHR handlers before releasing ownership. Do not move response parsing
 or credential policy into the transport.
+
+Catch only decoding, validation, and mapping failures around a Plex response. Invoke the
+consumer callback after that try/catch, not inside it: a consumer exception must propagate
+unchanged, never be reported as a parser failure through a second callback. For multi-step
+operations, keep the next request outside the parsing catch as well.
+
+The supported `PlexAuth` surface excludes the obsolete `loadLocalServerAccess` fallback.
+Profile activation must keep the existing Plex-resource token exchange and approved-route
+selection; a discovery endpoint identifying itself is not permission to send an account
+token. Keep cancellation on the current approved-route probe, not a completed earlier one.
+
+Build playback source, decision, stream-selection, subtitle-text, subtitle-transcode, and subtitle-offset URLs through `plex-playback-urls.js`. `PlexClient` owns request lifecycle and playback preparation, but must not re-export those pure URL builders.
 
 Build audio, subtitle, and media-version dialog records through `media-choice-model.js`.
 The module may own values and lookup only; localization, automatic/off semantics, persistence,
@@ -380,9 +512,34 @@ exactly and use stable `x.y.z` syntax. `npm run check:release-metadata` is part 
 `npm run verify` gate. The release workflow supplies the Git tag to the same checker, so a
 tag other than `v<matching-version>` fails before packaging.
 
+The IPK stage contains runtime artifacts, not their generated-source inputs. `package-tv-shell.sh`
+removes `app/source/`, `app/coordinator/`, and `app/styles/` before computing the content-derived
+asset cache key; the generated `app/app.js` and `app/styles.css` are the packaged runtime owners.
+At the 2026-08-19 hardening baseline this avoids 1,207,018 unpacked source-only bytes
+(1,021,846 bytes of coordinators plus 185,172 bytes of style sources) and prevents a source-only
+change from invalidating the production asset cache key when generated runtime output is unchanged.
+
+
+The same stage then runs `scripts/build-production-runtime.js` before the cache-key calculation. It
+preserves the source-index execution order while collapsing the 122 core startup modules into
+`core.js`, removes those individual module files from the stage, and leaves `vendor/webOSTV.js`,
+`app.js`, and ASS/SSA worker/runtime assets separate from the core bundle. On legacy non-WebAssembly
+TVs the worker may be initialized dynamically by `startup-metrics.js` only when global local ASS/SSA
+rendering is enabled; with ASS disabled no startup worker/prewarm is created. The worker is still not
+folded into the initial core script. The retained experiment measured 124 -> 3 initial local scripts and
+442,611 -> 367,667 aggregate gzip bytes (-16.94%). Do not move this bundle into the checked-in
+development index: modular sources remain the debugging and ownership authority.
+`tests/test-production-runtime-bundle.js` is the retain gate for ordering, ES5, separate subtitle
+assets, script reduction, gzip regression, source removal, and package-step ordering.
+
 `npm run release:package` is the local orchestration entry point for generated-asset rebuild,
 pre-release verification, IPK packaging/inspection, and `dist/SHA256SUMS`. It deliberately has no
 Git or version side effects. Do not make packaging scripts mutate version files or create tags.
+The tagged GitHub release workflow additionally extracts the already-inspected IPK payload,
+generates `SBOM.spdx.json` from that packaged content, includes both the IPK and SBOM in
+`SHA256SUMS`, and generates GitHub artifact attestations for IPK provenance, the IPK SBOM, and
+the pushed container digest. Keep these actions SHA-pinned; keep the installer base image and the
+PR Gitleaks container digest-pinned so a mutable registry tag cannot silently change a release build.
 For a release, change the
 three metadata files intentionally, verify locally, complete the physical-TV signoff for that
 version, commit the release candidate, then create the matching `vX.Y.Z` tag.
@@ -403,3 +560,23 @@ same-count stale signoff.
 4. Inject it from `application-controller.js`; do not access another module's
    private variables.
 5. Rebuild and run the full verification suite.
+
+### Private identity lookups
+
+Use prototype-free dictionaries (`Object.create(null)`, available in ES5) for private
+sets/counts keyed by externally supplied identifiers. An inherited `constructor` or
+`toString` is not an existing media item. Keep output records and persisted shapes
+unchanged; this convention is for internal lookups, not a blanket object rewrite.
+Existing explicitly prefixed keys can retain their owner-local implementation.
+
+Home recommendation eligibility and hub ordering share one traversal in
+`plex-home-model.js`; flat results deduplicate globally after ranking, while rows
+deduplicate only within their own hub. Do not merge those two product policies.
+
+### Discovery operation lifetime
+
+The native Luna GDM handler owns its socket, collection deadline, packet listener,
+and per-request result set. Finish must clear the deadline, prevent late bind/message
+work, and respond once even if socket setup or close fails. Keep a guarded error
+listener during native close so an already queued socket error is harmless. Do not
+change the 2200 ms discovery window or trust discovery hints as authenticated routes.

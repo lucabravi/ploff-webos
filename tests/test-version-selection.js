@@ -78,6 +78,16 @@ var nextVersions = [
   { mediaIndex: 1, partIndex: 0, videoCodec: 'hevc', container: 'mkv', width: 1920, height: 1080, bitrate: 5000, videoDynamicRange: '' }
 ];
 assert.strictEqual(
+  VersionSelection.matchesAffinity(nextVersions[1], previous),
+  true,
+  'semantic version matching must tolerate episode-to-episode bitrate changes'
+);
+assert.strictEqual(
+  VersionSelection.findAffine(nextVersions, previous, fullCapabilities, 'auto').mediaIndex,
+  1,
+  'affinity lookup must return the matching version without applying the Automatic fallback policy'
+);
+assert.strictEqual(
   VersionSelection.selectAffine(nextVersions, previous, fullCapabilities, 'auto', VersionSelection.DEFAULT_PRIORITIES).mediaIndex,
   1,
   'continuous playback must match technical characteristics instead of reusing an arbitrary numeric index'
@@ -91,9 +101,28 @@ var impossibleAffinity = VersionSelection.signature({
   videoCodec: 'mpeg2video', container: 'avi', width: 640, height: 360, bitrate: 800, videoDynamicRange: ''
 });
 assert.strictEqual(
+  VersionSelection.findAffine(unrelated, impossibleAffinity, fullCapabilities, 'auto'),
+  null,
+  'affinity lookup must report no semantic match instead of silently returning the Automatic fallback'
+);
+assert.strictEqual(
   VersionSelection.selectAffine(unrelated, impossibleAffinity, fullCapabilities, 'auto', VersionSelection.DEFAULT_PRIORITIES).mediaIndex,
   1,
   'weak affinity must fall back to the configured automatic policy'
 );
 
 console.log('Version selection checks passed');
+
+(function affinityRejectsConflictingSemanticIdentity() {
+  var preferred = VersionSelection.signature({
+    videoCodec: 'hevc', container: 'mkv', width: 1920, height: 1080, bitrate: 6000, videoDynamicRange: 'HDR10'
+  });
+  assert.strictEqual(VersionSelection.findAffine([
+    { mediaIndex: 0, partIndex: 0, videoCodec: 'h264', container: 'mp4', width: 1920, height: 1080, bitrate: 6000, videoDynamicRange: '' }
+  ], preferred, fullCapabilities, 'auto'), null,
+  'same resolution alone must not make a different codec/container/HDR version an affinity match');
+  assert.strictEqual(VersionSelection.findAffine([
+    { mediaIndex: 0, partIndex: 0, videoCodec: 'hevc', container: 'mkv', width: 1280, height: 720, bitrate: 6000, videoDynamicRange: 'HDR10' }
+  ], preferred, fullCapabilities, 'auto'), null,
+  'matching codec/container/HDR must not make a different known resolution an affinity match');
+}());

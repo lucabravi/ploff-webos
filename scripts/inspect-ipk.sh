@@ -15,6 +15,8 @@ ar -p "$PACKAGE" data.tar.gz | tar -xzf - -C "$STAGE"
 APP_ROOT="$STAGE/usr/palm/applications/$APP_ID"
 test -d "$APP_ROOT" || { echo "application payload missing" >&2; exit 1; }
 test -f "$APP_ROOT/build-manifest.txt" || { echo "build manifest missing" >&2; exit 1; }
+test -f "$APP_ROOT/vendor/LICENSE.default-font.txt" || { echo "fallback font license missing" >&2; exit 1; }
+test -f "$APP_ROOT/vendor/THIRD_PARTY_NOTICES.txt" || { echo "third-party notices missing" >&2; exit 1; }
 CACHE_KEY=$(sed -n 's/.*styles\.css?v=\([^"[:space:]]*\).*/\1/p' "$APP_ROOT/index.html" | head -n 1)
 case "$CACHE_KEY" in
   "$APP_VERSION"-*) ;;

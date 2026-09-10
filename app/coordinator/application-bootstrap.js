@@ -19,6 +19,8 @@
     var destroyed = false;
     var events = null;
     var create = values.createApplication || (root && root.PloffApplicationController && root.PloffApplicationController.create);
+    var startupMetrics = values.startupMetrics || (root && root.PloffStartupMetrics && root.PloffStartupMetrics.create
+      ? root.PloffStartupMetrics.create({ now: values.now }) : null);
 
     function instance() { return application; }
 
@@ -30,6 +32,7 @@
       if (events) { events.destroy(); events = null; }
     }
 
+    if (startupMetrics && typeof startupMetrics.mark === 'function') { startupMetrics.mark('bootstrap'); }
     if (root && root.PloffApplicationEvents && root.PloffApplicationEvents.bind) {
       events = root.PloffApplicationEvents.bind([{ target: root, name: 'unload', handler: destroy }]);
     }
@@ -43,7 +46,7 @@
     }
     root.PloffCredentialVault.prepare(root, root.localStorage, function (credentialStorage) {
       if (destroyed || application) { return; }
-      try { application = create(root, document, credentialStorage); }
+      try { application = create(root, document, credentialStorage, startupMetrics); }
       catch (error) { call(values.onError, error); return; }
       call(values.onReady, application);
     });

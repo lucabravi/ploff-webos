@@ -33,13 +33,19 @@
         if (direction === 'left') { state.episodeIndex = clamp(state.episodeIndex - 1, 0, Math.max(0, Number(options.episodeCount || 0) - 1)); effect = 'episode-preview'; }
         else if (direction === 'right') { state.episodeIndex = clamp(state.episodeIndex + 1, 0, Math.max(0, Number(options.episodeCount || 0) - 1)); effect = 'episode-preview'; }
         else if (direction === 'up') { state.zone = choices.length ? choices[choices.length - 1] : 'play'; }
+        else if (direction === 'down' && options.hasExtendedDetails) { state.zone = 'extended'; effect = 'extended-enter'; }
       } else if (state.zone === 'play') {
         if (direction === 'left') { state.actionIndex = clamp(state.actionIndex - 1, 0, Math.max(0, Number(options.actionCount || 4) - 1)); }
         else if (direction === 'right') { state.actionIndex = clamp(state.actionIndex + 1, 0, Math.max(0, Number(options.actionCount || 4) - 1)); }
         else if (direction === 'up' && options.summaryOverflowing) { state.zone = 'summary'; }
         else if (direction === 'up' && options.hasSeries) { state.zone = 'seasons'; }
         else if (direction === 'up') { state.zone = 'play'; }
-        else if (direction === 'down') { state.zone = choices.length ? choices[0] : (options.hasSeries ? 'episodes' : 'play'); }
+        else if (direction === 'down') {
+          if (choices.length) { state.zone = choices[0]; }
+          else if (options.hasSeries) { state.zone = 'episodes'; }
+          else if (options.hasExtendedDetails) { state.zone = 'extended'; effect = 'extended-enter'; }
+          else { state.zone = 'play'; }
+        }
       } else if (state.zone === 'summary') {
         if (direction === 'down') { state.zone = 'play'; state.actionIndex = 0; }
         else if (direction === 'up' && options.hasSeries) { state.zone = 'seasons'; }
@@ -48,7 +54,18 @@
         if (choiceIndex === -1) { state.zone = 'play'; }
         else if (direction === 'left' || direction === 'right') { effect = 'cycle-' + state.zone + '-' + direction; }
         else if (direction === 'up') { state.zone = choiceIndex > 0 ? choices[choiceIndex - 1] : 'play'; }
-        else if (direction === 'down') { state.zone = choiceIndex < choices.length - 1 ? choices[choiceIndex + 1] : (options.hasSeries ? 'episodes' : state.zone); }
+        else if (direction === 'down') {
+          if (choiceIndex < choices.length - 1) { state.zone = choices[choiceIndex + 1]; }
+          else if (options.hasSeries) { state.zone = 'episodes'; }
+          else if (options.hasExtendedDetails) { state.zone = 'extended'; effect = 'extended-enter'; }
+        }
+      } else if (state.zone === 'extended') {
+        if (direction === 'up' && options.extendedAtTop) {
+          state.zone = options.hasSeries ? 'episodes' : (choices.length ? choices[choices.length - 1] : 'play');
+          effect = 'extended-leave';
+        } else if (direction === 'up' || direction === 'down' || direction === 'left' || direction === 'right') {
+          effect = 'extended-' + direction;
+        }
       }
       return { state: snapshot(), effect: effect };
     }

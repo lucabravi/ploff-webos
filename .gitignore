@@ -6,3 +6,4 @@ node_modules/
 .DS_Store
 .superpowers/
 /app/config.local.js
+.venv/

@@ -43,6 +43,7 @@
     var availableNavigationItems = [];
     var navigationStart = 0;
     var lastSelectionKey = '';
+    var homePresentationKey = '';
     var homeDirty = true;
     var backdropTimer = null;
     var activeBackdrop = 0;
@@ -55,7 +56,10 @@
     var messageTimer = null;
     var activeCardProfile = null;
     var visibleRowIndex = -1;
+    var homeArtworkWarmRow = -1;
     var homeRowTopInset = null;
+    var homeCardTargets = {};
+    var homeFocusTarget = null;
 
     function call(callback, arg1, arg2, arg3, arg4, arg5, arg6) {
       if (typeof callback === 'function') { return callback(arg1, arg2, arg3, arg4, arg5, arg6); }
@@ -158,14 +162,19 @@
 
     function setRows(nextRows) {
       replaceArray(rows, HomeState && HomeState.normalizeRows ? HomeState.normalizeRows(nextRows) : array(nextRows));
+      homeArtworkWarmRow = -1;
       return rows;
     }
 
     function clearHome() {
       rows.splice(0, rows.length);
       lastSelectionKey = '';
+      homePresentationKey = '';
       visibleRowIndex = -1;
+      homeArtworkWarmRow = -1;
       homeRowTopInset = null;
+      homeCardTargets = {};
+      homeFocusTarget = null;
       homeDirty = true;
       call(actions.onHomeCleared);
     }
@@ -206,6 +215,36 @@
       return JSON.stringify([rowKey(row), mediaKey(item)]);
     }
 
+    function homeTarget(rowIndex, column) {
+      var row = rows[rowIndex];
+      var item = row && row.items && row.items[column];
+      var state;
+      if (!item) { return null; }
+      state = { area: 'media', navIndex: 0, rowIndex: rowIndex, column: column };
+      return {
+        item: item,
+        rowIndex: rowIndex,
+        column: column,
+        key: HomeState && HomeState.selectionKey ? HomeState.selectionKey(rows, state) : JSON.stringify([rowKey(row), mediaKey(item)])
+      };
+    }
+
+    function findHomePresentationTarget() {
+      var state;
+      var target;
+      if (focus.area === 'media') {
+        target = homeTarget(focus.rowIndex, focus.column);
+        if (target) { homePresentationKey = target.key; return target; }
+      }
+      state = HomeState && HomeState.restoreFocus
+        ? HomeState.restoreFocus(rows, { area: 'media', navIndex: 0, rowIndex: 0, column: 0 }, homePresentationKey)
+        : { area: 'media', navIndex: 0, rowIndex: Math.max(0, firstPopulatedRowIndex()), column: 0 };
+      target = homeTarget(state.rowIndex, state.column);
+      if (target) { homePresentationKey = target.key; return target; }
+      homePresentationKey = '';
+      return null;
+    }
+
     function mediaTitle(item) { return MediaLabels ? MediaLabels.title(item, translate) : String(item && item.title || ''); }
     function mediaCardMeta(item) { return MediaLabels ? MediaLabels.cardMeta(item, translate) : String(item && item.meta || ''); }
     function mediaCardDetail(item) { return MediaLabels ? MediaLabels.cardDetail(item, translate) : String(item && item.detail || ''); }
@@ -235,8 +274,8 @@
       style.setProperty('--wide-card-width', wide.width + 'px');
       style.setProperty('--wide-image-height', wide.imageHeight + 'px');
       style.setProperty('--wide-card-height', wide.height + 'px');
-      style.setProperty('--poster-title-font', profile.titleFont + 'px');
-      style.setProperty('--poster-meta-font', profile.metaFont + 'px');
+      style.setProperty('--poster-title-font', String(profile.titleFont / 16) + 'rem');
+      style.setProperty('--poster-meta-font', String(profile.metaFont / 16) + 'rem');
     }
 
     function navigationTitle(item) { return item && item.labelKey ? translate(item.labelKey) : String(item && item.title || ''); }
@@ -363,22 +402,40 @@
     }
 
     function updateHomeCard(card, item, rowIndex, column, shape, showLibraryBadge) {
-      var caption = card.querySelector('.card-caption');
-      var libraryBadge = card.querySelector('.home-library-badge');
       var libraryTitle = showLibraryBadge === true ? String(item.libraryTitle || '') : '';
-      var detail = card.querySelector('.card-detail');
-      var progress = card.querySelector('.progress-track');
-      var progressValue;
-      card.className = 'media-card ' + shape + (item.viewed ? ' is-viewed' : '');
+      var title = mediaTitle(item);
+      var meta = mediaCardMeta(item);
+      var cardDetail = mediaCardDetail(item);
+      var key = mediaKey(item);
+      var ariaLabel = mediaDescription(item) + (libraryTitle ? ', ' + libraryTitle : '');
+      var viewed = item.viewed === true;
+      var hasProgress = typeof item.progress === 'number' && item.progress > 0 && item.progress < 100;
+      var progressValue = hasProgress ? item.progress : null;
+      var previous = card.__homePresentation;
+      var caption;
+      var libraryBadge;
+      var detail;
+      var progress;
+      if (previous && previous.rowIndex === rowIndex && previous.column === column && previous.shape === shape &&
+          previous.key === key && previous.ariaLabel === ariaLabel && previous.title === title && previous.meta === meta &&
+          previous.detail === cardDetail && previous.libraryTitle === libraryTitle && previous.viewed === viewed &&
+          previous.progress === progressValue) {
+        return false;
+      }
+      caption = card.querySelector('.card-caption');
+      libraryBadge = card.querySelector('.home-library-badge');
+      detail = card.querySelector('.card-detail');
+      progress = card.querySelector('.progress-track');
+      card.className = 'media-card ' + shape + (viewed ? ' is-viewed' : '');
       card.setAttribute('data-row-index', rowIndex);
       card.setAttribute('data-column', column);
-      card.setAttribute('data-media-key', mediaKey(item));
-      card.setAttribute('aria-label', mediaDescription(item) + (libraryTitle ? ', ' + libraryTitle : ''));
-      updateText(card.querySelector('.card-title'), mediaTitle(item));
-      updateText(card.querySelector('.card-meta'), mediaCardMeta(item));
-      if (mediaCardDetail(item)) {
+      card.setAttribute('data-media-key', key);
+      card.setAttribute('aria-label', ariaLabel);
+      updateText(card.querySelector('.card-title'), title);
+      updateText(card.querySelector('.card-meta'), meta);
+      if (cardDetail) {
         if (!detail) { detail = element('span', 'card-detail'); caption.appendChild(detail); }
-        updateText(detail, mediaCardDetail(item));
+        updateText(detail, cardDetail);
       } else if (detail) { caption.removeChild(detail); }
       if (libraryTitle) {
         if (!libraryBadge) {
@@ -387,15 +444,19 @@
         }
         updateText(libraryBadge, libraryTitle);
       } else if (libraryBadge) { card.removeChild(libraryBadge); }
-      if (typeof item.progress === 'number') {
+      if (hasProgress) {
         if (!progress) {
           progress = element('span', 'progress-track');
           progress.appendChild(element('span', 'progress-value'));
           card.appendChild(progress);
         }
-        progressValue = progress.querySelector('.progress-value');
-        progressValue.style.width = item.progress + '%';
+        progress.querySelector('.progress-value').style.width = progressValue + '%';
       } else if (progress) { card.removeChild(progress); }
+      card.__homePresentation = {
+        rowIndex: rowIndex, column: column, shape: shape, key: key, ariaLabel: ariaLabel, title: title, meta: meta,
+        detail: cardDetail, libraryTitle: libraryTitle, viewed: viewed, progress: progressValue
+      };
+      return true;
     }
 
     function fixedPosterSpecification(source, size, priority, scope) {
@@ -427,6 +488,7 @@
       var posterJobs = [];
       var posterLoader = services.posterLoader;
       var layoutProfile;
+      var mountedCards = {};
       if (!document || !document.getElementById) { return; }
       content = document.getElementById('content');
       if (!content) { return; }
@@ -442,6 +504,7 @@
         var card;
         var key;
         var index;
+        var specification;
         for (index = 0; index < children.length; index += 1) {
           card = children[index];
           if (!card.hasAttribute('data-media-key')) { continue; }
@@ -462,17 +525,17 @@
         for (index = 0; index < rowData.items.length; index += 1) {
           card = assignments[index] || recyclable.shift() || createCard(rowData.items[index], rowIndex, index, rowData.shape, rowData.showLibraryBadge);
           updateHomeCard(card, rowData.items[index], rowIndex, index, rowData.shape, rowData.showLibraryBadge);
+          mountedCards[rowIndex + ':' + index] = card;
           row.appendChild(card);
           image = card.getElementsByTagName('img')[0];
-          posterJobs.push({
-            target: image,
-            specification: fixedPosterSpecification(
-              rowData.items[index].image,
-              rowData.shape === 'wide' ? layoutProfile.widePoster : layoutProfile.poster,
-              rowIndex < 2 ? 1 : 2,
-              'home'
-            )
-          });
+          specification = fixedPosterSpecification(
+            rowData.items[index].image,
+            rowData.shape === 'wide' ? layoutProfile.widePoster : layoutProfile.poster,
+            rowIndex < 2 ? 1 : 2,
+            'home'
+          );
+          if (rowIndex > 1) { specification.previewOnly = true; }
+          posterJobs.push({ target: image, specification: specification });
         }
         recyclable.forEach(function (cardToRemove) {
           if (cardToRemove.parentNode === row) { row.removeChild(cardToRemove); }
@@ -507,6 +570,7 @@
         section = existingSections[column];
         if (section.getAttribute('data-home-render-token') !== renderToken && section.parentNode === content) { content.removeChild(section); }
       }
+      homeCardTargets = mountedCards;
       if (posterLoader && posterLoader.loadBatch) { posterLoader.loadBatch(posterJobs); }
     }
 
@@ -523,6 +587,7 @@
       for (index = 0; index < focused.length; index += 1) {
         focused[index].className = focused[index].className.replace(/\s*is-focused/g, '');
       }
+      homeFocusTarget = null;
     }
 
     function clearHomePreview() {
@@ -537,9 +602,9 @@
       return true;
     }
 
-    function renderHomePreview(item) {
+    function renderHomePreview(item, rowIndex) {
       var preview = document && document.getElementById ? document.getElementById('home-preview') : null;
-      var row = rows[focus.rowIndex] || {};
+      var row = rows[rowIndex] || {};
       var meta;
       var detail;
       if (!preview || !item) { return false; }
@@ -582,32 +647,75 @@
       if (Math.abs(scrollDelta) > 1) { content.scrollTop = Math.max(0, content.scrollTop + scrollDelta); }
     }
 
-    function scheduleHomePresentation(item) {
+    function prioritizeHomeArtworkRow(rowIndex, focusedCard) {
+      var content;
+      var cards;
+      var index;
+      if (!document || !document.getElementById || rowIndex < 0 || rowIndex >= rows.length) { return; }
+      content = document.getElementById('content');
+      if (!content || !content.querySelectorAll) { return; }
+      cards = content.querySelectorAll('[data-row-index="' + rowIndex + '"]');
+      for (index = 0; index < cards.length; index += 1) {
+        if (cards[index] !== focusedCard) { call(presentation.prioritizePoster, cards[index]); }
+      }
+    }
+
+    function warmHomeArtworkNearFocus(focusedCard) {
+      if (currentView() !== 'home' || focus.area !== 'media' || homeArtworkWarmRow === focus.rowIndex) { return; }
+      homeArtworkWarmRow = focus.rowIndex;
+      if (focus.rowIndex < 1) { return; }
+      prioritizeHomeArtworkRow(focus.rowIndex, focusedCard);
+      prioritizeHomeArtworkRow(focus.rowIndex + 1, focusedCard);
+    }
+
+    function scheduleHomePresentation(target, includeTheme) {
       var generation = homePresentationGeneration + 1;
+      var item = target && target.item;
       homePresentationGeneration = generation;
       if (homePresentationTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(homePresentationTimer); }
       homePresentationTimer = null;
       if (!item) { call(services.stopTheme); return; }
-      if (!timerRoot.setTimeout) { renderHomePreview(item); scheduleTheme(item); return; }
+      if (!timerRoot.setTimeout) {
+        renderHomePreview(item, target.rowIndex);
+        if (includeTheme) { scheduleTheme(item); }
+        else { call(services.stopTheme); }
+        return;
+      }
+      if (!includeTheme) { call(services.stopTheme); }
       homePresentationTimer = timerRoot.setTimeout(function () {
-        var currentItem = focus.area === 'media' && rows[focus.rowIndex] ? rows[focus.rowIndex].items[focus.column] : null;
+        var currentTarget = findHomePresentationTarget();
         homePresentationTimer = null;
-        if (destroyed || generation !== homePresentationGeneration || currentView() !== 'home' || currentItem !== item) { return; }
-        renderHomePreview(item);
-        scheduleTheme(item);
+        if (destroyed || generation !== homePresentationGeneration || currentView() !== 'home' || !currentTarget || currentTarget.key !== target.key) { return; }
+        renderHomePreview(item, target.rowIndex);
+        if (includeTheme && focus.area === 'media' && homeSelectionKey() === target.key) { scheduleTheme(item); }
       }, 80);
     }
 
     function updateFocus(deferPresentation) {
       var next;
       var item;
-      clearLogicalFocus();
+      var rowData;
+      var presentationTarget;
+      if (homeFocusTarget) {
+        homeFocusTarget.className = String(homeFocusTarget.className || '').replace(/\s*is-focused/g, '');
+        homeFocusTarget = null;
+      } else { clearLogicalFocus(); }
       if (focus.area !== 'media') { visibleRowIndex = -1; }
-      if (!document || !document.querySelector) { return; }
-      next = document.querySelector(selectorForState());
+      if (!document) { return; }
+      if (focus.area === 'media') { next = homeCardTargets[focus.rowIndex + ':' + focus.column] || null; }
+      else if (document.querySelector) { next = document.querySelector(selectorForState()); }
       if (next) {
+        if (focus.area === 'media') {
+          rowData = rows[focus.rowIndex];
+          item = rowData && rowData.items ? rowData.items[focus.column] : null;
+          if (item) { updateHomeCard(next, item, focus.rowIndex, focus.column, rowData.shape, rowData.showLibraryBadge); }
+        }
         next.className += ' is-focused';
-        if (focus.area === 'media') { call(presentation.prioritizePoster, next); }
+        homeFocusTarget = next;
+        if (focus.area === 'media') {
+          call(presentation.prioritizePoster, next);
+          warmHomeArtworkNearFocus(next);
+        }
         if (!pointerSelectionActive()) {
           if (next.focus) { next.focus(); }
           keepFocusVisible(next);
@@ -616,11 +724,15 @@
       if (currentView() === 'home' && focus.area === 'media' && rows[focus.rowIndex] && rows[focus.rowIndex].items[focus.column]) {
         lastSelectionKey = homeSelectionKey();
       }
-      scheduleBackdrop();
-      item = focus.area === 'media' && rows[focus.rowIndex] ? rows[focus.rowIndex].items[focus.column] : null;
-      if (deferPresentation === true) { scheduleHomePresentation(item); }
-      else if (item) { renderHomePreview(item); scheduleTheme(item); }
-      else { scheduleHomePresentation(null); }
+      presentationTarget = currentView() === 'home' ? findHomePresentationTarget() : null;
+      scheduleBackdrop(presentationTarget && presentationTarget.item);
+      item = presentationTarget && presentationTarget.item;
+      if (deferPresentation === true) { scheduleHomePresentation(presentationTarget, focus.area === 'media'); }
+      else if (item) {
+        renderHomePreview(item, presentationTarget.rowIndex);
+        if (focus.area === 'media') { scheduleTheme(item); }
+        else { call(services.stopTheme); }
+      } else { scheduleHomePresentation(null, false); }
     }
 
     function firstPopulatedRowIndex() {
@@ -639,7 +751,10 @@
         updateFocus();
         return true;
       }
-      return false;
+      setFocus({ area: 'nav', navIndex: 0, rowIndex: 0, column: 0 });
+      if (document && document.getElementById('content')) { document.getElementById('content').scrollTop = 0; }
+      updateFocus();
+      return true;
     }
 
     function resetHomeScroll() {
@@ -651,9 +766,11 @@
     function isHomeStart() {
       var rowIndex;
       var content;
-      if (currentView() !== 'home' || focus.area !== 'media' || focus.column !== 0) { return false; }
+      if (currentView() !== 'home') { return false; }
       rowIndex = firstPopulatedRowIndex();
-      if (rowIndex === -1 || focus.rowIndex !== rowIndex) { return false; }
+      if (rowIndex === -1) { return focus.area === 'nav' && focus.navIndex === 0; }
+      if (focus.area !== 'media' || focus.column !== 0) { return false; }
+      if (focus.rowIndex !== rowIndex) { return false; }
       content = document && document.getElementById ? document.getElementById('content') : null;
       return !content || Number(content.scrollTop || 0) <= 1;
     }
@@ -664,8 +781,20 @@
       var selected;
       options = options || {};
       if (!normalized.length) {
+        setRows([]);
+        lastSelectionKey = '';
+        homePresentationKey = '';
+        visibleRowIndex = -1;
+        homeDirty = false;
+        setFocus({ area: 'nav', navIndex: navIndex || 0, rowIndex: 0, column: 0 });
+        resetHomeScroll();
+        renderRows();
+        clearHomePreview();
+        updateFocus();
         completeStartup();
+        if (!homeReadyNotified) { homeReadyNotified = true; call(actions.onHomeReady); }
         call(actions.onHomeEmpty);
+        call(actions.scheduleAdjacentLibraryPrefetch);
         return false;
       }
       setRows(normalized);
@@ -783,18 +912,18 @@
       }
     }
 
-    function loadBackdrop(request) {
-      if (focus.area !== 'media' || !rows[focus.rowIndex]) { return; }
-      loadBackdropItem(rows[focus.rowIndex].items[focus.column], request);
+    function loadBackdrop(request, item) {
+      if (!item) { return; }
+      loadBackdropItem(item, request);
     }
 
-    function scheduleBackdrop() {
+    function scheduleBackdrop(item) {
       var request = beginBackdrop();
       if (backdropTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(backdropTimer); }
-      if (!timerRoot.setTimeout) { loadBackdrop(request); return; }
+      if (!timerRoot.setTimeout) { loadBackdrop(request, item); return; }
       backdropTimer = timerRoot.setTimeout(function () {
         backdropTimer = null;
-        loadBackdrop(request);
+        loadBackdrop(request, item);
       }, 250);
     }
 
@@ -933,6 +1062,7 @@
         availableNavigationItems: availableNavigationItems.slice(),
         navigationStart: navigationStart,
         lastSelectionKey: lastSelectionKey,
+        homePresentationKey: homePresentationKey,
         homeDirty: homeDirty,
         homeLoading: homeLoading,
         activeBackdrop: activeBackdrop,
@@ -1036,6 +1166,7 @@
       },
       resetHome: function () {
         homeGeneration += 1;
+        homeReadyNotified = false;
         if (homeRefreshCoordinator) { homeRefreshCoordinator.reset(); }
         setHomeLoading(false);
       },

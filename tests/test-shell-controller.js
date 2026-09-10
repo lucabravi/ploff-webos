@@ -308,6 +308,14 @@ function modules() {
   firstSection = content.children[0];
   firstCard = firstSection.querySelector('[data-row-index="0"][data-column="0"]');
   assert.ok(firstCard && firstCard.focused, 'first Home card receives real focus');
+  controller.snapshot().rows[0].items[0].viewed = true;
+  controller.snapshot().rows[0].items[0].progress = 50;
+  controller.updateFocus();
+  assert.ok(firstCard.className.indexOf('is-viewed') !== -1, 'Home focus recovery must synchronize watched state mutated while Detail or Player was open');
+  assert.strictEqual(firstCard.querySelector('.progress-value').style.width, '50%', 'Home focus recovery must synchronize retained playback progress without waiting for a server refresh');
+  controller.snapshot().rows[0].items[0].progress = 100;
+  controller.updateFocus();
+  assert.strictEqual(firstCard.querySelector('.progress-track'), null, 'completed Home cards must use the watched badge without a full progress bar');
   assert.strictEqual(preview.className, 'home-preview', 'the Home preview becomes available with a focused media item');
   assert.strictEqual(previewTitle.children[0].textContent, 'One', 'the Home preview follows the focused card title');
   assert.strictEqual(previewSummary.children[0].textContent, 'A focused Home preview.', 'the Home preview reuses Home metadata without another request');
@@ -369,6 +377,209 @@ function modules() {
   assert.strictEqual(content.children[1].querySelector('.home-library-badge'), null, 'library-specific Home rows do not repeat a redundant source badge');
   assert.ok(posterBatches.length >= 2, 'reconciled cards are reprioritized through one batch');
   assert.strictEqual(homeReady, 1, 'the lazy post-Home hook runs once after the first successful Home render');
+  controller.useHomeRows([], 0, { focus: 'nav' });
+  assert.strictEqual(controller.snapshot().rows.length, 0, 'an empty Home presentation must clear previously rendered row state instead of leaving stale media behind');
+  assert.strictEqual(controller.snapshot().focus.area, 'nav', 'an empty Home must move logical focus off removed media and back to the navbar');
+  assert.strictEqual(content.children.length, 0, 'an empty Home presentation must reconcile stale Home sections out of the DOM');
+  assert.strictEqual(controller.snapshot().homeDirty, false, 'an intentionally empty Home presentation is a fully applied state, not a permanently dirty cache');
+  controller.destroy();
+}());
+
+(function testLateFirstHomeRowsPresentHeroWhileNavbarKeepsFocus() {
+  var document = new FakeDocument();
+  var content = document.register('content', new FakeElement('main', ''));
+  var preview = document.register('home-preview', new FakeElement('section', 'home-preview'));
+  var previewTitle = document.register('home-preview-title', new FakeElement('h1', ''));
+  var previewSummary = document.register('home-preview-summary', new FakeElement('p', ''));
+  var backdropA = document.register('backdrop-a', new FakeElement('img', 'backdrop-image'));
+  var backdropB = document.register('backdrop-b', new FakeElement('img', 'backdrop-image'));
+  var clock = new TimerRoot();
+  var controller;
+  void content; void backdropA; void backdropB;
+  document.register('home-preview-kicker', new FakeElement('span', ''));
+  document.register('home-preview-meta', new FakeElement('p', ''));
+  document.register('navigation', new FakeElement('nav', ''));
+  document.register('startup-splash', new FakeElement('div', 'startup-splash'));
+  document.register('clock', new FakeElement('span', ''));
+  document.register('message', new FakeElement('div', 'message'));
+  controller = ShellController.create({
+    modules: modules(),
+    clock: clock,
+    document: document,
+    now: function () { return 1000; },
+    navigationItems: [{ kind: 'home', title: 'Home' }],
+    services: {
+      posterLoader: {
+        loadBatch: function () {},
+        prioritize: function () {},
+        cancelScope: function () {},
+        load: function (_node, specification) {
+          if (specification && specification.onPreview) { specification.onPreview(); }
+        }
+      },
+      stopTheme: function () {}
+    },
+    presentation: {
+      element: createElementFactory(document),
+      updateText: updateText,
+      translate: function (key) { return key; },
+      prioritizePoster: function () {},
+      renderActiveProfile: function () {},
+      renderServerActivities: function () {}
+    },
+    access: {
+      settings: function () { return { cardScale: 100, backgroundMusic: false }; },
+      authState: function () { return { mode: 'offline', setupComplete: false }; },
+      currentView: function () { return 'home'; },
+      pointerSelectionActive: function () { return false; },
+      navigationHasFocus: function () { return true; },
+      watchlistAvailable: function () { return true; }
+    }
+  });
+
+  controller.useHomeRows([], 0, { focus: 'nav' });
+  assert.strictEqual(preview.className, 'home-preview is-empty', 'an actually empty Home starts without a fabricated hero');
+  controller.useHomeRows([{ title: 'Continue', shape: 'poster', items: [
+    { ratingKey: 'late-one', title: 'Late One', art: '/late-one.jpg', summary: 'Loaded after the NAS woke up.' }
+  ] }], 0, { focus: 'nav' });
+
+  assert.strictEqual(controller.snapshot().focus.area, 'nav', 'late Home media must not steal an intentional navbar focus');
+  assert.strictEqual(preview.className, 'home-preview', 'the first available Home media must populate the hero even while navbar focus is retained');
+  assert.strictEqual(previewTitle.children[0].textContent, 'Late One', 'late Home media must populate the hero title');
+  assert.strictEqual(previewSummary.children[0].textContent, 'Loaded after the NAS woke up.', 'late Home media must populate the hero summary');
+  clock.runAll();
+  assert.strictEqual(controller.activeBackdropSource(), '/late-one.jpg', 'late Home media must also populate the shared backdrop while navbar focus is retained');
+
+  controller.destroy();
+}());
+
+
+(function testHomeHorizontalFocusReusesMountedCardsWithoutDomChurn() {
+  var document = new FakeDocument();
+  var content = document.register('content', new FakeElement('main', ''));
+  var preview = document.register('home-preview', new FakeElement('section', 'home-preview'));
+  var clock = new TimerRoot();
+  var textWrites = 0;
+  var documentQueries = 0;
+  var documentQueryAlls = 0;
+  var layoutReads = 0;
+  var originalQuerySelector;
+  var originalQuerySelectorAll;
+  var section;
+  var secondCard;
+  var controller;
+  void preview;
+  document.register('home-preview-kicker', new FakeElement('span', ''));
+  document.register('home-preview-title', new FakeElement('h1', ''));
+  document.register('home-preview-meta', new FakeElement('p', ''));
+  document.register('home-preview-summary', new FakeElement('p', ''));
+  controller = ShellController.create({
+    modules: modules(), clock: clock, document: document,
+    services: {
+      posterLoader: { loadBatch: function () {}, prioritize: function () {}, cancelScope: function () {} },
+      stopTheme: function () {}
+    },
+    presentation: {
+      element: createElementFactory(document),
+      updateText: function (node, value) { textWrites += 1; updateText(node, value); },
+      translate: function (key) { return key; },
+      prioritizePoster: function () {}, renderActiveProfile: function () {}, renderServerActivities: function () {}
+    },
+    access: {
+      settings: function () { return { cardScale: 100 }; },
+      currentView: function () { return 'home'; },
+      pointerSelectionActive: function () { return false; }, navigationHasFocus: function () { return false; }
+    }
+  });
+  controller.useHomeRows([{ title: 'Continue', shape: 'poster', items: [
+    { ratingKey: 'one', title: 'One', image: '/one.jpg', progress: 25 },
+    { ratingKey: 'two', title: 'Two', image: '/two.jpg', progress: 50 }
+  ] }], 0, { focus: 'first' });
+  section = content.children[0];
+  secondCard = section.querySelector('[data-row-index="0"][data-column="1"]');
+  originalQuerySelector = document.querySelector;
+  originalQuerySelectorAll = document.querySelectorAll;
+  document.querySelector = function (selector) {
+    documentQueries += 1;
+    return originalQuerySelector.call(document, selector);
+  };
+  document.querySelectorAll = function (selector) {
+    documentQueryAlls += 1;
+    return originalQuerySelectorAll.call(document, selector);
+  };
+  content.getBoundingClientRect = function () {
+    layoutReads += 1;
+    return { top: 100, bottom: 700, width: 900, height: 600 };
+  };
+  section.getBoundingClientRect = function () {
+    layoutReads += 1;
+    return { top: 120, bottom: 420, width: 900, height: 300 };
+  };
+  textWrites = 0;
+
+  controller.handleHomeKey({ keyCode: 39, preventDefault: function () {} }, 'right');
+
+  assert.strictEqual(documentQueries, 0, 'horizontal Home focus must use the mounted card index instead of a global querySelector');
+  assert.strictEqual(documentQueryAlls, 0, 'horizontal Home focus must clear only the previously tracked card instead of scanning all focused nodes');
+  assert.strictEqual(textWrites, 0, 'horizontal Home focus must not rewrite an unchanged card presentation');
+  assert.strictEqual(layoutReads, 0, 'horizontal Home focus within one row must not perform layout reads');
+  assert.ok(secondCard && secondCard.className.indexOf('is-focused') !== -1 && secondCard.focused,
+    'the mounted-card fast path must preserve logical and DOM focus on the destination card');
+  controller.destroy();
+}());
+
+
+(function testHomeArtworkUsesPredictiveDistanceTiers() {
+  var document = new FakeDocument();
+  var content = document.register('content', new FakeElement('main', ''));
+  var clock = new TimerRoot();
+  var posterBatches = [];
+  var promoted = [];
+  var controller = ShellController.create({
+    modules: modules(), clock: clock, document: document,
+    services: {
+      posterLoader: { loadBatch: function (jobs) { posterBatches.push(jobs); }, cancelScope: function () {} },
+      stopTheme: function () {}
+    },
+    presentation: {
+      element: createElementFactory(document), updateText: updateText,
+      translate: function (key) { return key; },
+      prioritizePoster: function (card) {
+        promoted.push(card.getAttribute('data-row-index') + ':' + card.getAttribute('data-column'));
+      },
+      renderActiveProfile: function () {}, renderServerActivities: function () {}
+    },
+    access: {
+      settings: function () { return { cardScale: 100 }; },
+      currentView: function () { return 'home'; },
+      pointerSelectionActive: function () { return false; }, navigationHasFocus: function () { return false; }
+    }
+  });
+  controller.useHomeRows([
+    { title: 'Row 0', shape: 'poster', items: [{ ratingKey: 'r0a', image: '/r0a.jpg' }, { ratingKey: 'r0b', image: '/r0b.jpg' }] },
+    { title: 'Row 1', shape: 'poster', items: [{ ratingKey: 'r1a', image: '/r1a.jpg' }, { ratingKey: 'r1b', image: '/r1b.jpg' }] },
+    { title: 'Row 2', shape: 'poster', items: [{ ratingKey: 'r2a', image: '/r2a.jpg' }, { ratingKey: 'r2b', image: '/r2b.jpg' }] },
+    { title: 'Row 3', shape: 'poster', items: [{ ratingKey: 'r3a', image: '/r3a.jpg' }, { ratingKey: 'r3b', image: '/r3b.jpg' }] }
+  ], 0, { focus: 'first' });
+  var jobs = posterBatches[0];
+  assert.strictEqual(jobs.length, 8, 'Home must still render and schedule artwork for every visible row immediately');
+  assert.strictEqual(jobs[0].specification.previewOnly === true, false, 'first Home row must request full artwork');
+  assert.strictEqual(jobs[2].specification.previewOnly === true, false, 'second Home row must request full artwork');
+  assert.strictEqual(jobs[4].specification.previewOnly, true, 'third Home row must initially request preview-only artwork');
+  assert.strictEqual(jobs[6].specification.previewOnly, true, 'deeper Home rows must initially request preview-only artwork');
+  var rowTwoFirstCard = content.querySelector('[data-row-index="2"][data-column="0"]');
+  promoted.length = 0;
+  controller.handleHomeKey({ keyCode: 40, preventDefault: function () {} }, 'down');
+  assert.ok(promoted.indexOf('2:0') !== -1 && promoted.indexOf('2:1') !== -1,
+    'entering the second Home row must promote the next row before the user reaches it');
+  assert.strictEqual(content.querySelector('[data-row-index="2"][data-column="0"]'), rowTwoFirstCard,
+    'artwork promotion must not rebuild Home card DOM');
+  assert.deepStrictEqual(controller.snapshot().focus, { area: 'media', navIndex: 0, rowIndex: 1, column: 0 },
+    'predictive artwork warming must preserve Home focus identity');
+  var promotionCountBeforeHorizontalMove = promoted.length;
+  controller.handleHomeKey({ keyCode: 39, preventDefault: function () {} }, 'right');
+  assert.strictEqual(promoted.length, promotionCountBeforeHorizontalMove + 1,
+    'left/right movement inside the same row must prioritize only the newly focused card, not rescan warm rows');
   controller.destroy();
 }());
 
@@ -456,6 +667,71 @@ function modules() {
   controller.destroy();
   assert.strictEqual(controller.snapshot().destroyed, true, 'destroy is idempotent');
   assert.strictEqual(Object.keys(timers.timers).length, 0, 'destroy cancels every shell timer');
+}());
+
+(function testEmptyHomeBehavesAsHomeStartForBackNavigation() {
+  var exitRequests = 0;
+  var timers = new TimerRoot();
+  var controller = ShellController.create({
+    modules: modules(), clock: timers,
+    rows: [],
+    navigationItems: [{ kind: 'home', title: 'Home' }, { kind: 'library', title: 'Library' }],
+    actions: { requestExit: function () { exitRequests += 1; } },
+    access: { currentView: function () { return 'home'; }, settings: function () { return {}; } }
+  });
+
+  controller.useHomeRows([], 0, { focus: 'nav' });
+  controller.handleHomeKey({ keyCode: 40, preventDefault: function () {} }, 'down');
+  assert.strictEqual(controller.snapshot().focus.area, 'nav', 'Down on an empty Home must keep focus on navigation because there is no media target');
+  controller.handleHomeKey({ keyCode: 39, preventDefault: function () {} }, 'right');
+  assert.strictEqual(controller.snapshot().focus.navIndex, 1, 'empty Home still allows normal horizontal navbar navigation');
+  controller.handleHomeKey({ keyCode: 461, preventDefault: function () {} }, null);
+  assert.strictEqual(exitRequests, 0, 'Back from another navbar item on empty Home must return to Home before exiting the app');
+  assert.deepStrictEqual(controller.snapshot().focus, { area: 'nav', navIndex: 0, rowIndex: 0, column: 0 }, 'Back from another navbar item must restore the Home navbar position when no media rows exist');
+  controller.handleHomeKey({ keyCode: 461, preventDefault: function () {} }, null);
+
+  assert.strictEqual(exitRequests, 1, 'Back from an empty Home must exit instead of trying to focus a media card that does not exist');
+  controller.destroy();
+}());
+
+(function testFirstEmptyHomeStillPublishesReadyAndPrefetchHooks() {
+  var homeReady = 0;
+  var prefetch = 0;
+  var timers = new TimerRoot();
+  var controller = ShellController.create({
+    modules: modules(), clock: timers,
+    rows: [],
+    actions: {
+      onHomeReady: function () { homeReady += 1; },
+      scheduleAdjacentLibraryPrefetch: function () { prefetch += 1; }
+    },
+    access: { currentView: function () { return 'home'; }, settings: function () { return {}; } }
+  });
+
+  controller.useHomeRows([], 0, { focus: 'nav' });
+  controller.useHomeRows([], 0, { focus: 'nav' });
+
+  assert.strictEqual(homeReady, 1, 'the first applied empty Home must publish Home ready exactly once so background warm-up can start');
+  assert.strictEqual(prefetch, 2, 'empty Home presentations must retain the same adjacent-library prefetch hook as non-empty Home presentations');
+  controller.destroy();
+}());
+
+(function testHomeResetRearmsReadyHookForNewServerOrProfileLifecycle() {
+  var homeReady = 0;
+  var timers = new TimerRoot();
+  var controller = ShellController.create({
+    modules: modules(), clock: timers,
+    rows: [],
+    actions: { onHomeReady: function () { homeReady += 1; } },
+    access: { currentView: function () { return 'home'; }, settings: function () { return {}; } }
+  });
+
+  controller.useHomeRows([{ title: 'First', items: [{ ratingKey: 'one' }] }], 0, { focus: 'first' });
+  controller.resetHome();
+  controller.useHomeRows([{ title: 'Second', items: [{ ratingKey: 'two' }] }], 0, { focus: 'first' });
+
+  assert.strictEqual(homeReady, 2, 'resetting Home for a new server/profile lifecycle must rearm post-Home warm-up hooks');
+  controller.destroy();
 }());
 
 (function testStaticOwnershipBoundary() {

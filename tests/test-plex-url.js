@@ -3,6 +3,13 @@
 var assert = require('assert');
 var PlexUrl = require('../app/plex-url');
 
+[
+  'buildLibraryBrowseUrl', 'buildWatchedUrl', 'buildRemoveFromContinueWatchingUrl',
+  'buildProgressUrl', 'buildLibraryRefreshUrl', 'buildMetadataRefreshUrl'
+].forEach(function (name) {
+  assert.strictEqual(typeof PlexUrl[name], 'function', name + ' must be owned by PlexUrl');
+});
+
 assert.strictEqual(
   PlexUrl.buildUrl('https://plex.example/', '/library/metadata/12', { includeGuids: 1 }, 'secret'),
   'https://plex.example/library/metadata/12?includeGuids=1&X-Plex-Token=secret',

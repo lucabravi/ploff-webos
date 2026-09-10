@@ -35,6 +35,27 @@
     return normalized;
   }
 
+  function applyRowPreferences(rows, enabledKinds, configurableKinds) {
+    var source = Object.prototype.toString.call(rows) === '[object Array]' ? rows : [];
+    var enabled = Object.prototype.toString.call(enabledKinds) === '[object Array]' ? enabledKinds : null;
+    var configurable = Object.prototype.toString.call(configurableKinds) === '[object Array]' ? configurableKinds : null;
+    var grouped = {};
+    var unknown = [];
+    var result = [];
+    if (!enabled || !configurable) { return source.slice(); }
+    configurable.forEach(function (kind) { grouped[String(kind)] = []; });
+    source.forEach(function (row) {
+      var kind = String(row && row.kind || '');
+      if (configurable.indexOf(kind) === -1) { unknown.push(row); return; }
+      if (enabled.indexOf(kind) !== -1) { grouped[kind].push(row); }
+    });
+    enabled.forEach(function (kind) {
+      if (configurable.indexOf(kind) === -1 || !grouped[kind]) { return; }
+      grouped[kind].forEach(function (row) { result.push(row); });
+    });
+    return result.concat(unknown);
+  }
+
   function mediaKey(item) {
     item = item || {};
     if (item.ratingKey) { return 'rating:' + String(item.ratingKey); }
@@ -212,6 +233,7 @@
   }
 
   return {
+    applyRowPreferences: applyRowPreferences,
     createPoller: createPoller,
     createRefreshCoordinator: createRefreshCoordinator,
     fingerprintRows: fingerprintRows,

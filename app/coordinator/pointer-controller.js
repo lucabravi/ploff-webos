@@ -116,92 +116,173 @@
       return -1;
     }
 
-    function syncPointerFocus(button) {
+    function syncOverlayFocus(button, session) {
       var index;
+      if (has(button, 'data-subtitle-editor') && session.subtitleEditorOpen) {
+        return focusCall(focus.subtitleEditor, button);
+      }
+      if (has(button, 'data-diagnostics-action') && session.appView === 'diagnostics') {
+        index = ['refresh', 'export', 'back'].indexOf(attribute(button, 'data-diagnostics-action'));
+        return index >= 0 ? focusCall(focus.diagnostics, index) : false;
+      }
+      if (has(button, 'data-resume-index') && session.resumeChoiceOpen) {
+        return focusCall(focus.resume, Number(attribute(button, 'data-resume-index')));
+      }
+      if (has(button, 'data-setup-language') || has(button, 'data-setup-action') ||
+          has(button, 'data-setup-server') || has(button, 'data-setup-profile')) {
+        return focusCall(focus.setup, button);
+      }
+      return undefined;
+    }
+
+    function syncNavigationFocus(button, session) {
+      if (has(button, 'data-nav-index')) {
+        return focusCall(focus.navigation, Number(attribute(button, 'data-nav-index')), session.appView);
+      }
+      if (has(button, 'data-row-index')) {
+        return focusCall(focus.home, Number(attribute(button, 'data-row-index')), Number(attribute(button, 'data-column')));
+      }
+      return undefined;
+    }
+
+    function syncDetailFocus(button) {
+      var index;
+      if (has(button, 'data-cast-position')) {
+        return focusCall(focus.detail, 'cast', Number(attribute(button, 'data-cast-position')));
+      }
+      if (has(button, 'data-extra-position')) {
+        return focusCall(focus.detail, 'extra', Number(attribute(button, 'data-extra-position')));
+      }
+      if (has(button, 'data-season-position')) {
+        return focusCall(focus.detail, 'season', Number(attribute(button, 'data-season-position')));
+      }
+      if (has(button, 'data-episode-position')) {
+        return focusCall(focus.detail, 'episode', Number(attribute(button, 'data-episode-position')));
+      }
+      if (button.id === 'detail-play' || button.id === 'detail-watched' ||
+          button.id === 'detail-watchlist' || button.id === 'detail-options') {
+        index = button.id === 'detail-play' ? 0 : (button.id === 'detail-watched' ? 1 : (button.id === 'detail-watchlist' ? 2 : 3));
+        return focusCall(focus.detail, 'play', index);
+      }
+      if (button.id === 'detail-audio' || button.id === 'detail-subtitles' || button.id === 'detail-version') {
+        return focusCall(focus.detail, button.id === 'detail-audio' ? 'audio' : (button.id === 'detail-subtitles' ? 'subtitles' : 'version'), 0);
+      }
+      if (button.id === 'detail-summary-button') { return focusCall(focus.detail, 'summary', 0); }
+      return undefined;
+    }
+
+    function syncSettingsFocus(button, session) {
+      if (has(button, 'data-safe-area-index') && session.safeAreaOpen) {
+        return focusCall(focus.safeArea, Number(attribute(button, 'data-safe-area-index')), button);
+      }
+      if (has(button, 'data-subtitle-style-index') && session.subtitleStyleOpen) {
+        return focusCall(focus.subtitleStyle, Number(attribute(button, 'data-subtitle-style-index')), button);
+      }
+      if (has(button, 'data-setting-index')) {
+        return focusCall(focus.settings, Number(attribute(button, 'data-setting-index')));
+      }
+      if (has(button, 'data-text-input-index') && session.textInputDialogOpen) {
+        return focusCall(focus.textInput, Number(attribute(button, 'data-text-input-index')));
+      }
+      if (has(button, 'data-playback-compatibility-index') && session.playbackCompatibilityOpen) {
+        return focusCall(focus.playbackCompatibility, Number(attribute(button, 'data-playback-compatibility-index')));
+      }
+      if (has(button, 'data-update-index') && session.updateDialogOpen) {
+        return focusCall(focus.updateDialog, Number(attribute(button, 'data-update-index')));
+      }
+      if (button.id === 'privacy-dialog-close') { return focusCall(focus.privacy, button); }
+      if (has(button, 'data-language-index')) {
+        return focusCall(focus.language, Number(attribute(button, 'data-language-index')));
+      }
+      if (has(button, 'data-server-index')) {
+        return focusCall(focus.server, Number(attribute(button, 'data-server-index')));
+      }
+      return undefined;
+    }
+
+    function syncSearchFocus(button) {
+      if (has(button, 'data-search-key') || has(button, 'data-search-index')) {
+        return focusCall(focus.search, button);
+      }
+      return undefined;
+    }
+
+    function syncLibraryFocus(button) {
+      if (has(button, 'data-library-tab')) {
+        if (button.disabled) { return false; }
+        return focusCall(focus.library, 'tabs', Number(attribute(button, 'data-library-tab')), button);
+      }
+      if (button.id === 'library-refresh' || button.id === 'library-refresh-metadata') {
+        return focusCall(focus.library, 'actions', button.id === 'library-refresh' ? 0 : 1, button);
+      }
+      if (has(button, 'data-library-sort')) {
+        return focusCall(focus.library, 'sort', ['titleSort', 'audienceRating', 'year'].indexOf(attribute(button, 'data-library-sort')), button);
+      }
+      if (has(button, 'data-library-filter')) {
+        return focusCall(focus.library, 'filter', ['all', 'unwatched', 'watched'].indexOf(attribute(button, 'data-library-filter')), button);
+      }
+      if (has(button, 'data-library-filter-open')) { return focusCall(focus.library, 'filter', 3, button); }
+      if (has(button, 'data-library-advanced-filter') || has(button, 'data-library-filter-option') ||
+          has(button, 'data-library-filter-action')) {
+        return focusCall(focus.libraryFilter, button);
+      }
+      if (has(button, 'data-library-index') || has(button, 'data-library-recommendation-row')) {
+        return focusCall(focus.library, 'grid', 0, button);
+      }
+      if (has(button, 'data-watchlist-index')) { return focusCall(focus.watchlist, button); }
+      return undefined;
+    }
+
+    function syncPlayerFocus(button) {
+      var index;
+      if (button.id === 'player-timeline-button') { return focusCall(focus.player, 'timeline', 0); }
+      if (button.id === 'player-skip-marker') { return focusCall(focus.player, 'skip', 0); }
+      if (button.id === 'player-chapters-hint') { return focusCall(focus.player, 'chapter-hint', 0); }
+      if (has(button, 'data-chapter-index')) {
+        return focusCall(focus.player, 'chapter', Number(attribute(button, 'data-chapter-index')));
+      }
+      if (classContains(button, 'player-button')) {
+        index = playerButtonsIndex(button);
+        return index >= 0 ? focusCall(focus.player, 'button', index) : false;
+      }
+      return undefined;
+    }
+
+    function syncPlayerDialogFocus(button, session) {
+      var index;
+      if (has(button, 'data-choice-index') && session.choiceDialogOpen) {
+        return focusCall(focus.choice, Number(attribute(button, 'data-choice-index')));
+      }
+      if (classContains(button, 'setting-row') || button.id === 'player-media-info') {
+        index = playerSettingIndex(button);
+        return index >= 0 ? focusCall(focus.player, 'setting', index) : false;
+      }
+      return undefined;
+    }
+
+    function syncPointerFocus(button) {
       var session = currentSession();
       if (state.destroyed || !button || button.disabled) { return false; }
       state.pageScrollPendingFocus = false;
       return withSelection(function () {
+        var result;
         if (call(capture.focus, button, session) === true) { return true; }
-        if (has(button, 'data-subtitle-editor') && session.subtitleEditorOpen) {
-          return focusCall(focus.subtitleEditor, button);
-        } else if (has(button, 'data-diagnostics-action') && session.appView === 'diagnostics') {
-          index = ['refresh', 'export', 'back'].indexOf(attribute(button, 'data-diagnostics-action'));
-          return index >= 0 ? focusCall(focus.diagnostics, index) : false;
-        } else if (has(button, 'data-resume-index') && session.resumeChoiceOpen) {
-          return focusCall(focus.resume, Number(attribute(button, 'data-resume-index')));
-        } else if (has(button, 'data-setup-language') || has(button, 'data-setup-action') || has(button, 'data-setup-server') || has(button, 'data-setup-profile')) {
-          return focusCall(focus.setup, button);
-        } else if (has(button, 'data-nav-index')) {
-          return focusCall(focus.navigation, Number(attribute(button, 'data-nav-index')), session.appView);
-        } else if (has(button, 'data-row-index')) {
-          return focusCall(focus.home, Number(attribute(button, 'data-row-index')), Number(attribute(button, 'data-column')));
-        } else if (has(button, 'data-season-position')) {
-          return focusCall(focus.detail, 'season', Number(attribute(button, 'data-season-position')));
-        } else if (has(button, 'data-episode-position')) {
-          return focusCall(focus.detail, 'episode', Number(attribute(button, 'data-episode-position')));
-        } else if (button.id === 'detail-play' || button.id === 'detail-watched' || button.id === 'detail-watchlist' || button.id === 'detail-options') {
-          index = button.id === 'detail-play' ? 0 : (button.id === 'detail-watched' ? 1 : (button.id === 'detail-watchlist' ? 2 : 3));
-          return focusCall(focus.detail, 'play', index);
-        } else if (button.id === 'detail-audio' || button.id === 'detail-subtitles' || button.id === 'detail-version') {
-          return focusCall(focus.detail, button.id === 'detail-audio' ? 'audio' : (button.id === 'detail-subtitles' ? 'subtitles' : 'version'), 0);
-        } else if (button.id === 'detail-summary-button') {
-          return focusCall(focus.detail, 'summary', 0);
-        } else if (has(button, 'data-safe-area-index') && session.safeAreaOpen) {
-          return focusCall(focus.safeArea, Number(attribute(button, 'data-safe-area-index')), button);
-        } else if (has(button, 'data-subtitle-style-index') && session.subtitleStyleOpen) {
-          return focusCall(focus.subtitleStyle, Number(attribute(button, 'data-subtitle-style-index')), button);
-        } else if (has(button, 'data-setting-index')) {
-          return focusCall(focus.settings, Number(attribute(button, 'data-setting-index')));
-        } else if (has(button, 'data-text-input-index') && session.textInputDialogOpen) {
-          return focusCall(focus.textInput, Number(attribute(button, 'data-text-input-index')));
-        } else if (has(button, 'data-playback-compatibility-index') && session.playbackCompatibilityOpen) {
-          return focusCall(focus.playbackCompatibility, Number(attribute(button, 'data-playback-compatibility-index')));
-        } else if (has(button, 'data-update-index') && session.updateDialogOpen) {
-          return focusCall(focus.updateDialog, Number(attribute(button, 'data-update-index')));
-        } else if (button.id === 'privacy-dialog-close') {
-          return focusCall(focus.privacy, button);
-        } else if (has(button, 'data-language-index')) {
-          return focusCall(focus.language, Number(attribute(button, 'data-language-index')));
-        } else if (has(button, 'data-server-index')) {
-          return focusCall(focus.server, Number(attribute(button, 'data-server-index')));
-        } else if (has(button, 'data-search-key') || has(button, 'data-search-index')) {
-          return focusCall(focus.search, button);
-        } else if (has(button, 'data-library-tab')) {
-          if (button.disabled) { return false; }
-          return focusCall(focus.library, 'tabs', Number(attribute(button, 'data-library-tab')), button);
-        } else if (button.id === 'library-refresh' || button.id === 'library-refresh-metadata') {
-          return focusCall(focus.library, 'actions', button.id === 'library-refresh' ? 0 : 1, button);
-        } else if (has(button, 'data-library-sort')) {
-          return focusCall(focus.library, 'sort', ['titleSort', 'audienceRating', 'year'].indexOf(attribute(button, 'data-library-sort')), button);
-        } else if (has(button, 'data-library-filter')) {
-          return focusCall(focus.library, 'filter', ['all', 'unwatched', 'watched'].indexOf(attribute(button, 'data-library-filter')), button);
-        } else if (has(button, 'data-library-filter-open')) {
-          return focusCall(focus.library, 'filter', 3, button);
-        } else if (has(button, 'data-library-advanced-filter') || has(button, 'data-library-filter-option') || has(button, 'data-library-filter-action')) {
-          return focusCall(focus.libraryFilter, button);
-        } else if (has(button, 'data-library-index') || has(button, 'data-library-recommendation-row')) {
-          return focusCall(focus.library, 'grid', 0, button);
-        } else if (has(button, 'data-watchlist-index')) {
-          return focusCall(focus.watchlist, button);
-        } else if (button.id === 'player-timeline-button') {
-          return focusCall(focus.player, 'timeline', 0);
-        } else if (button.id === 'player-skip-marker') {
-          return focusCall(focus.player, 'skip', 0);
-        } else if (button.id === 'player-chapters-hint') {
-          return focusCall(focus.player, 'chapter-hint', 0);
-        } else if (has(button, 'data-chapter-index')) {
-          return focusCall(focus.player, 'chapter', Number(attribute(button, 'data-chapter-index')));
-        } else if (classContains(button, 'player-button')) {
-          index = playerButtonsIndex(button);
-          return index >= 0 ? focusCall(focus.player, 'button', index) : false;
-        } else if (has(button, 'data-choice-index') && session.choiceDialogOpen) {
-          return focusCall(focus.choice, Number(attribute(button, 'data-choice-index')));
-        } else if (classContains(button, 'setting-row') || button.id === 'player-media-info') {
-          index = playerSettingIndex(button);
-          return index >= 0 ? focusCall(focus.player, 'setting', index) : false;
-        }
-        return false;
+        result = syncOverlayFocus(button, session);
+        if (result !== undefined) { return result; }
+        result = syncNavigationFocus(button, session);
+        if (result !== undefined) { return result; }
+        result = syncDetailFocus(button);
+        if (result !== undefined) { return result; }
+        result = syncSettingsFocus(button, session);
+        if (result !== undefined) { return result; }
+        result = syncSearchFocus(button);
+        if (result !== undefined) { return result; }
+        result = syncLibraryFocus(button);
+        if (result !== undefined) { return result; }
+        result = syncPlayerFocus(button);
+        if (result !== undefined) { return result; }
+        result = syncPlayerDialogFocus(button, session);
+        return result !== undefined ? result : false;
       });
     }
 

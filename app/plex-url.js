@@ -50,5 +50,85 @@
     }, config.token || '');
   }
 
-  return { trimSlash: trimSlash, buildUrl: buildUrl, assetUrl: assetUrl, replaceQueryParameter: replaceQueryParameter, posterUrl: posterUrl };
+
+  function buildLibraryBrowseUrl(config, library, view, options, start, size) {
+    var path;
+    var parameters = {
+      'X-Plex-Container-Start': Math.max(0, Number(start || 0)),
+      'X-Plex-Container-Size': Math.max(1, Number(size || 60))
+    };
+    options = options || {};
+    if (view === 'continue') {
+      path = '/hubs/continueWatching/items';
+      parameters.contentDirectoryID = library.key;
+    } else if (view === 'recent') {
+      path = '/library/sections/' + library.key + '/recentlyAdded';
+    } else if (view === 'collections') {
+      path = '/library/sections/' + library.key + '/collections';
+    } else if (view === 'playlists') {
+      path = '/playlists';
+      parameters.playlistType = 'video';
+    } else {
+      path = '/library/sections/' + library.key + '/all';
+      parameters.sort = (options.sort === 'audienceRating' ? 'audienceRating' : (options.sort === 'year' ? 'year' : 'titleSort')) + ':' + (options.direction === 'desc' ? 'desc' : 'asc');
+      if (options.watched === 'unwatched') { parameters.unwatched = 1; }
+      else if (options.watched === 'watched') { parameters.unwatched = 0; }
+      if (options.filters) {
+        ['year', 'genre', 'actor', 'director', 'resolution', 'hdr'].forEach(function (key) {
+          if (options.filters[key] !== undefined && options.filters[key] !== null && options.filters[key] !== '') {
+            parameters[key] = options.filters[key];
+          }
+        });
+      }
+    }
+    return buildUrl(config.apiBaseUrl, path, parameters, config.token || '');
+  }
+
+  function buildWatchedUrl(config, ratingKey, watched) {
+    return buildUrl(config.apiBaseUrl, watched ? '/:/scrobble' : '/:/unscrobble', {
+      key: ratingKey,
+      identifier: 'com.plexapp.plugins.library'
+    }, config.token || '');
+  }
+
+  function buildRemoveFromContinueWatchingUrl(config, ratingKey) {
+    return buildUrl(config.apiBaseUrl, '/actions/removeFromContinueWatching', {
+      ratingKey: ratingKey
+    }, config.token || '');
+  }
+
+  function buildProgressUrl(config, ratingKey, time) {
+    var progressTime = Number(time);
+    if (progressTime !== -1) {
+      progressTime = Math.max(0, Math.round(progressTime || 0));
+    }
+    return buildUrl(config.apiBaseUrl, '/:/progress', {
+      key: ratingKey,
+      time: progressTime,
+      state: 'stopped',
+      identifier: 'com.plexapp.plugins.library'
+    }, config.token || '');
+  }
+
+  function buildLibraryRefreshUrl(config, libraryKey, force) {
+    return buildUrl(config.apiBaseUrl, '/library/sections/' + libraryKey + '/refresh', force ? { force: 1 } : {}, config.token || '');
+  }
+
+  function buildMetadataRefreshUrl(config, ratingKey) {
+    return buildUrl(config.apiBaseUrl, '/library/metadata/' + ratingKey + '/refresh', {}, config.token || '');
+  }
+
+  return {
+    trimSlash: trimSlash,
+    buildUrl: buildUrl,
+    assetUrl: assetUrl,
+    replaceQueryParameter: replaceQueryParameter,
+    posterUrl: posterUrl,
+    buildLibraryBrowseUrl: buildLibraryBrowseUrl,
+    buildWatchedUrl: buildWatchedUrl,
+    buildRemoveFromContinueWatchingUrl: buildRemoveFromContinueWatchingUrl,
+    buildProgressUrl: buildProgressUrl,
+    buildLibraryRefreshUrl: buildLibraryRefreshUrl,
+    buildMetadataRefreshUrl: buildMetadataRefreshUrl
+  };
 }));

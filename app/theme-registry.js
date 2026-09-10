@@ -9,11 +9,13 @@
   'use strict';
 
   var DEFINITIONS = [
-    { id: 'classic', className: 'visual-theme-classic', labelKey: 'settings.themeClassic', styleFile: 'classic.css', supportsAccentColor: true },
     { id: 'immersive', className: 'visual-theme-immersive', labelKey: 'settings.themeImmersive', styleFile: 'immersive.css', supportsAccentColor: true },
     { id: 'premiere', className: 'visual-theme-premiere', labelKey: 'settings.themePremiere', styleFile: 'premiere.css', supportsAccentColor: false },
+    { id: 'aurora', className: 'visual-theme-aurora', labelKey: 'settings.themeAurora', styleFile: 'aurora.css', supportsAccentColor: false },
+    { id: 'mahogany', className: 'visual-theme-mahogany', labelKey: 'settings.themeMahogany', styleFile: 'mahogany.css', supportsAccentColor: false },
+    { id: 'atelier', className: 'visual-theme-atelier', labelKey: 'settings.themeAtelier', styleFile: 'atelier.css', supportsAccentColor: false },
     { id: 'nova', className: 'visual-theme-nova', labelKey: 'settings.themeNova', styleFile: 'nova.css', supportsAccentColor: false },
-    { id: 'atelier', className: 'visual-theme-atelier', labelKey: 'settings.themeAtelier', styleFile: 'atelier.css', supportsAccentColor: false }
+    { id: 'classic', className: 'visual-theme-classic', labelKey: 'settings.themeClassic', styleFile: 'classic.css', supportsAccentColor: true }
   ];
   var DEFAULT_ID = 'immersive';
 

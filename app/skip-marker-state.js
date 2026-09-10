@@ -16,7 +16,8 @@
       mode: 'hidden',
       deadline: 0,
       focusRequested: false,
-      dismissed: false
+      dismissed: false,
+      consumed: false
     };
   }
 
@@ -28,7 +29,8 @@
       mode: state.mode,
       deadline: state.deadline,
       focusRequested: state.focusRequested,
-      dismissed: state.dismissed
+      dismissed: state.dismissed,
+      consumed: state.consumed === true
     };
   }
 
@@ -45,11 +47,19 @@
     return null;
   }
 
-  function update(state, markers, timeOffset, now, durationSeconds) {
+  function update(state, markers, timeOffset, now, durationSeconds, preserveConsumed) {
     var next = copy(state || create());
     var marker = activeMarker(markers, timeOffset);
     var duration = Number(durationSeconds);
-    if (!marker) { return create(); }
+    if (!marker) {
+      if (next.consumed && preserveConsumed === true) {
+        next.visible = false;
+        next.mode = 'hidden';
+        next.focusRequested = false;
+        return next;
+      }
+      return create();
+    }
     if (next.markerKey !== marker.key) {
       next.marker = marker;
       next.markerKey = marker.key;
@@ -58,9 +68,16 @@
       next.deadline = Number(now) + (isFinite(duration) ? duration : 5) * 1000;
       next.focusRequested = true;
       next.dismissed = false;
+      next.consumed = false;
       return next;
     }
     next.marker = marker;
+    if (next.consumed) {
+      next.visible = false;
+      next.mode = 'hidden';
+      next.focusRequested = false;
+      return next;
+    }
     if (next.mode === 'timed' && Number(now) >= next.deadline) {
       next.visible = false;
       next.mode = 'hidden';
@@ -72,6 +89,14 @@
   function showForControls(state, marker) {
     var next = copy(state || create());
     var requestFocus = !next.visible || next.mode !== 'controls';
+    if (marker && next.markerKey !== marker.key) { next.consumed = false; }
+    if (next.consumed && (marker || next.marker)) {
+      next.marker = marker || next.marker;
+      next.visible = false;
+      next.mode = 'hidden';
+      next.focusRequested = false;
+      return next;
+    }
     if (marker) {
       requestFocus = requestFocus || next.markerKey !== marker.key;
       next.marker = marker;
@@ -96,12 +121,13 @@
     return next;
   }
 
-  function dismiss(state) {
+  function dismiss(state, consumed) {
     var next = copy(state || create());
     next.visible = false;
     next.mode = 'hidden';
     next.focusRequested = false;
     next.dismissed = true;
+    next.consumed = next.consumed || consumed === true;
     return next;
   }
 

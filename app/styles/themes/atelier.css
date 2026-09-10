@@ -1,4 +1,7 @@
 body.visual-theme-atelier {
+  --detail-preference-badge-background: rgba(199,173,122,.10);
+  --detail-preference-badge-border: rgba(199,173,122,.44);
+  --detail-preference-badge-text: #d7c49c;
   --accent: #c7ad7a;
   --theme-app-background: #0d0d0c;
   --theme-app-text: #f3efe6;

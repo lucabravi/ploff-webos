@@ -8,6 +8,7 @@ var ViewState = require('../app/view-state');
 var NavigationModel = require('../app/navigation-model');
 var ShellController = require('../app/coordinator/shell-controller');
 var HomeState = require('../app/home-state');
+var SettingsSchema = require('../app/settings-schema');
 var PresentationServices = require('../app/coordinator/presentation-services');
 var ProgressiveImages = require('../app/progressive-images');
 
@@ -213,6 +214,7 @@ function createHarness(overrides) {
       ShellController: {
         create: function (values) { controllerCreates += 1; controllerOptions = values; rows = (values.rows || []).slice(); return shellController; }
       },
+      SettingsSchema: SettingsSchema,
       HomeState: {
         restoreFocus: function (_rows, base) { return base; },
         selectionKey: function () { return 'selection'; }
@@ -306,6 +308,7 @@ function createHarness(overrides) {
     feature: Feature.create(options), root: root, document: document, calls: calls, controllerCalls: controllerCalls,
     counts: function () { return { controller: controllerCreates, poster: posterCreates, audio: audioCreates, controllerDestroyed: controllerDestroyed, posterDestroyed: posterDestroyed, audioDestroyed: audioDestroyed }; },
     controllerOptions: function () { return controllerOptions; }, posterOptions: function () { return posterOptions; }, storageWrites: storageWrites, posterLoader: posterLoader,
+    setControllerRows: function (nextRows) { return shellController.setRows(nextRows); },
     presentationServices: presentationServices
   };
 }
@@ -345,7 +348,318 @@ function createHarness(overrides) {
   assert.strictEqual(harness.feature.rows()[0].items[0].viewed, true, 'Shell owns Home watched-state projection');
   assert.strictEqual(harness.feature.rows()[0].items[0].viewOffset, 0);
   assert.ok(harness.controllerCalls.some(function (entry) { return entry[0] === 'refreshHome'; }), 'watched projection retains the established Home refresh behavior');
+  harness.feature.destroy();
+
+  var preferredHarness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: {
+      settings: function () { return { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['recent', 'continue'] }; }
+    },
+    data: {
+      loadHome: function (callback) {
+        callback(null, [
+          { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c' }] },
+          { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'x' }] },
+          { title: 'Recent A', kind: 'recent', items: [{ ratingKey: 'a' }] },
+          { title: 'Recent B', kind: 'recent', items: [{ ratingKey: 'b' }] }
+        ]);
+        return 'preferred-home-request';
+      }
+    }
+  });
+  assert.strictEqual(preferredHarness.controllerOptions().services.loadHome(function (error, rows) { loadedHome = { error: error, rows: rows }; }), 'preferred-home-request');
+  assert.strictEqual(loadedHome.error, null);
+  assert.deepStrictEqual(loadedHome.rows.map(function (row) { return row.title; }), ['Recent A', 'Recent B', 'Continue'],
+    'Shell must apply Home row visibility and order only after the complete Home response is available');
+  preferredHarness.feature.destroy();
 }());
+
+
+(function testHomeRowSettingReusesLoadedSourceWithoutWaitingForNetwork() {
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['continue'] };
+  var fullRows = [
+    { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c' }] },
+    { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r' }] }
+  ];
+  var loaded = null;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: { settings: function () { return currentSettings; } },
+    data: {
+      loadHome: function (callback) {
+        callback(null, fullRows.map(function (row) { return Object.assign({}, row); }));
+        return 'cached-source-request';
+      }
+    }
+  });
+
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+  assert.deepStrictEqual(harness.feature.rows().map(function (row) { return row.kind; }), ['continue'], 'initial Home presentation follows the saved visibility');
+  harness.feature.updateWatched('c', true);
+  assert.strictEqual(harness.feature.rows()[0].items[0].viewed, true, 'local watched projection updates the currently rendered Home card immediately');
+
+  currentSettings.homeRows = ['recommended', 'continue'];
+  currentSettings.uiLanguage = 'en';
+  harness.feature.markHomeDirty();
+  harness.feature.enterHome({ refresh: false, focus: 'nav' });
+
+  assert.deepStrictEqual(harness.feature.rows().map(function (row) { return row.kind; }), ['recommended', 'continue'],
+    'returning from Settings must apply the new Home row preference from the already-loaded source without waiting for another Plex request');
+  assert.strictEqual(harness.feature.rows()[0].title, 'en:home.recommended',
+    'reusing the loaded Home source after a language change must localize recommendation labels with the current language');
+  assert.strictEqual(harness.feature.rows()[1].items[0].viewed, true,
+    'reapplying Home row preferences from cached source must preserve optimistic watched-state projections while the Plex refresh is pending');
+  harness.feature.destroy();
+}());
+
+(function testNewerHomeLoadSupersedesOlderRetainedSource() {
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['continue'] };
+  var pendingHomeCallbacks = [];
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: { settings: function () { return currentSettings; } },
+    data: {
+      loadHome: function (callback) {
+        pendingHomeCallbacks.push(callback);
+        return { abort: function () {} };
+      }
+    }
+  });
+
+  harness.controllerOptions().services.loadHome(function () {});
+  harness.controllerOptions().services.loadHome(function () {});
+  pendingHomeCallbacks[1](null, [{ title: 'Current Continue', kind: 'continue', items: [{ ratingKey: 'current' }] }]);
+  pendingHomeCallbacks[0](null, [{ title: 'Stale Continue', kind: 'continue', items: [{ ratingKey: 'stale' }] }]);
+  harness.feature.markHomeDirty();
+  harness.feature.enterHome({ refresh: false, focus: 'nav' });
+
+  assert.strictEqual(harness.feature.rows()[0].items[0].ratingKey, 'current',
+    'an older Home callback must not overwrite the retained source from a newer load');
+  harness.feature.destroy();
+}());
+
+(function testLateFirstHomeMediaFocusesFirstCardOnlyBeforeUserInteraction() {
+  var harness = createHarness({ modules: { HomeState: HomeState, SettingsSchema: SettingsSchema } });
+  var onResult = harness.controllerOptions().home.onResult;
+  var useCalls;
+
+  onResult(null, [], true, true);
+  onResult(null, [{ title: 'Late', items: [{ ratingKey: 'late-one' }] }], true, false);
+  useCalls = harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; });
+  assert.strictEqual(useCalls[useCalls.length - 1][1].focus, 'first',
+    'the first media arriving after an empty startup response must still receive initial focus when the user has not interacted');
+  harness.feature.destroy();
+
+  harness = createHarness({ modules: { HomeState: HomeState, SettingsSchema: SettingsSchema } });
+  onResult = harness.controllerOptions().home.onResult;
+  onResult(null, [], true, true);
+  harness.feature.handleHomeKey({ keyCode: 39, preventDefault: function () {} }, 'right');
+  onResult(null, [{ title: 'Late', items: [{ ratingKey: 'late-two' }] }], true, false);
+  useCalls = harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; });
+  assert.strictEqual(useCalls[useCalls.length - 1][1].focus, 'nav',
+    'late media must preserve navbar focus after the user has already navigated there');
+  harness.feature.destroy();
+}());
+
+
+(function testResetRejectsStaleHomeSourceCallback() {
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['continue'] };
+  var pendingHomeCallback = null;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: { settings: function () { return currentSettings; } },
+    data: {
+      loadHome: function (callback) {
+        pendingHomeCallback = callback;
+        return { abort: function () {} };
+      }
+    }
+  });
+
+  harness.controllerOptions().services.loadHome(function () {});
+  harness.feature.resetHome();
+  pendingHomeCallback(null, [{ title: 'Stale Continue', kind: 'continue', items: [{ ratingKey: 'stale' }] }]);
+  harness.feature.markHomeDirty();
+  harness.feature.enterHome({ refresh: false, focus: 'nav' });
+
+  assert.strictEqual(harness.feature.rows().length, 0,
+    'a Home response completing after identity reset must not repopulate the retained source used on re-entry');
+  harness.feature.destroy();
+}());
+
+(function testFailedBackdropPreviewDoesNotSupersedeSuccessfulHomeSourceRefresh() {
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['continue'] };
+  var pendingHomeCallbacks = [];
+  var loaded = null;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: { settings: function () { return currentSettings; } },
+    data: {
+      loadHome: function (callback) {
+        pendingHomeCallbacks.push(callback);
+        return { abort: function () {} };
+      }
+    }
+  });
+
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  pendingHomeCallbacks[0](null, [
+    { title: 'Old Continue', kind: 'continue', items: [{ ratingKey: 'old-continue' }] },
+    { title: 'Old Recent', kind: 'recent', items: [{ ratingKey: 'old-recent' }] }
+  ]);
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+
+  harness.controllerOptions().services.loadHome(function (_error, rows) {
+    harness.setControllerRows(HomeState.normalizeRows(rows));
+  });
+  harness.feature.loadBackdropPreview(function () {});
+  pendingHomeCallbacks[2](new Error('preview offline'), []);
+  pendingHomeCallbacks[1](null, [
+    { title: 'Fresh Continue', kind: 'continue', items: [{ ratingKey: 'fresh-continue' }] },
+    { title: 'Fresh Recent', kind: 'recent', items: [{ ratingKey: 'fresh-recent' }] }
+  ]);
+
+  currentSettings.homeRows = ['recent'];
+  harness.feature.markHomeDirty();
+  harness.feature.enterHome({ refresh: false, focus: 'nav' });
+
+  assert.strictEqual(harness.feature.rows()[0].items[0].ratingKey, 'fresh-recent',
+    'a failed Settings backdrop preview must not make a successful Home refresh stale for retained-source reapplication');
+  harness.feature.destroy();
+}());
+
+
+(function testAllHiddenHomeRowsShowPersistentSettingsGuidanceWithoutBlockingNavigation() {
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: [] };
+  var harness = createHarness({
+    state: { settings: function () { return currentSettings; } }
+  });
+  var message = harness.document.getElementById('view-state-message');
+  var actions = harness.document.getElementById('view-state-actions');
+
+  harness.controllerOptions().actions.onHomeEmpty();
+
+  assert.strictEqual(harness.document.getElementById('view-state').className, 'view-state',
+    'an intentionally empty Home must keep a visible explanatory state instead of looking broken');
+  assert.strictEqual(message.children[0].textContent, 'it:state.homeRowsHidden',
+    'the empty Home state must explain that all rows were hidden in Settings > Home rows');
+  assert.strictEqual(actions.children.length, 0,
+    'the explanatory state must not steal remote focus with a fake recovery action');
+  assert.strictEqual(harness.feature.viewStateOpen(), false,
+    'the Home-row guidance must remain passive so navbar navigation still works');
+
+  harness.feature.hideHomeSurface();
+  assert.strictEqual(harness.document.getElementById('view-state').className, 'view-state is-hidden',
+    'leaving Home must hide passive Home-row guidance before another surface is shown');
+  harness.feature.enterHome({ refresh: false, focus: 'nav' });
+  assert.strictEqual(harness.document.getElementById('view-state').className, 'view-state',
+    'returning to an intentionally empty Home must restore hidden-row guidance even when no Plex refresh runs');
+  assert.strictEqual(message.children[0].textContent, 'it:state.homeRowsHidden',
+    'returning to Home must restore the intentional hidden-row explanation');
+
+  harness.feature.refreshHome();
+
+  assert.strictEqual(message.children[0].textContent, 'it:state.homeRowsHidden',
+    'background Home polling must not replace intentional hidden-row guidance with a loading message');
+  assert.strictEqual(harness.controllerCalls.some(function (entry) { return entry[0] === 'message' && entry[1] === 'it:state.homeLoading'; }), false,
+    'background Home polling must stay visually silent when every Home row is intentionally hidden');
+
+  harness.controllerOptions().home.onResult(new Error('offline'), [], false, true);
+
+  assert.ok(harness.controllerCalls.some(function (entry) { return entry[0] === 'completeStartup'; }),
+    'an initial Home refresh failure must still complete startup when every Home row is intentionally hidden');
+  assert.strictEqual(message.children[0].textContent, 'it:state.homeRowsHidden',
+    'a background Home refresh error must not replace intentional hidden-row guidance with a network error');
+  assert.strictEqual(harness.controllerCalls.some(function (entry) { return entry[0] === 'message' && entry[1] === 'it:state.homeError'; }), false,
+    'background Home refresh failures must remain visually silent while every Home row is intentionally hidden');
+  harness.feature.destroy();
+}());
+
+(function testEnabledHomeRowsWithoutMatchingContentExplainTheFilterInsteadOfClaimingTheProfileIsEmpty() {
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['recommended'] };
+  var fullRows = [
+    { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c' }] },
+    { title: 'Recent', kind: 'recent', items: [{ ratingKey: 'r' }] }
+  ];
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: { settings: function () { return currentSettings; } },
+    data: {
+      loadHome: function (callback) {
+        callback(null, fullRows.map(function (row) { return Object.assign({}, row); }));
+        return 'filtered-empty-home';
+      }
+    }
+  });
+  var loaded = null;
+
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+  harness.controllerOptions().actions.onHomeEmpty();
+
+  assert.strictEqual(harness.document.getElementById('view-state-message').children[0].textContent, 'it:state.homeRowsUnavailable',
+    'an empty Home caused by enabled row filters must direct the user to Home-row settings instead of claiming that the Plex profile has no media');
+
+  harness.feature.refreshHome();
+  assert.strictEqual(harness.document.getElementById('view-state').className, 'view-state',
+    'background Home polling must not hide row-filter guidance while waiting for a refresh');
+  assert.strictEqual(harness.document.getElementById('view-state-message').children[0].textContent, 'it:state.homeRowsUnavailable',
+    'background Home polling must keep the row-filter explanation visible instead of replacing it with a loading state');
+  assert.strictEqual(harness.controllerCalls.some(function (entry) { return entry[0] === 'message' && entry[1] === 'it:state.homeLoading'; }), false,
+    'background Home polling must stay visually silent while enabled Home rows have no matching content');
+
+  harness.controllerOptions().home.onResult(new Error('temporary refresh failure'), [], false, false);
+  assert.strictEqual(harness.document.getElementById('view-state-message').children[0].textContent, 'it:state.homeRowsUnavailable',
+    'a background refresh error must preserve the row-filter explanation while the cached Plex source still proves that media exist');
+  harness.feature.destroy();
+}());
+
+(function testAllHiddenConfigDoesNotMaskUnconfigurableFutureHomeRows() {
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: [] };
+  var harness = createHarness({
+    state: { settings: function () { return currentSettings; } },
+    data: { initialRows: [{ kind: 'future-row', title: 'Future', items: [{ ratingKey: 'future-1' }] }] }
+  });
+
+  harness.controllerOptions().home.onResult(new Error('refresh failed'), [], false, false);
+
+  assert.strictEqual(harness.document.getElementById('view-state-message').children.length, 0,
+    'an error refresh must not claim that all Home content is hidden while an unconfigurable future row is still visible');
+  harness.feature.destroy();
+}());
+
+(function testReenablingHomeRowFromAllHiddenUsesLoadedSourceImmediately() {
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: [] };
+  var fullRows = [
+    { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c' }] },
+    { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r' }] }
+  ];
+  var loaded = null;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: { settings: function () { return currentSettings; } },
+    data: {
+      loadHome: function (callback) {
+        callback(null, fullRows.map(function (row) { return Object.assign({}, row); }));
+        return 'all-hidden-source-request';
+      }
+    }
+  });
+
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+  assert.strictEqual(harness.feature.rows().length, 0, 'all configurable Home rows may be intentionally hidden');
+
+  currentSettings.homeRows = ['recommended'];
+  harness.feature.markHomeDirty();
+  harness.feature.enterHome({ refresh: false, focus: 'nav' });
+
+  assert.deepStrictEqual(harness.feature.rows().map(function (row) { return row.kind; }), ['recommended'],
+    'reenabling a Home row from an all-hidden state must reuse the loaded source immediately without waiting for Plex');
+  harness.feature.destroy();
+}());
+
 
 (function testConstructionAndSemanticPresentationPorts() {
   var harness = createHarness();
@@ -567,6 +881,193 @@ function createHarness(overrides) {
   feature.finishReorder(true);
   assert.strictEqual(feature.navigationSnapshot().reorderMode, false);
   assert.strictEqual(harness.storageWrites.length, 1, 'saved reorder persists library keys exactly once');
+}());
+
+(function testChangedHomeRowsWaitForQuietNavigationBeforeApplying() {
+  var now = 1000;
+  var initialRows = [{ title: 'Old', items: [{ ratingKey: 'old' }] }];
+  var refreshedRows = [{ title: 'New', items: [{ ratingKey: 'new' }] }];
+  var harness = createHarness({ data: { initialRows: initialRows } });
+  var feature = harness.feature;
+  var onResult = harness.controllerOptions().home.onResult;
+  var timeoutIds;
+  harness.root.Date = { now: function () { return now; } };
+
+  feature.handleHomeKey({ keyCode: 40 }, 'down');
+  onResult(null, refreshedRows, true, false);
+
+  assert.strictEqual(feature.rows()[0].title, 'Old', 'active Home navigation keeps current rows visible');
+  timeoutIds = Object.keys(harness.root.timeouts).map(Number);
+  assert.strictEqual(timeoutIds.length, 1, 'changed Home presentation schedules one quiet-period apply');
+  assert.strictEqual(harness.root.timeouts[timeoutIds[0]].delay, 700, 'quiet period starts at 700 ms after the latest interaction');
+
+  harness.root.runTimeout(timeoutIds[0]);
+  assert.strictEqual(feature.rows()[0].title, 'New', 'pending rows apply after the quiet period');
+  assert.strictEqual(harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; }).length, 1, 'pending rows apply exactly once');
+}());
+
+(function testWatchedProjectionAlsoUpdatesDeferredHomeRows() {
+  var now = 1500;
+  var initialRows = [{ title: 'Continue', items: [{ ratingKey: 'episode', viewed: false, viewOffset: 95000, progress: 95 }] }];
+  var refreshedRows = [{ title: 'Continue', items: [{ ratingKey: 'episode', viewed: false, viewOffset: 95000, progress: 95 }] }];
+  var harness = createHarness({ data: { initialRows: initialRows } });
+  var feature = harness.feature;
+  var onResult = harness.controllerOptions().home.onResult;
+  harness.root.Date = { now: function () { return now; } };
+
+  feature.handleHomeKey({ keyCode: 40 }, 'down');
+  onResult(null, refreshedRows, true, false);
+  feature.updateWatched('episode', true);
+  harness.root.runNextTimeout();
+
+  assert.strictEqual(feature.rows()[0].items[0].viewed, true,
+    'a deferred Home refresh must not restore stale unwatched state after scrobble');
+  assert.strictEqual(feature.rows()[0].items[0].progress, 0,
+    'a deferred Home refresh must not restore stale partial progress after scrobble');
+}());
+
+(function testStaleHomeResponseCannotUndoWatchedProjection() {
+  var initialRows = [{ title: 'Recent', items: [{ ratingKey: 'episode', viewed: false, viewOffset: 95000, progress: 95 }] }];
+  var staleRows = [{ title: 'Recent', items: [{ ratingKey: 'episode', viewed: false, viewOffset: 95000, progress: 95 }] }];
+  var harness = createHarness({ data: { initialRows: initialRows } });
+  var feature = harness.feature;
+
+  feature.updateWatched('episode', true);
+  harness.controllerOptions().home.onResult(null, staleRows, true, false);
+
+  assert.strictEqual(feature.rows()[0].items[0].viewed, true,
+    'an eventually-consistent Home response must not undo a confirmed watched mutation');
+  assert.strictEqual(feature.rows()[0].items[0].progress, 0,
+    'an eventually-consistent Home response must not restore stale playback progress');
+}());
+
+(function testRepeatedHomeInteractionReschedulesOnlyTheLatestPendingApply() {
+  var now = 2000;
+  var harness = createHarness({ data: { initialRows: [{ title: 'Old', items: [] }] } });
+  var feature = harness.feature;
+  var onResult = harness.controllerOptions().home.onResult;
+  var firstTimer;
+  var secondTimer;
+  harness.root.Date = { now: function () { return now; } };
+
+  feature.handleHomeKey({ keyCode: 39 }, 'right');
+  onResult(null, [{ title: 'First refresh', items: [] }], true, false);
+  firstTimer = Number(Object.keys(harness.root.timeouts)[0]);
+
+  now = 2150;
+  feature.handleHomeKey({ keyCode: 40 }, 'down');
+  secondTimer = Number(Object.keys(harness.root.timeouts)[0]);
+  assert.notStrictEqual(secondTimer, firstTimer, 'new interaction replaces the previous pending apply timer');
+  assert.ok(harness.root.clearedTimeouts.indexOf(firstTimer) >= 0, 'superseded pending apply timer is cancelled');
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 1, 'only one pending Home apply timer remains');
+
+  onResult(null, [{ title: 'Newest refresh', items: [] }], true, false);
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 1, 'newer refresh rows reuse the single quiet-period timer');
+  harness.root.runNextTimeout();
+  assert.strictEqual(feature.rows()[0].title, 'Newest refresh', 'only the newest pending Home rows are presented');
+}());
+
+(function testInitialHomeRowsApplyImmediatelyAndPointerFocusCountsAsInteraction() {
+  var now = 3000;
+  var harness = createHarness({ data: { initialRows: [{ title: 'Old', items: [] }] } });
+  var feature = harness.feature;
+  var onResult = harness.controllerOptions().home.onResult;
+  harness.root.Date = { now: function () { return now; } };
+
+  feature.setFocus({ area: 'media', navIndex: 0, rowIndex: 1, column: 0 });
+  onResult(null, [{ title: 'Deferred', items: [] }], true, false);
+  assert.strictEqual(feature.rows()[0].title, 'Old', 'Home focus changes also protect active navigation from DOM churn');
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 1);
+
+  onResult(null, [{ title: 'Initial', items: [] }], true, true);
+  assert.strictEqual(feature.rows()[0].title, 'Initial', 'initial Home content is never delayed');
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 0, 'immediate initial presentation cancels stale pending refresh work');
+}());
+
+(function testSettingsReapplyCancelsStalePendingHomePresentation() {
+  var now = 3500;
+  var view = 'home';
+  var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['continue'] };
+  var fullRows = [
+    { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c' }] },
+    { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r' }] }
+  ];
+  var loaded = null;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: { currentView: function () { return view; }, settings: function () { return currentSettings; } },
+    data: {
+      loadHome: function (callback) {
+        callback(null, fullRows.map(function (row) { return Object.assign({}, row); }));
+        return 'settings-race-source-request';
+      }
+    }
+  });
+  var feature = harness.feature;
+  var onResult = harness.controllerOptions().home.onResult;
+  harness.root.Date = { now: function () { return now; } };
+
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+  feature.handleHomeKey({ keyCode: 40 }, 'down');
+  onResult(null, HomeState.normalizeRows(loaded), true, false);
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 1, 'active Home navigation may leave one refresh presentation pending');
+
+  view = 'settings';
+  currentSettings.homeRows = ['recommended'];
+  feature.markHomeDirty();
+  view = 'home';
+  feature.enterHome({ refresh: false, focus: 'nav' });
+  assert.deepStrictEqual(feature.rows().map(function (row) { return row.kind; }), ['recommended'], 'returning from Settings applies the current Home preference immediately');
+
+  harness.root.runNextTimeout();
+  assert.deepStrictEqual(feature.rows().map(function (row) { return row.kind; }), ['recommended'],
+    'a stale quiet-period refresh must not overwrite Home preferences that were reapplied after visiting Settings');
+  feature.destroy();
+}());
+
+
+(function testPendingHomeRowsBecomeDirtyInsteadOfTouchingHiddenHome() {
+  var now = 4000;
+  var view = 'home';
+  var harness = createHarness({
+    data: { initialRows: [{ title: 'Old', items: [] }] },
+    state: { currentView: function () { return view; } }
+  });
+  var feature = harness.feature;
+  var onResult = harness.controllerOptions().home.onResult;
+  var beforeUse;
+  harness.root.Date = { now: function () { return now; } };
+
+  feature.handleHomeKey({ keyCode: 40 }, 'down');
+  onResult(null, [{ title: 'Background', items: [] }], true, false);
+  beforeUse = harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; }).length;
+  view = 'library';
+  harness.root.runNextTimeout();
+
+  assert.strictEqual(feature.rows()[0].title, 'Background', 'latest Home model is retained while another view is active');
+  assert.strictEqual(harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; }).length, beforeUse, 'hidden Home DOM is not updated');
+  assert.ok(harness.controllerCalls.some(function (entry) { return entry[0] === 'markHomeDirty'; }), 'hidden Home is marked dirty for the next entry');
+}());
+
+(function testPendingHomePresentationIsCancelledByResetAndDestroy() {
+  var now = 5000;
+  var harness = createHarness({ data: { initialRows: [{ title: 'Old', items: [] }] } });
+  var feature = harness.feature;
+  var onResult = harness.controllerOptions().home.onResult;
+  harness.root.Date = { now: function () { return now; } };
+
+  feature.handleHomeKey({ keyCode: 40 }, 'down');
+  onResult(null, [{ title: 'Reset pending', items: [] }], true, false);
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 1);
+  feature.resetHome();
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 0, 'Home reset cancels pending refresh presentation');
+
+  feature.handleHomeKey({ keyCode: 40 }, 'down');
+  onResult(null, [{ title: 'Destroy pending', items: [] }], true, false);
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 1);
+  feature.destroy();
+  assert.strictEqual(Object.keys(harness.root.timeouts).length, 0, 'destroy cancels pending refresh presentation');
 }());
 
 (function testVisibilityResizeAndDestroyAreIdempotent() {

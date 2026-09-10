@@ -1,0 +1,155 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer allowSync='1' identifier='com.plexapp.plugins.library' librarySectionID='fixture-id-001' librarySectionTitle='Anime' librarySectionUUID='fixture-uuid-001' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632' size='1'>
+<Directory addedAt='1687300831' art='/library/metadata/fixture-id-002/art/1786263822' audienceRating='8.0' audienceRatingImage='themoviedb://image.rating' childCount='2' contentRating='it/VM14' contentRatingAge='15' duration='1440000' guid='fixture-guid-001' index='1' key='/library/metadata/fixture-id-002/children' lastViewedAt='1784971387' leafCount='32' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2022-10-05' ratingKey='fixture-id-002' skipCount='6' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' theme='/library/metadata/fixture-id-002/theme/1786263822' thumb='/library/metadata/fixture-id-002/thumb/1786263822' title='Sample Series' titleSort='Sample Sort' type='show' updatedAt='1786263822' viewCount='33' viewedLeafCount='32' year='2022'>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/345/art/1786263822'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='9c3729' bottomRight='672d27' topLeft='501911' topRight='2e6190'/>
+<Genre filter='genre=9' id='fixture-id-003' tag='Fantasy'/>
+<Genre filter='genre=6' id='fixture-id-004' tag='Action'/>
+<Genre filter='genre=14' id='fixture-id-005' tag='Anime'/>
+<Genre filter='genre=7' id='fixture-id-006' tag='Animazione'/>
+<Genre filter='genre=10' id='fixture-id-007' tag='Adventure'/>
+<Genre filter='genre=8' id='fixture-id-008' tag='Commedia'/>
+<Genre filter='genre=667' id='fixture-id-009' tag='Sci-Fi &amp; Fantasy'/>
+<Country filter='country=37' id='fixture-id-010' tag='Japan'/>
+<Guid id='fixture-id-011'/>
+<Guid id='fixture-id-012'/>
+<Guid id='fixture-id-013'/>
+<Rating image='imdb://image.rating' type='audience' value='7.7'/>
+<Rating image='themoviedb://image.rating' type='audience' value='8.0'/>
+<Role filter='actor=669' id='fixture-id-014' role='Character 13841160' tag='Performer 5248029' tagKey='5d776d80ad5437001f7d7bab' thumb='https://metadata-static.plex.tv/8/people/fixture-person-15949545'/>
+<Role filter='actor=7155' id='fixture-id-015' role='Character 8056737' tag='Performer 7482038' tagKey='5d776c7a96b655001fe320b4' thumb='https://metadata-static.plex.tv/0/people/fixture-person-8880939'/>
+<Role filter='actor=670' id='fixture-id-016' role='Character 14459371' tag='Performer 10726425' tagKey='5d776b1547dd6e001f6daebd' thumb='https://metadata-static.plex.tv/f/people/fixture-person-1352168'/>
+<Role filter='actor=672' id='fixture-id-017' role='Character 10681110' tag='Performer 3486581' tagKey='5d776a06f617c90020167e8a' thumb='https://metadata-static.plex.tv/e/people/fixture-person-950545'/>
+<Role filter='actor=674' id='fixture-id-018' role='Character 6523998' tag='Performer 9015161' tagKey='5f3fc6ad58b26e00425c172f' thumb='https://metadata-static.plex.tv/a/people/fixture-person-5568351'/>
+<Role filter='actor=13368' id='fixture-id-019' role='Character 8415888' tag='Performer 576161' tagKey='5f4004fa8642250042808f7e' thumb='https://metadata-static.plex.tv/9/cc68393fae/people/fixture-person-15756009'/>
+<Role filter='actor=679' id='fixture-id-020' role='Character 6504860' tag='Performer 16598644' tagKey='5d9c08d7ba6eb9001fbab4e7' thumb='https://metadata-static.plex.tv/5/people/fixture-person-11168445'/>
+<Role filter='actor=681' id='fixture-id-021' role='Character 12759629' tag='Performer 3140172' tagKey='5d7768c19ab54400214eb1f6' thumb='https://metadata-static.plex.tv/8/people/fixture-person-16558636'/>
+<Role filter='actor=671' id='fixture-id-022' role='Character 8033692' tag='Performer 9447636' tagKey='5d7768cc47dd6e001f6bedcc' thumb='https://metadata-static.plex.tv/5/people/fixture-person-11854839'/>
+<Role filter='actor=675' id='fixture-id-023' role='Character 2664042' tag='Performer 15817597' tagKey='5d7768a133f255001e85b5f5' thumb='https://metadata-static.plex.tv/2/people/fixture-person-4268012'/>
+<Role filter='actor=17863' id='fixture-id-024' role='Character 13246169' tag='Performer 15967352' tagKey='5f3fcebac63b480040d76499' thumb='https://metadata-static.plex.tv/b/people/fixture-person-593375'/>
+<Role filter='actor=673' id='fixture-id-025' role='Character 16099076' tag='Performer 9443462' tagKey='5d77686c61141d001fb1a7db' thumb='https://metadata-static.plex.tv/c/people/fixture-person-4327833'/>
+<Role filter='actor=680' id='fixture-id-026' role='Character 16197309' tag='Performer 3468376' tagKey='5d776a2196b655001fde4274' thumb='https://metadata-static.plex.tv/f/people/fixture-person-3067809'/>
+<Role filter='actor=102' id='fixture-id-027' role='Character 7832146' tag='Performer 4175652' tagKey='5f406d7802101b0040fe25ee' thumb='https://metadata-static.plex.tv/6/people/fixture-person-8050243'/>
+<Role filter='actor=677' id='fixture-id-028' role='Character 6421949' tag='Performer 14636524' tagKey='5d776c0496b655001fe234f7' thumb='https://metadata-static.plex.tv/a/people/fixture-person-11957837'/>
+<Role filter='actor=682' id='fixture-id-029' role='Character 8375669' tag='Performer 15294235' tagKey='5d776a4296b655001fde8a47' thumb='https://metadata-static.plex.tv/5/people/fixture-person-11219403'/>
+<Role filter='actor=686' id='fixture-id-030' role='Character 5949365' tag='Performer 9969877' tagKey='5f405782fea1a1003fa5b521' thumb='https://metadata-static.plex.tv/a/people/fixture-person-11361348'/>
+<Role filter='actor=17419' id='fixture-id-031' role='Character 10558776' tag='Performer 7255849' tagKey='5f40661758b26e004264f9d9' thumb='https://metadata-static.plex.tv/1/people/fixture-person-15041529'/>
+<Role filter='actor=6206' id='fixture-id-032' role='Character 7300301' tag='Performer 15867992' tagKey='5d77686e23d5a3001f4ec2a5' thumb='https://metadata-static.plex.tv/7/people/fixture-person-6219136'/>
+<Role filter='actor=23638' id='fixture-id-033' role='Character 6470079' tag='Performer 14395920' tagKey='5dcfca2deb43ea001f4ac94c' thumb='https://metadata-static.plex.tv/a/people/fixture-person-14404534'/>
+<Role filter='actor=688' id='fixture-id-034' role='Character 16470481' tag='Performer 15347515' tagKey='5d77683cf59e5800218996f0' thumb='https://image.tmdb.org/t/p/original/HU9LZJdb4H8coHiSaHiUprcFm1.jpg'/>
+<Role filter='actor=754' id='fixture-id-035' role='Character 9208379' tag='Performer 11399925' tagKey='5d776c04ad5437001f7b1157' thumb='https://metadata-static.plex.tv/4/people/fixture-person-12688936'/>
+<Role filter='actor=15586' id='fixture-id-036' role='Character 13173454' tag='Performer 8949133' tagKey='6011a8aef60b7d002b8ad863' thumb='https://metadata-static.plex.tv/3/people/fixture-person-11552579'/>
+<Role filter='actor=12004' id='fixture-id-037' role='Character 11847136' tag='Performer 15436344' tagKey='5f3fc6aece2564003f85957f' thumb='https://metadata-static.plex.tv/0/people/fixture-person-5193604'/>
+<Role filter='actor=17864' id='fixture-id-038' role='Character 11524395' tag='Performer 7347851' tagKey='5d776eed594b2b001e732d1f' thumb='https://metadata-static.plex.tv/f/people/fixture-person-15932222'/>
+<Role filter='actor=28' id='fixture-id-039' role='Character 14190759' tag='Performer 14823395' tagKey='5d7768267228e5001f1dcf57' thumb='https://metadata-static.plex.tv/d/people/fixture-person-7360235'/>
+<Role filter='actor=701' id='fixture-id-040' role='Character 3654653' tag='Performer 8390385' tagKey='5d776888ad5437001f748fc2' thumb='https://metadata-static.plex.tv/5/people/fixture-person-1167459'/>
+<Role filter='actor=702' id='fixture-id-041' role='Character 2609797' tag='Performer 748341' tagKey='5d776adf9ab5440021504989' thumb='https://metadata-static.plex.tv/5/people/fixture-person-6623247'/>
+<Role filter='actor=18316' id='fixture-id-042' role='Character 12414886' tag='Performer 7232315' tagKey='5d77683a961905001eb9503c' thumb='https://metadata-static.plex.tv/a/people/fixture-person-12933905'/>
+<Role filter='actor=12219' id='fixture-id-043' role='Character 9137036' tag='Performer 12252235' tagKey='5f3fc77ecae2c60042e7bdce' thumb='https://metadata-static.plex.tv/5/people/fixture-person-828779'/>
+<Role filter='actor=687' id='fixture-id-044' role='Character 12791147' tag='Performer 15574129' tagKey='5f4057bb1ae71000410c83c6' thumb='https://metadata-static.plex.tv/b/people/fixture-person-13873098'/>
+<Role filter='actor=705' id='fixture-id-045' role='Character 11936319' tag='Performer 7771881' tagKey='62fb7cdb2bbf858f2c189e0f' thumb='https://metadata-static.plex.tv/6/people/fixture-person-6810641'/>
+<Role filter='actor=753' id='fixture-id-046' role='Character 8062756' tag='Performer 5582902' tagKey='5f402454bf3e560040b8f381' thumb='https://metadata-static.plex.tv/f/people/fixture-person-1677733'/>
+<Role filter='actor=4746' id='fixture-id-047' role='Character 16040175' tag='Performer 4690134' tagKey='5d9c08eb6c3e37001ecdac88' thumb='https://metadata-static.plex.tv/a/people/fixture-person-10382949'/>
+<Role filter='actor=689' id='fixture-id-048' role='Character 7009933' tag='Performer 3114683' tagKey='5f402c67fea1a1003f9feca3' thumb='https://metadata-static.plex.tv/7/people/fixture-person-12526804'/>
+<Role filter='actor=690' id='fixture-id-049' role='Character 2263783' tag='Performer 11544053' tagKey='5f16e7e608aad800419fa408' thumb='https://metadata-static.plex.tv/8/people/fixture-person-3020795'/>
+<Role filter='actor=691' id='fixture-id-050' role='Character 9020417' tag='Performer 1845299' tagKey='5d7768267e9a3c0020c6a9dc' thumb='https://metadata-static.plex.tv/people/fixture-person-955471'/>
+<Role filter='actor=692' id='fixture-id-051' role='Character 11524395' tag='Performer 4644827' tagKey='5f402ac7e065380042efe3d3' thumb='https://metadata-static.plex.tv/a/people/fixture-person-16380547'/>
+<Role filter='actor=697' id='fixture-id-052' role='Character 10342015' tag='Performer 5318236' tagKey='5d7768522ec6b5001f6bfa03' thumb='https://metadata-static.plex.tv/7/people/fixture-person-15112035'/>
+<Role filter='actor=16775' id='fixture-id-053' role='Character 11291532' tag='Performer 3369495' tagKey='5e43f7771cbdce003fe3cc03' thumb='https://metadata-static.plex.tv/2/people/fixture-person-7483683'/>
+<Role filter='actor=693' id='fixture-id-054' role='Character 11524395' tag='Performer 1516428' tagKey='5f4050bece2564003f942ab5' thumb='https://metadata-static.plex.tv/9/people/fixture-person-12557165'/>
+<Role filter='actor=55' id='fixture-id-055' role='Character 11695543' tag='Performer 9640130' tagKey='5d7769fc51dd69001fe1e8a8' thumb='https://metadata-static.plex.tv/c/people/fixture-person-4338593'/>
+<Role filter='actor=736' id='fixture-id-056' role='Character 14241975' tag='Performer 173964' tagKey='5d9c08d64eefaa001f5e4158' thumb='https://metadata-static.plex.tv/6/people/fixture-person-12588254'/>
+<Role filter='actor=752' id='fixture-id-057' role='Character 10277988' tag='Performer 15131356' tagKey='5d776837f59e580021898dc7' thumb='https://metadata-static.plex.tv/d/people/fixture-person-14767978'/>
+<Role filter='actor=21' id='fixture-id-058' role='Character 6483713' tag='Performer 9065871' tagKey='5d77686e23d5a3001f4ec29f' thumb='https://metadata-static.plex.tv/1/people/fixture-person-5331590'/>
+<Role filter='actor=943' id='fixture-id-059' role='Character 1188149' tag='Performer 13790601' tagKey='5d776844880197001ec96227' thumb='https://metadata-static.plex.tv/5/people/fixture-person-16629605'/>
+<Role filter='actor=7534' id='fixture-id-060' role='Character 8209644' tag='Performer 4163459' tagKey='5d77683c151a60001f24f3fb' thumb='https://metadata-static.plex.tv/3/people/fixture-person-5551655'/>
+<Role filter='actor=111' id='fixture-id-061' role='Character 12738641' tag='Performer 3759373' tagKey='5f3ffed6768fc7004053ac1d' thumb='https://metadata-static.plex.tv/8/people/fixture-person-11282265'/>
+<Role filter='actor=694' id='fixture-id-062' role='Character 8839309' tag='Performer 5130164' tagKey='5d9c0924ba6eb9001fbb0796' thumb='https://metadata-static.plex.tv/4/people/fixture-person-16742209'/>
+<Role filter='actor=695' id='fixture-id-063' role='Character 2694235' tag='Performer 1347889' tagKey='5d77707dfb0d55001f5f1916' thumb='https://metadata-static.plex.tv/0/people/fixture-person-15848924'/>
+<Role filter='actor=696' id='fixture-id-064' role='Character 11847136' tag='Performer 13847456' tagKey='5f3fc4effea1a1003f9692c9' thumb='https://metadata-static.plex.tv/0/people/fixture-person-2691124'/>
+<Role filter='actor=698' id='fixture-id-065' role='Character 7164201' tag='Performer 6952707' tagKey='5f3fff7f52f20000414dd025' thumb='https://metadata-static.plex.tv/4/people/fixture-person-921122'/>
+<Role filter='actor=699' id='fixture-id-066' role='Character 11847136' tag='Performer 15266202' tagKey='5f406af402101b0040fde974' thumb='https://metadata-static.plex.tv/4/people/fixture-person-793493'/>
+<Role filter='actor=83' id='fixture-id-067' role='Character 13437708' tag='Performer 9419085' tagKey='5d7770337a53e9001e79d70f' thumb='https://metadata-static.plex.tv/9/people/fixture-person-1987446'/>
+<Role filter='actor=18534' id='fixture-id-068' role='Character 6296934' tag='Performer 4973387' tagKey='5f40510f03883a0040ba0dd9' thumb='https://metadata-static.plex.tv/a/people/fixture-person-10171278'/>
+<Role filter='actor=703' id='fixture-id-069' role='Character 4562907' tag='Performer 16012368' tagKey='6003eed7555d09002bc6c8c4' thumb='https://metadata-static.plex.tv/f/people/fixture-person-1428464'/>
+<Role filter='actor=14059' id='fixture-id-070' role='Character 6810378' tag='Performer 4299812' tagKey='5f3fc12186422500427a728c' thumb='https://metadata-static.plex.tv/a/people/fixture-person-7342552'/>
+<Role filter='actor=82' id='fixture-id-071' role='Character 8520096' tag='Performer 3096477' tagKey='5de910f37650d5001d252c19' thumb='https://metadata-static.plex.tv/1/people/fixture-person-6866958'/>
+<Role filter='actor=2032' id='fixture-id-072' role='Character 431696' tag='Performer 7362189' tagKey='5d776a7c47dd6e001f6d338d' thumb='https://metadata-static.plex.tv/a/people/fixture-person-8519246'/>
+<Role filter='actor=2609' id='fixture-id-073' role='Character 15706542' tag='Performer 4101021' tagKey='5ef07ae59af7140042a4473b' thumb='https://metadata-static.plex.tv/6/people/fixture-person-4216429'/>
+<Role filter='actor=2301' id='fixture-id-074' role='Character 12129525' tag='Performer 11351348' tagKey='5d77689cf617c90020155f4f' thumb='https://metadata-static.plex.tv/1/people/fixture-person-12377051'/>
+<Role filter='actor=1818' id='fixture-id-075' role='Character 13670387' tag='Performer 14734661' tagKey='5d776aa77a53e9001e70b783' thumb='https://metadata-static.plex.tv/6/people/fixture-person-14726549'/>
+<Role filter='actor=717' id='fixture-id-076' role='Character 9194232' tag='Performer 4805155' tagKey='5d77684654c0f0001f3055a7' thumb='https://metadata-static.plex.tv/3/people/fixture-person-11404494'/>
+<Role filter='actor=718' id='fixture-id-077' role='Character 7946366' tag='Performer 12141682' tagKey='5f40339052f2000041526d05' thumb='https://metadata-static.plex.tv/d/people/fixture-person-12702748'/>
+<Role filter='actor=20411' id='fixture-id-078' role='Character 7946366' tag='Performer 605676' tagKey='5f3ff1545a76a80042d0ff9c' thumb='https://metadata-static.plex.tv/b/people/fixture-person-7062126'/>
+<Role filter='actor=706' id='fixture-id-079' role='Character 1306510' tag='Performer 13736716' tagKey='5d776af796b655001fdff0a0' thumb='https://metadata-static.plex.tv/7/people/fixture-person-13670886'/>
+<Role filter='actor=707' id='fixture-id-080' role='Character 14333632' tag='Performer 2355915' tagKey='5d77687054c0f0001f30879b' thumb='https://metadata-static.plex.tv/5/people/fixture-person-1873924'/>
+<Role filter='actor=708' id='fixture-id-081' role='Character 12960182' tag='Performer 29030' tagKey='5f40654402101b0040fd5cf8' thumb='https://metadata-static.plex.tv/f/people/fixture-person-12401875'/>
+<Role filter='actor=1909' id='fixture-id-082' role='Character 6029886' tag='Performer 9713238' tagKey='5f4045ab8642250042871a46' thumb='https://metadata-static.plex.tv/5/people/fixture-person-12323221'/>
+<Role filter='actor=710' id='fixture-id-083' role='Character 13665143' tag='Performer 13509717' tagKey='5d7768267e9a3c0020c6a9e3' thumb='https://metadata-static.plex.tv/8/people/fixture-person-8907654'/>
+<Role filter='actor=711' id='fixture-id-084' role='Character 740048' tag='Performer 6460381' tagKey='5d7769f947dd6e001f6cd0d5' thumb='https://metadata-static.plex.tv/e/people/fixture-person-14625687'/>
+<Role filter='actor=20258' id='fixture-id-085' role='Character 13437708' tag='Performer 7284946' tagKey='5f40539604a8650040a61a84' thumb='https://metadata-static.plex.tv/0/people/fixture-person-11589454'/>
+<Role filter='actor=73' id='fixture-id-086' role='Character 7164201' tag='Performer 8127058' tagKey='5fce654c3bb21b002e725057' thumb='https://metadata-static.plex.tv/c/people/fixture-person-16241183'/>
+<Role filter='actor=72' id='fixture-id-087' role='Character 11524395' tag='Performer 6833918' tagKey='5e9184967c662e0040ccc008' thumb='https://metadata-static.plex.tv/b/people/fixture-person-2655407'/>
+<Role filter='actor=17420' id='fixture-id-088' role='Character 5059111' tag='Performer 4780441' tagKey='5d9c08d34eefaa001f5e4005' thumb='https://metadata-static.plex.tv/e/people/fixture-person-8364152'/>
+<Role filter='actor=126' id='fixture-id-089' role='Character 3199608' tag='Performer 455329' tagKey='5d9c08047b5c2e001e65214a' thumb='https://metadata-static.plex.tv/0/people/fixture-person-2617590'/>
+<Role filter='actor=713' id='fixture-id-090' role='Character 12738641' tag='Performer 13689629' tagKey='5f40673c427eeb0041edced8' thumb='https://metadata-static.plex.tv/8/people/fixture-person-2377259'/>
+<Role filter='actor=714' id='fixture-id-091' role='Character 6560942' tag='Performer 13349086' tagKey='5d77684ee870fd001f19dc78' thumb='https://metadata-static.plex.tv/f/people/fixture-person-6870688'/>
+<Role filter='actor=14121' id='fixture-id-092' role='Character 7164201' tag='Performer 13789937' tagKey='5f404dde04a8650040a49ba8' thumb='https://metadata-static.plex.tv/6/people/fixture-person-10830038'/>
+<Role filter='actor=105' id='fixture-id-093' role='Character 6810378' tag='Performer 12005026' tagKey='5d776c0496b655001fe234fa' thumb='https://metadata-static.plex.tv/0/people/fixture-person-11200501'/>
+<Role filter='actor=716' id='fixture-id-094' role='Character 11498772' tag='Performer 14556987' tagKey='5f3fffeefea1a1003f9bd480' thumb='https://metadata-static.plex.tv/5/people/fixture-person-1134106'/>
+<Role filter='actor=2219' id='fixture-id-095' role='Character 6691519' tag='Performer 6161557' tagKey='5d77689e1999bc0020dcb543' thumb='https://metadata-static.plex.tv/2/people/fixture-person-3890209'/>
+<Role filter='actor=3368' id='fixture-id-096' role='Character 16350776' tag='Performer 12121716' tagKey='5d7768332ec6b5001f6bb9fc' thumb='https://metadata-static.plex.tv/7/people/fixture-person-6368570'/>
+<Role filter='actor=2883' id='fixture-id-097' role='Character 11055419' tag='Performer 3032489' tagKey='5d776868fb0d55001f50fa59' thumb='https://metadata-static.plex.tv/8/people/fixture-person-11081553'/>
+<Role filter='actor=2246' id='fixture-id-098' role='Character 7466812' tag='Performer 7246564' tagKey='5d7769d696b655001fddb05b' thumb='https://metadata-static.plex.tv/7/people/fixture-person-6866351'/>
+<Role filter='actor=2918' id='fixture-id-099' role='Character 277408' tag='Performer 14984946' tagKey='5d9c0803ffd9ef001e98a9ba' thumb='https://metadata-static.plex.tv/3/people/fixture-person-5190810'/>
+<Role filter='actor=1403' id='fixture-id-100' role='Character 5565556' tag='Performer 13849046' tagKey='5d7768662e80df001ebe3145' thumb='https://metadata-static.plex.tv/3/people/fixture-person-8744053'/>
+<Role filter='actor=17404' id='fixture-id-101' role='Character 3644226' tag='Performer 11581634' tagKey='5f406fe8c63b480040e7548c' thumb='https://metadata-static.plex.tv/4/people/fixture-person-4621591'/>
+<Role filter='actor=721' id='fixture-id-102' role='Character 9360984' tag='Performer 9302134' tagKey='5d9c083fe98e47001eb0b141' thumb='https://metadata-static.plex.tv/b/people/fixture-person-6886935'/>
+<Role filter='actor=722' id='fixture-id-103' role='Character 15729571' tag='Performer 14600869' tagKey='5f4060005a76a80042dd485a' thumb='https://metadata-static.plex.tv/d/people/fixture-person-8074828'/>
+<Role filter='actor=14042' id='fixture-id-104' role='Character 15729571' tag='Performer 462789' tagKey='5d9c08d2ffd9ef001e99b004' thumb='https://metadata-static.plex.tv/9/people/fixture-person-11126412'/>
+<Role filter='actor=723' id='fixture-id-105' role='Character 15729571' tag='Performer 14734722' tagKey='5e1641921493cd003f0e87d2' thumb='https://metadata-static.plex.tv/d/people/fixture-person-6936075'/>
+<Role filter='actor=724' id='fixture-id-106' role='Character 6649755' tag='Performer 1216452' tagKey='5d7768377228e5001f1ded3c' thumb='https://metadata-static.plex.tv/7/people/fixture-person-5920968'/>
+<Role filter='actor=725' id='fixture-id-107' role='Character 3644701' tag='Performer 6422444' tagKey='5d7768402ec6b5001f6bda9b' thumb='https://metadata-static.plex.tv/1/people/fixture-person-1013137'/>
+<Role filter='actor=117' id='fixture-id-108' role='Character 12791147' tag='Performer 11315031' tagKey='5f40489252f200004154d0b9' thumb='https://metadata-static.plex.tv/3/people/fixture-person-12360272'/>
+<Role filter='actor=726' id='fixture-id-109' role='Character 6810378' tag='Performer 15565159' tagKey='5d9c08212df347001e3ab9de' thumb='https://metadata-static.plex.tv/a/people/fixture-person-8868485'/>
+<Role filter='actor=12366' id='fixture-id-110' role='Character 15729571' tag='Performer 7746927' tagKey='63789206adc9bf7561fa93a9' thumb='https://metadata-static.plex.tv/e/people/fixture-person-12307835'/>
+<Role filter='actor=728' id='fixture-id-111' role='Character 6560942' tag='Performer 9305210' tagKey='6378c5caa03855e5b976e6bf'/>
+<Role filter='actor=729' id='fixture-id-112' role='Character 6560942' tag='Performer 11921813' tagKey='5f3fbd97bf3e560040af9979' thumb='https://metadata-static.plex.tv/b/people/fixture-person-4667321'/>
+<Role filter='actor=33201' id='fixture-id-113' role='Character 6560942' tag='Performer 9791838' tagKey='6a0c008584d88b67dae0ae01' thumb='https://metadata-static.plex.tv/4/people/fixture-person-15435782'/>
+<Role filter='actor=730' id='fixture-id-114' role='Character 13437708' tag='Performer 6701016' tagKey='5f405cbd768fc7004059b136' thumb='https://metadata-static.plex.tv/a/people/fixture-person-9066142'/>
+<Role filter='actor=731' id='fixture-id-115' role='Character 11524395' tag='Performer 12952023' tagKey='638b615fe7325b2002132ee8'/>
+<Role filter='actor=17833' id='fixture-id-116' role='Character 11524395' tag='Performer 7489834' tagKey='5f406aa4768fc700405a736a' thumb='https://metadata-static.plex.tv/2/people/fixture-person-5428387'/>
+<Role filter='actor=733' id='fixture-id-117' role='Character 11524395' tag='Performer 2424414' tagKey='5d9c08d708fddd001f2a2a86' thumb='https://metadata-static.plex.tv/6/people/fixture-person-11530566'/>
+<Role filter='actor=734' id='fixture-id-118' role='Character 6810378' tag='Performer 12223938' tagKey='5f3fc5e5be690b00430db40d' thumb='https://metadata-static.plex.tv/b/people/fixture-person-12386697'/>
+<Role filter='actor=14004' id='fixture-id-119' role='Character 6810378' tag='Performer 8888353' tagKey='5f404e43ce2564003f936def' thumb='https://metadata-static.plex.tv/b/people/fixture-person-13436456'/>
+<Role filter='actor=737' id='fixture-id-120' role='Character 6810378' tag='Performer 8358637' tagKey='5fcd00c70d2a5f002dad3f30' thumb='https://metadata-static.plex.tv/2/people/fixture-person-4420170'/>
+<Role filter='actor=17800' id='fixture-id-121' role='Character 6810378' tag='Performer 12671904' tagKey='6017c7ffb76d6c002bbe3409' thumb='https://metadata-static.plex.tv/0/people/fixture-person-2959630'/>
+<Role filter='actor=738' id='fixture-id-122' role='Character 13517473' tag='Performer 6995545' tagKey='5fbe0f0ce56163002daed391' thumb='https://metadata-static.plex.tv/a/people/fixture-person-159624'/>
+<Role filter='actor=14122' id='fixture-id-123' role='Character 233783' tag='Performer 7648546' tagKey='608bbb0a0f0b9c002cf47f76' thumb='https://metadata-static.plex.tv/8/people/fixture-person-15195264'/>
+<Role filter='actor=17865' id='fixture-id-124' role='Character 233783' tag='Performer 4619637' tagKey='6497fc5ee570d4e9ffe149b8' thumb='https://metadata-static.plex.tv/0/people/fixture-person-13116794'/>
+<Role filter='actor=12492' id='fixture-id-125' role='Character 233783' tag='Performer 11168008' tagKey='6299199d70dbdea3f68b23dc' thumb='https://metadata-static.plex.tv/a/people/fixture-person-16203157'/>
+<Role filter='actor=742' id='fixture-id-126' role='Character 233783' tag='Performer 5231287' tagKey='63a4473497e05e54fc18a8b5' thumb='https://metadata-static.plex.tv/1/people/fixture-person-15843372'/>
+<Role filter='actor=14026' id='fixture-id-127' role='Character 233783' tag='Performer 7563392' tagKey='60ae021c4e42d7002d3f8367' thumb='https://metadata-static.plex.tv/0/people/fixture-person-3817093'/>
+<Role filter='actor=14027' id='fixture-id-128' role='Character 233783' tag='Performer 977202' tagKey='641d5d68e327b7ec48854359' thumb='https://metadata-static.plex.tv/8/people/fixture-person-8388574'/>
+<Role filter='actor=745' id='fixture-id-129' role='Character 6078167' tag='Performer 13384457' tagKey='5fb3833128264a002daca27a' thumb='https://metadata-static.plex.tv/8/people/fixture-person-7700356'/>
+<Role filter='actor=17402' id='fixture-id-130' role='Character 6078167' tag='Performer 11322104' tagKey='5d776c9e23d5a3001f51d5ac' thumb='https://metadata-static.plex.tv/9/people/fixture-person-211363'/>
+<Role filter='actor=746' id='fixture-id-131' role='Character 2339874' tag='Performer 4799712' tagKey='5d776bd896b655001fe1ddc9' thumb='https://metadata-static.plex.tv/e/people/fixture-person-5394729'/>
+<Role filter='actor=95' id='fixture-id-132' role='Character 2339874' tag='Performer 3330806' tagKey='5f4071b21ae71000410efe71' thumb='https://metadata-static.plex.tv/9/people/fixture-person-9672800'/>
+<Role filter='actor=14176' id='fixture-id-133' role='Character 16771605' tag='Performer 3227737' tagKey='5f4061455a76a80042dd609b' thumb='https://metadata-static.plex.tv/3/people/fixture-person-5704881'/>
+<Role filter='actor=748' id='fixture-id-134' role='Character 2339874' tag='Performer 558247' tagKey='5f40494ffea1a1003fa30786' thumb='https://metadata-static.plex.tv/3/people/fixture-person-1409723'/>
+<Role filter='actor=17256' id='fixture-id-135' role='Character 7164201' tag='Performer 7314720' tagKey='5f3fbf8086422500427a52c3' thumb='https://metadata-static.plex.tv/d/people/fixture-person-5226481'/>
+<Role filter='actor=32872' id='fixture-id-136' role='Character 6810378' tag='Performer 13787363' tagKey='63f9c3c0a2dcef868809aa2f' thumb='https://metadata-static.plex.tv/9/people/fixture-person-647944'/>
+<Role filter='actor=751' id='fixture-id-137' role='Character 6810378' tag='Performer 4852680' tagKey='5f40722f1ae71000410f07d6' thumb='https://metadata-static.plex.tv/6/people/fixture-person-4341173'/>
+<Role filter='actor=755' id='fixture-id-138' role='Character 5059111' tag='Performer 8670762' tagKey='5f4050d2c63b480040e41b2e' thumb='https://metadata-static.plex.tv/4/people/fixture-person-2782951'/>
+<Role filter='actor=34' id='fixture-id-139' role='Character 2270853' tag='Performer 7168063' tagKey='5d77708fcfbb56001fb89a56' thumb='https://metadata-static.plex.tv/7/people/fixture-person-4792036'/>
+<Role filter='actor=974' id='fixture-id-140' role='Character 2464888' tag='Performer 15741717' tagKey='5d7768406f4521001ea9e3fc' thumb='https://metadata-static.plex.tv/0/people/fixture-person-7084638'/>
+<CommonSenseMedia id='fixture-id-141' oneLiner='Sample Display'>
+<AgeRating age='15' rating='3' type='official'/>
+</CommonSenseMedia>
+<Field locked='1' name='thumb'/>
+<Location path='/fixtures/media/fixture-media-3ec7200a03.mkv'/>
+<Location path='/fixtures/media/fixture-media-6d9d34e928.mkv'/>
+</Directory>
+</MediaContainer>

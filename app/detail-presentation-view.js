@@ -44,9 +44,17 @@
       setText('detail-version-value', content.version || '');
       setText('detail-audio-value', content.audio || '');
       setText('detail-subtitles-value', content.subtitles || '');
+      setText('detail-version-source', sourceLabel(data.sources && data.sources.version, data.detail));
+      setText('detail-audio-source', sourceLabel(data.sources && data.sources.audio, data.detail));
+      setText('detail-subtitles-source', sourceLabel(data.sources && data.sources.subtitles, data.detail));
       renderChoice('detail-audio', !!choices.audio);
       renderChoice('detail-subtitles', !!choices.subtitles);
       renderChoice('detail-version', !!choices.versions, choices.versionOpenable === true);
+    }
+    function sourceLabel(source, detail) {
+      if (source === 'season') { return t('detail.preferenceSeason'); }
+      if (source === 'media') { return t(detail && detail.type === 'episode' ? 'detail.preferenceEpisode' : 'detail.preferenceMedia'); }
+      return '';
     }
     function clear() {
       setText('detail-title', ''); setText('detail-subtitle', ''); setText('detail-facts', ''); setText('detail-summary', '');

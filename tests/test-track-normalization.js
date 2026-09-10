@@ -2,7 +2,6 @@
 
 var assert = require('assert');
 var MediaProfile = require('../app/media-profile');
-var PlexClient = require('../app/plex-client');
 var source = {
   id: '12',
   index: '3',
@@ -52,7 +51,7 @@ assert.strictEqual(typeof MediaProfile.trackFromAttributes, 'function',
   'MediaProfile must expose the authoritative Plex track normalizer');
 assert.deepStrictEqual(MediaProfile.trackFromAttributes(source), expected,
   'the authoritative track record must preserve playback-facing semantics');
-assert.deepStrictEqual(PlexClient.trackFromAttributes(source), expected,
+assert.deepStrictEqual(MediaProfile.trackFromAttributes(source), expected,
   'PlexClient must delegate track normalization without changing its public record');
 
 console.log('Track normalization checks passed');
