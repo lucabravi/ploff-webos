@@ -63,6 +63,7 @@ var runtimeConfig = { apiBaseUrl: localUri, token: 'token-a' };
 var navigationError = null;
 var navigationItems = [{ key: 'library-1', title: 'Movies' }];
 var serverAccessCallback = null;
+var applicationCalls = [];
 var reachableConnectionCallback = null;
 
 function memoryStorage() {
@@ -356,6 +357,13 @@ var feature = ServerFeatureController.create({
     renderProfile: function () { profileRenders += 1; },
     renderSettings: function () { settingsRenders += 1; }
   },
+  application: {
+    applyNavigation: function () { applicationCalls.push('navigation'); },
+    loadHome: function () { applicationCalls.push('home'); },
+    preloadWatchlist: function () { applicationCalls.push('watchlist'); },
+    loaded: function () { applicationCalls.push('loaded'); },
+    seedAccountSettings: function () { applicationCalls.push('account'); }
+  },
   lifecycle: {
     resetContent: function () { resetContent += 1; }
   },
@@ -409,6 +417,8 @@ assert.ok(publishes.length > 0, 'session changes must be published through the a
 var startedBeforeLoad = started;
 feature.loadApplication();
 assert.strictEqual(started, startedBeforeLoad + 1, 'application loading must start activity polling once');
+assert.ok(applicationCalls.indexOf('home') >= 0, 'application loading must start Home after navigation is available');
+assert.strictEqual(applicationCalls.indexOf('watchlist'), -1, 'application loading must not preload Watchlist concurrently with first Home');
 feature.loadApplication();
 assert.strictEqual(started, startedBeforeLoad + 2, 'application reload must re-arm activity polling');
 feature.openEditor();

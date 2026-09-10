@@ -23,6 +23,7 @@ function check(html) {
 }
 
 write('app.js');
+write('player.js', 'var player = true;');
 write('vendor/library.js');
 
 assert.strictEqual(
@@ -43,5 +44,12 @@ assert.notStrictEqual(
   'vendored libraries must use an explicit semantic version'
 );
 
+assert.notStrictEqual(check('<script src="app.js?v=dev"></script><script src="player.js?v=dev"></script>').status, 0,
+  'Player code must not be a static startup script');
+fs.unlinkSync(path.join(directory, 'player.js'));
+assert.notStrictEqual(check('<script src="app.js?v=dev"></script>').status, 0,
+  'release validation must reject a missing deferred asset even though it is not in HTML');
+write('player.js');
+assert.notStrictEqual(check('<script src="app.js?v=dev"></script>').status, 0, 'an empty Player asset must fail validation');
 fs.rmSync(directory, { recursive: true, force: true });
 console.log('Shell asset checker tests passed');

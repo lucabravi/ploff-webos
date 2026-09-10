@@ -1,7 +1,9 @@
 'use strict';
 
 var assert = require('assert');
+var InputCommandRouter = require('../app/coordinator/input-command-router');
 var SettingsController = require('../app/coordinator/settings-controller');
+var settingsRouteCalls = [];
 var viewState = { open: false, zone: 'list', index: 0, languageKind: '', languageIndex: 0 };
 var rows = [
   { key: 'cardScale', label: 'Card size', choices: [{ value: 'small' }, { value: 'large' }] },
@@ -12,7 +14,8 @@ var rows = [
   { key: 'appVersion', label: 'Ploff 1.0.5', action: true, versionRow: true },
   { key: 'playbackCompatibility', label: 'Playback compatibility', action: true, compatibilityEditor: true },
   { key: 'settingsBackup', label: 'Settings save', action: true },
-  { key: 'visualTheme', label: 'Visual theme', choices: [{ value: 'classic' }, { value: 'immersive' }, { value: 'neon' }] }
+  { key: 'visualTheme', label: 'Visual theme', choices: [{ value: 'classic' }, { value: 'immersive' }, { value: 'neon' }] },
+  { key: 'homeRows', label: 'Home rows', orderedEditor: true }
 ];
 var calls = [];
 var lastChoiceArguments = null;
@@ -40,6 +43,7 @@ var settings = {
   interfaceAnimations: true,
   showWatchlist: true,
   showPlaylists: true,
+  homeRows: ['continue', 'recommended', 'recent'],
   audioLanguages: ['en'],
   videoVersionPriorities: [],
   upNextLayout: 'compact',
@@ -50,6 +54,7 @@ var settings = {
   visualTheme: 'neon'
 };
 var nodes = {};
+var rootStyleProperties = {};
 
 function node(id) {
   if (!nodes[id]) {
@@ -73,7 +78,7 @@ function node(id) {
 
 var document = {
   body: { className: '' },
-  documentElement: { lang: 'en', style: { setProperty: function () {} } },
+  documentElement: { lang: 'en', style: { setProperty: function (name, value) { rootStyleProperties[name] = value; } } },
   getElementById: node,
   querySelectorAll: function (selector) {
     if (selector === '[data-update-index]') {
@@ -123,6 +128,10 @@ var upNextState = { open: false, selected: 'compact', focus: 0 };
 var controller = SettingsController.create({
   platform: { root: { localStorage: {} }, document: document },
   modules: {
+    InputCommandRouter: {
+      playerQueue: InputCommandRouter.playerQueue,
+      settings: function (context) { settingsRouteCalls.push(context); return InputCommandRouter.settings(context); }
+    },
     Settings: {
       ACCENT_COLORS: ['cyan', 'red'],
       VISUAL_THEMES: ['classic', 'immersive', 'neon'],
@@ -137,6 +146,7 @@ var controller = SettingsController.create({
       visualThemeClassNames: function () { return ['visual-theme-classic', 'visual-theme-immersive', 'visual-theme-neon']; },
       ARTWORK_QUALITIES: [70, 80, 85, 90, 100],
       BACKDROP_QUALITIES: [50, 60, 70, 85, 100],
+      HOME_ROWS: ['continue', 'recommended', 'recent'],
       supportedUiLanguages: ['en', 'it'],
       save: function (storage, value) { calls.push('save'); return value; }
     },
@@ -257,6 +267,9 @@ document.body.className = 'shell visual-theme-classic animations-disabled';
 controller.applyVisualTheme();
 assert.strictEqual(document.body.className.indexOf('visual-theme-classic'), -1, 'applying a theme removes the previous registered theme class');
 assert.ok(document.body.className.indexOf('visual-theme-neon') >= 0, 'controller applies arbitrary registered theme classes without new branching');
+settings.uiTextScale = 115;
+controller.applyAccessibilityPreferences();
+assert.strictEqual(rootStyleProperties['--ui-text-scale'], '18.4px', 'accessibility preferences must apply the persisted UI text scale to the root CSS variable');
 
 controller.enter({ keepNavigationFocus: false });
 controller.focusList(8, rows);
@@ -335,12 +348,25 @@ controller.handleKey({ keyCode: 13, preventDefault: function () {} });
 controller.handleKey({ keyCode: 461, preventDefault: function () {} });
 assert.strictEqual(controller.snapshot().languageKind, '', 'remote Back uses the same language-editor exit semantics');
 
+
+controller.focusList(9, rows);
+controller.handleKey({ keyCode: 13, preventDefault: function () {} });
+assert.strictEqual(controller.snapshot().languageKind, 'homeRows', 'Home rows must open in the ordered editor');
+controller.toggleLanguage();
+assert.deepStrictEqual(settings.homeRows, ['recommended', 'recent'], 'OK must hide the focused Home row group without deleting its editor choice');
+assert.ok(calls.indexOf('homeDirty') >= 0, 'changing Home row visibility must invalidate Home presentation');
+controller.focusLanguage(0, 3);
+controller.moveLanguage(1);
+assert.deepStrictEqual(settings.homeRows, ['recent', 'recommended'], 'horizontal reorder must move visible Home row groups without re-enabling hidden groups');
+controller.closeLanguages();
+
 controller.focusList(7, rows);
 controller.handleKey({ keyCode: 13, preventDefault: function () {} });
 assert.strictEqual(lastChoiceArguments[1][0].status, 'matched', 'settings backup must show a matching state when saved settings match');
 lastChoiceArguments[3]({ value: 'save' });
 assert.ok(calls.indexOf('message:settings.backup.saved') >= 0, 'a successful settings save must show a success toast');
 backupStatus.settingsMatch = false;
+
 controller.focusList(7, rows);
 controller.handleKey({ keyCode: 13, preventDefault: function () {} });
 assert.strictEqual(lastChoiceArguments[1][0].status, 'unmatched', 'settings backup must show an out-of-date state when active settings differ');
@@ -429,3 +455,5 @@ assert.strictEqual(node('up-next-layout-dialog').getAttribute('aria-hidden'), 't
 assert.deepStrictEqual(controller.handleKey({ keyCode: 13 }, ''), { handled: false }, 'destroy makes input handling inert');
 
 console.log('Settings controller checks passed');
+
+assert.ok(settingsRouteCalls.length > 0, 'SettingsController must delegate key command selection to InputCommandRouter');

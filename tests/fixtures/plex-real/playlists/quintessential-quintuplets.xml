@@ -1,0 +1,424 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer composite='/playlists/fixture-id-257/composite/1785576929' duration='49104' leafCount='27' playlistType='video' ratingKey='fixture-id-257' size='27' smart='0' title='Quintessential Quintuplets'>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.2' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-028' index='1' key='/library/metadata/fixture-id-258' lastViewedAt='1784996727' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='五等分の花嫁' originallyAvailableAt='2019-01-11' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2638' ratingKey='fixture-id-258' summary='Futaro Uesugi ottiene un lavoro da insegnante privato che promette cinque volte la paga normale. A quanto pare, però il lavoro sarà più complicato del previsto.' thumb='/library/metadata/fixture-id-258/thumb/1784506452' title='The Quintessential Quintuplets' titleSort='Quintessential Quintuplets' type='episode' updatedAt='1784506452' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3415' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-261' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/S01E01.mkv' id='fixture-id-262' key='/library/parts/fixture-id-262/1784488342/file.mkv' size='617295678' videoProfile='main 10'/>
+</Media>
+<Image alt='The Quintessential Quintuplets' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='The Quintessential Quintuplets' type='snapshot' url='/library/metadata/23811/thumb/1784506452'/>
+<Image alt='The Quintessential Quintuplets' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='The Quintessential Quintuplets' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='a02e46' bottomRight='904339' topLeft='4c1c21' topRight='924042'/>
+<Director tag='Yasuo Iwamoto'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.8' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446030' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-029' index='2' key='/library/metadata/fixture-id-263' lastViewedAt='1785002574' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='屋上の告白' originallyAvailableAt='2019-01-18' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2639' ratingKey='fixture-id-263' summary='Futaro propone un esame per risolvere il dibattito sulla necessità o meno di un insegnante per le gemelle.' thumb='/library/metadata/fixture-id-263/thumb/1784506455' title='Dichiarazione sul tetto' type='episode' updatedAt='1784506455' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3898' container='mkv' duration='1446030' hasVoiceActivity='0' height='1080' id='fixture-id-264' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446030' file='/fixtures/media/S01E02.mkv' id='fixture-id-265' key='/library/parts/fixture-id-265/1784488350/file.mkv' size='704612321' videoProfile='main 10'/>
+</Media>
+<Image alt='Dichiarazione sul tetto' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Dichiarazione sul tetto' type='snapshot' url='/library/metadata/23812/thumb/1784506455'/>
+<Image alt='Dichiarazione sul tetto' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Dichiarazione sul tetto' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='6f5751' bottomRight='5e2331' topLeft='0d3244' topRight='924040'/>
+<Director tag='Fumio Maezono'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.0' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-030' index='3' key='/library/metadata/fixture-id-266' lastViewedAt='1785006877' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='問題は山積み' originallyAvailableAt='2019-01-25' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2640' ratingKey='fixture-id-266' summary='Nino non è contenta del fatto che Futaro stia andando d&apos;accordo con le sue sorelle, così prende in mano la situazione.' thumb='/library/metadata/fixture-id-266/thumb/1784506431' title='Un sacco di problemi' type='episode' updatedAt='1784506431' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3159' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-267' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/S01E03.mkv' id='fixture-id-268' key='/library/parts/fixture-id-268/1784488356/file.mkv' size='570972623' videoProfile='main 10'/>
+</Media>
+<Image alt='Un sacco di problemi' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Un sacco di problemi' type='snapshot' url='/library/metadata/23813/thumb/1784506431'/>
+<Image alt='Un sacco di problemi' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Un sacco di problemi' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='903a6a' bottomRight='953a4c' topLeft='26245e' topRight='933c51'/>
+<Director tag='Satoshi Kuwabara'/>
+<Director tag='Yorifusa Yamaguchi'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.6' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-031' index='4' key='/library/metadata/fixture-id-269' lastViewedAt='1785015939' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='今日はお休み' originallyAvailableAt='2019-01-31' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2641' ratingKey='fixture-id-269' summary='Futaro riceve la sua prima paga, così decide di portare Raiha alla sala giochi, dove è sempre voluta andare.' thumb='/library/metadata/fixture-id-269/thumb/1785008191' title='Un giorno di vacanza' type='episode' updatedAt='1785008191' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='4196' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-270' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/S01E04.mkv' id='fixture-id-271' key='/library/parts/fixture-id-271/1784488366/file.mkv' size='758499573' videoProfile='main 10'/>
+</Media>
+<Image alt='Un giorno di vacanza' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Un giorno di vacanza' type='snapshot' url='/library/metadata/23814/thumb/1785008191'/>
+<Image alt='Un giorno di vacanza' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Un giorno di vacanza' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='863d7e' bottomRight='9c3825' topLeft='4c1c1a' topRight='83501b'/>
+<Director tag='Satoshi Kuwabara'/>
+<Writer tag='Mayumi Morita'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.8' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446112' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-032' index='5' key='/library/metadata/fixture-id-272' lastViewedAt='1785069735' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='全員で五等分' originallyAvailableAt='2019-02-07' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2642' ratingKey='fixture-id-272' summary='I fuochi d&apos;artificio sono iniziati, ma le ragazze sono ancora divise. Ichika si allontana da sola e Futaro la segue.' thumb='/library/metadata/fixture-id-272/thumb/1786263922' title='Cinque quinti' type='episode' updatedAt='1786263922' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='4115' container='mkv' duration='1446112' hasVoiceActivity='0' height='1080' id='fixture-id-273' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446112' file='/fixtures/media/S01E05.mkv' id='fixture-id-274' key='/library/parts/fixture-id-274/1784488374/file.mkv' size='743809556' videoProfile='main 10'/>
+</Media>
+<Image alt='Cinque quinti' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Cinque quinti' type='snapshot' url='/library/metadata/23815/thumb/1786263922'/>
+<Image alt='Cinque quinti' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Cinque quinti' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='376a4a' bottomRight='30618e' topLeft='0e1c37' topRight='303a7c'/>
+<Director tag='Fumio Maezono'/>
+<Writer tag='Mayumi Morita'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.6' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-033' index='6' key='/library/metadata/fixture-id-275' lastViewedAt='1785071668' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='積み上げたもの' originallyAvailableAt='2019-02-14' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2643' ratingKey='fixture-id-275' summary='Gli esami intermedi stanno per arrivare e il padre delle ragazze ha affidato a Futaro un compito apparentemente impossibile.' thumb='/library/metadata/fixture-id-275/thumb/1786263922' title='Ciò che è stato costruito' titleSort='Cio che e stato costruito' type='episode' updatedAt='1786263922' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3273' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-276' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/S01E06.mkv' id='fixture-id-277' key='/library/parts/fixture-id-277/1784488380/file.mkv' size='591511506' videoProfile='main 10'/>
+</Media>
+<Image alt='Ciò che è stato costruito' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Ciò che è stato costruito' type='snapshot' url='/library/metadata/23816/thumb/1786263922'/>
+<Image alt='Ciò che è stato costruito' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Ciò che è stato costruito' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='8b3d3b' bottomRight='953e36' topLeft='47230a' topRight='9d3532'/>
+<Director tag='Yuki Morita'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.3' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-034' index='7' key='/library/metadata/fixture-id-278' lastViewedAt='1785078203' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='嘘つき嘘たろう' originallyAvailableAt='2019-02-21' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2644' ratingKey='fixture-id-278' summary='Futaro passa la notte nell&apos;appartamento delle gemelle, ma al risveglio si trova in una situazione inaspettata.' thumb='/library/metadata/fixture-id-278/thumb/1786263922' title='Il signor bugiardo' type='episode' updatedAt='1786263922' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3116' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-279' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/S01E07.mkv' id='fixture-id-280' key='/library/parts/fixture-id-280/1784488387/file.mkv' size='563269011' videoProfile='main 10'/>
+</Media>
+<Image alt='Il signor bugiardo' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Il signor bugiardo' type='snapshot' url='/library/metadata/23817/thumb/1786263922'/>
+<Image alt='Il signor bugiardo' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Il signor bugiardo' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='993840' bottomRight='923c57' topLeft='4c1b22' topRight='923c57'/>
+<Director tag='Satoshi Kuwabara'/>
+<Director tag='Fumihiro Yoshimura'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445945' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-035' index='8' key='/library/metadata/fixture-id-281' lastViewedAt='1785095861' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='始まりの写真' originallyAvailableAt='2019-02-28' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2645' ratingKey='fixture-id-281' summary='Futaro si sente male dopo che Miku lo riempie di crocchette. Nino rende la situazione ancora peggiore di quanto era prima.' thumb='/library/metadata/fixture-id-281/thumb/1785008191' title='La prima fotografia' titleSort='prima fotografia' type='episode' updatedAt='1785008191' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3224' container='mkv' duration='1445945' hasVoiceActivity='0' height='1080' id='fixture-id-282' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445945' file='/fixtures/media/S01E08.mkv' id='fixture-id-283' key='/library/parts/fixture-id-283/1784488393/file.mkv' size='582774788' videoProfile='main 10'/>
+</Media>
+<Image alt='La prima fotografia' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='La prima fotografia' type='snapshot' url='/library/metadata/23818/thumb/1785008191'/>
+<Image alt='La prima fotografia' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='La prima fotografia' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='8a3847' bottomRight='953f2c' topLeft='1f2956' topRight='92432f'/>
+<Director tag='Ryo Miyata'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488583' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-036' index='9' key='/library/metadata/fixture-id-284' lastViewedAt='1785254578' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='結びの伝説１日目' originallyAvailableAt='2019-03-07' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2646' ratingKey='fixture-id-284' summary='La scuola è in fermento per l&apos;imminente gita scolastica. Intanto, Raiha prende la febbre.' thumb='/library/metadata/fixture-id-284/thumb/1785008191' title='La leggenda del destino Giorno 1' titleSort='leggenda del destino Giorno 1' type='episode' updatedAt='1785008191' viewCount='12' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3330' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-285' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/S01E09.mkv' id='fixture-id-286' key='/library/parts/fixture-id-286/1784488400/file.mkv' size='601857950' videoProfile='main 10'/>
+</Media>
+<Image alt='La leggenda del destino Giorno 1' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='La leggenda del destino Giorno 1' type='snapshot' url='/library/metadata/23819/thumb/1785008191'/>
+<Image alt='La leggenda del destino Giorno 1' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='La leggenda del destino Giorno 1' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='834f2b' bottomRight='943f39' topLeft='4b1d1b' topRight='973c35'/>
+<Director tag='Takayuki Chiba'/>
+<Director tag='Satoshi Kuwabara'/>
+<Writer tag='Mayumi Morita'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488583' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446030' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-037' index='10' key='/library/metadata/fixture-id-287' lastViewedAt='1785268317' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='結びの伝説２日目' originallyAvailableAt='2019-03-13' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2647' ratingKey='fixture-id-287' summary='Futaro e le ragazze arrivano al campo scolastico. Il suo abbigliamento per la prova di coraggio causa più di un semplice spavento per Nino.' thumb='/library/metadata/fixture-id-287/thumb/1785008191' title='La leggenda del destino Giorno 2' titleSort='leggenda del destino Giorno 2' type='episode' updatedAt='1785008191' viewCount='5' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3579' container='mkv' duration='1446030' hasVoiceActivity='0' height='1080' id='fixture-id-288' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446030' file='/fixtures/media/S01E10.mkv' id='fixture-id-289' key='/library/parts/fixture-id-289/1784488407/file.mkv' size='646978246' videoProfile='main 10'/>
+</Media>
+<Image alt='La leggenda del destino Giorno 2' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='La leggenda del destino Giorno 2' type='snapshot' url='/library/metadata/23820/thumb/1785008191'/>
+<Image alt='La leggenda del destino Giorno 2' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='La leggenda del destino Giorno 2' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='141b3e' bottomRight='383b4b' topLeft='0e2c2a' topRight='1a1c43'/>
+<Director tag='Takuo Suzuki'/>
+<Writer tag='Mayumi Morita'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488583' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446028' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-038' index='11' key='/library/metadata/fixture-id-290' lastViewedAt='1785270296' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='結びの伝説３日目' originallyAvailableAt='2019-03-20' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2648' ratingKey='fixture-id-290' summary='Ichika e Futaro restano chiusi nel capanno. Le altre iniziano a preoccuparsi per la loro assenza, ma non tutte per la stessa ragione.' thumb='/library/metadata/fixture-id-290/thumb/1786263922' title='La leggenda del destino Giorno 3' titleSort='leggenda del destino Giorno 3' type='episode' updatedAt='1786263922' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3534' container='mkv' duration='1446028' hasVoiceActivity='0' height='1080' id='fixture-id-291' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446028' file='/fixtures/media/S01E11.mkv' id='fixture-id-292' key='/library/parts/fixture-id-292/1784488415/file.mkv' size='638869225' videoProfile='main 10'/>
+</Media>
+<Image alt='La leggenda del destino Giorno 3' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='La leggenda del destino Giorno 3' type='snapshot' url='/library/metadata/23821/thumb/1786263922'/>
+<Image alt='La leggenda del destino Giorno 3' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='La leggenda del destino Giorno 3' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='382458' bottomRight='395aa2' topLeft='192c52' topRight='3f589f'/>
+<Director tag='Satoshi Kuwabara'/>
+<Director tag='Midori Yoshizawa'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784488583' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.2' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446030' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-039' index='12' key='/library/metadata/fixture-id-293' lastViewedAt='1785602484' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='結びの伝説２０００日目' originallyAvailableAt='2019-03-27' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Stagione 1' playlistItemID='2649' ratingKey='fixture-id-293' summary='È l&apos;ultimo giorno della gita e Itsuki è scomparsa. Futaro pensa di sapere dove si trova, ma non è nelle migliori condizioni per andare in giro in mezzo alla neve.' thumb='/library/metadata/fixture-id-293/thumb/1786263922' title='La leggenda del destino Giorno 2.000' titleSort='leggenda del destino Giorno 2.000' type='episode' updatedAt='1786263922' viewCount='5' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3495' container='mkv' duration='1446030' hasVoiceActivity='0' height='1080' id='fixture-id-294' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446030' file='/fixtures/media/S01E12.mkv' id='fixture-id-295' key='/library/parts/fixture-id-295/1784488422/file.mkv' size='631687056' videoProfile='main 10'/>
+</Media>
+<Image alt='La leggenda del destino Giorno 2.000' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='La leggenda del destino Giorno 2.000' type='snapshot' url='/library/metadata/23822/thumb/1786263922'/>
+<Image alt='La leggenda del destino Giorno 2.000' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='La leggenda del destino Giorno 2.000' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='40434d' bottomRight='843734' topLeft='4c1c1d' topRight='5b4ea3'/>
+<Director tag='Fumihiro Yoshimura'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1445220' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-040' index='1' key='/library/metadata/fixture-id-296' lastViewedAt='1785579059' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='今日と京都の凶と共' originallyAvailableAt='2021-01-08' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2650' ratingKey='fixture-id-296' summary='Futaro viene ricoverato in ospedale dopo essersi ammalato durante la gita scolastica. Dopo essere tornato a lavorare come insegnante delle gemelle, si rende conto che qualcuno è rimasto indietro.' thumb='/library/metadata/fixture-id-296/thumb/1784561121' title='Come a Kyoto allora, anche adesso va tutto in malora' type='episode' updatedAt='1784561121' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1374' container='mkv' duration='1445220' hasVoiceActivity='0' height='1080' id='fixture-id-298' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1445220' file='/fixtures/media/S02E01.mkv' id='fixture-id-299' key='/library/parts/fixture-id-299/1784487092/file.mkv' size='248302873' videoProfile='main 10'/>
+</Media>
+<Image alt='Come a Kyoto allora, anche adesso va tutto in malora' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Come a Kyoto allora, anche adesso va tutto in malora' type='snapshot' url='/library/metadata/23798/thumb/1784561121'/>
+<Image alt='Come a Kyoto allora, anche adesso va tutto in malora' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Come a Kyoto allora, anche adesso va tutto in malora' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='340f1b' bottomRight='211105' topLeft='4c1c1d' topRight='9e323a'/>
+<Director tag='Kaori'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1445200' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-041' index='2' key='/library/metadata/fixture-id-300' lastViewedAt='1785596737' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='七つのさよなら 第一章' originallyAvailableAt='2021-01-15' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2651' ratingKey='fixture-id-300' summary='Nino e Itsuki hanno un&apos;accesa discussione ed entrambe decidono di andarsene di casa, così tocca a Uesugi trovarle e persuaderle. Ma può davvero farsi coinvolgere nei problemi della famiglia di qualcun altro?' thumb='/library/metadata/fixture-id-300/thumb/1784561122' title='Sette addii -prima parte-' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1280' container='mkv' duration='1445200' hasVoiceActivity='0' height='1080' id='fixture-id-301' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1445200' file='/fixtures/media/S02E02.mkv' id='fixture-id-302' key='/library/parts/fixture-id-302/1784487085/file.mkv' size='231227017' videoProfile='main 10'/>
+</Media>
+<Image alt='Sette addii -prima parte-' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Sette addii -prima parte-' type='snapshot' url='/library/metadata/23799/thumb/1784561122'/>
+<Image alt='Sette addii -prima parte-' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Sette addii -prima parte-' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='822527' bottomRight='933d50' topLeft='4f191c' topRight='9c3729'/>
+<Director tag='Ippei Ichii'/>
+<Director tag='Youichirou Aoki'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1535050' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-042' index='3' key='/library/metadata/fixture-id-303' lastViewedAt='1785598510' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='七つのさよなら 第二章' originallyAvailableAt='2021-01-22' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2652' ratingKey='fixture-id-303' summary='Uesugi continua a cercare di risolvere il conflitto tra Nino e Itsuki, ma senza molto successo. È allora che la ragazza di cui conserva ancora la foto riappare nella sua vita per scuotere ancora di più il suo mondo.' thumb='/library/metadata/fixture-id-303/thumb/1784561122' title='Sette addii -seconda parte-' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1288' container='mkv' duration='1535050' hasVoiceActivity='0' height='1080' id='fixture-id-304' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1535050' file='/fixtures/media/S02E03.mkv' id='fixture-id-305' key='/library/parts/fixture-id-305/1784487088/file.mkv' size='247101015' videoProfile='main 10'/>
+</Media>
+<Image alt='Sette addii -seconda parte-' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Sette addii -seconda parte-' type='snapshot' url='/library/metadata/23800/thumb/1784561122'/>
+<Image alt='Sette addii -seconda parte-' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Sette addii -seconda parte-' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='933c50' bottomRight='78273f' topLeft='4f1824' topRight='96394a'/>
+<Director tag='Shigeru Kimiya'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1535010' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-043' index='4' key='/library/metadata/fixture-id-306' lastViewedAt='1785613982' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='七つのさよなら 第三章' originallyAvailableAt='2021-01-29' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2653' ratingKey='fixture-id-306' summary='Yotsuba fa del suo meglio per aiutare la squadra di atletica e studiare allo stesso tempo, ma un&apos;improvvisa decisione di andare in ritiro la mette sempre più sotto pressione. Per salvare Yotsuba, Futaro, Ichika e Itsuki decidono di andare al club di atletica. Nel frattempo, Miku arriva all&apos;hotel per convincere Nino. Riusciranno le cinque ragazze a riunirsi di nuovo, &quot;Dimenticare il passato e abbracciare il presente&quot;?' thumb='/library/metadata/fixture-id-306/thumb/1784561122' title='Sette addii -terza parte-' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1316' container='mkv' duration='1535010' hasVoiceActivity='0' height='1080' id='fixture-id-307' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1535010' file='/fixtures/media/S02E04.mkv' id='fixture-id-308' key='/library/parts/fixture-id-308/1784487082/file.mkv' size='252589402' videoProfile='main 10'/>
+</Media>
+<Image alt='Sette addii -terza parte-' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Sette addii -terza parte-' type='snapshot' url='/library/metadata/23801/thumb/1784561122'/>
+<Image alt='Sette addii -terza parte-' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Sette addii -terza parte-' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='913b5c' bottomRight='685f20' topLeft='382c0a' topRight='874c29'/>
+<Director tag='Kento Shintani'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1590350' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-044' index='5' key='/library/metadata/fixture-id-309' lastViewedAt='1785652961' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='今日はお疲れ' originallyAvailableAt='2021-02-05' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2654' ratingKey='fixture-id-309' summary='Futaro lascia il lavoro da insegnante, ma le gemelle lo convincono a continuare. Le ragazze si comportano in maniera molto sospetta, ma Futaro non riesce a capire perché.' thumb='/library/metadata/fixture-id-309/thumb/1784561122' title='Oggi abbiamo fatto un ottimo lavoro' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1139' container='mkv' duration='1590350' hasVoiceActivity='0' height='1080' id='fixture-id-310' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1590350' file='/fixtures/media/S02E05.mkv' id='fixture-id-311' key='/library/parts/fixture-id-311/1784487094/file.mkv' size='226472863' videoProfile='main 10'/>
+</Media>
+<Image alt='Oggi abbiamo fatto un ottimo lavoro' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Oggi abbiamo fatto un ottimo lavoro' type='snapshot' url='/library/metadata/23802/thumb/1784561122'/>
+<Image alt='Oggi abbiamo fatto un ottimo lavoro' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Oggi abbiamo fatto un ottimo lavoro' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='721959' bottomRight='932853' topLeft='1a0a23' topRight='13061b'/>
+<Director tag='Youichirou Aoki'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1447390' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-045' index='6' key='/library/metadata/fixture-id-312' lastViewedAt='1785654399' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='最後の試験' originallyAvailableAt='2021-02-12' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2655' ratingKey='fixture-id-312' summary='Le gemelle dovranno cambiare scuola se falliranno il prossimo esame. Con l&apos;aiuto di Futaro, fanno del loro meglio per passarlo.' thumb='/library/metadata/fixture-id-312/thumb/1784561122' title='L&apos;ultimo esame' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1079' container='mkv' duration='1447390' hasVoiceActivity='0' height='1080' id='fixture-id-313' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1447390' file='/fixtures/media/S02E06.mkv' id='fixture-id-314' key='/library/parts/fixture-id-314/1784487097/file.mkv' size='195135793' videoProfile='main 10'/>
+</Media>
+<Image alt='L&apos;ultimo esame' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='L&apos;ultimo esame' type='snapshot' url='/library/metadata/23803/thumb/1784561122'/>
+<Image alt='L&apos;ultimo esame' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='L&apos;ultimo esame' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='803735' bottomRight='682831' topLeft='4a1e19' topRight='973b3e'/>
+<Director tag='Kaori'/>
+<Director tag='Mitsutaka Noshitani'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1447000' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-046' index='7' key='/library/metadata/fixture-id-315' lastViewedAt='1785655899' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='攻略開始' originallyAvailableAt='2021-02-19' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2656' ratingKey='fixture-id-315' summary='Tutte le sorelle passano l&apos;esame e decidono di festeggiare, ma Nino non c&apos;è.' thumb='/library/metadata/fixture-id-315/thumb/1785357452' title='Inizia l&apos;offensiva' type='episode' updatedAt='1785357452' viewCount='2' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1184' container='mkv' duration='1447000' hasVoiceActivity='0' height='1080' id='fixture-id-316' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1447000' file='/fixtures/media/S02E07.mkv' id='fixture-id-317' key='/library/parts/fixture-id-317/1784487099/file.mkv' size='214191747' videoProfile='main 10'/>
+</Media>
+<Image alt='Inizia l&apos;offensiva' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Inizia l&apos;offensiva' type='snapshot' url='/library/metadata/23804/thumb/1785357452'/>
+<Image alt='Inizia l&apos;offensiva' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Inizia l&apos;offensiva' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='933e4a' bottomRight='834c1d' topLeft='482209' topRight='76421b'/>
+<Director tag='Ippei Ichii'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1446540' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-047' index='8' key='/library/metadata/fixture-id-318' lastViewedAt='1785657570' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='スクランブルエッグ' originallyAvailableAt='2021-02-26' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2657' ratingKey='fixture-id-318' summary='Futaro cerca di capire chi era la falsa Itsuki, ma trova tutte le sorelle con lo stesso identico aspetto: riuscirà a distinguerle?' thumb='/library/metadata/fixture-id-318/thumb/1784561123' title='Uova strapazzate' type='episode' updatedAt='1784561123' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1041' container='mkv' duration='1446540' hasVoiceActivity='0' height='1080' id='fixture-id-319' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1446540' file='/fixtures/media/S02E08.mkv' id='fixture-id-320' key='/library/parts/fixture-id-320/1784487102/file.mkv' size='188186973' videoProfile='main 10'/>
+</Media>
+<Image alt='Uova strapazzate' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Uova strapazzate' type='snapshot' url='/library/metadata/23805/thumb/1784561123'/>
+<Image alt='Uova strapazzate' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Uova strapazzate' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='682f1e' bottomRight='2f1304' topLeft='4c1e07' topRight='7b3a1a'/>
+<Director tag='Kaori'/>
+<Director tag='Takayuki Kitagawa'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1447670' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-048' index='9' key='/library/metadata/fixture-id-321' lastViewedAt='1785659001' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='ようこそ3年1組' originallyAvailableAt='2021-03-05' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2658' ratingKey='fixture-id-321' summary='Visto che Ichika non ce la fa più a pagare l&apos;affitto da sola, le altre sorelle decidono di cercare un lavoro. Nino e Miku si presentano al posto di lavoro di Futaro, ma solo una delle due verrà assunta.' thumb='/library/metadata/fixture-id-321/thumb/1784561123' title='Benvenuti nella classe 3-1' type='episode' updatedAt='1784561123' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1337' container='mkv' duration='1447670' hasVoiceActivity='0' height='1080' id='fixture-id-322' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1447670' file='/fixtures/media/S02E09.mkv' id='fixture-id-323' key='/library/parts/fixture-id-323/1784487105/file.mkv' size='241906671' videoProfile='main 10'/>
+</Media>
+<Image alt='Benvenuti nella classe 3-1' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Benvenuti nella classe 3-1' type='snapshot' url='/library/metadata/23806/thumb/1784561123'/>
+<Image alt='Benvenuti nella classe 3-1' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Benvenuti nella classe 3-1' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='342a63' bottomRight='392a29' topLeft='4e1335' topRight='2c6969'/>
+<Director tag='Kazuomi Koga'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1684940' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-049' index='10' key='/library/metadata/fixture-id-324' lastViewedAt='1785660330' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='五羽鶴の恩返し' originallyAvailableAt='2021-03-12' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2659' ratingKey='fixture-id-324' summary='Il padre delle gemelle cerca di far ottenere il lavoro di insegnante a Takeda, un compagno di classe di Futaro. I due decidono così di fare una scommessa.' thumb='/library/metadata/fixture-id-324/thumb/1784561124' title='Cinque gru in cambio' type='episode' updatedAt='1784561124' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1011' container='mkv' duration='1684940' hasVoiceActivity='0' height='1080' id='fixture-id-325' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1684940' file='/fixtures/media/S02E10.mkv' id='fixture-id-326' key='/library/parts/fixture-id-326/1784487107/file.mkv' size='212847191' videoProfile='main 10'/>
+</Media>
+<Image alt='Cinque gru in cambio' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Cinque gru in cambio' type='snapshot' url='/library/metadata/23807/thumb/1784561124'/>
+<Image alt='Cinque gru in cambio' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Cinque gru in cambio' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='4d53a4' bottomRight='3f599f' topLeft='501911' topRight='7d541a'/>
+<Director tag='Yoshihisa Matsumoto'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1445200' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-050' index='11' key='/library/metadata/fixture-id-327' lastViewedAt='1785663406' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='シスターズウォー　前半戦' originallyAvailableAt='2021-03-19' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2660' ratingKey='fixture-id-327' skipCount='1' summary='Ichika, Nino e Miku escogitano dei modi per avvicinarsi a Futaro durante la gita scolastica. Yotsuba è turbata dal loro comportamento.' thumb='/library/metadata/fixture-id-327/thumb/1784561124' title='Guerra tra sorelle -prima parte-' type='episode' updatedAt='1784561124' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1204' container='mkv' duration='1445200' hasVoiceActivity='0' height='1080' id='fixture-id-328' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1445200' file='/fixtures/media/S02E11.mkv' id='fixture-id-329' key='/library/parts/fixture-id-329/1784487110/file.mkv' size='217460443' videoProfile='main 10'/>
+</Media>
+<Image alt='Guerra tra sorelle -prima parte-' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Guerra tra sorelle -prima parte-' type='snapshot' url='/library/metadata/23808/thumb/1784561124'/>
+<Image alt='Guerra tra sorelle -prima parte-' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Guerra tra sorelle -prima parte-' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='963d3c' bottomRight='441623' topLeft='1c3516' topRight='406a30'/>
+<Director tag='Akiko Seki'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1429976' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='the-quintessential-quintuplets' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='The Quintessential Quintuplets' guid='fixture-guid-051' index='12' key='/library/metadata/fixture-id-330' lastViewedAt='1785664766' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='シスターズウォー　後半戦' originallyAvailableAt='2021-03-26' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='∬' playlistItemID='2661' ratingKey='fixture-id-330' summary='Durante la gita le cose si fanno sempre più tese tra le sorelle e anche con Futaro. Per l&apos;ultimo giorno della gita scolastica, le cinque gemelle decidono di lasciare chi passerà la giornata con Futaro alla fortuna.' thumb='/library/metadata/fixture-id-330/thumb/1784561124' title='Guerra tra sorelle -seconda parte-' type='episode' updatedAt='1784561124' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1240' container='mkv' duration='1429976' hasVoiceActivity='0' height='1080' id='fixture-id-331' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1429976' file='/fixtures/media/S02E12.mkv' id='fixture-id-332' key='/library/parts/fixture-id-332/1784487113/file.mkv' size='221678233' videoProfile='main 10'/>
+</Media>
+<Image alt='Guerra tra sorelle -seconda parte-' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Guerra tra sorelle -seconda parte-' type='snapshot' url='/library/metadata/23809/thumb/1784561124'/>
+<Image alt='Guerra tra sorelle -seconda parte-' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Guerra tra sorelle -seconda parte-' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='672823' bottomRight='792d32' topLeft='501911' topRight='7c312d'/>
+<Director tag='Kaori'/>
+<Writer tag='Keiichiro Ochi'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784562613' art='/library/metadata/fixture-id-333/art/1786263957' audienceRating='6.4' audienceRatingImage='themoviedb://image.rating' chapterSource='media' duration='2908000' guid='fixture-guid-052' key='/library/metadata/fixture-id-333' lastViewedAt='1785860949' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='五等分の花嫁∽' originallyAvailableAt='2023-07-14' playlistItemID='2670' ratingKey='fixture-id-333' slug='the-quintessential-quintuplets-2023' studio='SHAFT' summary='Un film che raccoglie alcune storie inedite tratte dal manga e non adattate nella serie televisiva anime principale.' thumb='/library/metadata/fixture-id-333/thumb/1786263957' title='The Quintessential Quintuplets∽' titleSort='Quintessential Quintuplets∽' type='movie' updatedAt='1786263957' viewCount='1' year='2023'>
+<Media aspectRatio='1.78' audioChannels='6' audioCodec='flac' bitrate='10864' container='mkv' duration='2908000' hasVoiceActivity='0' height='1080' id='fixture-id-334' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1451040' file='/fixtures/media/The Quintessential Quintuplets ∽ (2023) - pt1.mkv' id='fixture-id-335' key='/library/parts/fixture-id-335/1760091871/file.mkv' size='1865715539' videoProfile='main 10'/>
+<Part container='mkv' duration='1456960' file='/fixtures/media/The Quintessential Quintuplets ∽ (2023) - pt2.mkv' id='fixture-id-336' key='/library/parts/fixture-id-336/1760091689/file.mkv' size='1983799051' videoProfile='main 10'/>
+</Media>
+<Image alt='The Quintessential Quintuplets∽' type='coverPoster' url='/library/metadata/23831/thumb/1786263957'/>
+<Image alt='The Quintessential Quintuplets∽' type='background' url='/library/metadata/23831/art/1786263957'/>
+<UltraBlurColors bottomLeft='1f0406' bottomRight='923c5a' topLeft='4f1b0f' topRight='9c3050'/>
+<Genre tag='Animazione'/>
+<Genre tag='Romance'/>
+<Country tag='Japan'/>
+<Director tag='Yukihiro Miyamoto'/>
+<Director tag='Koji Matsumura'/>
+<Writer tag='Keiichiro Ochi'/>
+<Writer tag='Negi Haruba'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1784562026' art='/library/metadata/fixture-id-337/art/1786263957' audienceRating='9.6' audienceRatingImage='rottentomatoes://image.rating.upright' contentRating='TV-14' duration='8162812' guid='fixture-guid-053' key='/library/metadata/fixture-id-337' lastViewedAt='1785860953' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='映画 五等分の花嫁' originallyAvailableAt='2022-05-20' playlistItemID='2662' rating='9.2' ratingImage='rottentomatoes://image.rating.ripe' ratingKey='fixture-id-337' slug='the-quintessential-quintuplets-movie' studio='Pony Canyon' summary='Quando cinque deliziose ragazze che odiano studiare assumono il tutor part-time Futaro, sarà lui a guidare non solo la loro istruzione, ma anche i loro cuori. Il tempo trascorso le ha avvicinate e i sentimenti sono cresciuti tra le ragazze e Futaro. Al termine del terzo anno di scuola superiore e all’approssimarsi dell’ultimo festival scolastico, le ragazze guardano al futuro. C’è un futuro per una di loro e Futaro?' thumb='/library/metadata/fixture-id-337/thumb/1786263957' title='The Quintessential Quintuplets Movie' titleSort='Quintessential Quintuplets Movie' type='movie' updatedAt='1786263957' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='2122' container='mkv' duration='8162812' hasVoiceActivity='0' height='1080' id='fixture-id-338' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='8162812' file='/fixtures/media/The Quintessential Quintuplets Movie (2022).mkv' id='fixture-id-339' key='/library/parts/fixture-id-339/1784505385/file.mkv' size='2198751924' videoProfile='main 10'/>
+</Media>
+<Image alt='The Quintessential Quintuplets Movie' type='coverPoster' url='/library/metadata/23830/thumb/1786263957'/>
+<Image alt='The Quintessential Quintuplets Movie' type='background' url='/library/metadata/23830/art/1786263957'/>
+<Image alt='The Quintessential Quintuplets Movie' type='backgroundSquare' url='/library/metadata/23830/squareArt/1786263957'/>
+<UltraBlurColors bottomLeft='80353d' bottomRight='4358a1' topLeft='4b1e19' topRight='86393a'/>
+<Genre tag='Commedia'/>
+<Genre tag='Romance'/>
+<Country tag='Japan'/>
+<Director tag='Masato Jimbo'/>
+<Writer tag='Keiichiro Ochi'/>
+<Writer tag='Negi Haruba'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+<Video addedAt='1760620826' art='/library/metadata/fixture-id-340/art/1779324377' audienceRating='8.0' audienceRatingImage='themoviedb://image.rating' chapterSource='media' duration='2794048' guid='fixture-guid-054' key='/library/metadata/fixture-id-340' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='五等分の花嫁＊' originallyAvailableAt='2024-09-20' playlistItemID='2666' ratingKey='fixture-id-340' slug='the-quintessential-quintuplets-2024-3' studio='Bibury Animation Studios' summary='Vi raccontiamo la vita quotidiana di Futaro e delle cinque gemelle Nakano da adulte! Futaro le ha guidate in qualità di tutor con successo sino al diploma, nonostante le difficoltà scolastiche e il loro essere restie allo studio, e ha sposato una di loro. Sebbene ognuna di loro abbia realizzato i propri sogni e intrapreso la propria strada, sembra che abbiano delle preoccupazioni... È in questo contesto che Futaro e le cinque gemelle organizzano un viaggio alle Hawaii che fungerà anche da luna di miele. Proprio mentre i preparativi procedono senza intoppi, si verifica un incidente che provoca grande panico! E anche alle Hawaii, meta della loro luna di miele, si ritrovano coinvolti in una serie di guai...!? Una commedia romantica con cinque gemelle adorabili al 500%, edizione luna di miele!!' thumb='/library/metadata/fixture-id-340/thumb/1779324377' title='The Quintessential Quintuplets＊' titleSort='Quintessential Quintuplets＊' type='movie' updatedAt='1779324377' year='2024'>
+<Media aspectRatio='1.78' audioChannels='6' audioCodec='flac' bitrate='13214' container='mkv' duration='2794048' hasVoiceActivity='1' height='1080' id='fixture-id-341' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='2794048' file='/fixtures/media/The Quintessential Quintuplets＊ (2024).mkv' id='fixture-id-342' key='/library/parts/fixture-id-342/1760043864/file.mkv' size='4625060112' videoProfile='main 10'/>
+</Media>
+<Image alt='The Quintessential Quintuplets＊' type='coverPoster' url='/library/metadata/10886/thumb/1779324377'/>
+<Image alt='The Quintessential Quintuplets＊' type='background' url='/library/metadata/10886/art/1779324377'/>
+<UltraBlurColors bottomLeft='81353c' bottomRight='933239' topLeft='142e4d' topRight='204769'/>
+<Genre tag='Animazione'/>
+<Genre tag='Commedia'/>
+<Country tag='Japan'/>
+<Director tag='Masato Jimbo'/>
+<Writer tag='Masato Jimbo'/>
+<Writer tag='Negi Haruba'/>
+<Role tag='Yoshitsugu Matsuoka'/>
+<Role tag='Kana Hanazawa'/>
+<Role tag='Ayana Taketatsu'/>
+</Video>
+</MediaContainer>

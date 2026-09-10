@@ -180,4 +180,14 @@ view.open('Exit Ploff', [{ value: 'exit', label: 'Exit' }], 'exit', 'full-screen
 assert.ok(/is-full-screen/.test(nodes['choice-dialog'].className), 'the exit confirmation must support the full-screen shared dialog presentation');
 view.close();
 
+view.open('Global renderer?', [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }], 'no', 'confirm');
+assert.ok(/is-confirm/.test(nodes['choice-dialog'].className), 'confirmation dialogs must expose a dedicated variant');
+assert.strictEqual(view.snapshot().index, 1, 'confirmation dialogs must default focus to the safe No choice');
+assert.ok(/is-hidden/.test(nodes['choice-dialog-cancel'].className), 'confirmation dialogs must show only Yes/No without a third Cancel action');
+view.move(1);
+assert.strictEqual(view.snapshot().index, 1, 'remote navigation must not move onto a hidden Cancel action in confirmation dialogs');
+assert.strictEqual(view.selected().value, 'no', 'safe No must remain selected at the lower edge of a confirmation dialog');
+view.move(-1);
+assert.strictEqual(view.selected().value, 'yes', 'remote navigation must still move between Yes and No');
+view.close();
 console.log('Choice dialog view checks passed');

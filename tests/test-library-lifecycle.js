@@ -119,6 +119,285 @@ stale.requests[1].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'fr
 assert.strictEqual(stale.grid.items[0].ratingKey, 'fresh', 'the active response must update the grid');
 assert.strictEqual(stale.lifecycle.snapshot().loading, false, 'a completed response must clear loading state');
 
+
+var locallyFilteredCatalog = createFixture();
+locallyFilteredCatalog.lifecycle.load(locallyFilteredCatalog.context({ query: { sort: 'titleSort', direction: 'asc', watched: 'unwatched', filters: {} } }), true);
+locallyFilteredCatalog.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: Array.apply(null, Array(59)).map(function (_, index) { return { ratingKey: 'visible-a-' + index, plexSourceOffset: index < 20 ? index : index + 1 }; }),
+  totalSize: 120,
+  nextStart: 60,
+  hasMore: true,
+  localFilteredCount: 1
+});
+assert.strictEqual(locallyFilteredCatalog.lifecycle.snapshot().nextStart, 60,
+  'unwatched local filtering must retain the raw Plex continuation offset rather than the visible item count');
+assert.strictEqual(locallyFilteredCatalog.grid.items.length, 59,
+  'the resident catalog must contain only locally accepted unwatched cards');
+assert.strictEqual(locallyFilteredCatalog.grid.totalSize, 60,
+  'while raw Plex pages remain, locally filtered catalogs need only one sentinel slot to keep lazy loading active');
+locallyFilteredCatalog.lifecycle.load(locallyFilteredCatalog.context({ query: { sort: 'titleSort', direction: 'asc', watched: 'unwatched', filters: {} } }), false);
+assert.strictEqual(locallyFilteredCatalog.requests[1].data.start, 60,
+  'the next page after a local rejection must begin at the raw Plex offset, not at the shorter visible length');
+locallyFilteredCatalog.requests[1].callback(null, {
+  libraryKey: 'anime',
+  items: Array.apply(null, Array(58)).map(function (_, index) { return { ratingKey: 'visible-b-' + index, plexSourceOffset: 60 + index + (index > 10 ? 2 : 0) }; }),
+  totalSize: 120,
+  nextStart: 120,
+  hasMore: false,
+  localFilteredCount: 2
+});
+assert.strictEqual(locallyFilteredCatalog.grid.items.length, 117,
+  'all surviving cards across locally corrected pages must remain resident');
+assert.strictEqual(locallyFilteredCatalog.grid.totalSize, 117,
+  'a terminal locally corrected unwatched page must collapse the visible total to the actual resident count');
+assert.strictEqual(locallyFilteredCatalog.lifecycle.snapshot().nextStart, 120,
+  'terminal local filtering must still remember the consumed raw Plex boundary');
+
+
+var emptyCorrectedPage = createFixture();
+emptyCorrectedPage.lifecycle.load(emptyCorrectedPage.context({ query: { sort: 'titleSort', direction: 'asc', watched: 'unwatched', filters: {} } }), true);
+emptyCorrectedPage.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: [],
+  totalSize: 120,
+  nextStart: 60,
+  hasMore: true,
+  localFilteredCount: 60
+});
+assert.strictEqual(emptyCorrectedPage.requests.length, 2,
+  'an unwatched page containing only locally rejected Plex rows must automatically continue to the next raw page');
+assert.strictEqual(emptyCorrectedPage.requests[1].data.start, 60,
+  'automatic empty-page recovery must continue from the raw Plex boundary');
+emptyCorrectedPage.requests[1].callback(null, {
+  libraryKey: 'anime',
+  items: [{ ratingKey: 'first-real-unwatched', plexSourceOffset: 95 }],
+  totalSize: 120,
+  nextStart: 120,
+  hasMore: false,
+  localFilteredCount: 59
+});
+assert.strictEqual(emptyCorrectedPage.grid.items.length, 1,
+  'automatic empty-page recovery must surface later legitimate unwatched rows');
+assert.strictEqual(emptyCorrectedPage.grid.totalSize, 1,
+  'a terminal recovered page must expose the exact visible total');
+
+var terminalEmptyCorrectedPage = createFixture();
+terminalEmptyCorrectedPage.lifecycle.load(terminalEmptyCorrectedPage.context({ query: { sort: 'titleSort', direction: 'asc', watched: 'unwatched', filters: {} } }), true);
+terminalEmptyCorrectedPage.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: [],
+  totalSize: 60,
+  nextStart: 60,
+  hasMore: false,
+  localFilteredCount: 60
+});
+assert.strictEqual(terminalEmptyCorrectedPage.requests.length, 1,
+  'a terminal page containing only locally rejected rows must not issue another request');
+assert.strictEqual(terminalEmptyCorrectedPage.grid.totalSize, 0,
+  'a terminal all-rejected unwatched catalog must become truly empty');
+
+var invalidatedContent = createFixture();
+invalidatedContent.lifecycle.load(invalidatedContent.context(), true);
+invalidatedContent.requests[0].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'resident' }], totalSize: 2 });
+invalidatedContent.lifecycle.load(invalidatedContent.context(), false);
+assert.strictEqual(invalidatedContent.lifecycle.snapshot().loading, true,
+  'incremental Library content may have an active request before another feature mutates Plex state');
+assert.strictEqual(typeof invalidatedContent.lifecycle.invalidateContentRequest, 'function',
+  'Library lifecycle must expose a non-destructive content invalidation for watched/progress mutations');
+invalidatedContent.lifecycle.invalidateContentRequest();
+assert.strictEqual(invalidatedContent.requests[1].aborted, true,
+  'content invalidation must abort a request created against pre-mutation Plex state');
+assert.strictEqual(invalidatedContent.lifecycle.snapshot().loading, false,
+  'content invalidation must release the loading lock so an authoritative replacement can start immediately');
+invalidatedContent.requests[1].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'stale-after-mutation' }], totalSize: 2 });
+assert.strictEqual(invalidatedContent.grid.items.length, 1,
+  'a late pre-mutation response must not alter the resident grid after content invalidation');
+assert.strictEqual(invalidatedContent.grid.items[0].ratingKey, 'resident',
+  'content invalidation must preserve the resident grid until the replacement arrives');
+invalidatedContent.lifecycle.load(invalidatedContent.context(), false, true);
+assert.strictEqual(invalidatedContent.requests.length, 3,
+  'an authoritative replacement load must be allowed immediately after invalidation');
+assert.strictEqual(invalidatedContent.requests[2].data.start, 0,
+  'authoritative replacement after invalidation must restart from Plex offset zero');
+invalidatedContent.requests[2].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'fresh-after-mutation' }], totalSize: 1 });
+assert.strictEqual(invalidatedContent.grid.items[0].ratingKey, 'fresh-after-mutation',
+  'the post-mutation replacement must become the authoritative resident grid');
+
+var boundedCatalog = createFixture();
+boundedCatalog.grid.items = Array.apply(null, Array(180)).map(function (_, index) { return { ratingKey: 'item-' + index }; });
+boundedCatalog.grid.totalSize = 180;
+boundedCatalog.grid.focus = { index: 95 };
+assert.strictEqual(typeof boundedCatalog.lifecycle.refreshCatalogWindow, 'function',
+  'Library lifecycle must expose a bounded catalog reconciliation path');
+boundedCatalog.lifecycle.refreshCatalogWindow(boundedCatalog.context(), 60, 60, { ratingKey: 'item-95', index: 95 });
+assert.strictEqual(boundedCatalog.requests[0].kind, 'library',
+  'bounded catalog reconciliation must use the regular Plex library page adapter');
+assert.strictEqual(boundedCatalog.requests[0].data.start, 60,
+  'bounded catalog reconciliation must request the selected resident block directly');
+assert.strictEqual(boundedCatalog.requests[0].data.limit, 60,
+  'bounded catalog reconciliation must never scale with the number of previously loaded pages');
+boundedCatalog.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: Array.apply(null, Array(60)).map(function (_, index) {
+    var oldIndex = index < 30 ? 60 + index : 61 + index;
+    return { ratingKey: 'item-' + oldIndex };
+  }),
+  totalSize: 179,
+  nextStart: 120
+});
+assert.strictEqual(boundedCatalog.grid.items.length, 179,
+  'bounded catalog reconciliation must preserve the already resident suffix while removing duplicates at the refreshed boundary');
+assert.strictEqual(boundedCatalog.grid.items[94].ratingKey, 'item-95',
+  'the refreshed block may shift the focused Plex item without losing its identity');
+assert.strictEqual(boundedCatalog.grid.focus.index, 94,
+  'bounded reconciliation must reselect the prior ratingKey when it still exists');
+assert.strictEqual(boundedCatalog.lifecycle.snapshot().nextStart, 179,
+  'the next incremental request must continue after the reconciled resident prefix, not after the refreshed block');
+
+var missingCatalogAnchor = createFixture();
+missingCatalogAnchor.grid.items = Array.apply(null, Array(180)).map(function (_, index) { return { ratingKey: 'item-' + index }; });
+missingCatalogAnchor.grid.totalSize = 180;
+missingCatalogAnchor.grid.focus = { index: 95 };
+missingCatalogAnchor.lifecycle.refreshCatalogWindow(missingCatalogAnchor.context(), 60, 60, { ratingKey: 'item-95', index: 95 });
+missingCatalogAnchor.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: Array.apply(null, Array(60)).map(function (_, index) {
+    var oldIndex = index < 35 ? 60 + index : 61 + index;
+    return { ratingKey: 'item-' + oldIndex };
+  }),
+  totalSize: 179,
+  nextStart: 120
+});
+assert.strictEqual(missingCatalogAnchor.grid.items[95].ratingKey, 'item-96',
+  'when the prior Plex item leaves the filtered result, its numeric position must be occupied by the next result');
+assert.strictEqual(missingCatalogAnchor.grid.focus.index, 95,
+  'when the prior ratingKey disappears, bounded reconciliation must preserve the prior numeric focus');
+
+
+var sourceOffsetCatalog = createFixture();
+sourceOffsetCatalog.grid.items = Array.apply(null, Array(1180)).map(function (_, index) {
+  return { ratingKey: 'source-' + index, plexSourceOffset: index < 1167 ? index + 34 : index + 38 };
+});
+sourceOffsetCatalog.grid.totalSize = 1181;
+sourceOffsetCatalog.grid.focus = { index: 1167 };
+sourceOffsetCatalog.lifecycle.setNextStart(1218);
+sourceOffsetCatalog.lifecycle.refreshCatalogWindow(
+  sourceOffsetCatalog.context({ query: { sort: 'titleSort', direction: 'asc', watched: 'unwatched', filters: {} } }),
+  1200,
+  60,
+  { ratingKey: 'source-1167', index: 1167, plexSourceOffset: 1205 }
+);
+assert.strictEqual(sourceOffsetCatalog.requests[0].data.start, 1200,
+  'bounded unwatched reconciliation must request the raw Plex block rather than a visible-index block');
+sourceOffsetCatalog.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: [
+    { ratingKey: 'replacement-1200', plexSourceOffset: 1200 },
+    { ratingKey: 'source-1167', plexSourceOffset: 1205 },
+    { ratingKey: 'replacement-1259', plexSourceOffset: 1259 }
+  ],
+  totalSize: 2400,
+  nextStart: 1260,
+  hasMore: true,
+  localFilteredCount: 57
+});
+assert.strictEqual(sourceOffsetCatalog.lifecycle.snapshot().nextStart, 1260,
+  'refreshing a raw block that extends beyond the resident prefix must advance continuation to the fetched raw boundary');
+assert.strictEqual(sourceOffsetCatalog.grid.items.some(function (item) { return item.ratingKey === 'source-1167'; }), true,
+  'bounded source-offset reconciliation must retain an anchored card that remains in the refreshed raw block');
+assert.strictEqual(sourceOffsetCatalog.grid.focus.index,
+  sourceOffsetCatalog.grid.items.map(function (item) { return item.ratingKey; }).indexOf('source-1167'),
+  'bounded source-offset reconciliation must reselect the prior ratingKey after local filtering changes visible indexes');
+
+
+var emptySourceWindow = createFixture();
+emptySourceWindow.grid.items = Array.apply(null, Array(100)).map(function (_, index) {
+  return {
+    ratingKey: 'empty-window-' + index,
+    plexSourceOffset: index < 50 ? index : index + 20
+  };
+});
+emptySourceWindow.grid.totalSize = 101;
+emptySourceWindow.grid.focus = { index: 55 };
+emptySourceWindow.lifecycle.setNextStart(120);
+emptySourceWindow.lifecycle.refreshCatalogWindow(
+  emptySourceWindow.context({ query: { sort: 'titleSort', direction: 'asc', watched: 'unwatched', filters: {} } }),
+  60,
+  60,
+  { ratingKey: 'empty-window-55', index: 55, plexSourceOffset: 75 }
+);
+emptySourceWindow.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: [],
+  totalSize: 180,
+  nextStart: 120,
+  hasMore: true,
+  localFilteredCount: 60
+});
+assert.strictEqual(emptySourceWindow.grid.items.length, 50,
+  'an all-rejected bounded raw block must remove every resident card whose raw Plex offset belongs to that block');
+assert.strictEqual(emptySourceWindow.grid.items[49].plexSourceOffset, 49,
+  'an empty bounded correction must preserve only cards before the refreshed raw range');
+assert.strictEqual(emptySourceWindow.grid.totalSize, 51,
+  'an empty bounded correction with later raw pages must retain one lazy-load sentinel');
+
+
+var nullableSourceWindow = createFixture();
+nullableSourceWindow.grid.items = [
+  { ratingKey: 'before-null', plexSourceOffset: 0 },
+  { ratingKey: 'nullable-offset', plexSourceOffset: null },
+  { ratingKey: 'after-null', plexSourceOffset: 2 }
+];
+nullableSourceWindow.grid.totalSize = 3;
+nullableSourceWindow.lifecycle.refreshCatalogWindow(nullableSourceWindow.context(), 1, 1, { ratingKey: 'nullable-offset', index: 1 });
+nullableSourceWindow.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: [{ ratingKey: 'replacement-null', plexSourceOffset: 1 }],
+  totalSize: 3,
+  nextStart: 2,
+  hasMore: true
+});
+assert.deepStrictEqual(nullableSourceWindow.grid.items.map(function (item) { return item.ratingKey; }),
+  ['before-null', 'replacement-null', 'after-null'],
+  'a null source offset must be treated as missing metadata, never coerced to raw Plex offset zero');
+
+var rejectedCatalogWindow = createFixture();
+rejectedCatalogWindow.grid.items = [{ ratingKey: 'resident' }];
+rejectedCatalogWindow.grid.totalSize = 1;
+rejectedCatalogWindow.lifecycle.refreshCatalogWindow(rejectedCatalogWindow.context(), 0, 60, { ratingKey: 'resident', index: 0 });
+rejectedCatalogWindow.requests[0].callback(null, {
+  libraryKey: 'different-library',
+  items: [{ ratingKey: 'foreign' }],
+  totalSize: 1
+});
+assert.ok(rejectedCatalogWindow.lifecycle.snapshot().error,
+  'a bounded response for another library must be treated as a failed reconciliation, not as authoritative success');
+assert.strictEqual(rejectedCatalogWindow.grid.items[0].ratingKey, 'resident',
+  'an invalid bounded response must preserve the resident catalog for a later retry');
+
+var invalidatedSummary = createFixture();
+invalidatedSummary.lifecycle.openContainer({ containerKey: '/playlists/stale-summary', containerType: 'playlist' });
+assert.strictEqual(invalidatedSummary.lifecycle.refreshContainerSummary(), true,
+  'container summary can be loading when playback/watched state changes elsewhere');
+assert.strictEqual(invalidatedSummary.requests[0].kind, 'container-summary');
+assert.strictEqual(invalidatedSummary.lifecycle.snapshot().containerSummaryLoading, true);
+invalidatedSummary.lifecycle.invalidateContentRequest();
+assert.strictEqual(invalidatedSummary.requests[0].aborted, true,
+  'content invalidation must abort a pre-mutation container summary request');
+assert.strictEqual(invalidatedSummary.lifecycle.snapshot().containerSummaryLoading, false,
+  'content invalidation must release stale container-summary loading state');
+invalidatedSummary.requests[0].callback(null, { items: [{ ratingKey: 'stale-summary-item' }], totalSize: 1 });
+assert.strictEqual(invalidatedSummary.lifecycle.snapshot().containerSummary, null,
+  'a late pre-mutation container summary must never become authoritative after invalidation');
+
+var librarySwitch = createFixture();
+librarySwitch.lifecycle.load(librarySwitch.context(), true);
+assert.strictEqual(librarySwitch.lifecycle.snapshot().loading, true);
+librarySwitch.lifecycle.prepareLibrary();
+assert.strictEqual(librarySwitch.requests[0].aborted, true, 'preparing another library must abort the previous content request');
+assert.strictEqual(librarySwitch.lifecycle.snapshot().loading, false, 'a cached destination library must not inherit the previous library loading lock');
+
 var incremental = createFixture();
 incremental.grid.items = [{ ratingKey: 'one' }, { ratingKey: 'two' }];
 incremental.grid.totalSize = 4;
@@ -211,6 +490,17 @@ inactive.lifecycle.load(inactive.context(), true);
 inactive.setActive(false);
 inactive.requests[0].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'ignored' }], totalSize: 1 });
 assert.strictEqual(inactive.grid.items.length, 0, 'responses received after leaving the library must be ignored');
+assert.strictEqual(inactive.lifecycle.snapshot().loading, false,
+  'the current request completing while Library is temporarily hidden must release its loading lock for recovery');
+
+var inactiveRecommendations = createFixture();
+inactiveRecommendations.lifecycle.load(inactiveRecommendations.context({ viewKey: 'recommended' }), true);
+inactiveRecommendations.setActive(false);
+inactiveRecommendations.requests[0].callback(null, [{ identifier: 'ignored' }]);
+assert.deepStrictEqual(inactiveRecommendations.grid.recommendations, [],
+  'recommendations completing while Library is hidden must not mutate the resident surface');
+assert.strictEqual(inactiveRecommendations.lifecycle.snapshot().loading, false,
+  'a hidden recommendation request must also release its loading lock when the current request completes');
 
 var containers = createFixture();
 containers.grid.items = [{ ratingKey: 'parent' }];
@@ -303,6 +593,20 @@ assert.deepStrictEqual(playlistSummary.lifecycle.snapshot().containerSummary, { 
 assert.strictEqual(playlistSummary.lifecycle.snapshot().containerSummaryLoading, false, 'summary loading must stop after the final page');
 playlistSummary.lifecycle.setContainerSummary({ count: 3, keys: ['one', 'two', 'three'] });
 assert.deepStrictEqual(playlistSummary.lifecycle.snapshot().containerSummary, { count: 3, keys: ['one', 'two', 'three'] }, 'a complete playback queue may hydrate the active container summary without another request');
+
+var refreshedContainerSummary = createFixture();
+refreshedContainerSummary.grid.items = [{ ratingKey: 'stale-resident' }];
+refreshedContainerSummary.grid.totalSize = 2;
+refreshedContainerSummary.lifecycle.openContainer({ containerKey: '/playlists/refresh-summary', containerType: 'playlist' });
+assert.strictEqual(refreshedContainerSummary.lifecycle.refreshContainerSummary ? refreshedContainerSummary.lifecycle.refreshContainerSummary() : false, true,
+  'active containers must expose an explicit authoritative summary refresh after playback/watched mutations');
+var refreshedSummaryRequest = refreshedContainerSummary.requests.filter(function (request) { return request.kind === 'container-summary'; })[0];
+assert.ok(refreshedSummaryRequest, 'container summary refresh must query Plex rather than trusting potentially stale resident records');
+assert.strictEqual(refreshedSummaryRequest.data.start, 0,
+  'authoritative container summary refresh must restart from the first container item');
+refreshedSummaryRequest.callback(null, { items: [{ ratingKey: 'fresh-one' }, { ratingKey: 'fresh-two' }], totalSize: 2 });
+assert.deepStrictEqual(refreshedContainerSummary.lifecycle.snapshot().containerSummary, { count: 2, keys: ['fresh-one', 'fresh-two'] },
+  'authoritative container summary refresh must publish only fresh server records');
 
 var completePlaylistSummary = createFixture();
 completePlaylistSummary.lifecycle.openContainer({ containerKey: '/playlists/complete', containerType: 'playlist' });

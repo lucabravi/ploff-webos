@@ -35,6 +35,7 @@
     }
 
     function copyPlayback(value) {
+      /** @type {Object<string, *>} */
       var result;
       var index;
       if (!value || typeof value !== 'object') { return value || null; }
@@ -93,6 +94,7 @@
         device: call(providers.device) || {},
         network: call(providers.network) || {},
         playback: rawPlayback(),
+        startup: call(providers.startup) || {},
         error: identityValues.error || lastError
       });
     }
@@ -162,8 +164,16 @@
       var action;
       if (destroyed || !view.isOpen()) { return { handled: false }; }
       target = event && event.target;
-      if (target && target.getAttribute && target.getAttribute('data-diagnostics-qr-action') === 'close') {
-        if (type === 'focus' || type === 'activate') { view.closeSupportQr(); return { handled: true }; }
+      if (target && target.getAttribute && (target.getAttribute('data-diagnostics-qr-action') === 'close' || target.getAttribute('data-diagnostics-qr-action') === 'report')) {
+        action = target.getAttribute('data-diagnostics-qr-action');
+        if (type === 'focus') {
+          view.focusSupportQr(action === 'report' ? 'report' : 'close');
+          return { handled: true };
+        }
+        if (type === 'activate' && action === 'close') {
+          view.closeSupportQr();
+          return { handled: true };
+        }
       }
       action = target && target.getAttribute && target.getAttribute('data-diagnostics-action');
       if (type === 'focus' && action) {

@@ -12,6 +12,7 @@
     ? I18n.supportedLanguages()
     : ['en', 'it'];
   var VIDEO_VERSION_PRIORITIES = ['resolution', 'hdr', 'quality', 'directPlay'];
+  var LIGHTWEIGHT_IMAGE_QUALITY_CAPS = { artworkQuality: 80, backdropQuality: 70 };
   var DEFINITIONS = [
     { key: 'uiLanguage', defaultValue: 'en', kind: 'ui-language', allowed: SUPPORTED_UI_LANGUAGES },
     { key: 'uiLanguageExplicit', defaultValue: false, kind: 'boolean-true' },
@@ -27,27 +28,33 @@
     { key: 'subtitleMode', defaultValue: 'audio-mismatch', kind: 'enum', allowed: ['off', 'always', 'audio-mismatch', 'forced'] },
     { key: 'subtitleModeExplicit', defaultValue: false, kind: 'boolean-true' },
     { key: 'subtitleSourcePreference', defaultValue: 'external', kind: 'enum', allowed: ['external', 'internal'] },
+    { key: 'subtitleRenderingSrt', defaultValue: false, kind: 'boolean-true' },
+    { key: 'subtitleRenderingAss', defaultValue: false, kind: 'boolean-true' },
     { key: 'lanVideoQuality', defaultValue: 'original', kind: 'enum-string', allowed: ['4000', '8000', '12000', 'original'] },
     { key: 'remoteVideoQuality', defaultValue: '8000', kind: 'enum-string', allowed: ['4000', '8000', '12000', 'original'] },
     { key: 'playbackMode', defaultValue: 'auto', kind: 'enum', allowed: ['auto', 'direct', 'transcode'] },
     { key: 'adaptivePlaybackMemory', defaultValue: true, kind: 'boolean-false-only' },
     { key: 'videoVersionPriorities', defaultValue: VIDEO_VERSION_PRIORITIES, kind: 'priority-list', allowed: VIDEO_VERSION_PRIORITIES },
     { key: 'wheelBehavior', defaultValue: 'items', kind: 'enum', allowed: ['items', 'page'] },
-    { key: 'cardScale', defaultValue: 100, kind: 'enum-number', allowed: [70, 80, 90, 100, 110, 120, 130] },
+    { key: 'cardScale', defaultValue: 90, kind: 'enum-number', allowed: [70, 80, 90, 100, 110, 120, 130] },
+    { key: 'uiTextScale', defaultValue: 100, kind: 'enum-number', allowed: [90, 100, 115, 130] },
     { key: 'artworkQuality', defaultValue: 90, kind: 'nearest-number', allowed: [70, 80, 85, 90, 100] },
     { key: 'backdropQuality', defaultValue: 85, kind: 'nearest-number', allowed: [50, 60, 70, 85, 100] },
+    { key: 'artworkDataSaver', defaultValue: false, kind: 'boolean-true' },
     { key: 'accentColor', defaultValue: 'cyan', kind: 'enum-string', allowed: ['cyan', 'amber', 'blue', 'green', 'pink', 'purple', 'red', 'white'] },
     { key: 'visualTheme', defaultValue: ThemeRegistry.defaultId(), kind: 'enum-string', allowed: ThemeRegistry.ids() },
     { key: 'interfaceAnimations', defaultValue: true, kind: 'boolean-false-only' },
     { key: 'searchT9Input', defaultValue: true, kind: 'boolean-strict-default-true' },
     { key: 'showWatchlist', defaultValue: true, kind: 'boolean-false-only' },
     { key: 'showPlaylists', defaultValue: true, kind: 'boolean-false-only' },
+    { key: 'homeRows', defaultValue: ['continue', 'recommended', 'recent'], kind: 'ordered-subset', allowed: ['continue', 'recommended', 'recent'] },
     { key: 'settingsBackupMode', defaultValue: 'off', kind: 'enum', allowed: ['off', 'on'] },
     { key: 'highContrast', defaultValue: false, kind: 'boolean-true' },
     { key: 'strongFocus', defaultValue: false, kind: 'boolean-true' },
     { key: 'subtitleBackground', defaultValue: 'off', kind: 'enum', allowed: ['off', 'low', 'medium', 'high', 'opaque'] },
-    { key: 'subtitleEdge', defaultValue: 'shadow', kind: 'enum', allowed: ['shadow', 'outline', 'both'] },
+    { key: 'subtitleEdge', defaultValue: 'shadow', kind: 'enum', allowed: ['shadow', 'outline', 'both', 'double-outline-shadow'] },
     { key: 'subtitlePosition', defaultValue: 7, kind: 'nearest-number', allowed: [5, 7, 10, 13, 16] },
+    { key: 'subtitleSize', defaultValue: 100, kind: 'enum-number', allowed: [75, 100, 125, 150, 175, 200] },
     { key: 'safeAreaTop', defaultValue: 0, kind: 'nearest-number', allowed: [0, 1, 2, 3, 4, 5] },
     { key: 'safeAreaRight', defaultValue: 0, kind: 'nearest-number', allowed: [0, 1, 2, 3, 4, 5] },
     { key: 'safeAreaBottom', defaultValue: 0, kind: 'nearest-number', allowed: [0, 1, 2, 3, 4, 5] },
@@ -85,6 +92,12 @@
     return definition && definition.allowed ? definition.allowed.slice() : [];
   }
 
+  function lightweightImageQualityCap(key) {
+    return Object.prototype.hasOwnProperty.call(LIGHTWEIGHT_IMAGE_QUALITY_CAPS, key)
+      ? LIGHTWEIGHT_IMAGE_QUALITY_CAPS[key]
+      : 0;
+  }
+
   function defaults() {
     var result = {};
     var index;
@@ -98,6 +111,7 @@
     all: all,
     allowed: allowed,
     defaults: defaults,
-    get: get
+    get: get,
+    lightweightImageQualityCap: lightweightImageQualityCap
   };
 }));

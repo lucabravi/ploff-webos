@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, plex-local-build]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,7 +31,7 @@ jobs:
           docker run --rm \
             --volume "$GITHUB_WORKSPACE:/repo" \
             --workdir /repo \
-            zricethezav/gitleaks:v8.24.3 \
+            ghcr.io/gitleaks/gitleaks:v8.24.3@sha256:e1b35e12a8c6fa8901f060459cfb6b2fc4c484d3afbe3b029733a3bbfab07055 \
             git --redact --no-banner --exit-code 1 .
       - name: Install verification tools
         run: npm ci

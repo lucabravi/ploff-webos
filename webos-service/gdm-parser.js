@@ -20,7 +20,7 @@ function parse(payload, address) {
   var port;
   if (String(headers['content-type'] || '').toLowerCase() !== 'plex/media-server') { return null; }
   port = Number(headers.port || 32400);
-  if (!address || !isFinite(port) || port < 1 || port > 65535) { return null; }
+  if (!address || !isFinite(port) || Math.floor(port) !== port || port < 1 || port > 65535) { return null; }
   return {
     name: headers.name || address,
     uri: 'http://' + address + ':' + port,

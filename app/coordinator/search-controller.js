@@ -43,15 +43,17 @@
       var candidates = SearchModel.relevantCloudItems(query, cloudItems || []).slice(0, 12);
       var remaining = candidates.length;
       var resolved = new Array(candidates.length);
+      var resolveError = null;
       if (!remaining) { callback([], null); return; }
       candidates.forEach(function (candidate, candidateIndex) {
         group.add(services.resolveCloudItem(candidate, function (error, item) {
           if (group.isAborted()) { return; }
+          if (error && !resolveError) { resolveError = error; }
           if (!error && item && (item.type === 'movie' || item.type === 'show' || !item.type) && item.ratingKey) {
             resolved[candidateIndex] = item;
           }
           remaining -= 1;
-          if (!remaining) { callback(resolved.filter(function (item) { return !!item; }), null); }
+          if (!remaining) { callback(resolved.filter(function (item) { return !!item; }), resolveError); }
         }));
       });
     }
@@ -72,12 +74,13 @@
         group.add(services.cloudSearch(query, function (cloudError, cloudItems) {
           if (group.isAborted() || destroyed) { return; }
           if (cloudError) {
-            callback(localError && cloudError ? localError : null, localItems, true);
+            callback(localItems.length ? null : (localError || cloudError), localItems, true);
             return;
           }
-          resolveCloudItems(query, cloudItems, group, function (resolvedItems) {
+          resolveCloudItems(query, cloudItems, group, function (resolvedItems, resolveError) {
             if (group.isAborted() || destroyed) { return; }
-            callback(localError, SearchModel.mergeLocalResults(localItems, resolvedItems), true);
+            callback((localItems.length || resolvedItems.length) ? null : (localError || resolveError),
+              SearchModel.mergeLocalResults(localItems, resolvedItems), true);
           });
         }));
       }));

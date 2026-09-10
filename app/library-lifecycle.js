@@ -111,6 +111,104 @@
     return Number(page.totalSize || 0);
   }
 
+  function catalogItemKey(item) {
+    return String(item && (item.ratingKey || item.key) || '');
+  }
+
+  function catalogSourceOffset(item) {
+    var raw = item && item.plexSourceOffset;
+    var value;
+    if (raw === null || raw === undefined || raw === '') { return null; }
+    value = Number(raw);
+    return isFinite(value) && value >= 0 ? Math.floor(value) : null;
+  }
+
+  function catalogItemsHaveSourceOffsets(items) {
+    var list = copyArray(items);
+    var index;
+    if (!list.length) { return false; }
+    for (index = 0; index < list.length; index += 1) {
+      if (catalogSourceOffset(list[index]) === null) { return false; }
+    }
+    return true;
+  }
+
+  function locallyCorrectedUnwatched(context) {
+    return !!(context && !context.container && context.viewKey === 'catalog' && context.query && context.query.watched === 'unwatched');
+  }
+
+  function catalogVisibleTotalSize(items, page, context, rawNextStart) {
+    var list = copyArray(items);
+    var total;
+    var nextStart;
+    if (!locallyCorrectedUnwatched(context)) { return Number(page && page.totalSize || 0); }
+    total = Number(page && page.totalSize);
+    nextStart = Number(rawNextStart);
+    if (page && page.hasMore === false) { return list.length; }
+    if (isFinite(total) && total >= 0 && isFinite(nextStart) && nextStart >= total) { return list.length; }
+    if (page && page.hasMore === true) { return list.length + 1; }
+    if (isFinite(total) && total >= 0 && isFinite(nextStart) && nextStart < total) { return list.length + 1; }
+    return Math.max(list.length, Number(page && page.totalSize || 0));
+  }
+
+  function mergeCatalogWindow(existingItems, pageItems, start, limit, totalSize) {
+    var existing = copyArray(existingItems);
+    var incoming = copyArray(pageItems);
+    var result = [];
+    var seen = {};
+    var prefixEnd = Math.max(0, Math.min(existing.length, Number(start || 0)));
+    var tailStart = Math.max(prefixEnd, Math.min(existing.length, prefixEnd + Math.max(0, Number(limit || 0))));
+    var rangeStart = Math.max(0, Math.floor(Number(start || 0)));
+    var rangeEnd = rangeStart + Math.max(0, Math.floor(Number(limit || 0)));
+    var sourceAware = (existing.length > 0 || incoming.length > 0) &&
+      (!existing.length || catalogItemsHaveSourceOffsets(existing)) &&
+      (!incoming.length || catalogItemsHaveSourceOffsets(incoming));
+    var index;
+    var offset;
+
+    function appendUnique(value) {
+      var valueKey = catalogItemKey(value);
+      var seenKey = valueKey ? '$' + valueKey : '';
+      if (seenKey && seen[seenKey]) { return; }
+      result.push(value);
+      if (seenKey) { seen[seenKey] = true; }
+    }
+
+    if (sourceAware) {
+      for (index = 0; index < existing.length; index += 1) {
+        offset = catalogSourceOffset(existing[index]);
+        if (offset < rangeStart) { appendUnique(existing[index]); }
+      }
+      for (index = 0; index < incoming.length; index += 1) { appendUnique(incoming[index]); }
+      for (index = 0; index < existing.length; index += 1) {
+        offset = catalogSourceOffset(existing[index]);
+        if (offset >= rangeEnd) { appendUnique(existing[index]); }
+      }
+    } else {
+      for (index = 0; index < prefixEnd; index += 1) { appendUnique(existing[index]); }
+      for (index = 0; index < incoming.length; index += 1) { appendUnique(incoming[index]); }
+      for (index = tailStart; index < existing.length; index += 1) { appendUnique(existing[index]); }
+    }
+    totalSize = Number(totalSize);
+    if (isFinite(totalSize) && totalSize >= 0 && result.length > totalSize) { result.length = totalSize; }
+    return result;
+  }
+
+  function catalogAnchorFocusIndex(items, anchor) {
+    var list = copyArray(items);
+    var ratingKey = String(anchor && anchor.ratingKey || '');
+    var fallback = Number(anchor && anchor.index);
+    var index;
+    if (ratingKey) {
+      for (index = 0; index < list.length; index += 1) {
+        if (catalogItemKey(list[index]) === ratingKey) { return index; }
+      }
+    }
+    if (!list.length) { return -1; }
+    if (!isFinite(fallback) || fallback < 0) { fallback = 0; }
+    return Math.max(0, Math.min(list.length - 1, Math.floor(fallback)));
+  }
+
   function create(options) {
     var values = options || {};
     var state = {
@@ -263,6 +361,13 @@
       return snapshot();
     }
 
+    function refreshContainerSummary() {
+      var currentGrid;
+      if (!state.container) { return false; }
+      currentGrid = grid().snapshot ? grid().snapshot() : {};
+      return loadContainerSummary(state.container, [], Number(currentGrid.totalSize || 0));
+    }
+
     function notifyRender(kind, context, error) {
       var result = { kind: kind, context: context, error: error || null, snapshot: snapshot() };
       var currentGrid = gridNavigationSnapshot();
@@ -285,6 +390,76 @@
       return snapshot();
     }
 
+    function invalidateContentRequest() {
+      state.generation += 1;
+      abort(state.request);
+      state.request = null;
+      cancelContainerSummary(true);
+      state.loading = false;
+      state.error = null;
+      notifyStatus();
+      return snapshot();
+    }
+
+    function refreshCatalogWindow(context, start, limit, anchor) {
+      var generation;
+      var requestStart;
+      var requestLimit;
+      var priorNextStart;
+      if (!context || !context.library || context.container || context.viewKey !== 'catalog' || !values.loadLibraryPage) { return false; }
+      if (state.loading) { return false; }
+      requestStart = Math.max(0, Math.floor(Number(start || 0)));
+      requestLimit = Math.max(1, Math.floor(Number(limit || 60)));
+      priorNextStart = state.nextStart;
+      generation = state.generation;
+      state.loading = true;
+      state.error = null;
+      notifyStatus();
+      state.request = values.loadLibraryPage(context.library, context.viewKey, context.query || {}, requestStart, requestLimit, function (error, page) {
+        var resultError;
+        var currentGrid;
+        var pageItems;
+        var totalSize;
+        var nextItems;
+        var focusIndex;
+        var pageNextStart;
+        var continuation;
+        if (generation !== state.generation) { return; }
+        state.loading = false;
+        state.request = null;
+        if (values.isActive && !values.isActive(context)) { return; }
+        resultError = error || null;
+        if (!resultError && (!page || String(page.libraryKey || '') !== keyFor(context.library))) {
+          resultError = new Error('Catalog window response mismatch');
+        }
+        state.error = resultError;
+        if (!resultError) {
+          currentGrid = grid().snapshot ? grid().snapshot() : { items: [], totalSize: 0 };
+          pageItems = copyArray(page.items);
+          totalSize = Number(page.totalSize);
+          if (!isFinite(totalSize) || totalSize < 0) { totalSize = Math.max(pageItems.length, Number(currentGrid.totalSize || 0)); }
+          nextItems = mergeCatalogWindow(currentGrid.items, pageItems, requestStart, requestLimit, totalSize);
+          focusIndex = catalogAnchorFocusIndex(nextItems, anchor);
+          pageNextStart = Number(page.nextStart);
+          if (catalogItemsHaveSourceOffsets(pageItems)) {
+            continuation = Number(priorNextStart);
+            if (!isFinite(continuation) || continuation < 0) { continuation = NaN; }
+            if (isFinite(pageNextStart) && pageNextStart >= 0 && (!isFinite(continuation) || pageNextStart > continuation)) {
+              continuation = pageNextStart;
+            }
+            state.nextStart = isFinite(continuation) ? continuation : nextItems.length;
+          } else {
+            state.nextStart = nextItems.length;
+          }
+          totalSize = catalogVisibleTotalSize(nextItems, page, context, state.nextStart);
+          grid().setItems(nextItems, totalSize, focusIndex);
+        }
+        notifyStatus();
+        notifyRender('page', context, resultError);
+      });
+      return true;
+    }
+
     function finishPage(error, page, context, generation, start) {
       var snapshotBefore;
       var nextItems;
@@ -292,15 +467,21 @@
       var pageNextStart;
       var totalSize;
       var initialFocusIndex;
-      if (!current(context, generation)) { return; }
+      if (generation !== state.generation) { return; }
       state.loading = false;
       state.request = null;
+      if (values.isActive && !values.isActive(context)) { return; }
       state.error = error || null;
       if (!error && page && context.library && (context.container || String(page.libraryKey || '') === keyFor(context.library))) {
         pageItems = copyArray(page.items);
         pageNextStart = Number(page.nextStart);
         state.nextStart = isFinite(pageNextStart) && pageNextStart >= start ? pageNextStart : start + pageItems.length;
         totalSize = Number(page.totalSize || 0);
+        if (locallyCorrectedUnwatched(context)) {
+          snapshotBefore = grid().snapshot();
+          nextItems = context.replace ? pageItems : copyArray(snapshotBefore.items).concat(pageItems);
+          totalSize = catalogVisibleTotalSize(nextItems, page, context, state.nextStart);
+        }
         if (context.viewKey === 'recent' && !context.container) {
           snapshotBefore = grid().snapshot();
           nextItems = mergeRecentPage(snapshotBefore.items, pageItems, context.replace);
@@ -332,6 +513,11 @@
           }
         }
       }
+      if (!error && page && locallyCorrectedUnwatched(context) && pageItems && pageItems.length === 0 &&
+          page.hasMore === true && state.nextStart !== null && Number(state.nextStart) > Number(start)) {
+        load(context, false, false);
+        return;
+      }
       notifyStatus();
       notifyRender('page', context, error);
       if (!error && page && context.container) {
@@ -340,9 +526,10 @@
     }
 
     function finishRecommendations(error, rows, context, generation) {
-      if (!current(context, generation)) { return; }
+      if (generation !== state.generation) { return; }
       state.loading = false;
       state.request = null;
+      if (values.isActive && !values.isActive(context)) { return; }
       state.error = error || null;
       state.nextStart = null;
       grid().setRecommendations(error ? [] : copyArray(rows));
@@ -411,6 +598,11 @@
     }
 
     function prepareLibrary() {
+      state.generation += 1;
+      abort(state.request);
+      state.request = null;
+      state.loading = false;
+      state.error = null;
       state.continueProbeToken += 1;
       state.collectionsProbeToken += 1;
       abort(state.continueRequest);
@@ -532,12 +724,15 @@
       probeCollections: probeCollections,
       prepareLibrary: prepareLibrary,
       setContainerSummary: setContainerSummary,
+      refreshContainerSummary: refreshContainerSummary,
       setContinueAvailable: setContinueAvailable,
       setCollectionsAvailable: setCollectionsAvailable,
       setNextStart: setNextStart,
       clearContainer: clearContainer,
       openContainer: openContainer,
       closeContainer: closeContainer,
+      invalidateContentRequest: invalidateContentRequest,
+      refreshCatalogWindow: refreshCatalogWindow,
       reset: reset,
       leave: leave,
       snapshot: snapshot

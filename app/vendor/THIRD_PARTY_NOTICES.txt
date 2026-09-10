@@ -1,0 +1,49 @@
+Ploff third-party notices
+=========================
+
+JavascriptSubtitlesOctopus 4.1.0
+---------------------------------
+Copyright (c) 2017-2021 JavascriptSubtitlesOctopus contributors.
+Licensed under the MIT License. See subtitles-octopus.LICENSE.txt.
+
+The distributed renderer contains libass and its build dependencies,
+including Brotli, Expat, FreeType, FriBidi, Fontconfig and HarfBuzz. Their
+copyright notices and complete applicable license texts are preserved in
+subtitles-octopus.COPYRIGHT.txt. This includes the LGPL-2.1+ terms applicable
+to FriBidi.
+
+Corresponding source and build provenance:
+
+  Upstream repository:
+  https://github.com/libass/JavascriptSubtitlesOctopus
+
+  Upstream tag: 4.1.0
+  Upstream commit: 0b0f95a38879caf132a5516a16e8b2e2cb0382e0
+
+Clone the upstream source and every pinned native-library submodule with:
+
+  git clone --recursive --branch 4.1.0 \
+    https://github.com/libass/JavascriptSubtitlesOctopus.git
+
+Ploff preserves the original generated legacy worker in compressed form at
+scripts/vendor-sources/subtitles-octopus-worker-legacy-4.1.0.full.js.gz. The
+complete, reproducible Ploff transformation is implemented by
+scripts/slim-ass-legacy-worker.js and documented in
+scripts/vendor-sources/README.md. These files are available in the Ploff
+source repository for the same release.
+
+Liberation Sans fallback font
+-----------------------------
+The unmodified app/vendor/default.woff2 is the fallback font distributed by
+JavascriptSubtitlesOctopus 4.1.0 as assets/default.woff2.
+
+Upstream Git blob: a562391696ad477e5a8ad28ef8b4d53c90bb0d42
+SHA-256: 886929903707c5bb28b07cd2eed69921b3d5ef5c49c73a0dd1e187ebf6546a4c
+
+Liberation Sans is licensed under the SIL Open Font License 1.1. Copyright
+and the complete license are preserved in LICENSE.default-font.txt.
+
+Other packaged components
+-------------------------
+The QR code generator license is in LICENSE.qrcode-generator.txt.
+The webOS TV JavaScript library license is in webOSTV.LICENSE.txt.

@@ -82,9 +82,9 @@ requireMatch(cardLayout, /titleFont:\s*Math\.max\(20,/,
   'poster title must not scale below 20px');
 requireMatch(cardLayout, /metaFont:\s*Math\.max\(20,/,
   'poster metadata must not scale below 20px');
-requireMatch(shell, /--poster-title-font', profile\.titleFont/,
-  'the shell must apply the cached poster title font');
-requireMatch(shell, /--poster-meta-font', profile\.metaFont/,
-  'the shell must apply the cached poster metadata font');
+requireMatch(shell, /--poster-title-font', String\(profile\.titleFont \/ 16\) \+ 'rem'/,
+  'the shell must apply the cached poster title font through scalable rem units');
+requireMatch(shell, /--poster-meta-font', String\(profile\.metaFont \/ 16\) \+ 'rem'/,
+  'the shell must apply the cached poster metadata font through scalable rem units');
 
 console.log('LG UX static checks passed');

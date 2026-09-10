@@ -26,13 +26,14 @@ var view = PlayerChaptersView.create({
   },
   posterLoader: { load: function (image, specification) { loaded.push(specification); }, prioritize: function (image) { image.prioritized = true; }, cancelScope: function (scope) { cancelled.push(scope); } }
 });
-var chapters = [{ title: 'Opening', startTimeOffset: 10000, thumb: '/one' }, { title: '', startTimeOffset: 20000, thumb: '/two' }];
+var chapters = [{ title: 'Opening', startTimeOffset: 10000, thumb: '/one' }, { title: '', startTimeOffset: 20000, thumb: '/two' }, { title: 'No image', startTimeOffset: 30000, thumb: '' }];
 view.render(chapters, { open: true, index: 1 });
-assert.strictEqual(cards.length, 2, 'chapter rendering must create one card per Plex chapter');
+assert.strictEqual(cards.length, 3, 'chapter rendering must create one card per Plex chapter');
 assert.strictEqual(cards[1].children[1].children[0].textContent, 'Chapter 2', 'untitled chapters must use the localized fallback');
 assert.strictEqual(loaded[0].source, '/two', 'the focused chapter preview must load first');
 assert.strictEqual(loaded[0].width, 300, 'chapter artwork must not exceed the fractional rendered width');
 assert.strictEqual(loaded[0].height, 132, 'chapter artwork must not exceed the fractional rendered height');
+assert.strictEqual(loaded.filter(function (specification) { return specification.source === ''; }).length, 1, 'chapters without Plex artwork must be cleared through the progressive loader without inventing a request URL');
 assert.ok(cards[1].className.indexOf('is-focused') !== -1 && cards[1].focused, 'remote focus must follow chapter state');
 view.renderHint(true, true);
 assert.ok(nodes['player-chapters-hint'].className.indexOf('is-focused') !== -1, 'chapter hint rendering must expose focus');

@@ -52,6 +52,23 @@ assert.deepStrictEqual(
   'a missing Home selection must fall back to the first available media item'
 );
 
+
+var preferenceRows = [
+  { title: 'Continue Watching', shape: 'poster', kind: 'continue', items: [{ ratingKey: 'c1' }] },
+  { title: 'Recommended', shape: 'poster', kind: 'recommended', items: [{ ratingKey: 'r1' }] },
+  { title: 'Recent Movies', shape: 'poster', kind: 'recent', items: [{ ratingKey: 'm1' }] },
+  { title: 'Recent Shows', shape: 'poster', kind: 'recent', items: [{ ratingKey: 's1' }] },
+  { title: 'Future Row', shape: 'poster', kind: 'future', items: [{ ratingKey: 'f1' }] }
+];
+var preferredRows = HomeState.applyRowPreferences(preferenceRows, ['recent', 'continue'], ['continue', 'recommended', 'recent']);
+assert.deepStrictEqual(preferredRows.map(function (row) { return row.title; }),
+  ['Recent Movies', 'Recent Shows', 'Continue Watching', 'Future Row'],
+  'Home row preferences must reorder configured groups, hide omitted groups, and preserve order inside repeated groups');
+assert.deepStrictEqual(HomeState.applyRowPreferences(preferenceRows, [], ['continue', 'recommended', 'recent']).map(function (row) { return row.title; }), ['Future Row'],
+  'hiding every configurable Home group must preserve future unknown row kinds');
+assert.deepStrictEqual(HomeState.applyRowPreferences(preferenceRows, ['recommended'], ['continue', 'recommended', 'recent']).map(function (row) { return row.title; }), ['Recommended', 'Future Row'],
+  'unknown row kinds must remain visible after configured groups until explicitly supported');
+
 var requests = [];
 var results = [];
 var coordinator = HomeState.createRefreshCoordinator(function (callback) {

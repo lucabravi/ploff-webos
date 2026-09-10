@@ -1,0 +1,363 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer allowSync='1' art='/library/metadata/fixture-id-142/art/1782161989' grandparentContentRating='it/VM14' grandparentRatingKey='fixture-id-002' grandparentStudio='Nexus' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' identifier='com.plexapp.plugins.library' key='5418' librarySectionID='fixture-id-001' librarySectionTitle='Anime' librarySectionUUID='fixture-uuid-001' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632' nocache='1' parentIndex='1' parentTitle='Stagione 1' parentYear='2022' size='20' summary='Some people just aren’t suited to playing the part of the flashy, in-your-face hero or the dastardly, mustache-twirling villain with larger-than-life panache. Instead, they operate in the shadows and pull the strings of society through wit and cleverness. That’s the role Cid wants to play when he’s transported to another world. Cid spins a yarn or three and becomes the unlikely leader of the underground Shadow Garden organization that fights against a menacing cult (which he totally made up). However, there’s a catch even his wild imagination didn’t see coming: the cult he concocted actually exists, and they’re beyond displeased that his power fantasy just got in the way of their evil plans!' theme='/library/metadata/fixture-id-002/theme/1786263822' thumb='/library/metadata/fixture-id-142/thumb/1782161989' title1='The Eminence in Shadow' title2='Stagione 1' viewGroup='episode' viewMode='65592'>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='6.5' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1431508' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-004' index='1' key='/library/metadata/fixture-id-144' lastViewedAt='1705158321' originalTitle='嫌いなクラスメイト' originallyAvailableAt='2022-10-05' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-144' summary='Minoru Kageno è all&apos;apparenza un normale liceale, ma nel privato si allena per diventare un eroe forte che combatte il male. Quando una sua compagna di classe sarà rapita per denaro, dovrà entrare in azione per salvarla.' thumb='/library/metadata/fixture-id-144/thumb/1783339286' title='Il compagno di classe odiato' type='episode' updatedAt='1783339286' viewCount='2' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1214' container='mkv' duration='1431508' hasVoiceActivity='1' height='1080' id='fixture-id-145' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1431508' file='/fixtures/media/S01E01.mkv' id='fixture-id-146' key='/library/parts/fixture-id-146/1705155470/file.mkv' size='230709716' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='3488' container='mkv' duration='1421100' hasVoiceActivity='1' height='1080' id='fixture-id-147' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421100' file='/fixtures/media/The Eminence in Shadow - S01E01 - The Hated Classmate.mkv' id='fixture-id-148' key='/library/parts/fixture-id-148/1769027990/file.mkv' size='633656132' videoProfile='main'/>
+</Media>
+<Image alt='Il compagno di classe odiato' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Il compagno di classe odiato' type='snapshot' url='/library/metadata/5420/thumb/1783339286'/>
+<Image alt='Il compagno di classe odiato' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Il compagno di classe odiato' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='040c1d' bottomRight='061225' topLeft='020c17' topRight='030414'/>
+<Director tag='Kazuya Nakanishi'/>
+<Writer tag='Kanichi Kato'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156264' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='6.3' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1431509' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-005' index='2' key='/library/metadata/fixture-id-149' lastViewedAt='1687419790' originalTitle='結成シャドウガーデン' originallyAvailableAt='2022-10-12' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-149' summary='Reincarnato in un mondo fantasy con tanto di magia, il nostro protagonista ora chiamato Cid inizia a sperimentare i suoi nuovi poteri. Dopo aver sconfitto un gruppo di banditi, salva un mostro che si rivelerà essere una giovane elfa maledetta.' thumb='/library/metadata/fixture-id-149/thumb/1785008108' title='La formazione dello Shadow Garden' titleSort='formazione dello Shadow Garden' type='episode' updatedAt='1785008108' viewCount='4' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1564' container='mkv' duration='1431509' hasVoiceActivity='1' height='1080' id='fixture-id-150' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1431509' file='/fixtures/media/S01E02.mkv' id='fixture-id-151' key='/library/parts/fixture-id-151/1705155472/file.mkv' size='279877222' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4659' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-152' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E02 - Shadow Garden Is Born.mkv' id='fixture-id-153' key='/library/parts/fixture-id-153/1769027128/file.mkv' size='827656146' videoProfile='main'/>
+</Media>
+<Image alt='La formazione dello Shadow Garden' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='La formazione dello Shadow Garden' type='snapshot' url='/library/metadata/5419/thumb/1785008108'/>
+<Image alt='La formazione dello Shadow Garden' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='La formazione dello Shadow Garden' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='171030' bottomRight='3d3b3a' topLeft='282353' topRight='1c1539'/>
+<Director tag='Kazuya Nakanishi'/>
+<Writer tag='Kanichi Kato'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.1' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1431509' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-006' index='3' key='/library/metadata/fixture-id-154' lastViewedAt='1687336171' originalTitle='凡人の剣' originallyAvailableAt='2022-10-19' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-154' summary='Cid ha raggiunto i 15 anni e ha iniziato a frequentare l&apos;accademia di Midgar per schermidori magici, dove ha fatto nuove amicizie. Un giorno, come penitenza per essere andato male a una verifica, si dichiara alla seconda principessa del regno che accetta di uscire insieme a lui.' thumb='/library/metadata/fixture-id-154/thumb/1785008108' title='La Spadaccina Mediocre' titleSort='Spadaccina Mediocre' type='episode' updatedAt='1785008108' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1381' container='mkv' duration='1431509' hasVoiceActivity='1' height='1080' id='fixture-id-155' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1431509' file='/fixtures/media/S01E03.mkv' id='fixture-id-156' key='/library/parts/fixture-id-156/1705155475/file.mkv' size='247195899' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4545' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-157' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E03 - Fencer Ordinaire.mkv' id='fixture-id-158' key='/library/parts/fixture-id-158/1769027228/file.mkv' size='807348138' videoProfile='main'/>
+</Media>
+<Image alt='La Spadaccina Mediocre' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='La Spadaccina Mediocre' type='snapshot' url='/library/metadata/5421/thumb/1785008108'/>
+<Image alt='La Spadaccina Mediocre' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='La Spadaccina Mediocre' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='1b1234' bottomRight='1d1d26' topLeft='2f2356' topRight='933e4a'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Kanichi Kato'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='6.9' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1431509' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-007' index='4' key='/library/metadata/fixture-id-159' lastViewedAt='1687336171' originalTitle='加虐への報酬' originallyAvailableAt='2022-10-26' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-159' summary='Cid viene arrestato e torturato perché sospettato di aver rapito la principessa Alexia, nel frattempo la ragazza si sveglia incatenata in una cella e uno strano dottore inizia a prelevarle il sangue nella speranza di far risorgere Diabolos.' thumb='/library/metadata/fixture-id-159/thumb/1785008108' title='La ricompensa per il sadismo' titleSort='ricompensa per il sadismo' type='episode' updatedAt='1785008108' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1137' container='mkv' duration='1431509' hasVoiceActivity='1' height='1080' id='fixture-id-160' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1431509' file='/fixtures/media/S01E04.mkv' id='fixture-id-161' key='/library/parts/fixture-id-161/1705155477/file.mkv' size='203523809' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='3902' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-162' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E04 - Sadism&apos;s Rewards.mkv' id='fixture-id-163' key='/library/parts/fixture-id-163/1769027243/file.mkv' size='693150039' videoProfile='main'/>
+</Media>
+<Image alt='La ricompensa per il sadismo' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='La ricompensa per il sadismo' type='snapshot' url='/library/metadata/5422/thumb/1785008108'/>
+<Image alt='La ricompensa per il sadismo' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='La ricompensa per il sadismo' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='181538' bottomRight='09020d' topLeft='3a2b10' topRight='4a4e4e'/>
+<Director tag='Hazuki Mizumoto'/>
+<Writer tag='Kunihiko Okada'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.7' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1431509' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-008' index='5' key='/library/metadata/fixture-id-164' lastRatedAt='1687813382' lastViewedAt='1697315932' originalTitle='アイ・アム……' originallyAvailableAt='2022-11-02' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-164' summary='Nelle fogne della capitale inizia lo scontro tra Cid e Zenon che tiene prigioniera Alexia, però il professore si rivelerà essere un membro del culto di Diabolos e sprigionerà uno strano potere che moltiplicherà la sua forza.' thumb='/library/metadata/fixture-id-164/thumb/1785008108' title='I am...' type='episode' updatedAt='1785008108' userRating='10.0' viewCount='2' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1617' container='mkv' duration='1431509' hasVoiceActivity='1' height='1080' id='fixture-id-165' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1431509' file='/fixtures/media/S01E05.mkv' id='fixture-id-166' key='/library/parts/fixture-id-166/1705155480/file.mkv' size='289342108' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4616' container='mkv' duration='1421100' hasVoiceActivity='1' height='1080' id='fixture-id-167' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421100' file='/fixtures/media/The Eminence in Shadow - S01E05 - I Am....mkv' id='fixture-id-168' key='/library/parts/fixture-id-168/1769027299/file.mkv' size='819927769' videoProfile='main'/>
+</Media>
+<Image alt='I am...' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='I am...' type='snapshot' url='/library/metadata/5423/thumb/1785008108'/>
+<Image alt='I am...' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='I am...' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='7a1ec5' bottomRight='5f3dc2' topLeft='1d0b85' topRight='141077'/>
+<Director tag='Kazuya Nakanishi'/>
+<Writer tag='Mio Inoue'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='6.8' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-009' index='6' key='/library/metadata/fixture-id-169' lastViewedAt='1687336171' originalTitle='偽る者' originallyAvailableAt='2022-11-09' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-169' summary='Degli uomini ammantati di nero iniziano a uccidere indiscriminatamente persone in città nel nome dello Shadow Garden, Cid decide quindi di mettersi a indagare su questi impostori che si fingono lui.' thumb='/library/metadata/fixture-id-169/thumb/1785008108' title='Gli impostori' type='episode' updatedAt='1785008108' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1203' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-170' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E06.mkv' id='fixture-id-171' key='/library/parts/fixture-id-171/1705155482/file.mkv' size='220550755' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4059' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-172' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E06 - Pretenders.mkv' id='fixture-id-173' key='/library/parts/fixture-id-173/1769027403/file.mkv' size='721121149' videoProfile='main'/>
+</Media>
+<Image alt='Gli impostori' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Gli impostori' type='snapshot' url='/library/metadata/5424/thumb/1785008108'/>
+<Image alt='Gli impostori' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Gli impostori' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='923f42' bottomRight='805224' topLeft='4b1e1a' topRight='825026'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Kanichi Kato'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.0' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-010' index='7' key='/library/metadata/fixture-id-174' lastViewedAt='1687336171' originalTitle='謀略と流血の剣術大会' originallyAvailableAt='2022-11-16' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-174' summary='I migliori amici di Cid lo iscrivono a sua insaputa al torneo di scherma del festival Bushin, il ragazzo decide quindi di sfruttare l&apos;occasione per mostrare a tutto il corpo studentesco quanto è banale, ma nell&apos;ombra si annida una minaccia.' thumb='/library/metadata/fixture-id-174/thumb/1783339286' title='Il torneo di scherma tra complotti e sangue' type='episode' updatedAt='1783339286' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1370' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-175' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E07.mkv' id='fixture-id-176' key='/library/parts/fixture-id-176/1705155485/file.mkv' size='251168257' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4667' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-177' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E07 - A Fencing Tournament of Intrigue and Bloodshed.mkv' id='fixture-id-178' key='/library/parts/fixture-id-178/1769027409/file.mkv' size='829049189' videoProfile='main'/>
+</Media>
+<Image alt='Il torneo di scherma tra complotti e sangue' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Il torneo di scherma tra complotti e sangue' type='snapshot' url='/library/metadata/5425/thumb/1783339286'/>
+<Image alt='Il torneo di scherma tra complotti e sangue' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Il torneo di scherma tra complotti e sangue' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='6d2d2e' bottomRight='723429' topLeft='162e4f' topRight='2c6679'/>
+<Director tag='Kazuya Nakanishi'/>
+<Writer tag='Kunihiko Okada'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.1' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466559' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-011' index='8' key='/library/metadata/fixture-id-179' lastViewedAt='1687336171' originalTitle='狙われた魔剣士学園' originallyAvailableAt='2022-11-23' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-179' summary='Un gruppo di terroristi occupa l&apos;accademia di Cid e il ragazzo muore per salvare Rose... o almeno così vuole fare credere. Una volta rianimato, è il turno di Cid di eliminare a uno a uno i terroristi nemici.' thumb='/library/metadata/fixture-id-179/thumb/1785008108' title='L&apos;accademia per schermidori magici è presa di mira' titleSort='L&apos;accademia per schermidori magici e presa di mira' type='episode' updatedAt='1785008108' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1111' container='mkv' duration='1466559' hasVoiceActivity='1' height='1080' id='fixture-id-180' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466559' file='/fixtures/media/S01E08.mkv' id='fixture-id-181' key='/library/parts/fixture-id-181/1705155487/file.mkv' size='203643469' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='3460' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-182' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E08 - Dark Knight Academy Under Attack.mkv' id='fixture-id-183' key='/library/parts/fixture-id-183/1769027491/file.mkv' size='614659198' videoProfile='main'/>
+</Media>
+<Image alt='L&apos;accademia per schermidori magici è presa di mira' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='L&apos;accademia per schermidori magici è presa di mira' type='snapshot' url='/library/metadata/5426/thumb/1785008108'/>
+<Image alt='L&apos;accademia per schermidori magici è presa di mira' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='L&apos;accademia per schermidori magici è presa di mira' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='712c24' bottomRight='973e28' topLeft='511717' topRight='3c1417'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Mio Inoue'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.4' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-012' index='9' key='/library/metadata/fixture-id-184' lastViewedAt='1687336171' originalTitle='偽りの果て' originallyAvailableAt='2022-11-30' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-184' summary='Cid e Sherry finiscono di calibrare il dispositivo di controllo dell&apos;Occhio delle brame in modo da disattivare la barriera che inibisce l&apos;uso della magia, ma il comandante degli assalitori appicca le fiamme in tutta l&apos;accademia.' thumb='/library/metadata/fixture-id-184/thumb/1785008108' title='Alla fine dell&apos;inganno' type='episode' updatedAt='1785008108' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1542' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-185' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E09.mkv' id='fixture-id-186' key='/library/parts/fixture-id-186/1705155489/file.mkv' size='282648233' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4299' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-187' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E09 - The End of a Lie.mkv' id='fixture-id-188' key='/library/parts/fixture-id-188/1769027587/file.mkv' size='763720191' videoProfile='main'/>
+</Media>
+<Image alt='Alla fine dell&apos;inganno' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Alla fine dell&apos;inganno' type='snapshot' url='/library/metadata/5427/thumb/1785008108'/>
+<Image alt='Alla fine dell&apos;inganno' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Alla fine dell&apos;inganno' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='242b2d' bottomRight='081508' topLeft='07020f' topRight='222a2c'/>
+<Director tag='Kazuya Nakanishi'/>
+<Writer tag='Kanichi Kato'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='6.5' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-013' index='10' key='/library/metadata/fixture-id-189' lastViewedAt='1687336171' originalTitle='聖地・欺瞞の都' originallyAvailableAt='2022-12-07' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-189' summary='Iniziano le vacanze estive, ma Cid non ha tempo per godersi la tranquillità, visto che sarà convocato nella città di Lindwurm da Alpha per svelare i segreti degli eroi e del diavolo Diabolos. Purtroppo per lui, sarà accompagnato da Rose che si è innamorata perdutamente.' thumb='/library/metadata/fixture-id-189/thumb/1785008108' title='La Terra Santa, la città dell&apos;inganno' titleSort='Terra Santa, la citta dell&apos;inganno' type='episode' updatedAt='1785008108' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1273' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-190' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E10.mkv' id='fixture-id-191' key='/library/parts/fixture-id-191/1705155491/file.mkv' size='233376652' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4253' container='mkv' duration='1421100' hasVoiceActivity='1' height='1080' id='fixture-id-192' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421100' file='/fixtures/media/The Eminence in Shadow - S01E10 - The Sacred Land, City of Deception.mkv' id='fixture-id-193' key='/library/parts/fixture-id-193/1769027645/file.mkv' size='755406626' videoProfile='main'/>
+</Media>
+<Image alt='La Terra Santa, la città dell&apos;inganno' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='La Terra Santa, la città dell&apos;inganno' type='snapshot' url='/library/metadata/5428/thumb/1785008108'/>
+<Image alt='La Terra Santa, la città dell&apos;inganno' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='La Terra Santa, la città dell&apos;inganno' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='293133' bottomRight='060b1f' topLeft='281337' topRight='30313a'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Kunihiko Okada'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156406' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.5' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-014' index='11' key='/library/metadata/fixture-id-194' lastViewedAt='1687336171' originalTitle='女神の試練' originallyAvailableAt='2022-12-14' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-194' summary='Cid è arrivato a Lindwurm per assistere all&apos;ordalia della Dea, rituale marziale in cui gli sfidanti cercano di evocare antichi spiriti eroici. Mentre il giovane si chiede come poter sfruttare l&apos;evento per il proprio tornaconto, si sente a sua sorpresa chiamare per partecipare al rituale.' thumb='/library/metadata/fixture-id-194/thumb/1783339286' title='L&apos;ordalia della Dea' type='episode' updatedAt='1783339286' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1419' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-195' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E11.mkv' id='fixture-id-196' key='/library/parts/fixture-id-196/1705155493/file.mkv' size='260128473' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4312' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-197' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E11 - The Goddess&apos; Trial.mkv' id='fixture-id-198' key='/library/parts/fixture-id-198/1769027747/file.mkv' size='765972499' videoProfile='main'/>
+</Media>
+<Image alt='L&apos;ordalia della Dea' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='L&apos;ordalia della Dea' type='snapshot' url='/library/metadata/5429/thumb/1783339286'/>
+<Image alt='L&apos;ordalia della Dea' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='L&apos;ordalia della Dea' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='3b2e31' bottomRight='9f332c' topLeft='4b1d1b' topRight='592013'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Mio Inoue'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.2' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-015' index='12' key='/library/metadata/fixture-id-199' lastViewedAt='1687336171' originalTitle='記憶の中の真実' originallyAvailableAt='2022-12-21' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-199' summary='Alpha si fa strada all&apos;interno del Santuario accompagnata da Alexia e Rose per scoprire la verità sull&apos;eroe Olivier e il braccio sinistro di Diabolos. Nel frattempo, Cid entra in una porta magica e incontra una bella donna imprigionata.' thumb='/library/metadata/fixture-id-199/thumb/1785008108' title='La verità all&apos;interno dei ricordi' titleSort='verita all&apos;interno dei ricordi' type='episode' updatedAt='1785008108' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1262' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-200' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E12.mkv' id='fixture-id-201' key='/library/parts/fixture-id-201/1705155496/file.mkv' size='231388549' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='3926' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-202' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E12 - The Truth Within the Memories.mkv' id='fixture-id-203' key='/library/parts/fixture-id-203/1769027794/file.mkv' size='697450936' videoProfile='main'/>
+</Media>
+<Image alt='La verità all&apos;interno dei ricordi' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='La verità all&apos;interno dei ricordi' type='snapshot' url='/library/metadata/5430/thumb/1785008108'/>
+<Image alt='La verità all&apos;interno dei ricordi' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='La verità all&apos;interno dei ricordi' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='691d1e' bottomRight='61281d' topLeft='50181d' topRight='414fba'/>
+<Director tag='Kazuya Nakanishi'/>
+<Writer tag='Kanichi Kato'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.4' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-016' index='13' key='/library/metadata/fixture-id-204' lastViewedAt='1698090916' originalTitle='消滅に捧げる血闘' originallyAvailableAt='2022-12-28' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-204' summary='Delta affronta il vescovo Nelson e la sua capacità di creare centinaia di cloni di sé stesso. Nel frattempo, Cid e Aurora continuano ad avventurarsi in profondità nel Santuario per raggiungere il nucleo magico.' thumb='/library/metadata/fixture-id-204/thumb/1785008108' title='Il duello consacrato allo sterminio' type='episode' updatedAt='1785008108' viewCount='2' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1367' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-205' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E13.mkv' id='fixture-id-206' key='/library/parts/fixture-id-206/1705155497/file.mkv' size='250626550' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4443' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-207' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E13 - A Bloody Showdown as an Offering to Annihilation.mkv' id='fixture-id-208' key='/library/parts/fixture-id-208/1769027824/file.mkv' size='789164622' videoProfile='main'/>
+</Media>
+<Image alt='Il duello consacrato allo sterminio' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Il duello consacrato allo sterminio' type='snapshot' url='/library/metadata/5431/thumb/1785008108'/>
+<Image alt='Il duello consacrato allo sterminio' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Il duello consacrato allo sterminio' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='2d6385' bottomRight='0c0a22' topLeft='192c53' topRight='0e0e28'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Kunihiko Okada'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='6.2' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-017' index='14' key='/library/metadata/fixture-id-209' lastViewedAt='1697316808' originalTitle='君の嘘、君の願い' originallyAvailableAt='2023-01-04' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-209' summary='Si conclude la battaglia all&apos;interno del santuario e Cid riesce infine a liberare Aurora dalla sua prigione. Nel frattempo, nel Regno di Midgar inizia a muoversi qualcosa, con la visita del sovrano di Oriana ormai prossima.' thumb='/library/metadata/fixture-id-209/thumb/1785008108' title='La tua bugia, la tua richiesta' titleSort='tua bugia, la tua richiesta' type='episode' updatedAt='1785008108' viewCount='2' year='2023'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1525' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-210' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E14.mkv' id='fixture-id-211' key='/library/parts/fixture-id-211/1705155501/file.mkv' size='279480756' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='5044' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-212' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E14 - Your Lie, Your Wish.mkv' id='fixture-id-213' key='/library/parts/fixture-id-213/1769027053/file.mkv' size='896083036' videoProfile='main'/>
+</Media>
+<Image alt='La tua bugia, la tua richiesta' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='La tua bugia, la tua richiesta' type='snapshot' url='/library/metadata/5432/thumb/1785008108'/>
+<Image alt='La tua bugia, la tua richiesta' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='La tua bugia, la tua richiesta' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='030310' bottomRight='051524' topLeft='0b3245' topRight='203a66'/>
+<Director tag='Kazuya Nakanishi'/>
+<Writer tag='Mio Inoue'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466560' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-018' index='15' key='/library/metadata/fixture-id-214' lastViewedAt='1687336171' originalTitle='最強最弱の男' originallyAvailableAt='2023-01-11' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-214' summary='Nel Regno di Midgar sta per iniziare il festival Bushin a cui parteciperanno guerrieri provenienti da tutto il mondo, Cid decide di partecipare, ma per non rivelare la propria identità ha bisogno di un travestimento e si rivolge quindi a Gamma.' thumb='/library/metadata/fixture-id-214/thumb/1785008108' title='Il più forte e più debole tra gli uomini' titleSort='Il piu forte e piu debole tra gli uomini' type='episode' updatedAt='1785008108' viewCount='1' year='2023'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1195' container='mkv' duration='1466560' hasVoiceActivity='1' height='1080' id='fixture-id-215' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466560' file='/fixtures/media/S01E15.mkv' id='fixture-id-216' key='/library/parts/fixture-id-216/1705155502/file.mkv' size='219128871' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4397' container='mkv' duration='1421100' hasVoiceActivity='1' height='1080' id='fixture-id-217' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421100' file='/fixtures/media/The Eminence in Shadow - S01E15 - The Strongest Weakest Man.mkv' id='fixture-id-218' key='/library/parts/fixture-id-218/1769028007/file.mkv' size='781120886' videoProfile='main'/>
+</Media>
+<Image alt='Il più forte e più debole tra gli uomini' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Il più forte e più debole tra gli uomini' type='snapshot' url='/library/metadata/5433/thumb/1785008108'/>
+<Image alt='Il più forte e più debole tra gli uomini' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Il più forte e più debole tra gli uomini' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='0f071e' bottomRight='111837' topLeft='04041a' topRight='1b0618'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Kanichi Kato'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.0' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-019' index='16' key='/library/metadata/fixture-id-219' lastViewedAt='1687336171' originalTitle='見えざる真意' originallyAvailableAt='2023-01-18' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-219' summary='Cid continua ad affrontare gli incontri per qualificarsi al torneo del festival Bushin nei panni di Sam Pliciotto, ma nel frattempo dietro le quinte si stanno muovendo potenze politiche in seguito alla fuga di Oriana dopo l&apos;attacco al suo fidanzato.' thumb='/library/metadata/fixture-id-219/thumb/1785008108' title='Intenti celati alla vista' type='episode' updatedAt='1785008108' viewCount='1' year='2023'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1316' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-220' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E16.mkv' id='fixture-id-221' key='/library/parts/fixture-id-221/1705155505/file.mkv' size='241219686' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4279' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-222' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E16 - Unseen Intentions.mkv' id='fixture-id-223' key='/library/parts/fixture-id-223/1769028088/file.mkv' size='760118413' videoProfile='main'/>
+</Media>
+<Image alt='Intenti celati alla vista' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Intenti celati alla vista' type='snapshot' url='/library/metadata/5434/thumb/1785008108'/>
+<Image alt='Intenti celati alla vista' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Intenti celati alla vista' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='3f4a92' bottomRight='1a1f47' topLeft='191c4e' topRight='2a336a'/>
+<Director tag='Yoshinobu Tokumoto'/>
+<Writer tag='Kunihiko Okada'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.0' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-020' index='17' key='/library/metadata/fixture-id-224' lastViewedAt='1687336171' originalTitle='闇に射す月光' originallyAvailableAt='2023-01-25' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-224' summary='Per fuggire da sua sorella, Cid vaga per la capitale del regno, quando sente suonare &quot;Al chiaro di luna&quot; e decide di indagare se si tratta di un altro reincarnato. Nel frattempo, Rose continua la sua fuga nei sotterranei della capitale, ma la possessione continua ad avanzare.' thumb='/library/metadata/fixture-id-224/thumb/1785008108' title='Le tenebre illuminate al chiaro di luna' type='episode' updatedAt='1785008108' viewCount='1' year='2023'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1229' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-225' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E17.mkv' id='fixture-id-226' key='/library/parts/fixture-id-226/1705155507/file.mkv' size='225310195' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='3890' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-227' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E17 - Moonlight That Pierces the Darkness.mkv' id='fixture-id-228' key='/library/parts/fixture-id-228/1769028124/file.mkv' size='691024225' videoProfile='main'/>
+</Media>
+<Image alt='Le tenebre illuminate al chiaro di luna' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Le tenebre illuminate al chiaro di luna' type='snapshot' url='/library/metadata/5435/thumb/1785008108'/>
+<Image alt='Le tenebre illuminate al chiaro di luna' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Le tenebre illuminate al chiaro di luna' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='153d65' bottomRight='2f618d' topLeft='133048' topRight='295890'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Mio Inoue'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.4' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-021' index='18' key='/library/metadata/fixture-id-229' lastViewedAt='1687336171' originalTitle='刹那に賭ける' originallyAvailableAt='2023-02-01' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-229' summary='Cid affronta finalmente il suo primo avversario al torneo principale del festival Bunshin, si tratta della spadaccina Annerose che pensa di aver scoperto il segreto dell&apos;incredibile forza di Sam.' thumb='/library/metadata/fixture-id-229/thumb/1785008108' title='Scommettere tutto su un istante' type='episode' updatedAt='1785008108' viewCount='1' year='2023'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1197' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-230' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E18.mkv' id='fixture-id-231' key='/library/parts/fixture-id-231/1705155509/file.mkv' size='219512420' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4163' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-232' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E18 - Betting on a Moment.mkv' id='fixture-id-233' key='/library/parts/fixture-id-233/1769028234/file.mkv' size='739475842' videoProfile='main'/>
+</Media>
+<Image alt='Scommettere tutto su un istante' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Scommettere tutto su un istante' type='snapshot' url='/library/metadata/5436/thumb/1785008108'/>
+<Image alt='Scommettere tutto su un istante' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Scommettere tutto su un istante' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='5f2859' bottomRight='2e295e' topLeft='110a23' topRight='2b3d75'/>
+<Director tag='Yoshinobu Tokumoto'/>
+<Writer tag='Kunihiko Okada'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='7.8' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-022' index='19' key='/library/metadata/fixture-id-234' lastViewedAt='1687336171' originalTitle='踊る人形' originallyAvailableAt='2023-02-08' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-234' summary='Arriva finalmente il momento dello scontro tra Iris e Sam Pliciotto, la principessa è determinata a vincere per dimostrare a suo padre e ai sudditi del regno il proprio valore, così da convincerli ad aiutarli nella lotta contro il culto di Diabolos, ma dietro le quinte si muovono delle ombre.' thumb='/library/metadata/fixture-id-234/thumb/1785008108' title='Il burattino danzante' type='episode' updatedAt='1785008108' viewCount='1' year='2023'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1206' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-235' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E19.mkv' id='fixture-id-236' key='/library/parts/fixture-id-236/1705155511/file.mkv' size='221065478' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='3852' container='mkv' duration='1421104' hasVoiceActivity='1' height='1080' id='fixture-id-237' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E19 - Dancing Puppet.mkv' id='fixture-id-238' key='/library/parts/fixture-id-238/1769028336/file.mkv' size='684311688' videoProfile='main'/>
+</Media>
+<Image alt='Il burattino danzante' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='Il burattino danzante' type='snapshot' url='/library/metadata/5437/thumb/1785008108'/>
+<Image alt='Il burattino danzante' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='Il burattino danzante' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='200906' bottomRight='4d3316' topLeft='040404' topRight='553a1a'/>
+<Director tag='Daisuke Takashima'/>
+<Writer tag='Mio Inoue'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+<Video addedAt='1705156407' art='/library/metadata/fixture-id-142/art/1782161989' audienceRating='8.0' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='it/VM14' duration='1466558' grandparentArt='/library/metadata/345/art/1786263822' grandparentGuid='plex://show/603a881229be08002d3dee69' grandparentKey='/library/metadata/fixture-id-002' grandparentRatingKey='fixture-id-002' grandparentSlug='the-eminence-in-shadow' grandparentTheme='/library/metadata/345/theme/1786263822' grandparentThumb='/library/metadata/345/thumb/1786263822' grandparentTitle='The Eminence in Shadow' guid='fixture-guid-023' index='20' key='/library/metadata/fixture-id-239' lastViewedAt='1698090193' originalTitle='魔人降臨' originallyAvailableAt='2023-02-15' parentGuid='plex://season/6181296611c4997168cfb741' parentIndex='1' parentKey='/library/metadata/fixture-id-142' parentRatingKey='fixture-id-142' parentThumb='/library/metadata/5418/thumb/1782161989' parentTitle='Stagione 1' ratingKey='fixture-id-239' summary='Cid affronta Beatrix e Iris per le strade della capitale, mentre Rose viene avvicinata da Alpha che le offre di unirsi allo Shadow Garden.' thumb='/library/metadata/fixture-id-239/thumb/1785008108' title='L&apos;avvento del diavolo' type='episode' updatedAt='1785008108' viewCount='5' year='2023'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1450' container='mkv' duration='1466558' hasVoiceActivity='1' height='1080' id='fixture-id-240' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1466558' file='/fixtures/media/S01E20.mkv' id='fixture-id-241' key='/library/parts/fixture-id-241/1705155515/file.mkv' size='266809641' videoProfile='main 10'/>
+</Media>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='opus' bitrate='4156' container='mkv' duration='1421100' hasVoiceActivity='1' height='1080' id='fixture-id-242' videoCodec='av1' videoFrameRate='24p' videoProfile='main' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1421100' file='/fixtures/media/The Eminence in Shadow - S01E20 - Advent of the Demon.mkv' id='fixture-id-243' key='/library/parts/fixture-id-243/1769028498/file.mkv' size='738979527' videoProfile='main'/>
+</Media>
+<Image alt='L&apos;avvento del diavolo' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+<Image alt='L&apos;avvento del diavolo' type='snapshot' url='/library/metadata/5438/thumb/1785008108'/>
+<Image alt='L&apos;avvento del diavolo' type='background' url='/library/metadata/5418/art/1782161989'/>
+<Image alt='L&apos;avvento del diavolo' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+<UltraBlurColors bottomLeft='0c0d0f' bottomRight='1d1e1e' topLeft='1c1e1f' topRight='404241'/>
+<Director tag='Kazuya Nakanishi'/>
+<Writer tag='Kanichi Kato'/>
+<Role tag='Seiichiro Yamashita'/>
+<Role tag='Asami Seto'/>
+<Role tag='Kana Hanazawa'/>
+</Video>
+</MediaContainer>

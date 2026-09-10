@@ -61,7 +61,9 @@
     }
     function list(callback) {
       if (destroyed || unavailable(callback)) { return null; }
-      return transport.list(currentConfig(), Format.PLAYLIST_PREFIX, '', callback);
+      return transport.list(currentConfig(), Format.PLAYLIST_PREFIX, '', function (error, items) {
+        if (!destroyed) { callback(error, items); }
+      });
     }
     function copy(value) { return JSON.parse(JSON.stringify(value)); }
     function mergeLegacyPair(shared, device) {
@@ -143,16 +145,24 @@
       });
     }
     function upsert(entries, built, title, profileId, callback) {
+      // Finish an accepted remote write (including rollback); callers suppress
+      // results after teardown rather than leaving a newly created save empty.
       var existing = newest(entries, function (parsed) { return parsed.device && parsed.device.id === profileId; });
-      function update(item) {
+      function update(item, createdHere) {
         transport.update(currentConfig(), item.ratingKey, built.summary, function (error) {
-          callback(error || null, { ratingKey: item.ratingKey, summary: built.summary });
+          if (!error || !createdHere || typeof transport.remove !== 'function') {
+            callback(error || null, { ratingKey: item.ratingKey, summary: built.summary });
+            return;
+          }
+          transport.remove(currentConfig(), item.ratingKey, function () {
+            callback(error);
+          });
         });
       }
-      if (existing) { update(existing.item); return; }
+      if (existing) { update(existing.item, false); return; }
       transport.create(currentConfig(), title, function (error, created) {
         if (error) { callback(error); return; }
-        update(created);
+        update(created, true);
       });
     }
     function save(callback) {
@@ -173,6 +183,7 @@
         entries = records(items);
         upsert(entries, built, Format.devicePlaylistTitle(profile.name), profile.id, function (saveError) {
           var nextEntries;
+          if (destroyed) { return; }
           if (saveError) { callback(saveError); return; }
           nextEntries = entries.filter(function (entry) { return !(entry.parsed.device && entry.parsed.device.id === profile.id); });
           nextEntries.push({
@@ -186,6 +197,7 @@
     function registerDevice(name, callback) {
       var normalized = clean(name, 80);
       var profile = readProfile();
+      if (destroyed) { return null; }
       if (!normalized) { callback(new Error('A device name is required')); return null; }
       writeProfile({ id: profile ? profile.id : newId(), name: normalized });
       return save(callback);
@@ -222,6 +234,7 @@
     }
     function remove(callback) {
       var profile = readProfile();
+      if (destroyed) { return null; }
       if (!profile) { callback(null, result([])); return null; }
       return list(function (error, items) {
         var entries;
@@ -231,7 +244,9 @@
         selected = newest(entries, function (parsed) { return parsed.device && parsed.device.id === profile.id; });
         if (!selected) { callback(null, result(entries)); return; }
         transport.remove(currentConfig(), selected.item.ratingKey, function (removeError) {
-          var remaining = entries.filter(function (entry) { return entry !== selected; });
+          var remaining;
+          if (destroyed) { return; }
+          remaining = entries.filter(function (entry) { return entry !== selected; });
           callback(removeError || null, result(remaining));
         });
       });

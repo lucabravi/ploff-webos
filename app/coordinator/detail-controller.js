@@ -21,6 +21,7 @@
       seasonIndex: 0,
       episodeIndex: 0,
       metadataTimer: null,
+      selectedMetadataToken: 0,
       episodeToken: 0,
       seasonPreviewTimer: null,
       seasonPreviewToken: 0,
@@ -39,6 +40,7 @@
       metadataStatusTimer: null,
       metadataStatusTemporary: false,
       playPending: false,
+      pendingProgress: null,
       generation: 0,
       destroyed: false
     };
@@ -84,6 +86,7 @@
     function resetTransient() {
       cancelRequests();
       cancelTimers();
+      state.selectedMetadataToken += 1;
       state.episodeToken += 1;
       state.seasonPreviewToken += 1;
       state.mediaProfileToken += 1;
@@ -101,6 +104,7 @@
       state.refreshPending = false;
       state.metadataStatusTemporary = false;
       state.playPending = false;
+      state.pendingProgress = null;
       call(values.clearPreferences);
     }
 
@@ -140,11 +144,13 @@
     function loadSelected(item, callback) {
       var generation = state.generation;
       var key = String(item && item.ratingKey || '');
+      var token = state.selectedMetadataToken + 1;
       var request;
       if (state.destroyed) { return null; }
+      state.selectedMetadataToken = token;
       if (!key || typeof values.loadMetadata !== 'function') { call(callback, new Error('metadata unavailable')); return null; }
       request = call(values.loadMetadata, key, function (error, detail) {
-        if (state.destroyed || generation !== state.generation || !state.selectedItem || String(state.selectedItem.ratingKey || '') !== key) { return; }
+        if (state.destroyed || generation !== state.generation || token !== state.selectedMetadataToken || !state.selectedItem || String(state.selectedItem.ratingKey || '') !== key) { return; }
         if (!error && detail) { setCurrentDetail(detail); }
         call(callback, error, detail || null);
       });
@@ -213,8 +219,16 @@
       return focusSnapshot();
     }
 
+    function inlineMediaProfile(detail, key) {
+      var profile = detail && detail.mediaProfile || null;
+      var profileKey = String(profile && profile.ratingKey || '');
+      if (!profile || !key || (profileKey && profileKey !== key)) { return null; }
+      return profile;
+    }
+
     function prepareMediaProfile(detail, identity) {
       var key = String(detail && detail.ratingKey || '');
+      var inlineProfile = inlineMediaProfile(detail, key);
       if (state.destroyed) { return ''; }
       clearTimer('mediaProfileTimer');
       clearTimer('mediaLoadingLabelTimer');
@@ -222,10 +236,11 @@
       state.mediaProfileRequest = null;
       state.mediaProfileToken += 1;
       state.mediaProfileRatingKey = key;
-      state.mediaProfileLoading = !!key;
+      state.mediaProfileLoading = !!key && !inlineProfile;
       state.mediaLoadingLabelVisible = false;
       call(values.preparePreferences, identity || '', detail || null);
-      if (key) {
+      if (inlineProfile) { call(values.setMediaProfile, inlineProfile); }
+      if (key && !inlineProfile) {
         setTimer('mediaLoadingLabelTimer', function () {
           if (!state.mediaProfileLoading || state.mediaProfileRatingKey !== key) { return; }
           state.mediaLoadingLabelVisible = true;
@@ -260,8 +275,18 @@
     }
 
     function queueMediaProfile(detail, identity, callback) {
-      var key = prepareMediaProfile(detail, identity);
+      var key = String(detail && detail.ratingKey || '');
+      var inlineProfile = inlineMediaProfile(detail, key);
+      if (inlineProfile && key && state.mediaProfileRatingKey === key && !state.mediaProfileLoading) {
+        call(callback, null, inlineProfile);
+        return null;
+      }
+      key = prepareMediaProfile(detail, identity);
       if (!key) { return null; }
+      if (inlineProfile) {
+        call(callback, null, inlineProfile);
+        return null;
+      }
       return setTimer('mediaProfileTimer', function () {
         if (!state.currentDetail || String(state.currentDetail.ratingKey || '') !== key) { return; }
         loadMediaProfile(detail, callback);
@@ -276,6 +301,63 @@
         if (Object.prototype.hasOwnProperty.call(patch, key)) { target[key] = patch[key]; }
       }
       return target;
+    }
+
+    function playbackProgressPending(ratingKey) {
+      var pending = state.pendingProgress;
+      var now = Number(call(values.now) || new Date().getTime());
+      if (pending && pending.expiresAt <= now) { state.pendingProgress = null; pending = null; }
+      return !!(pending && (!ratingKey || pending.ratingKey === String(ratingKey)));
+    }
+
+    function recordPlaybackProgress(ratingKey, seconds) {
+      var offset = Math.max(0, Math.round(Number(seconds || 0) * 1000));
+      var key = String(ratingKey || '');
+      var episodes = state.seriesContext && state.seriesContext.episodes || [];
+      var target;
+      var index;
+      if (state.destroyed || !key || !offset) { return false; }
+      state.pendingProgress = { ratingKey: key, viewOffset: offset, expiresAt: Number(call(values.now) || new Date().getTime()) + 6000 };
+      target = state.currentDetail;
+      if (target && String(target.ratingKey || '') === key) { assign(target, { viewOffset: offset, progress: target.duration ? Math.min(100, offset / Number(target.duration) * 100) : target.progress }); }
+      target = state.selectedItem;
+      if (target && String(target.ratingKey || '') === key) { assign(target, { viewOffset: offset, progress: (target.duration || state.currentDetail && state.currentDetail.duration) ? Math.min(100, offset / Number(target.duration || state.currentDetail.duration) * 100) : target.progress }); }
+      for (index = 0; index < episodes.length; index += 1) {
+        target = episodes[index];
+        if (String(target.ratingKey || '') === key) { assign(target, { viewOffset: offset, progress: target.duration ? Math.min(100, offset / Number(target.duration) * 100) : target.progress }); }
+      }
+      return true;
+    }
+
+    function reconcilePlaybackEpisodes(freshEpisodes) {
+      var episodes = state.seriesContext && state.seriesContext.episodes || [];
+      var freshByKey = {};
+      var pending;
+      var fresh;
+      var episode;
+      var key;
+      var index;
+      playbackProgressPending();
+      pending = state.pendingProgress;
+      for (index = 0; index < (freshEpisodes || []).length; index += 1) { freshByKey[String(freshEpisodes[index].ratingKey || '')] = freshEpisodes[index]; }
+      for (index = 0; index < episodes.length; index += 1) {
+        episode = episodes[index];
+        key = String(episode.ratingKey || '');
+        fresh = freshByKey[key];
+        if (!fresh) { continue; }
+        if (pending && key === pending.ratingKey) {
+          if (fresh.viewed === true) {
+            state.pendingProgress = null; pending = null;
+          } else if (Number(fresh.viewOffset || 0) + 2000 < pending.viewOffset) {
+            fresh.viewOffset = pending.viewOffset;
+            fresh.progress = fresh.duration ? Math.min(100, fresh.viewOffset / Number(fresh.duration) * 100) : fresh.progress;
+          } else { state.pendingProgress = null; pending = null; }
+        }
+        assign(episode, { viewed: fresh.viewed, viewOffset: fresh.viewOffset, duration: fresh.duration, progress: fresh.progress });
+        if (state.selectedItem && String(state.selectedItem.ratingKey || '') === key) { assign(state.selectedItem, { viewed: fresh.viewed, viewOffset: fresh.viewOffset, duration: fresh.duration, progress: fresh.progress }); }
+        if (state.currentDetail && String(state.currentDetail.ratingKey || '') === key) { assign(state.currentDetail, { viewed: fresh.viewed, viewOffset: fresh.viewOffset, duration: fresh.duration, progress: fresh.progress }); }
+      }
+      return playbackProgressPending();
     }
 
     function patchCurrentDetail(patch) {
@@ -480,6 +562,7 @@
       if (state.zone === 'nav') { call(values.activateNavigation); }
       else if (state.zone === 'seasons') { call(values.loadSeason); }
       else if (state.zone === 'episodes' && state.seriesContext) { call(values.playEpisode, state.seriesContext.episodes[state.episodeIndex]); }
+      else if (state.zone === 'extended') { call(values.activateExtended); }
       else if (state.zone === 'version') { call(values.openVersionDetails); }
       else if (state.zone === 'audio' || state.zone === 'subtitles') { call(values.openChoice, state.zone); }
       else if (state.zone === 'summary') { call(values.openSummary); }
@@ -539,6 +622,9 @@
       loadSelected: loadSelected,
       navigate: navigate,
       open: open,
+      playbackProgressPending: playbackProgressPending,
+      recordPlaybackProgress: recordPlaybackProgress,
+      reconcilePlaybackEpisodes: reconcilePlaybackEpisodes,
       patchCurrentDetail: patchCurrentDetail,
       patchEpisode: patchEpisode,
       patchSelectedItem: patchSelectedItem,

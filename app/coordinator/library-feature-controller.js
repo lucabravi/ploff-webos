@@ -22,7 +22,6 @@
     var LibraryGridView = modules.LibraryGridView;
     var LibraryLifecycle = modules.LibraryLifecycle;
     var PlaybackQueueModel = modules.PlaybackQueueModel;
-    var ProgressiveImages = modules.ProgressiveImages;
     var SearchModel = modules.SearchModel;
     var WatchlistState = modules.WatchlistState;
     var WatchlistView = modules.WatchlistView;
@@ -38,11 +37,16 @@
     var watchlistView = null;
     var scrollTarget = null;
     var scrollHandler = null;
+    var watchlistScrollTarget = null;
+    var watchlistScrollHandler = null;
     var activeMode = '';
     var generation = 0;
     var pendingContainerRestore = null;
     var pendingPlaybackProgress = null;
+    var pendingCatalogRefreshAnchor = null;
+    var contentStateDirty = false;
     var librarySurfaceAnimationPending = false;
+    var watchlistWarmTimer = null;
     var destroyed = false;
 
     function call(callback, arg1, arg2, arg3, arg4, arg5, arg6) {
@@ -98,6 +102,70 @@
     }
     function activeLibrary() { return controller && controller.activeLibrary ? controller.activeLibrary() : null; }
     function activeContainer() { return lifecycleSnapshot().container || null; }
+
+    function catalogFilterIdentity(filters) {
+      var source = filters || {};
+      var keys = Object.keys(source).sort();
+      var parts = [];
+      var index;
+      for (index = 0; index < keys.length; index += 1) {
+        parts.push(keys[index] + '=' + String(source[keys[index]] === undefined || source[keys[index]] === null ? '' : source[keys[index]]));
+      }
+      return parts.join('&');
+    }
+
+    function catalogQueryIdentity() {
+      var current = libraryState();
+      var library = activeLibrary();
+      var filters = filterView && filterView.filters ? filterView.filters() : {};
+      return [
+        String(library && (library.key || library.title) || ''),
+        String(libraryViewKey() || ''),
+        String(current.sort || ''),
+        String(current.sortDirection || ''),
+        String(current.watchedFilter || ''),
+        catalogFilterIdentity(filters)
+      ].join('|');
+    }
+
+    function captureCatalogRefreshAnchor() {
+      var currentGrid;
+      var items;
+      var focus;
+      var index;
+      var item;
+      var sourceOffset;
+      if (activeMode !== 'library' || !activeLibrary() || activeContainer() || libraryViewKey() !== 'catalog') { return null; }
+      currentGrid = gridSnapshot();
+      items = currentGrid.items || [];
+      focus = currentGrid.focus || {};
+      index = Math.max(0, Math.floor(Number(focus.index || 0)));
+      item = items[index] || null;
+      if (!item) { return null; }
+      sourceOffset = item.plexSourceOffset;
+      if (sourceOffset === null || sourceOffset === undefined || sourceOffset === '') { sourceOffset = index; }
+      else {
+        sourceOffset = Number(sourceOffset);
+        if (!isFinite(sourceOffset) || sourceOffset < 0) { sourceOffset = index; }
+      }
+      sourceOffset = Math.floor(sourceOffset);
+      pendingCatalogRefreshAnchor = {
+        ratingKey: String(item.ratingKey || ''),
+        index: index,
+        plexSourceOffset: sourceOffset,
+        blockStart: Math.floor(sourceOffset / 60) * 60,
+        queryKey: catalogQueryIdentity()
+      };
+      return pendingCatalogRefreshAnchor;
+    }
+
+    function refreshDirtyCatalogWindow() {
+      var anchor = pendingCatalogRefreshAnchor;
+      if (!anchor || !lifecycle || typeof lifecycle.refreshCatalogWindow !== 'function' ||
+          libraryViewKey() !== 'catalog' || activeContainer() || anchor.queryKey !== catalogQueryIdentity()) { return false; }
+      return lifecycle.refreshCatalogWindow(libraryLoadContext(), anchor.blockStart, 60, anchor) === true;
+    }
+
     function isLibraryActive(context) {
       var active = activeLibrary();
       return !destroyed && activeMode === 'library' && currentView() === 'library' && !!active &&
@@ -125,55 +193,8 @@
           focus: { zone: 'grid', index: 0, recommendationRow: 0 }
         },
         usesGridScroll: false,
-        dom: gridView && gridView.buildDetachedRecommendations
-          ? gridView.buildDetachedRecommendations(rows || [], 30) : null
+        dom: null
       };
-    }
-
-    function prefetchLibraryPosterPreviews(rows) {
-      var profile;
-      var preview;
-      var sources = [];
-      if (!shell.posterLoader || !shell.posterLoader.load || !timerRoot.Image) { return; }
-      profile = call(shell.cardProfile);
-      if (profile && profile.poster) {
-        preview = { width: profile.poster.previewWidth, height: profile.poster.previewHeight };
-      } else {
-        if (!ProgressiveImages || !ProgressiveImages.previewSize) { return; }
-        profile = { metrics: call(shell.cardMetrics) || { width: 200, imageHeight: 300 } };
-        preview = ProgressiveImages.previewSize(profile.metrics.width, profile.metrics.imageHeight, 96);
-      }
-      (rows || []).forEach(function (row) {
-        (row && row.items || []).forEach(function (item) {
-          if (item && item.image && sources.indexOf(item.image) === -1 && sources.length < 30) { sources.push(item.image); }
-        });
-      });
-      sources.forEach(function (source) {
-        shell.posterLoader.load(new timerRoot.Image(), {
-          source: source,
-          previewWidth: preview.width,
-          previewHeight: preview.height,
-          width: preview.width,
-          height: preview.height,
-          priority: 3,
-          scope: 'library-prefetch'
-        });
-      });
-    }
-
-    function prefetchLibraryBackdropPreview(rows) {
-      var item = rows && rows[0] && rows[0].items && rows[0].items[0];
-      var source = item && call(shell.artworkUrl, item);
-      if (!source || !shell.posterLoader || !shell.posterLoader.load || !timerRoot.Image) { return; }
-      shell.posterLoader.load(new timerRoot.Image(), {
-        source: source,
-        previewWidth: 320,
-        previewHeight: 180,
-        width: 320,
-        height: 180,
-        priority: 3,
-        scope: 'library-prefetch'
-      });
     }
 
     function scheduleAdjacentPrefetch(navIndex, items) {
@@ -220,8 +241,17 @@
     function cacheActiveLibraryView() {
       var current = libraryState();
       var active = activeLibrary();
+      var currentLifecycle = lifecycleSnapshot();
+      var currentGrid = gridNavigationSnapshot();
       var gridContainer = node('library-grid');
-      if (!active || activeContainer() || !controller || !controller.cacheCurrent) { return false; }
+      if (active && !currentLifecycle.container &&
+          (currentLifecycle.loading || currentLifecycle.error) && !currentGrid.itemCount && !currentGrid.recommendationItemCount &&
+          controller && controller.clearCached) {
+        controller.clearCached(active);
+        return false;
+      }
+      if (!active || currentLifecycle.container ||
+          !controller || !controller.cacheCurrent) { return false; }
       controller.cacheCurrent({
         tabIndex: current.tabIndex,
         zone: current.zone,
@@ -231,9 +261,9 @@
         sortDirection: current.sortDirection,
         watchedFilter: current.watchedFilter,
         filters: filterView && filterView.filters ? filterView.filters() : {},
-        continueAvailable: lifecycleSnapshot().continueAvailable,
-        collectionsAvailable: lifecycleSnapshot().collectionsAvailable,
-        nextStart: lifecycleSnapshot().nextStart,
+        continueAvailable: currentLifecycle.continueAvailable,
+        collectionsAvailable: currentLifecycle.collectionsAvailable,
+        nextStart: currentLifecycle.nextStart,
         scrollTop: gridContainer ? gridContainer.scrollTop : 0,
         grid: gridSnapshot(),
         usesGridScroll: libraryUsesGridScroll(),
@@ -461,11 +491,21 @@
       if (!destroyed && isLibraryActive() && libraryUsesGridScroll() && gridView && gridView.onScroll) { gridView.onScroll(); }
     }
 
+    function onWatchlistScroll() {
+      if (!destroyed && isWatchlistActive() && watchlistView && watchlistView.onScroll) { watchlistView.onScroll(); }
+    }
+
     function bindEvents() {
       scrollTarget = node('library-grid');
-      if (!scrollTarget || !scrollTarget.addEventListener) { return; }
-      scrollHandler = onGridScroll;
-      scrollTarget.addEventListener('scroll', scrollHandler, false);
+      if (scrollTarget && scrollTarget.addEventListener) {
+        scrollHandler = onGridScroll;
+        scrollTarget.addEventListener('scroll', scrollHandler, false);
+      }
+      watchlistScrollTarget = node('watchlist-grid');
+      if (watchlistScrollTarget && watchlistScrollTarget.addEventListener) {
+        watchlistScrollHandler = onWatchlistScroll;
+        watchlistScrollTarget.addEventListener('scroll', watchlistScrollHandler, false);
+      }
     }
 
     function updateLibraryFocus() {
@@ -514,6 +554,7 @@
 
     function loadLibraryContent(reset, replaceExisting) {
       if (destroyed || !activeLibrary() || !lifecycle) { return false; }
+      if (contentStateDirty && !activeContainer() && reset !== true && replaceExisting !== true) { return false; }
       lifecycle.load(libraryLoadContext(), reset === true, replaceExisting === true);
       return true;
     }
@@ -546,9 +587,62 @@
 
     function renderWatchlistGrid() { if (watchlistView && watchlistView.render) { watchlistView.render(); } }
     function updateWatchlistFocus() { if (isWatchlistActive() && watchlistView && watchlistView.refreshFocus) { watchlistView.refreshFocus(); } }
+    function loadAllWatchlistItems(requestOptions, callback) {
+      var pageSize = 100;
+      var start = 0;
+      var items = [];
+      var request = null;
+      var cancelled = false;
+      var settled = false;
+
+      function finish(error) {
+        if (cancelled || settled) { return; }
+        settled = true;
+        call(callback, error || null, error ? [] : items);
+      }
+
+      function loadPage() {
+        request = WatchlistClient.load(timerRoot, requestOptions, start, pageSize, function (error, pageItems) {
+          var page = pageItems || [];
+          if (cancelled || settled) { return; }
+          request = null;
+          if (error) { finish(error); return; }
+          items = items.concat(page);
+          if (page.length === pageSize) {
+            start += page.length;
+            loadPage();
+            return;
+          }
+          finish(null);
+        });
+      }
+
+      loadPage();
+      return {
+        abort: function () {
+          if (cancelled || settled) { return; }
+          cancelled = true;
+          if (request && request.abort) { request.abort(); }
+          request = null;
+        }
+      };
+    }
     function loadWatchlist(force, callback) {
       if (destroyed || !watchlistView || !watchlistView.load) { call(callback, new Error('Watchlist unavailable')); return null; }
       return watchlistView.load(force === true, callback);
+    }
+    function cancelWatchlistWarm() {
+      if (watchlistWarmTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(watchlistWarmTimer); }
+      watchlistWarmTimer = null;
+    }
+    function scheduleWatchlistWarm() {
+      cancelWatchlistWarm();
+      if (destroyed || !available() || !timerRoot.setTimeout) { return false; }
+      watchlistWarmTimer = timerRoot.setTimeout(function () {
+        watchlistWarmTimer = null;
+        if (!destroyed && currentView() === 'home') { loadWatchlist(false); }
+      }, 900);
+      return true;
     }
 
     function setLibraryRefreshPendingPresentation(pending) {
@@ -578,11 +672,6 @@
         isBusy: function () { return !!(lifecycleSnapshot().loading || call(state.homeBusy)); },
         loadRecommendations: function (library, callback) { return PlexClient.loadLibraryRecommendations(config, library, callback); },
         buildPrefetchedState: prefetchedLibraryState,
-        warmPrefetch: function (rows, saved) {
-          if (saved && saved.dom) { return; }
-          prefetchLibraryPosterPreviews(rows);
-          prefetchLibraryBackdropPreview(rows);
-        },
         onQueryChange: function () {
           if (!isLibraryActive()) { return; }
           renderLibraryControls();
@@ -620,8 +709,8 @@
         focusTabContent: focusLibraryTabContent,
         openFilter: openLibraryFilterDrawer,
         openContainer: openContainer,
-        openItem: function (item) { call(transitions.openDetail, item); },
-        playItem: function (item) { call(transitions.playItem, item); },
+        openItem: function (item) { captureCatalogRefreshAnchor(); call(transitions.openDetail, item); },
+        playItem: function (item) { captureCatalogRefreshAnchor(); call(transitions.playItem, item); },
         loadMore: function () { loadLibraryContent(false); },
         playlistsTitle: function () { return t('nav.playlists'); }
       });
@@ -728,6 +817,10 @@
         },
         onRender: function (result) {
           if (!isLibraryActive()) { return; }
+          if (!activeContainer() && (!result || !result.error)) {
+            if (contentStateDirty) { contentStateDirty = false; }
+            pendingCatalogRefreshAnchor = null;
+          }
           call(shell.hideViewState);
           renderLibraryGrid();
           renderLibraryGlobalHeader();
@@ -740,7 +833,14 @@
           }
           scheduleAdjacentPrefetch();
         },
-        onContainerSummary: function () { if (isLibraryActive()) { renderLibraryGlobalHeader(); } },
+        onContainerSummary: function () {
+          var currentLifecycle = lifecycleSnapshot();
+          if (contentStateDirty && activeContainer() && !currentLifecycle.containerSummaryLoading &&
+              !currentLifecycle.containerSummaryError && currentLifecycle.containerSummary) {
+            contentStateDirty = false;
+          }
+          if (isLibraryActive()) { renderLibraryGlobalHeader(); }
+        },
         onContinueAvailable: function () {
           if (!isLibraryActive()) { return; }
           renderLibrarySubnav();
@@ -774,7 +874,7 @@
         accountToken: accountToken,
         timeout: function () { return Math.min(8000, Number(config.requestTimeout || 6000)); },
         discover: function (requestOptions, callback) { return WatchlistClient.discover(timerRoot, requestOptions, callback); },
-        load: function (requestOptions, callback) { return WatchlistClient.load(timerRoot, requestOptions, 0, 200, callback); },
+        load: loadAllWatchlistItems,
         set: function (requestOptions, key, enabled, callback) { return WatchlistClient.set(timerRoot, requestOptions, key, enabled, callback); },
         findByGuid: function (guid, callback) { return PlexClient.findByGuid(config, guid, callback); },
         cardMetrics: function () { return call(shell.cardMetrics); },
@@ -834,6 +934,7 @@
       entryOptions = entryOptions || {};
       if (destroyed || !library) { return false; }
       pendingPlaybackProgress = null;
+      contentStateDirty = false;
       generation += 1;
       activeMode = 'library';
       librarySurfaceAnimationPending = false;
@@ -1097,10 +1198,12 @@
     function reconcilePlaybackProgress(ratingKey, seconds) {
       var numericSeconds = Number(seconds);
       var scope;
-      if (destroyed || !ratingKey || !isFinite(numericSeconds) || numericSeconds < 0 || !activeLibrary() ||
-          !(isLibraryActive() || (activeMode === 'library' && currentView() === 'player' && !!detailContainerKind(activeContainer())))) { return false; }
+      if (destroyed || !ratingKey || !isFinite(numericSeconds) || numericSeconds < 0) { return false; }
+      reconcileContentMutation();
+      if (!activeLibrary()) { return true; }
+      if (!(isLibraryActive() || (activeMode === 'library' && currentView() === 'player' && !!detailContainerKind(activeContainer())))) { return true; }
       scope = playbackScopeKey();
-      if (!scope) { return false; }
+      if (!scope) { return true; }
       pendingPlaybackProgress = { ratingKey: String(ratingKey), seconds: numericSeconds, scope: scope };
       applyPendingPlaybackProgress();
       return true;
@@ -1219,6 +1322,49 @@
       return false;
     }
 
+    function reconcileContentMutation() {
+      if (destroyed) { return false; }
+      if (controller && controller.clearAllCached) { controller.clearAllCached(); }
+      if (activeMode === 'library') {
+        if (currentView() !== 'library' && (!pendingCatalogRefreshAnchor || pendingCatalogRefreshAnchor.queryKey !== catalogQueryIdentity())) {
+          captureCatalogRefreshAnchor();
+        }
+        if (currentView() === 'library' || !contentStateDirty) {
+          if (lifecycle && lifecycle.invalidateContentRequest) { lifecycle.invalidateContentRequest(); }
+        }
+        if (activeLibrary() && activeLibrary().globalPlaylists !== true && lifecycle && lifecycle.setContinueAvailable) {
+          lifecycle.setContinueAvailable(null);
+        }
+        contentStateDirty = true;
+      }
+      return true;
+    }
+
+    function reconcileWatchedState(ratingKey, watched) {
+      var current;
+      var currentGrid;
+      var items;
+      var nextItems;
+      var index;
+      var removed = 0;
+      var result = reconcileContentMutation();
+      if (!result || activeMode !== 'library' || activeContainer() || libraryViewKey() !== 'catalog') { return result; }
+      current = libraryState();
+      if (!ratingKey || !((current.watchedFilter === 'unwatched' && watched === true) ||
+          (current.watchedFilter === 'watched' && watched === false))) { return result; }
+      currentGrid = gridSnapshot();
+      items = currentGrid.items || [];
+      nextItems = [];
+      for (index = 0; index < items.length; index += 1) {
+        if (String(items[index] && items[index].ratingKey || '') === String(ratingKey)) { removed += 1; }
+        else { nextItems.push(items[index]); }
+      }
+      if (removed && gridView && gridView.setItems) {
+        gridView.setItems(nextItems, Math.max(nextItems.length, Number(currentGrid.totalSize || 0) - removed));
+      }
+      return result;
+    }
+
     function recoverPresentation() {
       var libraryView;
       var watchlistViewNode;
@@ -1232,8 +1378,20 @@
         watchlistViewNode = node('watchlist-view');
         if (watchlistViewNode) { watchlistViewNode.className = 'watchlist-view is-hidden'; }
         updateLibraryPresentationClass();
-        loadLibraryContent(false, true);
+        updateLibraryStatus();
         updateLibraryFocus();
+        if (contentStateDirty) {
+          if (activeContainer()) {
+            if (lifecycle && lifecycle.refreshContainerSummary) { lifecycle.refreshContainerSummary(); }
+          } else if (!refreshDirtyCatalogWindow()) {
+            loadLibraryContent(false, true);
+          }
+        } else {
+          pendingCatalogRefreshAnchor = null;
+        }
+        if (activeLibrary() && activeLibrary().globalPlaylists !== true && lifecycleSnapshot().continueAvailable === null) {
+          probeContinue();
+        }
         return true;
       }
       if (currentView() === 'watchlist') {
@@ -1258,8 +1416,11 @@
 
     function resetContent() {
       if (destroyed) { return false; }
+      cancelWatchlistWarm();
       cancelContainerRestore(false);
       pendingPlaybackProgress = null;
+      pendingCatalogRefreshAnchor = null;
+      contentStateDirty = false;
       generation += 1;
       activeMode = '';
       if (controller && controller.resetContent) { controller.resetContent(); }
@@ -1273,7 +1434,6 @@
       if (node('library-view')) { node('library-view').className = 'library-view is-hidden'; }
       if (node('watchlist-view')) { node('watchlist-view').className = 'watchlist-view is-hidden'; }
       if (shell.posterLoader && shell.posterLoader.cancelScope) {
-        shell.posterLoader.cancelScope('library-prefetch');
         shell.posterLoader.cancelScope('library');
         shell.posterLoader.cancelScope('watchlist');
       }
@@ -1327,16 +1487,23 @@
 
     function destroy() {
       if (destroyed) { return; }
+      cancelWatchlistWarm();
       cancelContainerRestore(false);
       pendingPlaybackProgress = null;
+      pendingCatalogRefreshAnchor = null;
       destroyed = true;
       generation += 1;
       activeMode = '';
       if (scrollTarget && scrollHandler && scrollTarget.removeEventListener) {
         scrollTarget.removeEventListener('scroll', scrollHandler, false);
       }
+      if (watchlistScrollTarget && watchlistScrollHandler && watchlistScrollTarget.removeEventListener) {
+        watchlistScrollTarget.removeEventListener('scroll', watchlistScrollHandler, false);
+      }
       scrollTarget = null;
       scrollHandler = null;
+      watchlistScrollTarget = null;
+      watchlistScrollHandler = null;
       if (controller && controller.destroy) { controller.destroy(); }
       else {
         if (controller && controller.cancelPrefetch) { controller.cancelPrefetch(); }
@@ -1352,7 +1519,6 @@
       destroyOne(lifecycle);
       destroyOne(watchlistView);
       if (shell.posterLoader && shell.posterLoader.cancelScope) {
-        shell.posterLoader.cancelScope('library-prefetch');
         shell.posterLoader.cancelScope('library');
         shell.posterLoader.cancelScope('watchlist');
       }
@@ -1393,6 +1559,8 @@
       playbackContext: playbackContext,
       pointerFocus: pointerFocus,
       probeContinue: probeContinue,
+      reconcileContentMutation: reconcileContentMutation,
+      reconcileWatchedState: reconcileWatchedState,
       recoverPresentation: recoverPresentation,
       refreshPresentation: refreshPresentation,
       reloadCurrent: reloadCurrent,
@@ -1401,6 +1569,7 @@
       restoreContainerOrigin: restoreContainerOrigin,
       reconcilePlaybackProgress: reconcilePlaybackProgress,
       scheduleAdjacentPrefetch: scheduleAdjacentPrefetch,
+      scheduleWatchlistWarm: scheduleWatchlistWarm,
       snapshot: snapshot,
       toggleWatchlist: toggleWatchlist,
       translateStatic: translateStatic,

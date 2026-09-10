@@ -5,11 +5,11 @@ var SettingsCatalog = require('../app/settings-catalog');
 var SettingsSchema = require('../app/settings-schema');
 var settings = {
   highContrast: false, strongFocus: false, safeAreaTop: 0, safeAreaRight: 0, safeAreaBottom: 0, safeAreaLeft: 0, subtitleBackground: 'off', subtitlePosition: 7, subtitleEdge: 'shadow',
-  uiLanguage: 'en', visualTheme: 'classic', wheelBehavior: 'items', cardScale: 100, artworkQuality: 90, backdropQuality: 60, accentColor: 'cyan', searchT9Input: false,
-  showWatchlist: true, showPlaylists: false, backgroundMusic: false, backgroundVolume: 20, backgroundDelay: 500,
+  uiLanguage: 'en', visualTheme: 'classic', wheelBehavior: 'items', cardScale: 100, uiTextScale: 115, artworkQuality: 80, backdropQuality: 60, artworkDataSaver: true, accentColor: 'cyan', searchT9Input: false,
+  showWatchlist: true, showPlaylists: false, homeRows: ['recent', 'continue'], backgroundMusic: false, backgroundVolume: 20, backgroundDelay: 500,
   lanVideoQuality: 'original', remoteVideoQuality: '8000', playbackMode: 'auto',
   videoVersionPriorities: ['resolution', 'hdr', 'quality', 'directPlay'], autoplayDelay: 5, upNextLayout: 'compact',
-  skipPromptDuration: 5, audioLanguages: ['eng'], subtitleLanguages: ['ita'], subtitleSuppressedForAudio: [], subtitleMode: 'always', subtitleSourcePreference: 'external'
+  skipPromptDuration: 5, audioLanguages: ['eng'], subtitleLanguages: ['ita'], subtitleSuppressedForAudio: [], subtitleMode: 'always', subtitleSourcePreference: 'external', subtitleRenderingSrt: false, subtitleRenderingAss: false
 };
 var catalog = SettingsCatalog.create({
   t: function (key) { return key; },
@@ -25,7 +25,7 @@ var catalog = SettingsCatalog.create({
   visualThemeLabel: function (value) { return 'T:' + value; },
   supportedUiLanguages: function () { return ['en', 'it']; },
   accentValues: { cyan: '#13b8ad', purple: '#a66cff', white: '#ffffff' },
-  subtitleBackgrounds: ['off','low','medium','high','opaque'], subtitleEdges: ['shadow','outline','both'], subtitlePositions: [5,7,10,13,16],
+  subtitleBackgrounds: ['off','low','medium','high','opaque'], subtitleEdges: ['shadow','outline','both','double-outline-shadow'], subtitlePositions: [5,7,10,13,16],
   appVersion: '1.0.6',
   updateStatusLabel: function () { return 'updates.status.available'; }
 });
@@ -45,11 +45,11 @@ assert.deepStrictEqual(categories.map(function (category) {
   return category.rows.map(function (row) { return row.key; });
 }), [
   ['plexServer', 'plexProfile', 'networkStatus', 'disconnectPlex'],
-  ['uiLanguage', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists'],
-  ['visualTheme', 'accentColor', 'cardScale', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'backgroundMusic', 'backgroundVolume', 'backgroundDelay'],
-  ['highContrast', 'strongFocus', 'safeAreaCalibration'],
+  ['uiLanguage', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists', 'homeRows'],
+  ['visualTheme', 'accentColor', 'cardScale', 'artworkDataSaver', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'backgroundMusic', 'backgroundVolume', 'backgroundDelay'],
+  ['uiTextScale', 'highContrast', 'strongFocus', 'safeAreaCalibration'],
   ['lanVideoQuality', 'remoteVideoQuality', 'playbackMode', 'videoVersionPriorities', 'playbackCompatibility', 'autoplayDelay', 'upNextLayout', 'skipPromptDuration'],
-  ['audioLanguages', 'subtitleLanguages', 'subtitleSuppressedForAudio', 'subtitleMode', 'subtitleSourcePreference', 'subtitleAppearance'],
+  ['audioLanguages', 'subtitleLanguages', 'subtitleSuppressedForAudio', 'subtitleMode', 'subtitleSourcePreference', 'subtitleRenderingSrt', 'subtitleRenderingAss', 'subtitleAppearance'],
   ['settingsBackup', 'diagnostics', 'privacy', 'deleteLocalData']
 ], 'every setting must belong to exactly one approved category');
 assert.strictEqual(catalog.versionRow(settings).key, 'appVersion', 'application version must remain outside all categories');
@@ -91,20 +91,42 @@ assert.strictEqual(rows.filter(function (row) { return row.key === 'disconnectPl
 assert.strictEqual(rows.filter(function (row) { return row.section === 'plex'; }).length, 3, 'Plex settings must keep server, profile and network state grouped together');
 assert.strictEqual(rows.filter(function (row) { return row.palette; })[0].key, 'accentColor', 'Accent color must retain its palette treatment');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'searchT9Input'; })[0].value, 'settings.disabled', 'T9 input must be exposed as an opt-in interface setting');
+assert.deepStrictEqual(rows.filter(function (row) { return row.key === 'visualTheme'; })[0].choices.map(function (choice) { return choice.value; }), ['immersive', 'premiere', 'aurora', 'mahogany', 'atelier', 'nova', 'classic'], 'visual themes must use the curated user-facing order');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'subtitleSourcePreference'; })[0].value, 'settings.preferExternalSubtitles', 'subtitle source preference must be visible in the language settings');
+assert.deepStrictEqual(rows.filter(function (row) { return row.key === 'subtitleRenderingSrt'; })[0].choices.map(function (choice) { return choice.value; }), [true, false], 'SRT rendering must expose the shared boolean choices');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'subtitleRenderingSrt'; })[0].value, 'settings.disabled', 'SRT rendering must be disabled by default');
+assert.deepStrictEqual(rows.filter(function (row) { return row.key === 'subtitleRenderingAss'; })[0].choices.map(function (choice) { return choice.value; }), [true, false], 'ASS rendering must expose the shared boolean choices');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'subtitleRenderingAss'; })[0].readOnly, undefined, 'ASS rendering must be selectable when the local renderer is available');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'subtitleRenderingAss'; })[0].disabled, undefined, 'ASS rendering must not remain disabled after adding the local renderer');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'subtitleRenderingAss'; })[0].value, 'settings.disabled', 'ASS rendering must remain opt-in by default');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'videoVersionPriorities'; })[0].priorityEditor, true, 'automatic video version criteria must use an orderable priority editor');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'homeRows'; })[0].orderedEditor, true, 'Home row visibility and order must use the shared ordered editor surface');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'homeRows'; })[0].value, 'settings.homeRow.recent > settings.homeRow.continue', 'Home row summary must show only enabled groups in their saved order');
+
+var hiddenHomeRowsSettings = Object.assign({}, settings, { homeRows: [] });
+var hiddenHomeRows = catalog.rows(hiddenHomeRowsSettings);
+assert.strictEqual(hiddenHomeRows.filter(function (row) { return row.key === 'homeRows'; })[0].value, 'settings.homeRowsHidden',
+  'Home row summary must describe an intentionally all-hidden configuration instead of looking unconfigured');
 assert.strictEqual(catalog.sectionLabel('playback'), 'settings.sectionPlayback', 'section labels must remain localized through the catalog');
 assert.deepStrictEqual(rows.filter(function (row) { return row.key === 'uiLanguage'; })[0].choices, [{ value: 'en', label: 'native:en', languageCode: 'en' }, { value: 'it', label: 'native:it', languageCode: 'it' }], 'interface language choices must identify every language using its native name and flag code');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'uiLanguage'; })[0].languageCode, 'en', 'the interface language setting must expose its current flag');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'uiLanguage'; })[0].value, 'native:en', 'the active interface language must also use its native name');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'showMediaInfo'; }).length, 0, 'the redundant compact media information setting must not be exposed');
 assert.deepStrictEqual(rows.filter(function (row) { return row.key === 'cardScale'; })[0].choices.map(function (choice) { return choice.value; }), SettingsSchema.allowed('cardScale'), 'card scale modal choices must come from the persisted schema');
+var lightweightArtworkRow = rows.filter(function (row) { return row.key === 'artworkQuality'; })[0];
+var lightweightBackdropRow = rows.filter(function (row) { return row.key === 'backdropQuality'; })[0];
+assert.deepStrictEqual(lightweightArtworkRow.choices.map(function (choice) { return choice.value; }), [70, 80], 'lightweight image loading must visually cap artwork quality at 80%');
+assert.deepStrictEqual(lightweightBackdropRow.choices.map(function (choice) { return choice.value; }), [50, 60, 70], 'lightweight image loading must visually cap backdrop quality at 70%');
+var unrestrictedSettings = Object.assign({}, settings, { artworkDataSaver: false });
+var unrestrictedRows = catalog.rows(unrestrictedSettings);
+assert.deepStrictEqual(unrestrictedRows.filter(function (row) { return row.key === 'artworkQuality'; })[0].choices.map(function (choice) { return choice.value; }), SettingsSchema.allowed('artworkQuality'), 'normal image loading must retain the complete artwork quality scale');
+assert.deepStrictEqual(unrestrictedRows.filter(function (row) { return row.key === 'backdropQuality'; })[0].choices.map(function (choice) { return choice.value; }), SettingsSchema.allowed('backdropQuality'), 'normal image loading must retain the complete backdrop quality scale');
 var artworkQuality = rows.filter(function (row) { return row.key === 'artworkQuality'; })[0];
 var backdropQuality = rows.filter(function (row) { return row.key === 'backdropQuality'; })[0];
-assert.strictEqual(artworkQuality.value, '90%', 'artwork quality must display its current percentage');
+assert.strictEqual(artworkQuality.value, '80%', 'artwork quality must display its capped current percentage');
 assert.strictEqual(backdropQuality.value, '60%', 'backdrop quality must display its independent percentage');
-assert.deepStrictEqual(artworkQuality.choices.map(function (choice) { return choice.value; }), [70, 80, 85, 90, 100], 'artwork quality must use the approved high-resolution scale');
-assert.deepStrictEqual(backdropQuality.choices.map(function (choice) { return choice.value; }), [50, 60, 70, 85, 100], 'backdrop quality must use its independent wider scale');
+assert.deepStrictEqual(artworkQuality.choices.map(function (choice) { return choice.value; }), [70, 80], 'artwork quality must expose only choices at or below the lightweight-loading cap');
+assert.deepStrictEqual(backdropQuality.choices.map(function (choice) { return choice.value; }), [50, 60, 70], 'backdrop quality must expose only choices at or below the lightweight-loading cap');
 assert.ok(artworkQuality.stepper && backdropQuality.stepper, 'both image quality settings must render as stepped bars');
 assert.strictEqual(artworkQuality.choiceVariant, 'artwork-quality', 'artwork quality must open the shared image preview');
 assert.strictEqual(backdropQuality.choiceVariant, 'backdrop-quality', 'backdrop quality must open the shared backdrop preview');
@@ -115,7 +137,7 @@ assert.strictEqual(rows.filter(function (row) { return row.key === 'subtitleBack
 assert.strictEqual(rows.filter(function (row) { return row.key === 'cardScale'; })[0].choiceVariant, 'card-scale', 'poster size must request the visual card preview variant');
 assert.deepStrictEqual(
   rows.filter(function (row) { return row.stepper; }).map(function (row) { return row.key; }),
-  ['cardScale', 'artworkQuality', 'backdropQuality', 'lanVideoQuality', 'remoteVideoQuality', 'autoplayDelay', 'skipPromptDuration', 'backgroundVolume', 'backgroundDelay'],
+  ['cardScale', 'artworkQuality', 'backdropQuality', 'uiTextScale', 'lanVideoQuality', 'remoteVideoQuality', 'autoplayDelay', 'skipPromptDuration', 'backgroundVolume', 'backgroundDelay'],
   'all ordered settings scales must use stepped bars in category order'
 );
 assert.deepStrictEqual(
@@ -128,7 +150,7 @@ assert.deepStrictEqual(
 );
 assert.deepStrictEqual(
   rows.filter(function (row) { return row.section === 'interface'; }).map(function (row) { return row.key; }),
-  ['uiLanguage', 'visualTheme', 'accentColor', 'cardScale', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists'],
+  ['uiLanguage', 'visualTheme', 'accentColor', 'cardScale', 'artworkDataSaver', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists', 'homeRows'],
   'interface settings must keep visual controls before navigation and optional surfaces'
 );
 var lanVideoQuality = rows.filter(function (row) { return row.key === 'lanVideoQuality'; })[0];
@@ -147,14 +169,14 @@ settings.visualTheme = 'immersive';
 rows = catalog.rows(settings);
 assert.strictEqual(rows.filter(function (row) { return row.key === 'accentColor'; }).length, 1, 'Immersive must expose accent color customization');
 assert.strictEqual(rows.filter(function (row) { return row.section === 'interface'; })[2].key, 'accentColor', 'accent color must sit immediately below visual theme');
-['premiere', 'nova', 'atelier'].forEach(function (themeId) {
+['premiere', 'nova', 'atelier', 'aurora', 'mahogany'].forEach(function (themeId) {
   settings.visualTheme = themeId;
   rows = catalog.rows(settings);
   assert.strictEqual(rows.filter(function (row) { return row.key === 'accentColor'; }).length, 0, themeId + ' must hide accent color because the theme owns its palette');
 });
 settings.visualTheme = 'classic';
 rows = catalog.rows(settings);
-assert.ok(rows.filter(function (row) { return !row.readOnly && !row.action && !row.editor && !row.priorityEditor && !row.serverEditor && !row.profileEditor; }).every(function (row) { return row.choices && row.choices.length; }), 'every directly mutable setting must expose reusable modal choices');
+assert.ok(rows.filter(function (row) { return !row.readOnly && !row.disabled && !row.action && !row.editor && !row.priorityEditor && !row.orderedEditor && !row.serverEditor && !row.profileEditor; }).every(function (row) { return row.choices && row.choices.length; }), 'every directly mutable setting must expose reusable modal choices');
 
 
 (function persistedChoiceRowsComeFromSettingsSchema() {
@@ -175,9 +197,9 @@ assert.ok(rows.filter(function (row) { return !row.readOnly && !row.action && !r
     accentValues: {},
     appVersion: '1.0.6'
   });
-  var schemaRows = schemaCatalog.rows(settings);
+  var schemaRows = schemaCatalog.rows(Object.assign({}, settings, { artworkDataSaver: false }));
   var keys = [
-    'visualTheme', 'cardScale', 'artworkQuality', 'backdropQuality',
+    'visualTheme', 'cardScale', 'artworkQuality', 'backdropQuality', 'uiTextScale',
     'lanVideoQuality', 'remoteVideoQuality', 'playbackMode', 'autoplayDelay',
     'upNextLayout', 'skipPromptDuration', 'subtitleMode', 'subtitleSourcePreference',
     'backgroundVolume', 'backgroundDelay', 'wheelBehavior'

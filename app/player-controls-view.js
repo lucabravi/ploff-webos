@@ -23,7 +23,16 @@
       toggle.setAttribute('aria-label', data.paused ? data.playLabel : data.pauseLabel);
     }
     function renderMode(mode) {
-      node('player-controls').className = 'player-controls' + (mode === 'hidden' ? ' is-hidden' : (mode === 'timeline' ? ' is-timeline-only' : ''));
+      var controls = node('player-controls');
+      var view = node('player-view');
+      var viewClassName;
+      controls.className = 'player-controls' + (mode === 'hidden' ? ' is-hidden' : (mode === 'timeline' ? ' is-timeline-only' : ''));
+      if (!view) { return; }
+      viewClassName = view.className.replace(/\s*has-player-controls(?:-full|-timeline)?/g, '');
+      if (mode !== 'hidden') {
+        viewClassName += ' has-player-controls has-player-controls-' + (mode === 'timeline' ? 'timeline' : 'full');
+      }
+      view.className = viewClassName;
     }
     function renderEpisodeCommands(previousAvailable, nextAvailable) {
       node('player-previous').className = 'player-button player-icon-button player-skip player-previous' + (previousAvailable ? '' : ' is-unavailable');

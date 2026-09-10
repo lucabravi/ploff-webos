@@ -147,6 +147,41 @@ livingStore.remove(function (error, status) {
 });
 
 
+(function failedFirstSaveRemovesTheNewlyCreatedTechnicalPlaylist() {
+  var storage = createStorage({});
+  var settings = { value: Settings.validate({ uiLanguage: 'it', cardScale: 100, settingsBackupMode: 'off' }) };
+  var serverPlaylists = [];
+  var removed = [];
+  var saveError = null;
+  storage.setItem(Store.DEVICE_PROFILE_KEY, JSON.stringify({ id: 'device-cleanup', name: 'Cleanup TV' }));
+  Settings.save(storage, settings.value);
+  var cleanupStore = Store.create({
+    storage: storage,
+    settings: function () { return settings.value; },
+    config: function () { return { apiBaseUrl: 'http://plex', token: 'token' }; },
+    deviceInfo: function () { return { modelName: 'OLED55' }; },
+    appVersion: '1.0.7', now: function () { return 6000; }, random: function () { return 0.5; },
+    transport: {
+      list: function (_config, _prefix, _marker, callback) { callback(null, serverPlaylists.slice()); },
+      create: function (_config, title, callback) {
+        var item = { ratingKey: 'orphan-1', title: title, summary: '' };
+        serverPlaylists.push(item);
+        callback(null, item);
+      },
+      update: function (_config, _ratingKey, _summary, callback) { callback(new Error('summary update failed')); },
+      remove: function (_config, ratingKey, callback) {
+        removed.push(ratingKey);
+        serverPlaylists = serverPlaylists.filter(function (item) { return item.ratingKey !== ratingKey; });
+        callback(null);
+      }
+    }
+  });
+  cleanupStore.save(function (error) { saveError = error || null; });
+  assert.ok(saveError, 'failed summary update must still report the save error');
+  assert.deepStrictEqual(removed, ['orphan-1'], 'failed first save must delete the technical playlist it just created');
+  assert.strictEqual(serverPlaylists.length, 0, 'failed first save must not leave an orphan playlist that multiplies on retry');
+}());
+
 (function legacyV2SharedAndDeviceSavesAreRecomposedForRecovery() {
   var shared = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/settings-backup/v2-shared.json'), 'utf8'));
   var device = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/settings-backup/v2-device.json'), 'utf8'));

@@ -36,6 +36,25 @@ assert.strictEqual(maximum, 2, 'local GUID resolution must respect its concurren
 assert.deepStrictEqual(resolved.map(function (item) { return item.ratingKey; }), ['one', 'two', 'three'], 'resolution must preserve order, omit missing media, and suppress duplicate GUIDs');
 assert.strictEqual(resolved[0].cloudRatingKey, 'cloud-1', 'local matches must retain their cloud mutation key');
 
+var partialError = null;
+var partialItems = null;
+var partialPending = [];
+WatchlistState.resolve([
+  { ratingKey: 'cloud-ok', guid: 'plex://movie/ok' },
+  { ratingKey: 'cloud-fail', guid: 'plex://movie/fail' }
+], function (guid, callback) {
+  partialPending.push(function () {
+    if (guid.indexOf('/fail') !== -1) { callback(new Error('offline')); }
+    else { callback(null, { ratingKey: 'ok', guid: guid }); }
+  });
+}, 2, function (error, items) {
+  partialError = error;
+  partialItems = items;
+});
+while (partialPending.length) { partialPending.shift()(); }
+assert.ok(partialError, 'real local-resolution errors must propagate instead of being silently cached as a successful partial Watchlist');
+assert.deepStrictEqual(partialItems.map(function (item) { return item.ratingKey; }), ['ok'], 'successful local matches should remain available alongside a retryable resolution error');
+
 var original = [{ ratingKey: 'one' }];
 var optimistic = WatchlistState.optimistic(original, { ratingKey: 'two' }, true);
 assert.deepStrictEqual(optimistic.items.map(function (item) { return item.ratingKey; }), ['one', 'two'], 'optimistic add must update immediately');

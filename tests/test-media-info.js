@@ -31,6 +31,17 @@ assert.strictEqual(model.sections[3].column, 'right', 'subtitle details must fol
 assert.ok(!JSON.stringify(model).match(/private\/var/), 'media details must not leak an original filesystem path');
 
 
+var recoveryTrace = 'DP > REOPEN[seek-startup-buffer] > DP > FALLBACK[recover:prepare] > DS';
+var diagnosticModel = MediaInfo.create({
+  fileName: '/media/Test.mkv',
+  subtitleTracks: [{ id: '2', language: 'Italian', codec: 'ASS', displayTitle: 'Italian (ASS External)' }]
+}, { subtitleStreamID: '2' }, function (key) { return key; }, { recoveryTrace: recoveryTrace });
+assert.strictEqual(diagnosticModel.sections[2].title, 'mediaDetails.diagnostics', 'playback diagnostics must be rendered after subtitles in the right column');
+assert.strictEqual(diagnosticModel.sections[2].column, 'right', 'playback diagnostics must stay below subtitle details');
+assert.strictEqual(diagnosticModel.sections[2].rows[0].label, 'mediaDetails.recoveryTrace', 'the diagnostic row must identify the recovery trace');
+assert.strictEqual(diagnosticModel.sections[2].rows[0].value, recoveryTrace, 'media details must keep the entire recovery trace without truncation');
+
+
 assert.strictEqual(MediaInfo.trackLabel({ language: 'Italiano', codec: 'SRT', external: true }, 'Esterno'), 'Italiano (SRT Esterno)', 'technical media information must reuse the localized shared track label');
 
 assert.strictEqual(MediaInfo.selectedTrack([{ id: 7, title: 'Seven' }], '7').title, 'Seven', 'track selection must normalize Plex stream identifiers');

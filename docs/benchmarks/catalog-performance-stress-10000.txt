@@ -1,0 +1,127 @@
+
+> ploff-webos@1.0.6 benchmark:library-catalog
+> node scripts/benchmark-library-catalog.js
+
+Ploff catalog benchmark
+Node v26.0.0, items 10000, measured rounds 7
+
+focus-move-integrated: 10.087 ms / 5000 iterations
+{"appendChild":0,"cardMetrics":0,"cardProfile":0,"createdNodes":0,"focus":2,"layoutReads":4,"mediaDetail":0,"mediaMeta":0,"mediaTitle":0,"posterBatches":0,"posterCancels":0,"posterFullJobs":0,"posterJobs":0,"posterPreviewJobs":0,"posterSpecifications":0,"querySelector":2,"removeChild":0,"setAttribute":0}
+
+scroll-same-window: 1.204 ms / 3000 iterations
+{"appendChild":0,"cardMetrics":0,"cardProfile":1,"createdNodes":0,"focus":0,"layoutReads":0,"mediaDetail":0,"mediaMeta":0,"mediaTitle":0,"posterBatches":0,"posterCancels":0,"posterFullJobs":0,"posterJobs":0,"posterPreviewJobs":0,"posterSpecifications":0,"querySelector":0,"removeChild":0,"setAttribute":0}
+
+scroll-row-boundary: 43.067 ms / 1500 iterations
+{"appendChild":5.069,"cardMetrics":0,"cardProfile":1,"createdNodes":0.069,"focus":0,"layoutReads":0,"mediaDetail":5.01,"mediaMeta":5.01,"mediaTitle":5.01,"posterBatches":1,"posterCancels":5,"posterFullJobs":5.01,"posterJobs":10.013,"posterPreviewJobs":5.003,"posterSpecifications":10.013,"querySelector":0,"removeChild":5,"setAttribute":15.03}
+
+append-pages: 0.666 ms / 100 iterations
+{"appendChild":0,"cardMetrics":0,"cardProfile":1,"createdNodes":0,"focus":0,"layoutReads":0,"mediaDetail":0,"mediaMeta":0,"mediaTitle":0,"posterBatches":0,"posterCancels":0,"posterFullJobs":0,"posterJobs":0,"posterPreviewJobs":0,"posterSpecifications":0,"querySelector":0,"removeChild":0,"setAttribute":0}
+
+JSON
+{
+  "node": "v26.0.0",
+  "items": 10000,
+  "rounds": 7,
+  "results": [
+    {
+      "name": "focus-move-integrated",
+      "iterations": 5000,
+      "medianMs": 10.087,
+      "operationsPerIteration": {
+        "appendChild": 0,
+        "cardMetrics": 0,
+        "cardProfile": 0,
+        "createdNodes": 0,
+        "focus": 2,
+        "layoutReads": 4,
+        "mediaDetail": 0,
+        "mediaMeta": 0,
+        "mediaTitle": 0,
+        "posterBatches": 0,
+        "posterCancels": 0,
+        "posterFullJobs": 0,
+        "posterJobs": 0,
+        "posterPreviewJobs": 0,
+        "posterSpecifications": 0,
+        "querySelector": 2,
+        "removeChild": 0,
+        "setAttribute": 0
+      }
+    },
+    {
+      "name": "scroll-same-window",
+      "iterations": 3000,
+      "medianMs": 1.204,
+      "operationsPerIteration": {
+        "appendChild": 0,
+        "cardMetrics": 0,
+        "cardProfile": 1,
+        "createdNodes": 0,
+        "focus": 0,
+        "layoutReads": 0,
+        "mediaDetail": 0,
+        "mediaMeta": 0,
+        "mediaTitle": 0,
+        "posterBatches": 0,
+        "posterCancels": 0,
+        "posterFullJobs": 0,
+        "posterJobs": 0,
+        "posterPreviewJobs": 0,
+        "posterSpecifications": 0,
+        "querySelector": 0,
+        "removeChild": 0,
+        "setAttribute": 0
+      }
+    },
+    {
+      "name": "scroll-row-boundary",
+      "iterations": 1500,
+      "medianMs": 43.067,
+      "operationsPerIteration": {
+        "appendChild": 5.069,
+        "cardMetrics": 0,
+        "cardProfile": 1,
+        "createdNodes": 0.069,
+        "focus": 0,
+        "layoutReads": 0,
+        "mediaDetail": 5.01,
+        "mediaMeta": 5.01,
+        "mediaTitle": 5.01,
+        "posterBatches": 1,
+        "posterCancels": 5,
+        "posterFullJobs": 5.01,
+        "posterJobs": 10.013,
+        "posterPreviewJobs": 5.003,
+        "posterSpecifications": 10.013,
+        "querySelector": 0,
+        "removeChild": 5,
+        "setAttribute": 15.03
+      }
+    },
+    {
+      "name": "append-pages",
+      "iterations": 100,
+      "medianMs": 0.666,
+      "operationsPerIteration": {
+        "appendChild": 0,
+        "cardMetrics": 0,
+        "cardProfile": 1,
+        "createdNodes": 0,
+        "focus": 0,
+        "layoutReads": 0,
+        "mediaDetail": 0,
+        "mediaMeta": 0,
+        "mediaTitle": 0,
+        "posterBatches": 0,
+        "posterCancels": 0,
+        "posterFullJobs": 0,
+        "posterJobs": 0,
+        "posterPreviewJobs": 0,
+        "posterSpecifications": 0,
+        "querySelector": 0,
+        "removeChild": 0,
+        "setAttribute": 0
+      }
+    }
+  ]
+}

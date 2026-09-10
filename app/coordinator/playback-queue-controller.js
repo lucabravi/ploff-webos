@@ -207,6 +207,8 @@
       var current;
       var context;
       var seasonNumber;
+      var previousOccurrenceId;
+      var nextOccurrenceId;
       if (!seriesProvider || !seriesEligible(detail)) { return null; }
       identity = seriesSequenceIdentity(detail);
       if (sequenceKind !== 'series' || sequenceIdentity !== identity) {
@@ -227,7 +229,15 @@
         sequenceKind = 'series';
         sequenceIdentity = identity;
       } else if (typeof seriesProvider.setCurrent === 'function') {
+        previousOccurrenceId = String(seriesProvider.snapshot().currentOccurrenceId || '');
         seriesProvider.setCurrent(detail.currentDetail);
+        nextOccurrenceId = String(seriesProvider.snapshot().currentOccurrenceId || '');
+        if (previousOccurrenceId !== nextOccurrenceId) {
+          state.adjacentTokens[0] += 1;
+          state.adjacentTokens[1] += 1;
+          state.adjacentPreviousState = 'unavailable';
+          state.adjacentNextState = 'unavailable';
+        }
       }
       return seriesProvider;
     }
@@ -824,6 +834,9 @@
       var queue = activeQueue(detail);
       var total;
       var bounds;
+      var focusIndex;
+      var requestStart;
+      var requestEnd;
       var token;
       var provider;
       var records = [];
@@ -834,19 +847,30 @@
         return { state: 'unavailable' };
       }
       total = drawerTotal(queue);
+      focusIndex = options.focusIndex === undefined ? state.playlistQueueDrawerIndex : Number(options.focusIndex);
+      if (!isFinite(focusIndex)) { focusIndex = state.playlistQueueDrawerIndex; }
       bounds = model.windowBounds({
-        focusIndex: state.playlistQueueDrawerIndex,
+        focusIndex: focusIndex,
         total: total,
         viewportItems: options.viewportItems,
         direction: options.direction
       });
+      requestStart = options.visibleOnly === true ? bounds.visibleStart : bounds.sdStart;
+      requestEnd = options.visibleOnly === true ? bounds.visibleEnd : bounds.sdEnd;
       if (queue.kind === 'series') {
         provider = ensureSeriesSequence(detail);
       } else if (state.containerOrigin) {
         provider = ensureContainerSequence(state.containerOrigin);
       }
       if (provider && typeof provider.window === 'function') {
-        var requestKey = [sequenceIdentity, bounds.sdStart, bounds.sdEnd, options.viewportItems || 0, options.direction || 0].join('|');
+        var requestKey = [
+          sequenceIdentity,
+          options.visibleOnly === true ? 'visible' : 'drawer',
+          requestStart,
+          requestEnd,
+          options.viewportItems || 0,
+          options.direction || 0
+        ].join('|');
         var pendingRequest;
         if (drawerWindowRequest && drawerWindowRequest.key === requestKey) {
           drawerWindowRequest.callbacks.push(callback);
@@ -859,7 +883,7 @@
           callbacks: [callback]
         };
         drawerWindowRequest = pendingRequest;
-        provider.window(bounds.sdStart, bounds.sdEnd, function (error, result) {
+        provider.window(requestStart, requestEnd, function (error, result) {
           var resolvedTotal;
           var resolvedBounds;
           var resolvedRecords;
@@ -878,18 +902,25 @@
           resolvedTotal = result && result.total !== null && result.total !== undefined ? Number(result.total) : total;
           if (!isFinite(resolvedTotal) || resolvedTotal < 0) { resolvedTotal = total; }
           resolvedBounds = model.windowBounds({
-            focusIndex: state.playlistQueueDrawerIndex,
+            focusIndex: focusIndex,
             total: resolvedTotal,
             viewportItems: options.viewportItems,
             direction: options.direction
           });
           resolvedRecords = (result && result.items || []).map(copyDrawerOccurrence);
-          retained = resolvedRecords.filter(function (record) {
-            return record.absoluteIndex >= resolvedBounds.retainedStart && record.absoluteIndex < resolvedBounds.retainedEnd;
-          });
-          prefetched = resolvedRecords.filter(function (record) {
-            return record.absoluteIndex < resolvedBounds.retainedStart || record.absoluteIndex >= resolvedBounds.retainedEnd;
-          });
+          if (options.visibleOnly === true) {
+            retained = resolvedRecords.filter(function (record) {
+              return record.absoluteIndex >= resolvedBounds.visibleStart && record.absoluteIndex < resolvedBounds.visibleEnd;
+            });
+            prefetched = [];
+          } else {
+            retained = resolvedRecords.filter(function (record) {
+              return record.absoluteIndex >= resolvedBounds.retainedStart && record.absoluteIndex < resolvedBounds.retainedEnd;
+            });
+            prefetched = resolvedRecords.filter(function (record) {
+              return record.absoluteIndex < resolvedBounds.retainedStart || record.absoluteIndex >= resolvedBounds.retainedEnd;
+            });
+          }
           published = {
             total: resolvedTotal,
             bounds: resolvedBounds,
@@ -900,9 +931,9 @@
         });
         return { state: 'resolving' };
       }
-      for (index = bounds.sdStart; index < bounds.sdEnd; index += 1) {
+      for (index = requestStart; index < requestEnd; index += 1) {
         if (!queue.items[index]) { continue; }
-        if (index >= bounds.retainedStart && index < bounds.retainedEnd) {
+        if (options.visibleOnly === true || (index >= bounds.retainedStart && index < bounds.retainedEnd)) {
           records.push(copyDrawerOccurrence(legacyDrawerOccurrence(queue.items[index], index)));
         } else {
           prefetchRecords.push(copyDrawerOccurrence(legacyDrawerOccurrence(queue.items[index], index)));

@@ -53,16 +53,19 @@
       var index;
       var card;
       var image;
+      var imageFrame;
       var caption;
       if (!state.open || !chapters.length) { drawer.className = 'player-chapters-drawer is-hidden'; list.innerHTML = ''; return; }
       list.innerHTML = '';
       for (index = 0; index < chapters.length; index += 1) {
         card = element('button', 'chapter-card'); card.type = 'button'; card.setAttribute('data-chapter-index', index);
+        imageFrame = element('span', 'chapter-card-image-frame');
         image = element('img', 'chapter-card-image'); image.alt = '';
+        imageFrame.appendChild(image);
         caption = element('span', 'chapter-card-caption');
         caption.appendChild(element('span', 'chapter-card-title', title(chapters[index], index)));
         caption.appendChild(element('span', 'chapter-card-time', values.formatTime(chapters[index].startTimeOffset / 1000)));
-        card.appendChild(image); card.appendChild(caption); list.appendChild(card); images.push(image);
+        card.appendChild(imageFrame); card.appendChild(caption); list.appendChild(card); images.push(image);
       }
       drawer.className = 'player-chapters-drawer'; setOpenClass(true);
       loadImage(images[state.index], chapters[state.index], 0);

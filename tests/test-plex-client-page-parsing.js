@@ -67,6 +67,74 @@ assert.strictEqual(libraryPage.totalSize, 2);
 assert.strictEqual(libraryPage.nextStart, 2, 'library pagination must expose the next raw Plex offset');
 assert.strictEqual(libraryPage.hasMore, false, 'a library page ending at totalSize must be terminal');
 
+
+parseCount = 0;
+nextDocument = documentFor([
+  node('Directory', { type: 'show', ratingKey: '6472', title: 'Horimiya', leafCount: '13', viewedLeafCount: '13' }),
+  node('Directory', { type: 'show', ratingKey: 'partial-show', title: 'Partial', leafCount: '13', viewedLeafCount: '12' }),
+  node('Video', { type: 'movie', ratingKey: 'unwatched-movie', title: 'Unwatched movie', viewCount: '0' })
+], 180);
+var correctedUnwatchedPage = null;
+PlexClient.loadLibraryPage({ apiBaseUrl: '/plex-api', token: '' }, { key: '1' }, 'catalog', { watched: 'unwatched' }, 120, 3, function (error, page) {
+  assert.ifError(error);
+  correctedUnwatchedPage = page;
+});
+xhr.status = 200;
+xhr.readyState = 4;
+xhr.responseText = '<xml/>';
+xhr.onreadystatechange();
+assert.deepStrictEqual(correctedUnwatchedPage.items.map(function (item) { return item.ratingKey; }), ['partial-show', 'unwatched-movie'],
+  'unwatched catalog pages must locally reject a Plex show whose leaf counters say it is fully viewed');
+assert.strictEqual(correctedUnwatchedPage.nextStart, 123,
+  'local unwatched correction must advance by all raw Plex rows, including a rejected fully-viewed show');
+assert.strictEqual(correctedUnwatchedPage.hasMore, true,
+  'local unwatched correction must preserve the raw Plex continuation boundary');
+assert.strictEqual(correctedUnwatchedPage.items[0].plexSourceOffset, 121,
+  'visible catalog items must retain their absolute raw Plex offset after local filtering');
+assert.strictEqual(correctedUnwatchedPage.items[1].plexSourceOffset, 122,
+  'every surviving catalog item must retain its raw Plex offset');
+assert.strictEqual(correctedUnwatchedPage.localFilteredCount, 1,
+  'the page must expose how many raw Plex rows were rejected by the local semantic correction');
+
+parseCount = 0;
+nextDocument = documentFor([
+  node('Directory', { type: 'show', ratingKey: 'zero-leaf', title: 'Unknown empty', leafCount: '0', viewedLeafCount: '0' }),
+  node('Directory', { type: 'season', ratingKey: 'over-count', title: 'Over count', leafCount: '10', viewedLeafCount: '11' }),
+  node('Video', { type: 'movie', ratingKey: 'plex-watched-movie', title: 'Watched movie', viewCount: '1' }),
+  node('Directory', { type: 'show', ratingKey: 'missing-counts', title: 'Missing counters' })
+], 4);
+var correctedEdgePage = null;
+PlexClient.loadLibraryPage({ apiBaseUrl: '/plex-api', token: '' }, { key: '1' }, 'catalog', { watched: 'unwatched' }, 0, 4, function (error, page) {
+  assert.ifError(error);
+  correctedEdgePage = page;
+});
+xhr.status = 200;
+xhr.readyState = 4;
+xhr.responseText = '<xml/>';
+xhr.onreadystatechange();
+assert.deepStrictEqual(correctedEdgePage.items.map(function (item) { return item.ratingKey; }), ['zero-leaf', 'missing-counts'],
+  'unwatched correction must reject semantically watched records but keep zero/missing leaf counters as unknown rather than completed');
+assert.strictEqual(correctedEdgePage.nextStart, 4,
+  'terminal local correction must still consume every raw Plex row');
+assert.strictEqual(correctedEdgePage.hasMore, false,
+  'terminal local correction must remain terminal even when some raw rows are rejected');
+
+parseCount = 0;
+nextDocument = documentFor([
+  node('Directory', { type: 'show', ratingKey: 'complete-all', title: 'Complete all', leafCount: '13', viewedLeafCount: '13' })
+], 1);
+var uncorrectedAllPage = null;
+PlexClient.loadLibraryPage({ apiBaseUrl: '/plex-api', token: '' }, { key: '1' }, 'catalog', { watched: 'all' }, 0, 40, function (error, page) {
+  assert.ifError(error);
+  uncorrectedAllPage = page;
+});
+xhr.status = 200;
+xhr.readyState = 4;
+xhr.responseText = '<xml/>';
+xhr.onreadystatechange();
+assert.strictEqual(uncorrectedAllPage.items.length, 1,
+  'the local semantic correction must be scoped to the unwatched filter only');
+
 parseCount = 0;
 nextDocument = documentFor([
   node('Playlist', { ratingKey: 'playlist-1', key: '/playlists/1/items', title: 'One', leafCount: 2 }),

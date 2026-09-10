@@ -12,6 +12,7 @@
     function node(id) { return documentRef.getElementById(id); }
     function snapshot() { return { open: state.open, index: state.index, title: state.title, choices: state.choices.slice(), variant: state.variant }; }
     function isCardPreviewVariant() { return state.variant === 'card-scale' || state.variant === 'artwork-quality'; }
+    function isConfirmVariant() { return state.variant === 'confirm'; }
     function setStyle(target, property, value) {
       if (!target || !target.style) { return; }
       if (typeof target.style.setProperty === 'function') { target.style.setProperty(property, String(value)); }
@@ -155,8 +156,8 @@
       setStyle(row, '--poster-image-height', profile.metrics.imageHeight + 'px');
       setStyle(row, '--poster-caption-height', profile.metrics.captionHeight + 'px');
       setStyle(row, '--poster-card-gap', profile.posterGap + 'px');
-      setStyle(row, '--poster-title-font', profile.titleFont + 'px');
-      setStyle(row, '--poster-meta-font', profile.metaFont + 'px');
+      setStyle(row, '--poster-title-font', String(profile.titleFont / 16) + 'rem');
+      setStyle(row, '--poster-meta-font', String(profile.metaFont / 16) + 'rem');
       cards = row.children;
       for (index = 0; index < cards.length; index += 1) {
         setStyle(cards[index], 'transform', 'none');
@@ -194,7 +195,7 @@
       for (index = 0; index < list.children.length; index += 1) {
         setFocused(list.children[index], index === state.index);
       }
-      setFocused(node('choice-dialog-cancel'), state.index === state.choices.length);
+      setFocused(node('choice-dialog-cancel'), !isConfirmVariant() && state.index === state.choices.length);
       if (isCardPreviewVariant()) { list.scrollTop = 0; }
       else if (state.index < state.choices.length) { centerFocusedOption(list, list.children[state.index]); }
       updatePreview();
@@ -267,11 +268,13 @@
       }
       cancel.textContent = values.t ? values.t('common.cancel') : 'Cancel';
       cancel.setAttribute('data-choice-index', state.choices.length);
-      cancel.className = state.index === state.choices.length ? 'is-focused' : '';
+      cancel.setAttribute('aria-hidden', isConfirmVariant() ? 'true' : 'false');
+      cancel.tabIndex = isConfirmVariant() ? -1 : 0;
+      cancel.className = isConfirmVariant() ? 'is-hidden' : (state.index === state.choices.length ? 'is-focused' : '');
       dialog.className = state.open ? 'choice-dialog' + (state.variant ? ' is-' + state.variant : '') : 'choice-dialog is-hidden';
       dialog.setAttribute('aria-hidden', state.open ? 'false' : 'true');
       updatePreview();
-      button = state.index === state.choices.length ? cancel : list.children[state.index];
+      button = !isConfirmVariant() && state.index === state.choices.length ? cancel : list.children[state.index];
       if (button) {
         button.focus();
         if (button !== cancel && !isCardPreviewVariant()) { centerFocusedOption(list, button); }
@@ -314,12 +317,12 @@
     }
     function move(direction) {
       if (!state.open || !state.choices.length) { return snapshot(); }
-      state.index = Math.max(0, Math.min(state.choices.length, state.index + direction));
+      state.index = Math.max(0, Math.min(isConfirmVariant() ? state.choices.length - 1 : state.choices.length, state.index + direction));
       render();
       return snapshot();
     }
     function focus(index) {
-      if (!state.open || index < 0 || index > state.choices.length) { return snapshot(); }
+      if (!state.open || index < 0 || index > (isConfirmVariant() ? state.choices.length - 1 : state.choices.length)) { return snapshot(); }
       state.index = index;
       updateFocus();
       return snapshot();

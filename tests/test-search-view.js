@@ -170,6 +170,17 @@ assert.strictEqual(firstCard.getAttribute('data-media-key'), 'one', 'result card
 assert.strictEqual(firstCard.querySelector('.search-card-title').textContent, 'One', 'a card must render its title');
 assert.strictEqual(firstCard.querySelector('.search-card-image').getAttribute('data-search-image'), 'one.jpg', 'a card image must be associated with its item');
 
+var watchedResume = createView();
+var watchedResumeItem = { ratingKey: 'watched-search', title: 'Watched search', image: 'watched.jpg', viewed: false };
+watchedResume.view.open(false);
+watchedResume.view.setResults(null, [watchedResumeItem]);
+watchedResume.view.focusResult(0);
+var watchedResumeCard = watchedResume.document.getElementById('search-results').children[0];
+assert.strictEqual(watchedResumeCard.className.indexOf('is-viewed'), -1, 'search card starts with its original watched presentation');
+watchedResumeItem.viewed = true;
+watchedResume.view.resume();
+assert.notStrictEqual(watchedResumeCard.className.indexOf('is-viewed'), -1, 'resuming Search must synchronize a watched state mutated while Detail was open');
+
 view.setResults(null, [second, { ratingKey: 'three', title: 'Three', image: 'three.jpg', libraryTitle: 'Anime' }]);
 var reused = fixture.document.getElementById('search-results').children[0];
 assert.strictEqual(reused, secondCard, 'the keyed renderer must reuse a card when its position is recycled');
@@ -279,6 +290,118 @@ assert.ok(fixture.statuses.length > 0, 'search lifecycle must publish status cha
   cached.document.getElementById('search-results').clientWidth = 420;
   cached.view.refreshResults();
   assert.strictEqual(measureCalls, 2, 'changing Search container dimensions must invalidate the measurement cache');
+}());
+
+(function testSearchFocusHotPathAvoidsLayoutReadsAndPresentationRebuilds() {
+  var posterSpecificationCalls = 0;
+  var clearFocusCalls = 0;
+  var hot = createView({
+    clearFocus: function () { clearFocusCalls += 1; },
+    fixedPosterSpecification: function (source, size, priority, scope) {
+      posterSpecificationCalls += 1;
+      return { source: source, width: size.width, height: size.height, priority: priority, scope: scope };
+    }
+  });
+  var items = [];
+  var index;
+  var documentRef = hot.document;
+  var container = documentRef.getElementById('search-results');
+  var originalQuerySelector = documentRef.querySelector;
+  var originalCreateTextNode = documentRef.createTextNode;
+  var querySelectorCalls = 0;
+  var layoutReads = 0;
+  var textNodeCreates = 0;
+  var originalContainerRect;
+  for (index = 0; index < 8; index += 1) {
+    items.push({ ratingKey: 'hot-' + index, title: 'Hot ' + index, image: 'hot-' + index + '.jpg', meta: 'Meta ' + index });
+  }
+  hot.view.open(false);
+  hot.view.setResults(null, items);
+  hot.view.focusResult(0);
+  posterSpecificationCalls = 0;
+  clearFocusCalls = 0;
+  documentRef.querySelector = function (selector) {
+    querySelectorCalls += 1;
+    return originalQuerySelector.call(documentRef, selector);
+  };
+  documentRef.createTextNode = function (text) {
+    textNodeCreates += 1;
+    return originalCreateTextNode.call(documentRef, text);
+  };
+  originalContainerRect = container.getBoundingClientRect;
+  container.getBoundingClientRect = function () {
+    layoutReads += 1;
+    return originalContainerRect.call(container);
+  };
+  container.children.forEach(function (card) {
+    var original = card.getBoundingClientRect;
+    card.getBoundingClientRect = function () {
+      layoutReads += 1;
+      return original.call(card);
+    };
+  });
+  hot.view.handleDirection('right');
+  assert.strictEqual(clearFocusCalls, 0, 'moving Search focus inside the active surface must not scan the global document for focused nodes');
+  assert.strictEqual(querySelectorCalls, 0, 'moving Search focus inside the mounted result window must not query the global document');
+  assert.strictEqual(layoutReads, 0, 'moving Search focus inside the mounted result window must not force layout reads');
+  assert.strictEqual(textNodeCreates, 0, 'moving Search focus onto an unchanged card must not rewrite its text presentation');
+  assert.strictEqual(posterSpecificationCalls, 0, 'moving Search focus onto an unchanged card must not rebuild its poster specification');
+}());
+
+(function testSearchUsesVirtualGeometryWhenOnlyVisibleRowChanges() {
+  var geometry = createView();
+  var items = [];
+  var index;
+  var container = geometry.document.getElementById('search-results');
+  for (index = 0; index < 12; index += 1) {
+    items.push({ ratingKey: 'geometry-' + index, title: 'Geometry ' + index, image: 'geometry-' + index + '.jpg' });
+  }
+  geometry.view.open(false);
+  geometry.view.setResults(null, items);
+  geometry.view.focusResult(0);
+  assert.strictEqual(container.scrollTop, 0, 'the first visible Search row starts at scroll offset zero');
+  geometry.view.focusResult(9);
+  assert.strictEqual(geometry.view.snapshot().visibleStartRow, 3, 'focusing a Search row beyond the fully visible viewport must advance the logical visible window');
+  assert.strictEqual(container.scrollTop, 80, 'Search must derive scroll position from its cached row geometry when the mounted window is unchanged');
+}());
+
+(function testSearchScrollsWhenFocusMovesIntoPartiallyVisibleRow() {
+  var partial = createView({
+    measureLayout: function (container, count, cardWidth, cardHeight) {
+      return { columns: 2, visibleRows: 2, totalRows: Math.ceil(count / 2), cardWidth: cardWidth, cardHeight: cardHeight };
+    }
+  });
+  var container = partial.document.getElementById('search-results');
+  container.clientHeight = 159;
+  partial.view.open(false);
+  partial.view.setResults(null, [
+    { ratingKey: 'partial-0', title: 'Partial 0', image: 'partial-0.jpg' },
+    { ratingKey: 'partial-1', title: 'Partial 1', image: 'partial-1.jpg' },
+    { ratingKey: 'partial-2', title: 'Partial 2', image: 'partial-2.jpg' },
+    { ratingKey: 'partial-3', title: 'Partial 3', image: 'partial-3.jpg' }
+  ]);
+  partial.view.focusResult(0);
+  partial.view.focusResult(2);
+  assert.strictEqual(container.scrollTop, 80, 'Search must scroll a focused row fully into view instead of treating a partial row as visible');
+}());
+
+(function testSearchRestoresVirtualScrollAfterNativeFocusAutoScroll() {
+  var nativeFocus = createView();
+  var items = [];
+  var index;
+  var container = nativeFocus.document.getElementById('search-results');
+  for (index = 0; index < 8; index += 1) {
+    items.push({ ratingKey: 'native-' + index, title: 'Native ' + index, image: 'native-' + index + '.jpg' });
+  }
+  nativeFocus.view.open(false);
+  nativeFocus.view.setResults(null, items);
+  nativeFocus.view.focusResult(0);
+  container.children[1].focus = function () {
+    this.focused = true;
+    container.scrollTop = 999;
+  };
+  nativeFocus.view.handleDirection('right');
+  assert.strictEqual(container.scrollTop, 0, 'Search must restore its virtual scroll position after native focus auto-scrolls the result container');
 }());
 
 console.log('Search view checks passed');

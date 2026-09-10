@@ -12,6 +12,7 @@
     var values = options || {};
     var platform = values.platform || {};
     var modules = values.modules || {};
+    var InputCommandRouter = modules.InputCommandRouter;
     var presentation = values.presentation || {};
     var shell = values.shell || {};
     var server = values.server || {};
@@ -39,6 +40,10 @@
     var playbackCompatibilityOpen = false;
     var playbackCompatibilityFocus = 0;
     var choicePreviewGeneration = 0;
+
+    if (!InputCommandRouter || typeof InputCommandRouter.settings !== 'function') {
+      throw new Error('SettingsController requires InputCommandRouter');
+    }
 
     function noop() {}
     function handled(value) { return { handled: value !== false }; }
@@ -191,26 +196,53 @@
       body.className = nextClasses.join(' ');
     }
 
-    function applyAccessibilityPreferences() {
+    function copyRecord(source) {
+      var result = {};
+      var key;
+      source = source || {};
+      for (key in source) {
+        if (Object.prototype.hasOwnProperty.call(source, key)) { result[key] = source[key]; }
+      }
+      return result;
+    }
+
+    function copySubtitleStyle(source) {
+      if (modules.SubtitleStyleDialog && typeof modules.SubtitleStyleDialog.copy === 'function') {
+        return modules.SubtitleStyleDialog.copy(source);
+      }
+      source = source || {};
+      return {
+        subtitleBackground: String(source.subtitleBackground || 'off'),
+        subtitlePosition: Number(source.subtitlePosition || 7),
+        subtitleEdge: String(source.subtitleEdge || 'shadow'),
+        subtitleSize: Number(source.subtitleSize || 100)
+      };
+    }
+
+    function applyAccessibilityPreferences(source) {
       var rootElement = document && document.documentElement;
       var body = document && document.body;
+      var preferences = source || settings;
       var backgroundOpacity = { off: 0, low: 0.28, medium: 0.52, high: 0.74, opaque: 0.94 };
       var edgeShadow = {
         shadow: '0 2px 5px #000, 0 0 3px #000',
         outline: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000',
-        both: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 3px 6px #000'
+        both: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 3px 6px #000',
+        'double-outline-shadow': '-4px -4px 0 #000, 0 -4px 0 #000, 4px -4px 0 #000, -4px 0 0 #000, 4px 0 0 #000, -4px 4px 0 #000, 0 4px 0 #000, 4px 4px 0 #000, 0 4px 7px #000'
       };
       var className;
       if (rootElement && rootElement.style && rootElement.style.setProperty) {
-        rootElement.style.setProperty('--safe-top', Number(settings.safeAreaTop || 0) + '%');
-        rootElement.style.setProperty('--safe-right', Number(settings.safeAreaRight || 0) + '%');
-        rootElement.style.setProperty('--safe-bottom', Number(settings.safeAreaBottom || 0) + '%');
-        rootElement.style.setProperty('--safe-left', Number(settings.safeAreaLeft || 0) + '%');
-        rootElement.style.setProperty('--subtitle-position', Number(settings.subtitlePosition || 7) + '%');
-        rootElement.style.setProperty('--subtitle-background', 'rgba(0,0,0,' + String(backgroundOpacity[settings.subtitleBackground] === undefined ? 0 : backgroundOpacity[settings.subtitleBackground]) + ')');
-        rootElement.style.setProperty('--subtitle-shadow', edgeShadow[settings.subtitleEdge] || edgeShadow.shadow);
-        rootElement.style.setProperty('--focus-shadow', settings.strongFocus ? '0 0 0 8px var(--focus-color)' : '0 0 0 5px var(--focus-color)');
-        rootElement.style.setProperty('--focus-shadow-inset', settings.strongFocus ? 'inset 0 0 0 8px var(--focus-color)' : 'inset 0 0 0 5px var(--focus-color)');
+        rootElement.style.setProperty('--ui-text-scale', String(16 * Number(preferences.uiTextScale || 100) / 100) + 'px');
+        rootElement.style.setProperty('--safe-top', Number(preferences.safeAreaTop || 0) + '%');
+        rootElement.style.setProperty('--safe-right', Number(preferences.safeAreaRight || 0) + '%');
+        rootElement.style.setProperty('--safe-bottom', Number(preferences.safeAreaBottom || 0) + '%');
+        rootElement.style.setProperty('--safe-left', Number(preferences.safeAreaLeft || 0) + '%');
+        rootElement.style.setProperty('--subtitle-position', Number(preferences.subtitlePosition || 7) + '%');
+        rootElement.style.setProperty('--subtitle-background', 'rgba(0,0,0,' + String(backgroundOpacity[preferences.subtitleBackground] === undefined ? 0 : backgroundOpacity[preferences.subtitleBackground]) + ')');
+        rootElement.style.setProperty('--subtitle-shadow', edgeShadow[preferences.subtitleEdge] || edgeShadow.shadow);
+        rootElement.style.setProperty('--subtitle-font-size', Math.round(42 * Number(preferences.subtitleSize || 100) / 100) + 'px');
+        rootElement.style.setProperty('--focus-shadow', preferences.strongFocus ? '0 0 0 8px var(--focus-color)' : '0 0 0 5px var(--focus-color)');
+        rootElement.style.setProperty('--focus-shadow-inset', preferences.strongFocus ? 'inset 0 0 0 8px var(--focus-color)' : 'inset 0 0 0 5px var(--focus-color)');
       }
       if (!body) { return; }
       className = String(body.className || '').replace(/\s*(?:high-contrast|strong-focus)/g, '');
@@ -278,7 +310,8 @@
       backgrounds: modules.Settings.SUBTITLE_BACKGROUNDS,
       positions: modules.Settings.SUBTITLE_POSITIONS,
       edges: modules.Settings.SUBTITLE_EDGES,
-      defaults: { subtitleBackground: 'off', subtitlePosition: 7, subtitleEdge: 'shadow' },
+      sizes: modules.Settings.SUBTITLE_SIZES,
+      defaults: { subtitleBackground: 'off', subtitlePosition: 7, subtitleEdge: 'shadow', subtitleSize: 100 },
       pointerActive: pointerActive,
       clearFocus: presentation.clearFocus || noop
     });
@@ -663,11 +696,49 @@
     }
 
     function subtitleStyleValues() {
-      return {
-        subtitleBackground: settings.subtitleBackground,
-        subtitlePosition: settings.subtitlePosition,
-        subtitleEdge: settings.subtitleEdge
-      };
+      return copySubtitleStyle(settings);
+    }
+
+    function previewSubtitleStyle(style) {
+      var preview = copyRecord(settings);
+      var next = copySubtitleStyle(style);
+      preview.subtitleBackground = next.subtitleBackground;
+      preview.subtitlePosition = next.subtitlePosition;
+      preview.subtitleEdge = next.subtitleEdge;
+      preview.subtitleSize = next.subtitleSize;
+      applyAccessibilityPreferences(preview);
+      return next;
+    }
+
+    function restoreSubtitleStyle(style) {
+      return previewSubtitleStyle(style || settings);
+    }
+
+    function commitSubtitleStyle(style) {
+      var next = copySubtitleStyle(style);
+      settings.subtitleBackground = next.subtitleBackground;
+      settings.subtitlePosition = next.subtitlePosition;
+      settings.subtitleEdge = next.subtitleEdge;
+      settings.subtitleSize = next.subtitleSize;
+      afterChange({ key: 'subtitleAppearance' });
+      return next;
+    }
+
+    function commitSubtitleRendering(rendering) {
+      var next = rendering || {};
+      settings.subtitleRenderingSrt = next.srt === true;
+      settings.subtitleRenderingAss = next.ass === true;
+      afterChange({ key: 'subtitleRendering' });
+      return { srt: settings.subtitleRenderingSrt, ass: settings.subtitleRenderingAss };
+    }
+
+    function persistSubtitleSize(value) {
+      var allowed = modules.Settings.SUBTITLE_SIZES || [100];
+      var numeric = Number(value);
+      if (allowed.indexOf(numeric) === -1) { return settings.subtitleSize; }
+      settings.subtitleSize = numeric;
+      afterChange({ key: 'subtitleSize' });
+      return settings.subtitleSize;
     }
 
     function openSubtitleStyleEditor() {
@@ -676,6 +747,7 @@
           settings.subtitleBackground = next.subtitleBackground;
           settings.subtitlePosition = next.subtitlePosition;
           settings.subtitleEdge = next.subtitleEdge;
+          settings.subtitleSize = next.subtitleSize;
           afterChange({ key: 'subtitleAppearance' });
           applyAccessibilityPreferences();
         },
@@ -751,6 +823,7 @@
 
     function loadAsOtherDevice(backup, status, profile, callback) {
       var current = status && status.currentProfile;
+      if (destroyed) { return; }
       if (!textInputDialog) { call(callback, new Error('Device name editor is unavailable'), null, false); return; }
       textInputDialog.open({
         title: t('settings.backup.deviceNameTitle'), hint: t('settings.backup.loadOtherDeviceHint'),
@@ -759,7 +832,7 @@
         cancelLabel: t('common.cancel'), applyLabel: t('common.apply'), maximum: 80,
         apply: function (name) {
           backup.load(profile.id, { sameDevice: false, deviceName: name }, function (error, _nextStatus, loaded) {
-            applyLoadedSettings(backup, error, loaded, callback);
+            call(callback, error, loaded, false);
           });
         },
         cancel: function () { call(callback, null, null, true); }
@@ -768,9 +841,10 @@
 
     function loadSelectedProfile(backup, status, profile, callback) {
       var current = status && status.currentProfile;
+      if (destroyed) { return; }
       if (current && current.id === profile.id) {
         backup.load(profile.id, { sameDevice: true }, function (error, _nextStatus, loaded) {
-          applyLoadedSettings(backup, error, loaded, callback);
+          call(callback, error, loaded, false);
         });
         return;
       }
@@ -782,9 +856,10 @@
         { value: 'same', label: t('settings.backup.sameDevice') },
         { value: 'other', label: t('settings.backup.otherDevice') }
       ], 'same', function (choice) {
+        if (destroyed) { return; }
         if (choice && choice.value === 'same') {
           backup.load(profile.id, { sameDevice: true }, function (error, _nextStatus, loaded) {
-            applyLoadedSettings(backup, error, loaded, callback);
+            call(callback, error, loaded, false);
           });
         } else if (choice && choice.value === 'other') {
           loadAsOtherDevice(backup, status, profile, callback);
@@ -813,11 +888,13 @@
       var values = options || {};
       var done = false;
       function complete(error, loaded, skipped) {
-        if (done) { return; }
+        if (done || destroyed) { return; }
         done = true;
-        call(callback, error || null, loaded || null, skipped === true);
+        if (skipped === true) { call(callback, error || null, loaded || null, true); return; }
+        applyLoadedSettings(backup, error, loaded, callback);
       }
-      function choose() { chooseSavedProfile(backup, status, complete); }
+      function choose() { if (!destroyed) { chooseSavedProfile(backup, status, complete); } }
+      if (destroyed) { return false; }
       if (!backup || !status || !status.exists) { complete(new Error('No Ploff settings save was found'), null, false); return false; }
       if (values.confirmFirst !== true) { choose(); return true; }
       call(dialogs.openChoice, t('settings.backup.loadPrompt'), [
@@ -952,6 +1029,11 @@
         call(shell.refreshCardsForCurrentView);
       }
       if (row.key === 'backdropQuality') { call(shell.clearBackdrop); }
+      if (row.key === 'artworkDataSaver') {
+        call(shell.markHomeDirty);
+        call(shell.refreshCardsForCurrentView);
+        call(shell.clearBackdrop);
+      }
       if (row.key === 'visualTheme') { call(shell.refreshCardsForCurrentView); }
       if (row.key === 'showWatchlist' || row.key === 'showPlaylists') { call(shell.applyNavigationVisibility); }
       call(shell.renderNavigation);
@@ -981,7 +1063,7 @@
       if (row.category) { return; }
       if (row.action) { activateAction(row); return; }
       if (row.upNextLayoutEditor) { openUpNextLayoutEditor(); return; }
-      if (row.editor || row.priorityEditor) { openLanguageEditor(row.key); return; }
+      if (row.editor || row.priorityEditor || row.orderedEditor) { openLanguageEditor(row.key); return; }
       if (row.serverEditor) { call(server.openEditor); return; }
       if (row.profileEditor) { call(dialogs.openProfileManager); return; }
       if (row.choices && row.choices.length) {
@@ -1006,7 +1088,7 @@
       }
       if (row.action) { activateAction(row); return; }
       if (row.upNextLayoutEditor) { openUpNextLayoutEditor(); return; }
-      if (row.editor || row.priorityEditor) { openLanguageEditor(row.key); return; }
+      if (row.editor || row.priorityEditor || row.orderedEditor) { openLanguageEditor(row.key); return; }
       if (row.serverEditor) { call(server.openEditor); return; }
       if (row.profileEditor) { call(dialogs.openProfileManager); return; }
       if (!row.choices || !row.choices.length) { return; }
@@ -1072,7 +1154,12 @@
     function orderedEditorLanguages() {
       var kind = view.snapshot().languageKind;
       var enabled = settings[kind] || [];
+      var available;
       if (kind === 'videoVersionPriorities') { return enabled.slice(); }
+      if (kind === 'homeRows') {
+        available = modules.Settings.HOME_ROWS || [];
+        return enabled.concat(available.filter(function (code) { return enabled.indexOf(code) === -1; }));
+      }
       return enabled.concat(languageCatalog.filter(function (code) { return enabled.indexOf(code) === -1; }));
     }
 
@@ -1098,8 +1185,10 @@
           code: languages[index],
           label: viewState.languageKind === 'videoVersionPriorities'
             ? t('settings.versionPriority.' + languages[index])
-            : modules.I18n.languageName(settings.uiLanguage, languages[index]),
-          languageCode: viewState.languageKind === 'videoVersionPriorities' ? '' : languages[index],
+            : (viewState.languageKind === 'homeRows'
+              ? t('settings.homeRow.' + languages[index])
+              : modules.I18n.languageName(settings.uiLanguage, languages[index])),
+          languageCode: viewState.languageKind === 'videoVersionPriorities' || viewState.languageKind === 'homeRows' ? '' : languages[index],
           rank: rank === -1 ? 0 : rank + 1,
           disabled: editorItemDisabled(languages[index])
         });
@@ -1115,7 +1204,7 @@
       }
       view.renderLanguages({
         title: rows()[viewState.index].label,
-        hint: t(viewState.languageKind === 'videoVersionPriorities' ? 'settings.priorityEditorHint' : 'settings.languageEditorHint'),
+        hint: t(viewState.languageKind === 'videoVersionPriorities' ? 'settings.priorityEditorHint' : (viewState.languageKind === 'homeRows' ? 'settings.homeRowsEditorHint' : 'settings.languageEditorHint')),
         backLabel: t('common.back'),
         index: viewState.languageIndex,
         languages: rendered
@@ -1141,6 +1230,7 @@
       if (position === -1) { enabled.push(code); }
       else { enabled.splice(position, 1); }
       save();
+      if (viewState.languageKind === 'homeRows') { call(shell.markHomeDirty); }
       renderLanguageEditor(code);
     }
 
@@ -1161,6 +1251,7 @@
         enabled.splice(next, 0, code);
       }
       save();
+      if (viewState.languageKind === 'homeRows') { call(shell.markHomeDirty); }
       renderLanguageEditor(code);
     }
 
@@ -1218,71 +1309,94 @@
       var state;
       var editorState;
       var nextIndex;
-      if (destroyed) { return handled(false); }
-      if (safeAreaDialog && safeAreaDialog.snapshot().open) { return handleSafeAreaKey(event, direction); }
-      if (subtitleStyleDialog && subtitleStyleDialog.snapshot().open) { return handleSubtitleStyleKey(event, direction); }
-      if (playbackCompatibilityOpen) { return handlePlaybackCompatibilityKey(event, direction); }
-      if (updateOpen) { return handleUpdateKey(event, direction); }
+      var command;
+      var route = {
+        keyCode: event && event.keyCode,
+        direction: direction
+      };
+      if (destroyed) {
+        route.destroyed = true;
+        command = InputCommandRouter.settings(route);
+        return command === 'ignore' ? handled(false) : handled(true);
+      }
+      route.safeAreaOpen = !!(safeAreaDialog && safeAreaDialog.snapshot().open);
+      if (route.safeAreaOpen) {
+        command = InputCommandRouter.settings(route);
+        if (command === 'safe-area') { return handleSafeAreaKey(event, direction); }
+      }
+      route.subtitleStyleOpen = !!(subtitleStyleDialog && subtitleStyleDialog.snapshot().open);
+      if (route.subtitleStyleOpen) {
+        command = InputCommandRouter.settings(route);
+        if (command === 'subtitle-style') { return handleSubtitleStyleKey(event, direction); }
+      }
+      route.playbackCompatibilityOpen = playbackCompatibilityOpen;
+      if (route.playbackCompatibilityOpen) {
+        command = InputCommandRouter.settings(route);
+        if (command === 'playback-compatibility') { return handlePlaybackCompatibilityKey(event, direction); }
+      }
+      route.updateOpen = updateOpen;
+      if (route.updateOpen) {
+        command = InputCommandRouter.settings(route);
+        if (command === 'update') { return handleUpdateKey(event, direction); }
+      }
       state = view.snapshot();
+      route.state = state;
+      if ((event.keyCode === 27 || event.keyCode === 461) || state.zone !== 'nav') {
+        editorState = call(server.editorSnapshot) || { open: false, index: 0 };
+        route.editorOpen = !!editorState.open;
+        route.editorIndex = Number(editorState.index || 0);
+      }
+      command = InputCommandRouter.settings(route);
       if (event && event.preventDefault) { event.preventDefault(); }
-      if (event.keyCode === 27 || event.keyCode === 461) {
-        editorState = call(server.editorSnapshot) || { open: false };
-        if (editorState.open) { call(server.closeEditor); }
-        else if (state.languageKind) { closeLanguageEditor(); }
-        else if (state.level === 'category') {
-          call(server.closeEditor);
-          view.closeCategory();
-          render();
-        } else if (state.zone !== 'nav') {
-          view.focusNavigation();
-          call(shell.renderNavigation);
-          focus();
-        } else { close(); }
+      if (command === 'back-server-editor') { call(server.closeEditor); return handled(true); }
+      if (command === 'back-language') { closeLanguageEditor(); return handled(true); }
+      if (command === 'back-category') {
+        call(server.closeEditor);
+        view.closeCategory();
+        render();
         return handled(true);
       }
-      if (state.zone === 'nav') {
-        if (direction === 'left' || direction === 'right') {
-          nextIndex = Math.max(0, Math.min(Number(call(shell.navigationCount) || 1) - 1,
-            navigationIndex() + (direction === 'left' ? -1 : 1)));
-          call(shell.setNavigationIndex, nextIndex);
-          call(shell.renderNavigation);
-          focus();
-          call(shell.scheduleNavigationPreview, nextIndex);
-        } else if (direction === 'down') {
-          view.focusList(state.index, rows());
-          render();
-        } else if (event.keyCode === 13) {
-          call(shell.activateNavigation);
-        }
-        return handled(true);
-      }
-      editorState = call(server.editorSnapshot) || { open: false, index: 0 };
-      if (editorState.open) {
-        if (event.keyCode === 38 && editorState.index === 0) { call(server.closeEditor); }
-        else if (event.keyCode === 38) { call(server.focusEditor, editorState.index - 1); call(server.renderEditor); }
-        else if (event.keyCode === 40) { call(server.focusEditor, editorState.index + 1); call(server.renderEditor); }
-        else if (event.keyCode === 13) { call(server.activateEditor); }
-        return handled(true);
-      }
-      if (state.languageKind) {
-        if (event.keyCode === 38) { moveEditorFocus(-1); }
-        else if (event.keyCode === 40) { moveEditorFocus(1); }
-        else if (event.keyCode === 37) { moveEditorLanguage(-1); }
-        else if (event.keyCode === 39) { moveEditorLanguage(1); }
-        else if (event.keyCode === 13) { toggleEditorLanguage(); }
-        return handled(true);
-      }
-      if (event.keyCode === 38 && state.index === 0) {
+      if (command === 'back-navigation') {
         view.focusNavigation();
         call(shell.renderNavigation);
         focus();
-      } else if (event.keyCode === 38) {
-        view.focusList(state.index - 1, rows(), -1); render();
-      } else if (event.keyCode === 40) {
-        view.focusList(state.index + 1, rows(), 1); render();
-      } else if (event.keyCode === 37) { changeSetting(-1); }
-      else if (event.keyCode === 39) { changeSetting(1); }
-      else if (event.keyCode === 13) { openSettingChoice(); }
+        return handled(true);
+      }
+      if (command === 'back-close') { close(); return handled(true); }
+      if (command === 'nav-left' || command === 'nav-right') {
+        nextIndex = Math.max(0, Math.min(Number(call(shell.navigationCount) || 1) - 1,
+          navigationIndex() + (command === 'nav-left' ? -1 : 1)));
+        call(shell.setNavigationIndex, nextIndex);
+        call(shell.renderNavigation);
+        focus();
+        call(shell.scheduleNavigationPreview, nextIndex);
+        return handled(true);
+      }
+      if (command === 'nav-down') { view.focusList(state.index, rows()); render(); return handled(true); }
+      if (command === 'nav-activate') { call(shell.activateNavigation); return handled(true); }
+      if (command === 'nav-noop') { return handled(true); }
+      if (command === 'editor-close') { call(server.closeEditor); return handled(true); }
+      if (command === 'editor-up') { call(server.focusEditor, editorState.index - 1); call(server.renderEditor); return handled(true); }
+      if (command === 'editor-down') { call(server.focusEditor, editorState.index + 1); call(server.renderEditor); return handled(true); }
+      if (command === 'editor-activate') { call(server.activateEditor); return handled(true); }
+      if (command === 'editor-noop') { return handled(true); }
+      if (command === 'language-up') { moveEditorFocus(-1); return handled(true); }
+      if (command === 'language-down') { moveEditorFocus(1); return handled(true); }
+      if (command === 'language-left') { moveEditorLanguage(-1); return handled(true); }
+      if (command === 'language-right') { moveEditorLanguage(1); return handled(true); }
+      if (command === 'language-activate') { toggleEditorLanguage(); return handled(true); }
+      if (command === 'language-noop') { return handled(true); }
+      if (command === 'list-navigation') {
+        view.focusNavigation();
+        call(shell.renderNavigation);
+        focus();
+        return handled(true);
+      }
+      if (command === 'list-up') { view.focusList(state.index - 1, rows(), -1); render(); return handled(true); }
+      if (command === 'list-down') { view.focusList(state.index + 1, rows(), 1); render(); return handled(true); }
+      if (command === 'list-left') { changeSetting(-1); return handled(true); }
+      if (command === 'list-right') { changeSetting(1); return handled(true); }
+      if (command === 'list-activate') { openSettingChoice(); return handled(true); }
       return handled(true);
     }
 
@@ -1360,6 +1474,8 @@
     function destroy() {
       var node;
       if (destroyed) { return; }
+      // Child dialog destruction can synchronously invoke cancellation callbacks.
+      destroyed = true;
       choicePreviewGeneration += 1;
       privacyOpen = false;
       updateOpen = false;
@@ -1385,7 +1501,6 @@
         node = document.getElementById('playback-compatibility-dialog');
         if (node) { node.className = 'playback-compatibility-dialog is-hidden'; node.setAttribute('aria-hidden', 'true'); }
       }
-      destroyed = true;
     }
 
     return {
@@ -1435,6 +1550,11 @@
       handlePlaybackCompatibilityKey: handlePlaybackCompatibilityKey,
       handleSafeAreaKey: handleSafeAreaKey,
       handleSubtitleStyleKey: handleSubtitleStyleKey,
+      previewSubtitleStyle: previewSubtitleStyle,
+      restoreSubtitleStyle: restoreSubtitleStyle,
+      commitSubtitleStyle: commitSubtitleStyle,
+      commitSubtitleRendering: commitSubtitleRendering,
+      persistSubtitleSize: persistSubtitleSize,
       handleTextInputKey: function (event, direction) { return textInputDialog && textInputDialog.handleKey(event, direction); },
       focusTextInput: function (index) { return textInputDialog && textInputDialog.focus(index); },
       focusSafeArea: function (index) { return safeAreaDialog && safeAreaDialog.focusAction(index); },

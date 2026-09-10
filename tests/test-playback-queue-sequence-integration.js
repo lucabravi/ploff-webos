@@ -691,6 +691,39 @@ function harness(configuration) {
   assert.ok(h.controller.snapshot().sequence.provider.residentRecords <= 200, 'drawer paging must preserve the metadata hard bound');
 }());
 
+(function loadsOnlyTheFiveCurrentOccurrencesForClosedDrawerWarming() {
+  var items = [];
+  var index;
+  var windowResult;
+  var container = { containerType: 'playlist', containerKey: '/playlists/warm/items', title: 'Warm', totalSize: 1000 };
+  for (index = 0; index < 1000; index += 1) {
+    items.push({ ratingKey: 'warm-' + index, type: 'movie', title: 'Warm ' + index, image: '/warm-' + index + '.jpg' });
+  }
+  var h = harness({
+    detail: detail(items[10], [{ ratingKey: 'playlist', index: 1 }], [items[10]], 0, 0, true),
+    container: container,
+    containerItems: items,
+    initialItems: [items[10]],
+    currentIndex: 10
+  });
+  assert.deepStrictEqual(h.controller.loadDrawerWindow({
+    viewportItems: 5,
+    direction: 0,
+    focusIndex: 10,
+    visibleOnly: true
+  }, function (error, result) {
+    assert.ifError(error);
+    windowResult = result;
+  }), { state: 'resolving' });
+  assert.strictEqual(windowResult.total, 1000);
+  assert.strictEqual(windowResult.bounds.focusIndex, 10);
+  assert.strictEqual(windowResult.items.length, 5,
+    'closed drawer warming must publish only the five occurrences that will initially be visible');
+  assert.deepStrictEqual(windowResult.items.map(function (entry) { return entry.absoluteIndex; }), [8, 9, 10, 11, 12]);
+  assert.deepStrictEqual(windowResult.prefetchItems, [],
+    'closed drawer warming must not extend into the retained/directional drawer windows');
+}());
+
 
 
 (function navigatesTheLogicalContainerRangeBeyondResidentItems() {

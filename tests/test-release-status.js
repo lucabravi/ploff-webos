@@ -40,6 +40,28 @@ assert.strictEqual(ReleaseStatus.compareVersions('1.0.6', '1.0.5'), 1);
 assert.strictEqual(ReleaseStatus.compareVersions('v1.0.5', '1.0.5'), 0);
 assert.strictEqual(ReleaseStatus.compareVersions('1.0.4', '1.0.5'), -1);
 
+var semverPrecedence = [
+  '1.0.0-alpha',
+  '1.0.0-alpha.1',
+  '1.0.0-alpha.beta',
+  '1.0.0-beta',
+  '1.0.0-beta.2',
+  '1.0.0-beta.11',
+  '1.0.0-rc.1',
+  '1.0.0'
+];
+semverPrecedence.forEach(function (version, index) {
+  if (index + 1 >= semverPrecedence.length) { return; }
+  assert.strictEqual(ReleaseStatus.compareVersions(version, semverPrecedence[index + 1]), -1, version + ' must sort before ' + semverPrecedence[index + 1]);
+  assert.strictEqual(ReleaseStatus.compareVersions(semverPrecedence[index + 1], version), 1, semverPrecedence[index + 1] + ' must sort after ' + version);
+});
+assert.strictEqual(ReleaseStatus.compareVersions('1.0.0+build.1', '1.0.0+build.2'), 0, 'build metadata must not affect precedence');
+assert.strictEqual(ReleaseStatus.compareVersions('v2.3.4-rc.10+tv', '2.3.4-rc.2'), 1, 'numeric prerelease identifiers must compare numerically');
+assert.strictEqual(ReleaseStatus.compareVersions('2.3.4-1', '2.3.4-alpha'), -1, 'numeric prerelease identifiers must sort before non-numeric identifiers');
+assert.strictEqual(ReleaseStatus.compareVersions('2.3.4-alpha', '2.3.4-alpha.1'), -1, 'a shorter matching prerelease sequence must sort first');
+assert.strictEqual(ReleaseStatus.compareVersions('development', '1.0.5'), -1, 'malformed versions must retain the legacy numeric fallback');
+assert.strictEqual(ReleaseStatus.compareVersions('1.0', '1.0.0'), 0, 'partial versions must retain the legacy numeric fallback');
+
 
 (function interruptedCheckDoesNotRemainChecking() {
   var store = storage();

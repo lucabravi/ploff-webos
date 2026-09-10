@@ -90,6 +90,17 @@ assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0
 assert.strictEqual(keptVisible.length, 1, 'remote focus must keep the selected setting visible');
 
 view.render({
+  title: 'Languages', notice: '', level: 'category', zone: 'list', index: 0, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan', rows: [{
+    key: 'subtitleRenderingAss', section: 'languages', label: 'Render ASS', value: 'Unavailable', readOnly: true, disabled: true
+  }],
+  sectionLabel: function () { return 'LANGUAGES'; }
+});
+assert.strictEqual(nodes['app-settings-list'].children[0].tagName, 'div', 'unsupported settings must not render as buttons');
+assert.strictEqual(nodes['app-settings-list'].children[0].className, 'app-setting-row is-read-only is-disabled', 'unsupported settings must expose a disabled visual state');
+assert.strictEqual(nodes['app-settings-list'].children[0].attributes['data-setting-index'], undefined, 'unsupported settings must stay outside remote and pointer focus');
+
+view.render({
   title: 'Playback', notice: '', level: 'category', zone: 'list', index: 0, serverEditorOpen: false,
   credit: '', accentColor: 'cyan', rows: [{ key: 'playbackMode', section: 'playback', label: 'Mode', value: 'Automatic' }],
   sectionLabel: function () { return 'PLAYBACK'; }

@@ -50,6 +50,7 @@ for path in \
   scripts/build-app.js \
   scripts/check-release-signoff.js \
   scripts/check-release-metadata.js \
+  scripts/extract-release-notes.js \
   scripts/preview-local.sh \
   scripts/docker-installer.sh \
   scripts/install-webos.sh \
@@ -79,7 +80,9 @@ function listedFiles(directory, files) {
 
 assert.strictEqual(new Set(Builder.MODULE_FILES).size, Builder.MODULE_FILES.length, 'MODULE_FILES must be unique');
 assert.strictEqual(Object.prototype.hasOwnProperty.call(Builder, 'LEGACY_FILES'), false, 'final builder must not expose LEGACY_FILES');
-listedFiles('coordinator', Builder.MODULE_FILES);
+var coordinatorFiles = Builder.MODULE_FILES.concat(Builder.PLAYER_FILES.filter(function (name) { return name.indexOf('coordinator/') === 0; }).map(function (name) { return name.slice(12); }));
+assert.strictEqual(new Set(coordinatorFiles).size, coordinatorFiles.length, 'Core and Player coordinator manifests must be disjoint');
+listedFiles('coordinator', coordinatorFiles);
 assert.strictEqual(fs.existsSync(path.join('app', 'source')), false, 'final coordinator must remove app/source');
 NODE
 
@@ -129,6 +132,8 @@ grep -q 'npm run verify' .github/workflows/release.yml
 grep -q 'npm run check:deps' .github/workflows/ci.yml
 grep -q 'npm run check:deps' .github/workflows/release.yml
 grep -q 'check-release-signoff.js.*GITHUB_REF_NAME' .github/workflows/release.yml
+grep -q 'extract-release-notes.js.*GITHUB_REF_NAME' .github/workflows/release.yml
+grep -q -- '--notes-file RELEASE_NOTES.md' .github/workflows/release.yml
 grep -q '"check:deps": "npm audit --audit-level=high"' package.json
 grep -q 'Physical-TV Release Signoff' docs/testing.md
 test -f docs/store-submission/lg-ux-compliance.md
@@ -143,7 +148,9 @@ grep -qi 'chapter' docs/playback-invariants.md
 grep -q 'rm -f "$STAGE/config.local.js"' scripts/package-tv-shell.sh
 grep -q 'PloffBuildInfo' scripts/package-tv-shell.sh
 grep -q 'build-app.js.*--check' scripts/package-tv-shell.sh
-grep -q 'rm -rf "$STAGE/source"' scripts/package-tv-shell.sh
+prune_line=$(grep -n 'rm -rf .*STAGE/source.*STAGE/coordinator.*STAGE/styles' scripts/package-tv-shell.sh | head -n 1 | cut -d: -f1)
+hash_line=$(grep -n 'ASSET_HASH=' scripts/package-tv-shell.sh | head -n 1 | cut -d: -f1)
+test -n "$prune_line" && test -n "$hash_line" && test "$prune_line" -lt "$hash_line"
 grep -q 'CACHE_KEY=' scripts/inspect-ipk.sh
 grep -q 'check-shell-assets.js.*CACHE_KEY' scripts/inspect-ipk.sh
 grep -q 'io.github.rhapsodos.ploff' webos-shell-app/appinfo.json

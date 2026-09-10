@@ -4,9 +4,24 @@ var fs = require('fs');
 var path = require('path');
 var Minifier = require('./minify-javascript');
 
+var PRELUDE_FILES = ['player-runtime-loader.js'];
+
+var PLAYER_FILES = [
+  'skip-marker-state.js', 'player-controls-state.js', 'player-controls-view.js', 'player-buffering-indicator.js',
+  'chapter-state.js', 'player-chapters-view.js', 'playback-recovery.js', 'playback-clock.js', 'native-video-driver.js',
+  'player-seek-controller.js', 'playback-reposition.js', 'playback-session.js', 'playback-timeline.js',
+  'episode-navigation.js', 'resume-choice.js', 'subtitle-sync.js', 'subtitle-runtime.js', 'subtitle-editor-session.js',
+  'subtitle-editor-view.js', 'subtitle-offset-store.js', 'up-next-state.js', 'up-next-timing.js', 'up-next-view.js', 'queue-gap-view.js',
+  'coordinator/queue-sequence-contract.js', 'coordinator/bounded-queue-cache.js', 'coordinator/plex-container-queue-provider.js',
+  'coordinator/series-queue-provider.js', 'coordinator/queue-gap-controller.js', 'coordinator/playback-queue-controller.js',
+  'coordinator/player-queue-controller.js', 'coordinator/player-controls-controller.js', 'coordinator/playback-controller.js',
+  'coordinator/player-subtitle-editor-controller.js', 'coordinator/player-feature-controller.js', 'coordinator/player-composition.js'
+];
+
 var MODULE_FILES = [
   'plex-feature-ports.js',
   'presentation-services.js',
+  'input-command-router.js',
   'choice-dialog-controller.js',
   'media-info-dialog-controller.js',
   'settings-controller.js',
@@ -24,15 +39,6 @@ var MODULE_FILES = [
   'library-feature-controller.js',
   'detail-controller.js',
   'detail-feature-controller.js',
-  'queue-sequence-contract.js',
-  'bounded-queue-cache.js',
-  'plex-container-queue-provider.js',
-  'series-queue-provider.js',
-  'queue-gap-controller.js',
-  'playback-queue-controller.js',
-  'player-controls-controller.js',
-  'playback-controller.js',
-  'player-feature-controller.js',
   'media-context-controller.js',
   'input-controller.js',
   'pointer-controller.js',
@@ -59,27 +65,45 @@ function readFiles(root, files) {
   });
 }
 
+function readPreludeFiles(root, files) {
+  return (files || PRELUDE_FILES).map(function (fileName) {
+    return compactSource(fs.readFileSync(path.join(root, 'app', fileName), 'utf8'));
+  });
+}
+
 function readSourceBundle(root, moduleFiles) {
-  return bundle(readFiles(root, moduleFiles || MODULE_FILES));
+  var parts = moduleFiles ? [] : readPreludeFiles(root);
+  return bundle(parts.concat(readFiles(root, moduleFiles || MODULE_FILES)));
 }
 
 function readBundle(root, moduleFiles) {
   return Minifier.minifySource(readSourceBundle(root, moduleFiles));
 }
 
+function readPlayerSourceBundle(root) {
+  return bundle(readPreludeFiles(root, PLAYER_FILES));
+}
+
+function readPlayerBundle(root) { return Minifier.minifySource(readPlayerSourceBundle(root)); }
+
 function outputPath(root) {
   return path.join(root, 'app', 'app.js');
 }
 
 function check(root) {
-  var expected = readBundle(root);
   var target = outputPath(root);
-  return fs.existsSync(target) && fs.readFileSync(target, 'utf8') === expected;
+  var playerTarget = path.join(root, 'app', 'player.js');
+  return fs.existsSync(target) && fs.readFileSync(target, 'utf8') === readBundle(root) &&
+    fs.existsSync(playerTarget) && fs.readFileSync(playerTarget, 'utf8') === readPlayerBundle(root);
 }
 
 function write(root) {
   var target = outputPath(root);
-  fs.writeFileSync(target, readBundle(root), 'utf8');
+  // Assemble both first, so a bad manifest cannot leave a half-rebuilt pair.
+  var core = readBundle(root);
+  var player = readPlayerBundle(root);
+  fs.writeFileSync(target, core, 'utf8');
+  fs.writeFileSync(path.join(root, 'app', 'player.js'), player, 'utf8');
   return target;
 }
 
@@ -87,18 +111,22 @@ if (require.main === module) {
   var projectRoot = path.resolve(__dirname, '..');
   if (process.argv.indexOf('--check') !== -1) {
     if (!check(projectRoot)) {
-      console.error('app/app.js is stale. Run: npm run build:app');
+      console.error('Application bundles (app/app.js, app/player.js) are stale. Run: npm run build:app');
       process.exitCode = 1;
     } else {
-      console.log('Application bundle is current');
+      console.log('Core and Player bundles are current');
     }
   } else {
-    console.log('Built ' + path.relative(projectRoot, write(projectRoot)));
+    console.log('Built ' + path.relative(projectRoot, write(projectRoot)) + ' and app/player.js');
   }
 }
 
 module.exports = {
+  PRELUDE_FILES: PRELUDE_FILES,
   MODULE_FILES: MODULE_FILES,
+  PLAYER_FILES: PLAYER_FILES,
+  readPlayerSourceBundle: readPlayerSourceBundle,
+  readPlayerBundle: readPlayerBundle,
   bundle: bundle,
   compactSource: compactSource,
   check: check,

@@ -17,6 +17,15 @@ function node() {
   };
 }
 
+function collectText(target, result) {
+  var output = result || [];
+  var children = target && target.children || [];
+  var index;
+  if (target && target.textContent) { output.push(target.textContent); }
+  for (index = 0; index < children.length; index += 1) { collectText(children[index], output); }
+  return output;
+}
+
 var nodes = {
   'diagnostics-view': node(),
   'diagnostics-content': node(),
@@ -72,6 +81,7 @@ var view = DiagnosticsView.create({
       device: { modelName: 'TV', webOSVersion: '1', viewport: '1920x1080', known: true, uhd: false, hdr10: false },
       network: { status: 'local-only', lanAvailable: true, internetAvailable: false, connectionType: 'wired', localAddress: '192.168.1.20' },
       playback: null,
+      startup: { bootstrap: 0, compositionReady: 12, serverReady: 25, firstHomeContent: 48, firstFocusableUi: 49, ass: { workerRequested: 2, workerCreated: 3, staticMemoryReady: 8, workerInitSent: 4, workerInitReceived: 5, fontRequested: 9, fontReady: 10, libassRuntimeReady: 15, warmTrackReady: 16, warmFirstFrame: 17, realAssFetchStart: 50, realAssFetchEnd: 60, realAssSetTrackStart: 61, realAssSetTrackReady: 70, firstRealAssFrame: 72 } },
       error: identityState.error
     };
   },
@@ -106,6 +116,31 @@ assert.ok(
   'diagnostics must render a dedicated network section'
 );
 assert.strictEqual(nodes['diagnostics-content'].children.length, 2, 'diagnostics sections must render in two independent columns');
+assert.ok(
+  nodes['diagnostics-content'].children.some(function (column) {
+    return column.children.some(function (section) {
+      return section.children.some(function (child) { return child.textContent === 'diagnostics.startup'; });
+    });
+  }),
+  'diagnostics must render local startup milestones without exporting them'
+);
+assert.ok(
+  nodes['diagnostics-content'].children.some(function (column) {
+    return column.children.some(function (section) {
+      return section.children.some(function (child) {
+        return child.textContent === 'player.subtitles' || (child.children || []).some(function (grandchild) {
+          return grandchild.textContent === 'player.subtitles';
+        });
+      });
+    });
+  }),
+  'diagnostics must render the bounded ASS cold-start phase summary locally'
+);
+assert.notStrictEqual(
+  collectText(nodes['diagnostics-content']).indexOf('ASS ready=72 / worker=1 / libass=10 / warm=2 / fetch=10 / track=9 / frame=2 ms'),
+  -1,
+  'ASS diagnostics must show real phase durations while retaining total time-to-first-real-frame'
+);
 
 nodes['diagnostics-content'].scrollTop = 90;
 view.handleKey({ keyCode: 40, preventDefault: function () {} }, 'down');
@@ -134,6 +169,15 @@ view.handleKey({ keyCode: 13, preventDefault: function () {} });
 assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog', 'Export must open the support QR dialog');
 assert.strictEqual(nodes['diagnostics-report-text'].textContent, 'safe report text', 'Export must expose the privacy-safe text report even when QR rendering succeeds');
 assert.strictEqual(qrRendered, 1, 'Export must render one QR for the current support report');
+assert.strictEqual(nodes['diagnostics-qr-close'].focused, true, 'opening the support QR dialog must focus its close action');
+view.handleKey({ keyCode: 38, preventDefault: function () {} }, 'up');
+assert.strictEqual(nodes['diagnostics-report-text'].focused, true, 'Up from the close action must focus the report');
+nodes['diagnostics-report-text'].scrollTop = 0;
+view.handleKey({ keyCode: 40, preventDefault: function () {} }, 'down');
+assert.ok(nodes['diagnostics-report-text'].scrollTop > 0, 'Down must scroll the support report');
+nodes['diagnostics-report-text'].scrollTop = nodes['diagnostics-report-text'].scrollHeight - nodes['diagnostics-report-text'].clientHeight;
+view.handleKey({ keyCode: 40, preventDefault: function () {} }, 'down');
+assert.strictEqual(nodes['diagnostics-qr-close'].focused, true, 'Down at the end of the report must return to the close action');
 nodes['diagnostics-qr-close'].onclick();
 assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog is-hidden', 'the QR close button must close the dialog');
 view.setFocus(1);

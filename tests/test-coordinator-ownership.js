@@ -30,11 +30,13 @@ assert.strictEqual((applicationSource.match(/DetailFeatureController\.create\(/g
 assert.ok(!/DetailController\.create\(/.test(applicationSource), 'composition root must not construct DetailController directly');
 assert.ok(!/DetailPresentationView\.create\(/.test(applicationSource), 'composition root must not construct DetailPresentationView directly');
 assert.ok(!/DetailEpisodeView\.create\(/.test(applicationSource), 'composition root must not construct DetailEpisodeView directly');
+assert.ok(!/DetailExtendedView\.create\(/.test(applicationSource), 'composition root must not construct DetailExtendedView directly');
 assert.ok(!/DetailPreferenceState\.create\(/.test(applicationSource), 'composition root must not construct DetailPreferenceState directly');
 assert.ok(!/\b(?:detailController|detailPresentationView|detailEpisodeView|detailPreferenceState|pendingDetailProgress|lastDetailPresentationKey)\b/.test(applicationSource), 'composition root must not retain Detail feature internals');
 assert.ok(/DetailController\.create\(/.test(detailFeatureSource), 'DetailFeatureController must own DetailController construction');
 assert.ok(/DetailPresentationView\.create\(/.test(detailFeatureSource), 'DetailFeatureController must own DetailPresentationView construction');
 assert.ok(/DetailEpisodeView\.create\(/.test(detailFeatureSource), 'DetailFeatureController must own DetailEpisodeView construction');
+assert.ok(/DetailExtendedView\.create\(/.test(detailFeatureSource), 'DetailFeatureController must own DetailExtendedView construction');
 assert.ok(/DetailPreferenceState\.create\(/.test(detailFeatureSource), 'DetailFeatureController must own DetailPreferenceState construction');
 assert.ok(!/getElementById\(['"]detail-view['"]\)/.test(applicationSource), 'composition root must not mutate the Detail surface directly');
 assert.ok(!/(?:setText|getElementById)\(['"]detail-(?:play|refresh-metadata|file-info|version-label)['"]/.test(applicationSource), 'composition root must not translate Detail-owned controls directly');
@@ -88,7 +90,7 @@ assert.ok(!/WatchlistView\.create\s*\(/.test(applicationSource), 'composition ro
 assert.ok(!/\b(?:libraryGridView|libraryLifecycle|libraryFilterView|watchlistView)\b/.test(applicationSource), 'composition root must not retain Library feature view or lifecycle aliases');
 assert.ok(!/getElementById\(['"](?:library|watchlist)-/.test(applicationSource), 'composition root must not mutate or bind Library-owned DOM directly');
 
-assert.deepStrictEqual(Build.MODULE_FILES.slice().sort(), coordinatorFiles, 'the generated bundle must include every coordinator module exactly once');
+assert.deepStrictEqual(Build.MODULE_FILES.concat(Build.PLAYER_FILES.filter(function (name) { return name.indexOf('coordinator/') === 0; }).map(function (name) { return name.slice(12); })).sort(), coordinatorFiles, 'the Core and Player bundles together must include every coordinator module exactly once');
 
 assert.strictEqual(fs.existsSync(path.join(coordinatorDirectory, 'setup-adapter.js')), false, 'the transitional Setup adapter must stay removed');
 assert.strictEqual(fs.existsSync(path.join(project, 'app/source')), false, 'legacy shared-scope source fragments must stay removed');

@@ -16,7 +16,8 @@ var ids = [
   'detail-title', 'detail-subtitle', 'detail-facts', 'detail-summary', 'detail-summary-button', 'detail-summary-dialog',
   'detail-summary-dialog-title', 'detail-summary-dialog-text', 'detail-summary-dialog-hint', 'detail-summary-dialog-close',
   'detail-audio', 'detail-audio-label', 'detail-audio-value', 'detail-subtitles', 'detail-subtitles-label',
-  'detail-subtitles-value', 'detail-version', 'detail-version-label', 'detail-version-value', 'detail-version-info'
+  'detail-subtitles-value', 'detail-version', 'detail-version-label', 'detail-version-value', 'detail-version-info',
+  'detail-version-source', 'detail-audio-source', 'detail-subtitles-source'
 ];
 var nodes = {};
 ids.forEach(function (id) { nodes[id] = node(id); });
@@ -38,9 +39,12 @@ nodes['detail-audio'].className = 'detail-choice is-focused';
 view.renderMediaControls({
   labels: { version: 'Version', audio: 'Audio', subtitles: 'Subtitles' },
   choices: { audio: true, subtitles: false, versions: false, versionOpenable: true },
-  values: { audio: 'Automatic - Japanese', subtitles: 'Off', version: 'Automatic - 1080p' }
+  values: { audio: 'Automatic - Japanese', subtitles: 'Off', version: 'Automatic - 1080p' },
+  sources: { audio: 'season', subtitles: 'global', version: 'global' },
+  detail: { type: 'episode' }
 });
 assert.strictEqual(nodes['detail-audio-value'].textContent, 'Automatic - Japanese', 'media controls must render resolved audio text');
+assert.strictEqual(nodes['detail-audio-source'].textContent, 'detail.preferenceSeason', 'media controls must render preference provenance in its dedicated field');
 assert.ok(nodes['detail-audio'].className.indexOf('is-focused') !== -1 && nodes['detail-audio'].className.indexOf('is-cyclable') !== -1, 'rerendering controls must preserve focus and expose available choices');
 assert.strictEqual(nodes['detail-subtitles'].disabled, true, 'single-value controls must be disabled');
 assert.strictEqual(nodes['detail-version'].disabled, false, 'version details must remain openable even when there is only one file version');

@@ -1,4 +1,7 @@
 body.visual-theme-nova {
+  --detail-preference-badge-background: rgba(99,239,255,.10);
+  --detail-preference-badge-border: rgba(99,239,255,.50);
+  --detail-preference-badge-text: #a8f6ff;
   --accent: #63efff;
   --theme-app-background: #03050a;
   --theme-app-text: #eefaff;

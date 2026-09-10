@@ -40,6 +40,7 @@ assert.throws(function () {
   var files = RuntimeEs5.collectRuntimeFiles(project).map(function (file) {
     return path.relative(project, file).replace(/\\/g, '/');
   });
+  assert.ok(files.indexOf('app/player.js') !== -1, 'the deferred generated bundle must also be parsed as ES5');
   assert.ok(files.indexOf('app/app.js') !== -1, 'the generated TV bundle must be parsed as ES5');
   assert.ok(files.indexOf('app/coordinator/application-controller.js') !== -1, 'coordinator modules must be parsed as ES5');
   assert.ok(files.indexOf('webos-service/service.js') !== -1, 'the packaged webOS service must be parsed as ES5');

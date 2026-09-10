@@ -126,9 +126,8 @@
     if (preference !== 'direct') {
       result.push(step('transcode', requested, quality, capabilities));
       result.push(step('safe-transcode', requested, '8000', capabilities));
-      if (preference === 'auto' && native && tracksRequireTranscode) {
-        addNativeSteps(result, requested, quality, compatibilityMemory, compatibilityContext, capabilities);
-      }
+      // A native fallback would silently discard the selected audio/subtitle
+      // track. Keep the server-rendered track authoritative in Automatic mode.
     }
     return result;
   }

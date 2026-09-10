@@ -59,7 +59,8 @@
         mode: source.mode,
         deadline: source.deadline,
         focusRequested: source.focusRequested,
-        dismissed: source.dismissed
+        dismissed: source.dismissed,
+        consumed: source.consumed === true
       };
     }
 
@@ -155,7 +156,8 @@
         current.markers,
         Number(current.positionSeconds || 0) * 1000,
         now(),
-        current.skipPromptDuration
+        current.skipPromptDuration,
+        current.seekSettling === true
       );
       if (marker && state.visible) { state.skip = SkipMarkers.showForControls(state.skip, marker); }
       if (state.skip.focusRequested) {
@@ -195,8 +197,8 @@
       scheduleSkipExpiry();
     }
 
-    function dismissSkip() {
-      state.skip = SkipMarkers.dismiss(state.skip);
+    function dismissSkip(consumed) {
+      state.skip = SkipMarkers.dismiss(state.skip, consumed === true);
       if (state.zone === 'skip') { state.zone = 'buttons'; state.buttonIndex = 1; }
       renderSkip();
       renderFocus();
@@ -206,7 +208,7 @@
     function activateSkip() {
       var marker = state.skip.marker;
       if (!state.skip.visible || !marker) { return false; }
-      dismissSkip();
+      dismissSkip(true);
       call(values.seekAbsolute, Number(marker.endTimeOffset || 0) / 1000, { source: 'skip' });
       return true;
     }
@@ -542,43 +544,30 @@
       return action;
     }
 
-    function handleKey(event, _direction) {
-      var code = Number(event && event.keyCode || 0);
-      var current = playback();
-      if (state.destroyed || !current.active) { return false; }
-      if (code === 27 || code === 461) { handleBack(); return true; }
-      if (code === 415) { call(values.mediaPlay || values.play); return true; }
-      if (code === 19) { call(values.mediaPause || values.pause); return true; }
-      if (state.chapters.open) {
-        showFull();
-        if (code === 37 || code === 39) { moveChapter(code === 37 ? -1 : 1); }
-        else if (code === 38) { closeChapters(true); }
-        else if (code === 13) { activateChapter(); }
-        return true;
-      }
-      if (!state.settingsOpen && state.mode === 'full' && code === 40 &&
-          (state.zone === 'buttons' || state.zone === 'chapter-hint') && chapters().length) {
-        openChapters();
-        return true;
-      }
-      if (code === 13 && state.zone === 'skip' && state.skip.visible) { activateSkip(); return true; }
-      if (code === 413) { call(values.closePlayer); return true; }
-      if (state.settingsOpen) {
-        showFull();
-        if (code === 38) { moveSetting(-1); }
-        else if (code === 40) { moveSetting(1); }
-        else if (code === 37) { cycleSetting(-1); }
-        else if (code === 39) { cycleSetting(1); }
-        else if (code === 13) { activateSetting(); }
-        return true;
-      }
-      if (state.zone === 'skip' && (code === 37 || code === 39)) {
-        scheduleSkipExpiry();
-        return true;
-      }
+    function handleChaptersKey(code) {
+      showFull();
+      if (code === 37 || code === 39) { moveChapter(code === 37 ? -1 : 1); }
+      else if (code === 38) { closeChapters(true); }
+      else if (code === 13) { activateChapter(); }
+      return true;
+    }
+
+    function handleSettingsKey(code) {
+      showFull();
+      if (code === 38) { moveSetting(-1); }
+      else if (code === 40) { moveSetting(1); }
+      else if (code === 37) { cycleSetting(-1); }
+      else if (code === 39) { cycleSetting(1); }
+      else if (code === 13) { activateSetting(); }
+      return true;
+    }
+
+    function handleCompactModeKey(code) {
       if (state.mode === 'hidden' && code === 13) {
         state.mode = ControlsState.next(state.mode, 'ok');
-        state.zone = 'buttons'; state.buttonIndex = 1; showFull();
+        state.zone = 'buttons';
+        state.buttonIndex = 1;
+        showFull();
         return true;
       }
       if (state.mode !== 'full' && (code === 37 || code === 39 || code === 412 || code === 417)) {
@@ -590,35 +579,141 @@
       }
       if (state.mode === 'timeline' && code === 13) {
         state.mode = ControlsState.next(state.mode, 'ok');
-        state.zone = 'buttons'; state.buttonIndex = 1; showFull();
+        state.zone = 'buttons';
+        state.buttonIndex = 1;
+        showFull();
         return true;
       }
       if (state.mode !== 'full' && (code === 38 || code === 40)) {
         state.mode = ControlsState.next(state.mode, 'navigate');
-        state.zone = 'buttons'; state.buttonIndex = 1; showFull();
+        state.zone = 'buttons';
+        state.buttonIndex = 1;
+        showFull();
         return true;
       }
-      if (code === 38 && state.zone === 'timeline' && state.skip.visible) { showFull(); setZone('skip'); }
-      else if (code === 40 && state.zone === 'skip') { showFull(); setZone('timeline'); }
-      else if (code === 38) { showFull(); setZone('timeline'); }
-      else if (code === 40) { showFull(); setZone('buttons'); }
-      else if (state.zone === 'timeline' && (code === 37 || code === 39)) { showFull(); relativeSeek(code === 37 ? -1 : 1); }
-      else if (state.zone === 'buttons' && code === 37 && chapterHintVisible() &&
-          (state.buttonIndex === 0 || (state.buttonIndex === 1 && !buttonAvailable(0)))) {
-        showFull(); setZone('chapter-hint');
-      } else if (state.zone === 'chapter-hint' && code === 39) {
-        showFull(); setZone('buttons', buttonAvailable(0) ? 0 : 1);
-      } else if (state.zone === 'buttons' && (code === 37 || code === 39)) {
-        showFull(); moveButton(code === 37 ? -1 : 1);
-      } else if (code === 13) {
+      return false;
+    }
+
+    function handleSkipKey(code) {
+      if (code === 13) {
+        activateSkip();
+        return true;
+      }
+      if (code === 37 || code === 39) {
+        scheduleSkipExpiry();
+        return true;
+      }
+      if (state.mode !== 'full') { return false; }
+      if (code === 38 || code === 40) {
         showFull();
-        if (state.zone === 'skip') { activateSkip(); }
-        else if (state.zone === 'chapter-hint') { openChapters(); }
-        else if (state.zone !== 'timeline') { activateButton(); }
-      } else if (code === 412 || code === 417) {
-        showFull(); relativeSeek(code === 412 ? -1 : 1);
-      } else { return false; }
-      return true;
+        setZone('timeline');
+        return true;
+      }
+      return false;
+    }
+
+    function handleTimelineKey(code) {
+      if (code === 38) {
+        showFull();
+        setZone(state.skip.visible ? 'skip' : 'timeline');
+        return true;
+      }
+      if (code === 40) {
+        showFull();
+        setZone('buttons');
+        return true;
+      }
+      if (code === 37 || code === 39) {
+        showFull();
+        relativeSeek(code === 37 ? -1 : 1);
+        return true;
+      }
+      if (code === 13) {
+        showFull();
+        return true;
+      }
+      return false;
+    }
+
+    function handleButtonsKey(code) {
+      if (code === 40 && chapters().length) {
+        openChapters();
+        return true;
+      }
+      if (code === 38) {
+        showFull();
+        setZone('timeline');
+        return true;
+      }
+      if (code === 40) {
+        showFull();
+        setZone('buttons');
+        return true;
+      }
+      if (code === 37 && chapterHintVisible() &&
+          (state.buttonIndex === 0 || (state.buttonIndex === 1 && !buttonAvailable(0)))) {
+        showFull();
+        setZone('chapter-hint');
+        return true;
+      }
+      if (code === 37 || code === 39) {
+        showFull();
+        moveButton(code === 37 ? -1 : 1);
+        return true;
+      }
+      if (code === 13) {
+        showFull();
+        activateButton();
+        return true;
+      }
+      return false;
+    }
+
+    function handleChapterHintKey(code) {
+      if (code === 40 && chapters().length) {
+        openChapters();
+        return true;
+      }
+      if (code === 38) {
+        showFull();
+        setZone('timeline');
+        return true;
+      }
+      if (code === 40 || code === 39) {
+        showFull();
+        setZone('buttons', code === 39 && buttonAvailable(0) ? 0 : 1);
+        return true;
+      }
+      if (code === 13) {
+        showFull();
+        openChapters();
+        return true;
+      }
+      return false;
+    }
+
+    function handleKey(event, _direction) {
+      var code = Number(event && event.keyCode || 0);
+      var current = playback();
+      if (state.destroyed || !current.active) { return false; }
+      if (code === 27 || code === 461) { handleBack(); return true; }
+      if (code === 415) { call(values.mediaPlay || values.play); return true; }
+      if (code === 19) { call(values.mediaPause || values.pause); return true; }
+      if (state.chapters.open) { return handleChaptersKey(code); }
+      if (code === 413) { call(values.closePlayer); return true; }
+      if (state.settingsOpen) { return handleSettingsKey(code); }
+      if (code === 13 && state.mode !== 'full' && state.skip.visible && activateSkip()) { return true; }
+      if (state.zone === 'skip' && handleSkipKey(code)) { return true; }
+      if (handleCompactModeKey(code)) { return true; }
+      if (state.zone === 'timeline' && handleTimelineKey(code)) { return true; }
+      if (state.zone === 'buttons' && handleButtonsKey(code)) { return true; }
+      if (state.zone === 'chapter-hint' && handleChapterHintKey(code)) { return true; }
+      if (code === 412 || code === 417) {
+        showFull();
+        relativeSeek(code === 412 ? -1 : 1);
+        return true;
+      }
+      return false;
     }
 
     function pointerFocus(zone, index) {

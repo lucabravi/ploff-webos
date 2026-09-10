@@ -594,6 +594,8 @@
       var changed = !sameFocus(current, state.renderedFocus);
       var previous = changed ? focusTargetFor(state.renderedFocus) : null;
       var target;
+      var item;
+      var nextPresentation;
       var image;
       if (previous) { removeFocusedClass(previous); }
       target = focusTargetFor(current);
@@ -606,6 +608,14 @@
         removeFocusedClass(target);
         state.renderedFocus = current;
         return focusSnapshot();
+      }
+      item = focusedItem();
+      if (target && item) {
+        nextPresentation = cardPresentation(target, item, presentationVersion());
+        updateCard(target, current.index, item, current.mode === 'recommended' ? current.recommendationRow : undefined, nextPresentation);
+        target.className = current.mode === 'recommended'
+          ? 'library-card library-recommendation-card' + (nextPresentation.viewed ? ' is-viewed' : '')
+          : 'library-card' + (nextPresentation.viewed ? ' is-viewed' : '');
       }
       addFocusedClass(target);
       image = target && target.getElementsByTagName('img')[0];

@@ -34,6 +34,7 @@ var snapshot = Diagnostics.snapshot({
     state: 'playing',
     sourceUrl: 'http://server/video?X-Plex-Token=secret'
   },
+  startup: { bootstrap: 0, compositionReady: 12, serverReady: 25, firstHomeContent: 48, firstFocusableUi: 49, secret: 'must-not-leak', ass: { workerRequested: 2, libassRuntimeReady: 18, realAssFetchStart: 90, realAssFetchEnd: 105, realAssSetTrackReady: 118, firstRealAssFrame: 120, identity: 'must-not-leak' } },
   error: new Error('Plex request failed at http://server/path?X-Plex-Token=secret')
 });
 
@@ -67,6 +68,8 @@ assert.strictEqual(snapshot.playback.sourceUrl, undefined, 'playback diagnostics
 assert.deepStrictEqual(snapshot.playback.attempts, ['direct-play', 'direct-stream'], 'bounded recovery attempts must remain visible');
 assert.strictEqual(snapshot.error, 'Plex request failed at [url]', 'diagnostic errors must be sanitized');
 assert.strictEqual(snapshot.appVersion, '1.0.77', 'the app version must remain visible');
+assert.deepStrictEqual(snapshot.startup, { bootstrap: 0, compositionReady: 12, serverReady: 25, firstHomeContent: 48, firstFocusableUi: 49, ass: { workerRequested: 2, workerCreated: null, staticMemoryReady: null, workerInitSent: null, workerInitReceived: null, fontRequested: null, fontReady: null, libassRuntimeReady: 18, warmTrackReady: null, warmFirstFrame: null, realAssFetchStart: 90, realAssFetchEnd: 105, realAssSetTrackStart: null, realAssSetTrackReady: 118, firstRealAssFrame: 120 } }, 'startup diagnostics must expose only the bounded numeric milestone set including privacy-safe ASS phases');
+assert.strictEqual(JSON.stringify(snapshot.startup).indexOf('must-not-leak'), -1, 'ASS diagnostics must discard free-form identity data');
 assert.deepStrictEqual(Diagnostics.snapshot({ appVersion: '1.0.77' }).playback, null, 'diagnostics must work before any playback exists');
 
 console.log('Diagnostics state checks passed');

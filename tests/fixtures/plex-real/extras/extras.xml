@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer size='2' identifier='com.plexapp.plugins.library' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632'>
+  <Video ratingKey='fixture-rating-009' key='/library/metadata/fixture-rating-009' guid='fixture-guid-009' type='clip' title='Demon Slayer-Kimetsu No Yaiba Infinity Castle (Italian Teaser Trailer)' summary='' index='1' year='2024' thumb='/library/metadata/fixture-rating-009/thumb/1734050281' primaryGuid='fixture-guid-010' art='/library/metadata/fixture-rating-010/art/1786386198' subtype='trailer' duration='133000' originallyAvailableAt='2024-12-13' addedAt='1734050281' extraType='1'>
+    <Media id='fixture-media-010' duration='133000' bitrate='5000' width='1920' height='1080' aspectRatio='1.78' audioCodec='aac' videoCodec='h264' videoResolution='1080' container='mp4' optimizedForStreaming='1' protocol='mp4' premium='1' hasVoiceActivity='0'>
+      <Part id='fixture-part-011' duration='133000' container='mp4' key='/services/iva/assets/633933/video.mp4?fmt=4&amp;bitrate=5000'>
+        <Stream id='fixture-stream-052' streamType='1' codec='h264' index='0' bitrate='5000' height='1080' width='1920' displayTitle='1080p' extendedDisplayTitle='1080p (H.264)'> </Stream>
+        <Stream id='fixture-stream-053' streamType='2' selected='1' codec='aac' index='1' channels='2' language='Italiano' languageTag='it' languageCode='ita' displayTitle='Italiano (AAC Stereo)' extendedDisplayTitle='Italiano (AAC Stereo)'> </Stream>
+      </Part>
+    </Media>
+    <Media id='fixture-media-011' duration='133000' bitrate='2500' width='1280' height='720' aspectRatio='1.78' audioCodec='aac' videoCodec='h264' videoResolution='720' container='mp4' optimizedForStreaming='1' protocol='mp4' premium='1' hasVoiceActivity='0'>
+      <Part id='fixture-part-012' duration='133000' container='mp4' key='/services/iva/assets/633933/video.mp4?fmt=4&amp;bitrate=2500'>
+        <Stream id='fixture-stream-054' streamType='1' codec='h264' index='0' bitrate='2500' height='720' width='1280' displayTitle='720p' extendedDisplayTitle='720p (H.264)'> </Stream>
+        <Stream id='fixture-stream-055' streamType='2' selected='1' codec='aac' index='1' channels='2' language='Italiano' languageTag='it' languageCode='ita' displayTitle='Italiano (AAC Stereo)' extendedDisplayTitle='Italiano (AAC Stereo)'> </Stream>
+      </Part>
+    </Media>
+    <Media id='fixture-media-012' duration='133000' bitrate='750' width='480' height='270' aspectRatio='1.78' audioCodec='aac' videoCodec='h264' videoResolution='sd' container='mp4' optimizedForStreaming='1' protocol='mp4' premium='1' hasVoiceActivity='0'>
+      <Part id='fixture-part-013' duration='133000' container='mp4' key='/services/iva/assets/633933/video.mp4?fmt=4&amp;bitrate=750'>
+        <Stream id='fixture-stream-056' streamType='1' codec='h264' index='0' bitrate='750' height='270' width='480' displayTitle='SD' extendedDisplayTitle='SD (H.264)'> </Stream>
+        <Stream id='fixture-stream-057' streamType='2' selected='1' codec='aac' index='1' channels='2' language='Italiano' languageTag='it' languageCode='ita' displayTitle='Italiano (AAC Stereo)' extendedDisplayTitle='Italiano (AAC Stereo)'> </Stream>
+      </Part>
+    </Media>
+    <Image alt='Demon Slayer-Kimetsu No Yaiba Infinity Castle (Italian Teaser Trailer)' type='coverPoster' url='/library/metadata/24042/thumb/1734050281'/>
+  </Video>
+  <Video ratingKey='fixture-rating-011' key='/library/metadata/fixture-rating-011' guid='fixture-guid-011' type='clip' title='Demon Slayer-Kimetsu No Yaiba-Infinity Castle (Italian Date Reveal Teaser Trailer)' summary='' index='2' year='2025' thumb='/library/metadata/fixture-rating-011/thumb/1741200886' primaryGuid='fixture-guid-010' art='/library/metadata/fixture-rating-010/art/1786386198' subtype='trailer' duration='30000' originallyAvailableAt='2025-03-05' addedAt='1741200886' extraType='1'>
+    <Media id='fixture-media-013' duration='30000' bitrate='5000' width='1920' height='1080' aspectRatio='1.78' audioCodec='aac' videoCodec='h264' videoResolution='1080' container='mp4' optimizedForStreaming='1' protocol='mp4' premium='1' hasVoiceActivity='0'>
+      <Part id='fixture-part-014' duration='30000' container='mp4' key='/services/iva/assets/577736/video.mp4?fmt=4&amp;bitrate=5000'>
+        <Stream id='fixture-stream-058' streamType='1' codec='h264' index='0' bitrate='5000' height='1080' width='1920' displayTitle='1080p' extendedDisplayTitle='1080p (H.264)'> </Stream>
+        <Stream id='fixture-stream-059' streamType='2' selected='1' codec='aac' index='1' channels='2' language='Italiano' languageTag='it' languageCode='ita' displayTitle='Italiano (AAC Stereo)' extendedDisplayTitle='Italiano (AAC Stereo)'> </Stream>
+      </Part>
+    </Media>
+    <Media id='fixture-media-014' duration='30000' bitrate='2500' width='1280' height='720' aspectRatio='1.78' audioCodec='aac' videoCodec='h264' videoResolution='720' container='mp4' optimizedForStreaming='1' protocol='mp4' premium='1' hasVoiceActivity='0'>
+      <Part id='fixture-part-015' duration='30000' container='mp4' key='/services/iva/assets/577736/video.mp4?fmt=4&amp;bitrate=2500'>
+        <Stream id='fixture-stream-060' streamType='1' codec='h264' index='0' bitrate='2500' height='720' width='1280' displayTitle='720p' extendedDisplayTitle='720p (H.264)'> </Stream>
+        <Stream id='fixture-stream-061' streamType='2' selected='1' codec='aac' index='1' channels='2' language='Italiano' languageTag='it' languageCode='ita' displayTitle='Italiano (AAC Stereo)' extendedDisplayTitle='Italiano (AAC Stereo)'> </Stream>
+      </Part>
+    </Media>
+    <Media id='fixture-media-015' duration='30000' bitrate='750' width='480' height='270' aspectRatio='1.78' audioCodec='aac' videoCodec='h264' videoResolution='sd' container='mp4' optimizedForStreaming='1' protocol='mp4' premium='1' hasVoiceActivity='0'>
+      <Part id='fixture-part-016' duration='30000' container='mp4' key='/services/iva/assets/577736/video.mp4?fmt=4&amp;bitrate=750'>
+        <Stream id='fixture-stream-062' streamType='1' codec='h264' index='0' bitrate='750' height='270' width='480' displayTitle='SD' extendedDisplayTitle='SD (H.264)'> </Stream>
+        <Stream id='fixture-stream-063' streamType='2' selected='1' codec='aac' index='1' channels='2' language='Italiano' languageTag='it' languageCode='ita' displayTitle='Italiano (AAC Stereo)' extendedDisplayTitle='Italiano (AAC Stereo)'> </Stream>
+      </Part>
+    </Media>
+    <Image alt='Demon Slayer-Kimetsu No Yaiba-Infinity Castle (Italian Date Reveal Teaser Trailer)' type='coverPoster' url='/library/metadata/24043/thumb/1741200886'/>
+  </Video>
+</MediaContainer>

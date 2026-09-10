@@ -20,6 +20,8 @@
     var sortDirection = 'asc';
     var watchedFilter = 'all';
     var refreshPending = false;
+    var refreshGeneration = 0;
+    var refreshLibraryKey = '';
     var backLockedUntil = 0;
     var cache = {};
     var domCacheOrder = [];
@@ -28,6 +30,7 @@
     var prefetchActive = false;
     var prefetchAnchor = -1;
     var prefetchRequest = null;
+    var prefetchGeneration = 0;
     var wheelScrollTimer = null;
     var wheelNavigationActive = false;
     var grid = null;
@@ -101,6 +104,13 @@
       delete cache[key];
     }
 
+    function clearAllCached() {
+      cancelPrefetch();
+      cache = {};
+      domCacheOrder = [];
+      return true;
+    }
+
     function cancelWheelNavigation() {
       if (wheelScrollTimer !== null && platformRoot.clearTimeout) { platformRoot.clearTimeout(wheelScrollTimer); }
       wheelScrollTimer = null;
@@ -120,6 +130,7 @@
     }
 
     function cancelPrefetch() {
+      prefetchGeneration += 1;
       if (prefetchTimer !== null) {
         if (platformRoot.cancelIdleCallback) { platformRoot.cancelIdleCallback(prefetchTimer); }
         if (platformRoot.clearTimeout) { platformRoot.clearTimeout(prefetchTimer); }
@@ -134,6 +145,7 @@
     function runPrefetch() {
       var library;
       var key;
+      var requestGeneration;
       prefetchTimer = null;
       if (destroyed || prefetchActive || !prefetchQueue.length) { return; }
       if (call(values.isBusy) === true) {
@@ -147,15 +159,15 @@
         return;
       }
       prefetchActive = true;
+      requestGeneration = prefetchGeneration;
       prefetchRequest = call(values.loadRecommendations, library, function (error, rows) {
         var saved;
+        if (destroyed || requestGeneration !== prefetchGeneration) { return; }
         prefetchRequest = null;
         prefetchActive = false;
-        if (destroyed) { return; }
         if (!error && !cache[key] && (!activeLibrary || keyFor(activeLibrary) !== key)) {
           saved = call(values.buildPrefetchedState, library, rows || []);
           if (saved) { putCached(library, saved); }
-          call(values.warmPrefetch, rows || [], saved);
         }
         schedulePrefetch(call(values.navigationIndex), call(values.navigationItems));
       });
@@ -199,6 +211,8 @@
 
     function prepareLibrary(library, keepNavigationFocus) {
       var saved = cached(library);
+      var nextLibraryKey = keyFor(library);
+      if (refreshPending && refreshLibraryKey && refreshLibraryKey !== nextLibraryKey) { invalidateRefresh(); }
       activeLibrary = library || null;
       if (lifecycle && lifecycle.prepareLibrary) { lifecycle.prepareLibrary(); }
       if (saved) {
@@ -294,28 +308,43 @@
       return snapshot();
     }
 
-    function finishRefresh(error) {
+    function invalidateRefresh() {
+      refreshGeneration += 1;
+      refreshLibraryKey = '';
+      if (refreshPending) { setRefreshPending(false); }
+    }
+
+    function finishRefresh(requestGeneration, ownerKey, error) {
+      if (destroyed || requestGeneration !== refreshGeneration || refreshLibraryKey !== ownerKey) { return; }
+      refreshLibraryKey = '';
       setRefreshPending(false);
-      if (destroyed) { return; }
       if (error) { call(values.onRefreshError, error); }
       else { call(values.onRefreshComplete, snapshot()); }
     }
 
-    function waitForRefresh(error, activityId) {
-      if (error) { finishRefresh(error); return; }
+    function waitForRefresh(requestGeneration, ownerKey, error, activityId) {
+      if (error) { finishRefresh(requestGeneration, ownerKey, error); return; }
       if (activityId && typeof values.waitForActivity === 'function') {
-        call(values.waitForActivity, activityId, function (waitError) { finishRefresh(waitError || null); });
-      } else { finishRefresh(null); }
+        call(values.waitForActivity, activityId, function (waitError) { finishRefresh(requestGeneration, ownerKey, waitError || null); });
+      } else { finishRefresh(requestGeneration, ownerKey, null); }
     }
 
     function refresh(kind) {
       var loader;
+      var library;
+      var ownerKey;
+      var requestGeneration;
       if (destroyed || !activeLibrary || refreshPending) { return false; }
       loader = kind === 'metadata' ? values.refreshMetadata : values.refreshLibrary;
       if (typeof loader !== 'function') { return false; }
+      library = activeLibrary;
+      ownerKey = keyFor(library);
+      refreshGeneration += 1;
+      requestGeneration = refreshGeneration;
+      refreshLibraryKey = ownerKey;
       setRefreshPending(true);
       call(values.onRefreshStart, kind, snapshot());
-      call(loader, activeLibrary, waitForRefresh);
+      call(loader, library, function (error, activityId) { waitForRefresh(requestGeneration, ownerKey, error, activityId); });
       return true;
     }
 
@@ -349,93 +378,137 @@
       return true;
     }
 
-    function handleKey(event, direction) {
+    function handleNavKey(keyCode, direction) {
+      if (direction === 'left' || direction === 'right') {
+        call(values.moveNavigation, direction);
+        call(values.updateFocus);
+      } else if (direction === 'down') {
+        zone = activeLibrary && activeLibrary.globalPlaylists ? 'grid' : 'tabs';
+        call(values.updateFocus);
+      } else if (keyCode === 13) {
+        call(values.activateNavigation);
+      }
+      return { handled: true };
+    }
+
+    function handleTabsKey(keyCode, direction) {
+      var next;
+      if (direction === 'up') {
+        zone = 'nav';
+        call(values.updateFocus);
+      } else if (direction === 'left' || direction === 'right') {
+        if (direction === 'right' && tabIndex === containers.views().length - 1) {
+          zone = 'actions';
+          actionIndex = 0;
+          call(values.updateFocus);
+        } else {
+          next = typeof values.nextTab === 'function'
+            ? call(values.nextTab, direction === 'left' ? -1 : 1)
+            : Math.max(0, Math.min(containers.views().length - 1, tabIndex + (direction === 'left' ? -1 : 1)));
+          if (direction === 'right' && next === tabIndex) {
+            zone = 'actions';
+            actionIndex = 0;
+            call(values.updateFocus);
+          } else if (next !== undefined && next !== tabIndex) {
+            tabIndex = next;
+            call(values.selectTab, next);
+          }
+        }
+      } else if (direction === 'down') {
+        call(values.focusTabContent);
+      } else if (keyCode === 13) {
+        if (pointerTabIndex !== null) {
+          setTabIndex(pointerTabIndex);
+          pointerTabIndex = null;
+        }
+        call(values.selectTab, tabIndex);
+      }
+      return { handled: true };
+    }
+
+    function handleActionsKey(keyCode, direction) {
+      if (direction === 'left') {
+        if (actionIndex > 0) { actionIndex -= 1; }
+        else { zone = 'tabs'; }
+        call(values.updateFocus);
+      } else if (direction === 'right') {
+        actionIndex = Math.min(1, actionIndex + 1);
+        call(values.updateFocus);
+      } else if (direction === 'up') {
+        zone = 'nav';
+        call(values.updateFocus);
+      } else if (direction === 'down') {
+        zone = currentViewKey() === 'catalog' ? 'filter' : 'grid';
+        controlIndex = 0;
+        call(values.updateFocus);
+      } else if (keyCode === 13) {
+        refresh(actionIndex === 0 ? 'library' : 'metadata');
+      }
+      return { handled: true };
+    }
+
+    function handleSortKey(keyCode, direction) {
+      var next;
+      var gridSnapshot = gridNavigationSnapshot();
+      if (direction === 'left' || direction === 'right') {
+        next = containers.moveControl('sort', controlIndex, direction);
+        zone = next.zone;
+        controlIndex = next.index;
+        call(values.updateFocus);
+      } else if (direction === 'up' || direction === 'down') {
+        next = containers.moveControlVertical('sort', direction);
+        if (next.zone !== 'grid' || gridSnapshot.itemCount) {
+          zone = next.zone;
+          call(values.updateFocus);
+        }
+      } else if (keyCode === 13) {
+        activateSort(['titleSort', 'audienceRating', 'year'][controlIndex]);
+      }
+      return { handled: true };
+    }
+
+    function handleFilterKey(keyCode, direction) {
+      var next;
+      var gridSnapshot = gridNavigationSnapshot();
+      if (direction === 'left' || direction === 'right') {
+        next = containers.moveControl('filter', controlIndex, direction);
+        zone = next.zone;
+        controlIndex = next.index;
+        call(values.updateFocus);
+      } else if (direction === 'up') {
+        zone = 'actions';
+        actionIndex = 0;
+        call(values.updateFocus);
+      } else if (direction === 'down') {
+        next = containers.moveControlVertical('filter', direction);
+        if (next.zone !== 'grid' || gridSnapshot.itemCount) {
+          zone = next.zone;
+          call(values.updateFocus);
+        }
+      } else if (keyCode === 13) {
+        if (controlIndex === 3) { call(values.openFilter); }
+        else { activateFilter(['all', 'unwatched', 'watched'][controlIndex]); }
+      }
+      return { handled: true };
+    }
+
+    function handleRecommendedGridKey(keyCode, direction) {
+      var next = grid && grid.handleDirection ? grid.handleDirection(direction) : {};
+      if (next && next.leave) {
+        zone = 'tabs';
+        call(values.updateFocus);
+      } else if (keyCode === 13 && grid && grid.focusedItem && grid.focusedItem()) {
+        call(values.openItem, grid.focusedItem());
+      }
+      return { handled: true };
+    }
+
+    function handleGridKey(keyCode, direction) {
       var next;
       var item;
       var gridSnapshot;
-      var keyCode = Number(event && event.keyCode);
-      if (destroyed) { return { handled: false }; }
-      if (keyCode !== 13 || zone !== 'tabs') { pointerTabIndex = null; }
-      if (event && event.preventDefault) { event.preventDefault(); }
-      if (filter && filter.isOpen && filter.isOpen()) {
-        filter.handleKeyDown(event, direction);
-        return { handled: true };
-      }
-      if (keyCode === 27 || keyCode === 461) { handleBack(); return { handled: true }; }
-      if (keyCode === 415 && zone === 'grid') {
-        item = grid && grid.focusedItem ? grid.focusedItem() : null;
-        if (item && !item.containerKey) { call(values.playItem, item); }
-        return { handled: true };
-      }
-      if (zone === 'nav') {
-        if (direction === 'left' || direction === 'right') { call(values.moveNavigation, direction); call(values.updateFocus); }
-        else if (direction === 'down') { zone = activeLibrary && activeLibrary.globalPlaylists ? 'grid' : 'tabs'; call(values.updateFocus); }
-        else if (keyCode === 13) { call(values.activateNavigation); }
-        return { handled: true };
-      }
-      if (zone === 'tabs') {
-        if (direction === 'up') { zone = 'nav'; call(values.updateFocus); }
-        else if (direction === 'left' || direction === 'right') {
-          if (direction === 'right' && tabIndex === containers.views().length - 1) {
-            zone = 'actions'; actionIndex = 0; call(values.updateFocus);
-          } else {
-            next = typeof values.nextTab === 'function'
-              ? call(values.nextTab, direction === 'left' ? -1 : 1)
-              : Math.max(0, Math.min(containers.views().length - 1, tabIndex + (direction === 'left' ? -1 : 1)));
-            if (direction === 'right' && next === tabIndex) {
-              zone = 'actions'; actionIndex = 0; call(values.updateFocus);
-            } else if (next !== undefined && next !== tabIndex) {
-              tabIndex = next; call(values.selectTab, next);
-            }
-          }
-        } else if (direction === 'down') { call(values.focusTabContent); }
-        else if (keyCode === 13) {
-          if (pointerTabIndex !== null) { setTabIndex(pointerTabIndex); pointerTabIndex = null; }
-          call(values.selectTab, tabIndex);
-        }
-        return { handled: true };
-      }
-      if (zone === 'actions') {
-        if (direction === 'left') {
-          if (actionIndex > 0) { actionIndex -= 1; }
-          else { zone = 'tabs'; }
-          call(values.updateFocus);
-        } else if (direction === 'right') { actionIndex = Math.min(1, actionIndex + 1); call(values.updateFocus); }
-        else if (direction === 'up') { zone = 'nav'; call(values.updateFocus); }
-        else if (direction === 'down') { zone = currentViewKey() === 'catalog' ? 'filter' : 'grid'; controlIndex = 0; call(values.updateFocus); }
-        else if (keyCode === 13) { refresh(actionIndex === 0 ? 'library' : 'metadata'); }
-        return { handled: true };
-      }
-      gridSnapshot = gridNavigationSnapshot();
-      if (currentViewKey() === 'recommended' && zone === 'grid') {
-        next = grid && grid.handleDirection ? grid.handleDirection(direction) : {};
-        if (next && next.leave) { zone = 'tabs'; call(values.updateFocus); }
-        else if (keyCode === 13 && grid && grid.focusedItem && grid.focusedItem()) { call(values.openItem, grid.focusedItem()); }
-        return { handled: true };
-      }
-      if (zone === 'sort') {
-        if (direction === 'left' || direction === 'right') {
-          next = containers.moveControl('sort', controlIndex, direction);
-          zone = next.zone; controlIndex = next.index; call(values.updateFocus);
-        } else if (direction === 'up' || direction === 'down') {
-          next = containers.moveControlVertical('sort', direction);
-          if (next.zone !== 'grid' || gridSnapshot.itemCount) { zone = next.zone; call(values.updateFocus); }
-        } else if (keyCode === 13) { activateSort(['titleSort', 'audienceRating', 'year'][controlIndex]); }
-        return { handled: true };
-      }
-      if (zone === 'filter') {
-        if (direction === 'left' || direction === 'right') {
-          next = containers.moveControl('filter', controlIndex, direction);
-          zone = next.zone; controlIndex = next.index; call(values.updateFocus);
-        } else if (direction === 'up') { zone = 'actions'; actionIndex = 0; call(values.updateFocus); }
-        else if (direction === 'down') {
-          next = containers.moveControlVertical('filter', direction);
-          if (next.zone !== 'grid' || gridSnapshot.itemCount) { zone = next.zone; call(values.updateFocus); }
-        } else if (keyCode === 13) {
-          if (controlIndex === 3) { call(values.openFilter); }
-          else { activateFilter(['all', 'unwatched', 'watched'][controlIndex]); }
-        }
-        return { handled: true };
+      if (currentViewKey() === 'recommended') {
+        return handleRecommendedGridKey(keyCode, direction);
       }
       next = grid && grid.handleDirection ? grid.handleDirection(direction) : {};
       if (next && next.leave) {
@@ -447,13 +520,42 @@
         if (item.containerKey) { call(values.openContainer, item); }
         else { call(values.openItem, item); }
         call(values.updateFocus);
-      } else if (!next || next.moved !== true) { call(values.updateFocus); }
+      } else if (!next || next.moved !== true) {
+        call(values.updateFocus);
+      }
       gridSnapshot = gridNavigationSnapshot();
       if ((!next || !next.leave) && usesGridScroll() && gridSnapshot.itemCount < gridSnapshot.totalSize &&
           gridSnapshot.focus.index >= gridSnapshot.itemCount - gridSnapshot.layout.columns * 2) {
         call(values.loadMore);
       }
       return { handled: true };
+    }
+
+    function handleKey(event, direction) {
+      var item;
+      var keyCode = Number(event && event.keyCode);
+      if (destroyed) { return { handled: false }; }
+      if (keyCode !== 13 || zone !== 'tabs') { pointerTabIndex = null; }
+      if (event && event.preventDefault) { event.preventDefault(); }
+      if (filter && filter.isOpen && filter.isOpen()) {
+        filter.handleKeyDown(event, direction);
+        return { handled: true };
+      }
+      if (keyCode === 27 || keyCode === 461) {
+        handleBack();
+        return { handled: true };
+      }
+      if (keyCode === 415 && zone === 'grid') {
+        item = grid && grid.focusedItem ? grid.focusedItem() : null;
+        if (item && !item.containerKey) { call(values.playItem, item); }
+        return { handled: true };
+      }
+      if (zone === 'nav') { return handleNavKey(keyCode, direction); }
+      if (zone === 'tabs') { return handleTabsKey(keyCode, direction); }
+      if (zone === 'actions') { return handleActionsKey(keyCode, direction); }
+      if (zone === 'sort') { return handleSortKey(keyCode, direction); }
+      if (zone === 'filter') { return handleFilterKey(keyCode, direction); }
+      return handleGridKey(keyCode, direction);
     }
 
     function pointerFocus(target, index, element) {
@@ -515,7 +617,7 @@
       sort = 'titleSort';
       sortDirection = 'asc';
       watchedFilter = 'all';
-      refreshPending = false;
+      invalidateRefresh();
       backLockedUntil = 0;
       if (grid && grid.reset) { grid.reset(); }
       if (lifecycle && lifecycle.leave) { lifecycle.leave(); }
@@ -546,6 +648,7 @@
       cached: cached,
       cancelPrefetch: cancelPrefetch,
       cancelWheelNavigation: cancelWheelNavigation,
+      clearAllCached: clearAllCached,
       clearCached: clearCached,
       destroy: destroy,
       enterLibrary: enterLibrary,

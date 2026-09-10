@@ -5,15 +5,16 @@
 }(this, function () {
   'use strict';
 
-  var KEYS = ['subtitleBackground', 'subtitlePosition', 'subtitleEdge'];
-  var IDS = ['background', 'position', 'edge'];
+  var KEYS = ['subtitleBackground', 'subtitlePosition', 'subtitleEdge', 'subtitleSize'];
+  var IDS = ['background', 'position', 'edge', 'size'];
 
   function copy(source) {
     var value = source || {};
     return {
       subtitleBackground: String(value.subtitleBackground || 'off'),
       subtitlePosition: Number(value.subtitlePosition || 7),
-      subtitleEdge: String(value.subtitleEdge || 'shadow')
+      subtitleEdge: String(value.subtitleEdge || 'shadow'),
+      subtitleSize: Number(value.subtitleSize || 100)
     };
   }
 
@@ -24,7 +25,8 @@
     var choices = {
       subtitleBackground: values.backgrounds || ['off', 'low', 'medium', 'high', 'opaque'],
       subtitlePosition: values.positions || [5, 7, 10, 13, 16],
-      subtitleEdge: values.edges || ['shadow', 'outline', 'both']
+      subtitleEdge: values.edges || ['shadow', 'outline', 'both', 'double-outline-shadow'],
+      subtitleSize: values.sizes || [100]
     };
     var defaults = copy(values.defaults);
     var state = { open: false, focus: 0, values: copy(null), callbacks: {} };
@@ -42,12 +44,15 @@
     function edgeShadow(value) {
       if (value === 'outline') { return '-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,2px 2px 0 #000'; }
       if (value === 'both') { return '-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,2px 2px 0 #000,0 4px 7px #000'; }
+      if (value === 'double-outline-shadow') { return '-4px -4px 0 #000,0 -4px 0 #000,4px -4px 0 #000,-4px 0 0 #000,4px 0 0 #000,-4px 4px 0 #000,0 4px 0 #000,4px 4px 0 #000,0 4px 7px #000'; }
       return '0 3px 7px #000,0 0 4px #000';
     }
     function label(key, value) {
       if (key === 'subtitlePosition') { return value + '%'; }
+      if (key === 'subtitleSize') { return value + '%'; }
       return t('settings.' + (key === 'subtitleBackground' ? 'subtitleBackground.' : 'subtitleEdge.') + value);
     }
+    function labelKey(key) { return key === 'subtitleSize' ? 'player.subtitleSize' : 'settings.' + key; }
     function renderFocus() {
       var buttons = focusNodes();
       var index;
@@ -65,7 +70,7 @@
       setText('subtitle-style-dialog-title', t('settings.subtitleAppearance'));
       setText('subtitle-style-dialog-preview-text', t('settings.subtitlePreviewText'));
       for (index = 0; index < KEYS.length; index += 1) {
-        setText('subtitle-style-' + IDS[index] + '-label', t('settings.' + KEYS[index]));
+        setText('subtitle-style-' + IDS[index] + '-label', t(labelKey(KEYS[index])));
         setText('subtitle-style-' + IDS[index] + '-value', label(KEYS[index], state.values[KEYS[index]]));
       }
       setText('subtitle-style-reset', t('settings.safeAreaReset'));
@@ -74,12 +79,13 @@
       css(preview, '--subtitle-position', state.values.subtitlePosition + '%');
       css(preview, '--subtitle-background', 'rgba(0,0,0,' + backgroundOpacity(state.values.subtitleBackground) + ')');
       css(preview, '--subtitle-shadow', edgeShadow(state.values.subtitleEdge));
+      css(node('subtitle-style-dialog-preview-text'), 'font-size', Math.round(32 * state.values.subtitleSize / 100) + 'px');
       if (dialog) { dialog.className = 'subtitle-style-dialog'; dialog.setAttribute('aria-hidden', 'false'); }
       renderFocus();
     }
     function focusAction(index) {
       if (!state.open) { return false; }
-      state.focus = Math.max(0, Math.min(5, Number(index) || 0));
+      state.focus = Math.max(0, Math.min(6, Number(index) || 0));
       renderFocus();
       return true;
     }
@@ -116,18 +122,18 @@
       if (!state.open) { return false; }
       if (event && event.preventDefault) { event.preventDefault(); }
       if (code === 27 || code === 461) { return close(false); }
-      if (state.focus < 3) {
+      if (state.focus < 4) {
         if (direction === 'left' || code === 37) { cycle(-1); }
         else if (direction === 'right' || code === 39) { cycle(1); }
         else if (direction === 'up' || code === 38) { focusAction(state.focus - 1); }
         else if (direction === 'down' || code === 40) { focusAction(state.focus + 1); }
-        else if (code === 13) { focusAction(5); }
+        else if (code === 13) { focusAction(6); }
       } else if (direction === 'left' || code === 37) { focusAction(state.focus - 1); }
       else if (direction === 'right' || code === 39) { focusAction(state.focus + 1); }
-      else if (direction === 'up' || code === 38) { focusAction(2); }
+      else if (direction === 'up' || code === 38) { focusAction(3); }
       else if (code === 13) {
-        if (state.focus === 3) { reset(); }
-        else { close(state.focus === 5); }
+        if (state.focus === 4) { reset(); }
+        else { close(state.focus === 6); }
       }
       return true;
     }
@@ -141,8 +147,8 @@
     }
     function snapshot() { return { open: state.open, focus: state.focus, values: copy(state.values) }; }
     function destroy() { hide(); }
-    return { open: open, close: close, handleKey: handleKey, focusAction: focusAction, render: render, snapshot: snapshot, destroy: destroy };
+    return { open: open, close: close, copy: copy, handleKey: handleKey, focusAction: focusAction, render: render, snapshot: snapshot, destroy: destroy };
   }
 
-  return { create: create };
+  return { copy: copy, create: create };
 }));
