@@ -13,8 +13,11 @@
   var DEVICE_PLAYLIST_PREFIX = PLAYLIST_PREFIX + 'Device - ';
   var MAX_ENCODED_BYTES = 12 * 1024;
   var MEDIA_PREFERENCE_PREFIX = 'ploff.mediaPreference.v1.';
+  var MEDIA_PREFERENCE_V2_PREFIX = 'ploff.mediaPreference.v2.';
   var LIBRARY_ORDER_KEY = 'ploff.libraryOrder.v1';
   var SUBTITLE_OFFSETS_KEY = 'ploff.subtitle-offsets.v1';
+  var SUBTITLE_PRESENTATION_KEY = 'ploff.subtitle-presentation.v2';
+  var LEGACY_SUBTITLE_PRESENTATION_KEY = 'ploff.subtitle-presentation.v1';
   var COMPATIBILITY_KEY = 'ploff.playbackCompatibility.v3';
   var LEGACY_COMPATIBILITY_KEY = 'ploff.playbackCompatibility.v2';
   var SETTINGS_KEYS = [
@@ -22,10 +25,10 @@
     'autoplayDelay', 'upNextLayout', 'skipPromptDuration', 'audioLanguages',
     'subtitleLanguages', 'subtitleSuppressedForAudio', 'subtitleMode', 'subtitleModeExplicit',
     'subtitleSourcePreference', 'videoVersionPriorities', 'accentColor', 'visualTheme',
-    'searchT9Input', 'showWatchlist', 'showPlaylists', 'highContrast', 'strongFocus',
-    'subtitleBackground', 'subtitleEdge', 'backgroundVolume', 'lanVideoQuality',
+    'searchT9Input', 'showWatchlist', 'showPlaylists', 'homeRows', 'highContrast', 'strongFocus',
+    'subtitleBackground', 'subtitleEdge', 'subtitleSize', 'subtitleRenderingSrt', 'subtitleRenderingAss', 'backgroundVolume', 'lanVideoQuality',
     'remoteVideoQuality', 'playbackMode', 'adaptivePlaybackMemory', 'wheelBehavior',
-    'cardScale', 'artworkQuality', 'backdropQuality', 'interfaceAnimations',
+    'cardScale', 'uiTextScale', 'artworkQuality', 'backdropQuality', 'artworkDataSaver', 'interfaceAnimations',
     'subtitlePosition', 'safeAreaTop', 'safeAreaRight', 'safeAreaBottom', 'safeAreaLeft',
     'settingsBackupMode'
   ];
@@ -77,24 +80,41 @@
   }
   function subtitleOffsets(storage) { return subtitleOffsetsFromValue(readJson(storage, SUBTITLE_OFFSETS_KEY, {})); }
   function trackPreference(value) {
+    var index;
+    var result;
     if (!value || typeof value !== 'object') { return null; }
-    return {
+    result = {
       language: String(value.language || ''), name: String(value.name || ''), codec: String(value.codec || ''),
       channels: Math.max(0, Number(value.channels || 0)), external: value.external === true
     };
+    if (own(value, 'forced')) { result.forced = value.forced === true; }
+    if (own(value, 'index')) { index = Number(value.index); if (isFinite(index) && index >= 0) { result.index = index; } }
+    return result;
   }
-  function mediaPreference(value) {
+  function mediaPreference(value, preserveEmpty) {
     var mediaIndex;
     var partIndex;
     if (!value || typeof value !== 'object') { return null; }
-    mediaIndex = value.mediaIndex === null || value.mediaIndex === undefined ? null : Number(value.mediaIndex);
-    partIndex = value.partIndex === null || value.partIndex === undefined ? null : Number(value.partIndex);
-    return {
+    if (preserveEmpty === true && !Object.keys(value).length) { return {}; }
+    var legacy = value.legacyVersion || value;
+    mediaIndex = legacy.mediaIndex === null || legacy.mediaIndex === undefined ? null : Number(legacy.mediaIndex);
+    partIndex = legacy.partIndex === null || legacy.partIndex === undefined ? null : Number(legacy.partIndex);
+    var result = {
       audioTrack: trackPreference(value.audioTrack), subtitleTrack: trackPreference(value.subtitleTrack),
-      subtitlesOff: value.subtitlesOff === true,
-      mediaIndex: isFinite(mediaIndex) && mediaIndex >= 0 ? mediaIndex : null,
-      partIndex: isFinite(partIndex) && partIndex >= 0 ? partIndex : null
+      subtitlesOff: value.subtitlesOff === true
     };
+    if (value.versionSignature && typeof value.versionSignature === 'object') {
+      result.versionSignature = {
+        videoCodec: String(value.versionSignature.videoCodec || '').toLowerCase(),
+        container: String(value.versionSignature.container || '').toLowerCase(),
+        width: Math.max(0, Number(value.versionSignature.width || 0)),
+        height: Math.max(0, Number(value.versionSignature.height || 0)),
+        bitrate: Math.max(0, Number(value.versionSignature.bitrate || 0)),
+        hdr: value.versionSignature.hdr === true || value.versionSignature.hdr === 1 ? 1 : 0
+      };
+    }
+    if (mediaIndex !== null && isFinite(mediaIndex) && mediaIndex >= 0) { result.legacyVersion = { mediaIndex: mediaIndex, partIndex: isFinite(partIndex) && partIndex >= 0 ? partIndex : 0 }; }
+    return result;
   }
   function mediaPreferences(storage) {
     var result = [];
@@ -105,14 +125,74 @@
     try {
       for (index = 0; index < storage.length; index += 1) {
         key = String(storage.key(index) || '');
-        if (key.indexOf(MEDIA_PREFERENCE_PREFIX) === 0) { keys.push(key); }
+        if (key.indexOf(MEDIA_PREFERENCE_PREFIX) === 0 || key.indexOf(MEDIA_PREFERENCE_V2_PREFIX) === 0) { keys.push(key); }
       }
     } catch (_error) { return result; }
     keys.sort().forEach(function (storageKey) {
-      var value = mediaPreference(readJson(storage, storageKey, null));
-      if (value) { result.push({ key: storageKey.slice(MEDIA_PREFERENCE_PREFIX.length), value: value }); }
+      var isV2 = storageKey.indexOf(MEDIA_PREFERENCE_V2_PREFIX) === 0;
+      var value = mediaPreference(readJson(storage, storageKey, null), isV2);
+      if (value) {
+        result.push({
+          key: storageKey.slice(storageKey.indexOf(MEDIA_PREFERENCE_PREFIX) === 0 ? MEDIA_PREFERENCE_PREFIX.length : MEDIA_PREFERENCE_V2_PREFIX.length),
+          storage: isV2 ? 'v2' : 'v1', value: value
+        });
+      }
     });
     return result;
+  }
+  function subtitleTrack(value) {
+    var result;
+    var index;
+    if (!value || typeof value !== 'object') { return null; }
+    result = {
+      language: cleanText(value.language, 40), format: cleanText(value.format || value.codec, 20),
+      external: value.external === true, title: cleanText(value.title, 120), forced: value.forced === true
+    };
+    if (value.index !== null && value.index !== undefined && isFinite(Number(value.index)) && Number(value.index) >= 0) { index = Number(value.index); result.index = index; }
+    return result;
+  }
+  function subtitleProfile(value) {
+    var result = {};
+    var size;
+    var offset;
+    var background;
+    var edge;
+    var track;
+    if (!value || typeof value !== 'object') { return null; }
+    if (value.subtitleSize !== undefined && isFinite(Number(value.subtitleSize))) { size = Number(value.subtitleSize); result.subtitleSize = Math.max(50, Math.min(200, Math.round(size))); }
+    if (value.offsetMs !== undefined && isFinite(Number(value.offsetMs))) { offset = Number(value.offsetMs); result.offsetMs = Math.max(-600000, Math.min(600000, Math.round(offset))); }
+    background = String(value.subtitleBackground || '');
+    edge = String(value.subtitleEdge || '');
+    if (['off', 'low', 'medium', 'high', 'opaque'].indexOf(background) !== -1) { result.subtitleBackground = background; }
+    if (['shadow', 'outline', 'both', 'double-outline-shadow'].indexOf(edge) !== -1) { result.subtitleEdge = edge; }
+    track = subtitleTrack(value.track || value.subtitleTrack);
+    if (track) { result.track = track; }
+    return Object.keys(result).length ? result : null;
+  }
+  function subtitlePresentationFromValue(value) {
+    var result = {};
+    var identities;
+    if (!value || typeof value !== 'object') { return result; }
+    identities = Object.keys(value).sort().slice(0, 64);
+    identities.forEach(function (identity) {
+      var record = value[identity];
+      var profiles = record && record.profiles && typeof record.profiles === 'object' ? record.profiles : { default: record };
+      var output = { profiles: {} };
+      Object.keys(profiles).sort().slice(0, 32).forEach(function (profileKey) {
+        var profile = subtitleProfile(profiles[profileKey]);
+        if (profile) { output.profiles[cleanText(profileKey, 180)] = profile; }
+      });
+      if (Object.keys(output.profiles).length) { result[cleanText(identity, 240)] = output; }
+    });
+    return result;
+  }
+  function subtitlePresentation(storage) {
+    var current = subtitlePresentationFromValue(readJson(storage, SUBTITLE_PRESENTATION_KEY, {}));
+    var legacy = subtitlePresentationFromValue(readJson(storage, LEGACY_SUBTITLE_PRESENTATION_KEY, {}));
+    Object.keys(legacy).forEach(function (identity) {
+      if (!current[identity]) { current[identity] = legacy[identity]; }
+    });
+    return current;
   }
   function compatibilitySource(value, fallback) {
     if (value === 'user-override') { return 'user-override'; }
@@ -190,6 +270,7 @@
     var order = libraryOrder(storage);
     var preferences = mediaPreferences(storage);
     var offsets = subtitleOffsets(storage);
+    var presentation = subtitlePresentation(storage);
     var learned = compatibility(storage);
     if (!fits(save)) { throw new Error('Ploff settings exceed the backup budget'); }
     if (order.length) {
@@ -210,6 +291,11 @@
       if (Object.keys(save.subtitleOffsets).length) { included.push('subtitleOffsets'); }
       else { delete save.subtitleOffsets; }
     }
+    if (Object.keys(presentation).length) {
+      candidate = copy(save); candidate.subtitlePresentation = presentation;
+      if (fits(candidate)) { save = candidate; included.push('subtitlePresentation'); }
+      else { omitted.push('subtitlePresentation'); }
+    }
     if (learned.formats.length || learned.files.length) { save.compatibility = { version: 3, meta: learned.meta, formats: [], files: [] }; }
     learned.formats.forEach(function (entry) {
       candidate = copy(save); candidate.compatibility.formats.push(entry);
@@ -225,8 +311,9 @@
   }
   function parsedMediaPreferences(parsed) {
     return isArray(parsed.mediaPreferences) ? parsed.mediaPreferences.map(function (entry) {
-      var preference = mediaPreference(entry && entry.value);
-      return entry && entry.key && preference ? { key: String(entry.key), value: preference } : null;
+      var isV2 = entry && entry.storage === 'v2';
+      var preference = mediaPreference(entry && entry.value, isV2);
+      return entry && entry.key && preference ? { key: String(entry.key), storage: isV2 ? 'v2' : 'v1', value: preference } : null;
     }).filter(Boolean) : [];
   }
   function parseCurrent(parsed) {
@@ -237,9 +324,10 @@
       libraryOrder: isArray(parsed.libraryOrder) ? parsed.libraryOrder.map(String) : [],
       mediaPreferences: parsedMediaPreferences(parsed),
       subtitleOffsets: subtitleOffsetsFromValue(parsed.subtitleOffsets || {}),
+      subtitlePresentation: subtitlePresentationFromValue(parsed.subtitlePresentation || {}),
       compatibility: compatibilityFromValue(parsed.compatibility || {}),
       hasLibraryOrder: own(parsed, 'libraryOrder'), hasMediaPreferences: own(parsed, 'mediaPreferences'),
-      hasSubtitleOffsets: own(parsed, 'subtitleOffsets'), hasCompatibility: own(parsed, 'compatibility')
+      hasSubtitleOffsets: own(parsed, 'subtitleOffsets'), hasSubtitlePresentation: own(parsed, 'subtitlePresentation'), hasCompatibility: own(parsed, 'compatibility')
     };
   }
   function parseLegacy(parsed) {
@@ -252,9 +340,10 @@
       libraryOrder: isArray(parsed.libraryOrder) ? parsed.libraryOrder.map(String) : [],
       mediaPreferences: parsedMediaPreferences(parsed),
       subtitleOffsets: subtitleOffsetsFromValue(parsed.subtitleOffsets || {}),
+      subtitlePresentation: subtitlePresentationFromValue(parsed.subtitlePresentation || {}),
       compatibility: compatibilityFromValue(parsed.compatibility || {}),
       hasLibraryOrder: own(parsed, 'libraryOrder'), hasMediaPreferences: own(parsed, 'mediaPreferences'),
-      hasSubtitleOffsets: own(parsed, 'subtitleOffsets'), hasCompatibility: own(parsed, 'compatibility')
+      hasSubtitleOffsets: own(parsed, 'subtitleOffsets'), hasSubtitlePresentation: own(parsed, 'subtitlePresentation'), hasCompatibility: own(parsed, 'compatibility')
     };
   }
   function parse(summary) {
@@ -292,9 +381,16 @@
     if (save.hasLibraryOrder) { storage.setItem(LIBRARY_ORDER_KEY, JSON.stringify(save.libraryOrder)); }
     if (save.hasMediaPreferences) {
       removeByPrefix(storage, MEDIA_PREFERENCE_PREFIX);
-      save.mediaPreferences.forEach(function (entry) { storage.setItem(MEDIA_PREFERENCE_PREFIX + entry.key, JSON.stringify(entry.value)); });
+      removeByPrefix(storage, MEDIA_PREFERENCE_V2_PREFIX);
+      save.mediaPreferences.forEach(function (entry) {
+        storage.setItem((entry.storage === 'v2' ? MEDIA_PREFERENCE_V2_PREFIX : MEDIA_PREFERENCE_PREFIX) + entry.key, JSON.stringify(entry.value));
+      });
     }
     if (save.hasSubtitleOffsets) { storage.setItem(SUBTITLE_OFFSETS_KEY, JSON.stringify(save.subtitleOffsets)); }
+    if (save.hasSubtitlePresentation) {
+      if (storage.removeItem) { storage.removeItem(LEGACY_SUBTITLE_PRESENTATION_KEY); }
+      storage.setItem(SUBTITLE_PRESENTATION_KEY, JSON.stringify(save.subtitlePresentation));
+    }
     if (save.hasCompatibility && values.includeCompatibility === true) {
       storage.setItem(COMPATIBILITY_KEY, JSON.stringify(save.compatibility));
       if (storage.removeItem) { storage.removeItem(LEGACY_COMPATIBILITY_KEY); }

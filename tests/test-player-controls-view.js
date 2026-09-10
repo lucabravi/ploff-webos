@@ -4,7 +4,7 @@ var assert = require('assert');
 var PlayerControlsView = require('../app/player-controls-view');
 function node() { return { className: '', textContent: '', style: {}, attributes: {}, setAttribute: function (key, value) { this.attributes[key] = String(value); } }; }
 var nodes = {};
-['player-video', 'player-loading', 'player-toggle', 'player-progress', 'player-current-time', 'player-duration', 'player-controls', 'player-previous', 'player-next'].forEach(function (id) { nodes[id] = node(); });
+['player-view', 'player-video', 'player-loading', 'player-toggle', 'player-progress', 'player-current-time', 'player-duration', 'player-controls', 'player-previous', 'player-next'].forEach(function (id) { nodes[id] = node(); });
 var documentRef = { getElementById: function (id) { return nodes[id]; }, querySelectorAll: function () { return [nodes['player-previous'], nodes['player-toggle'], nodes['player-next']]; } };
 var view = PlayerControlsView.create({ document: documentRef });
 
@@ -17,6 +17,11 @@ assert.ok(nodes['player-toggle'].className.indexOf('is-playing') !== -1, 'playin
 assert.strictEqual(nodes['player-toggle'].attributes['aria-label'], 'Pause', 'the central control must expose its next action');
 view.renderMode('timeline');
 assert.strictEqual(nodes['player-controls'].className, 'player-controls is-timeline-only', 'timeline mode must use the compact player surface');
+assert.ok(nodes['player-view'].className.indexOf('has-player-controls-timeline') !== -1, 'timeline mode must expose its surface state to subtitle positioning');
+view.renderMode('hidden');
+assert.strictEqual(nodes['player-view'].className, '', 'hidden controls must remove the subtitle positioning state');
+view.renderMode('full');
+assert.ok(nodes['player-view'].className.indexOf('has-player-controls-full') !== -1, 'full controls must expose their surface state to subtitle positioning');
 view.renderEpisodeCommands(false, true);
 assert.strictEqual(view.buttonAvailable(0), false, 'unavailable previous episodes must be skipped by focus navigation');
 assert.strictEqual(view.buttonAvailable(2), true, 'available next episodes must remain focusable');

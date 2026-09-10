@@ -1,4 +1,7 @@
 body.visual-theme-premiere {
+  --detail-preference-badge-background: rgba(224,181,111,.12);
+  --detail-preference-badge-border: rgba(224,181,111,.48);
+  --detail-preference-badge-text: #f0d2a2;
   --accent: #e0b56f;
   --theme-app-background: #06070b;
   --theme-app-text: #f6f1e9;

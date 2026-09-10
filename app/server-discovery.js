@@ -191,7 +191,7 @@
         probe(rootObject, uri, name, config.discoveryTimeout || 1800, function (server) { complete(server ? [server] : []); });
       }(uris[index], index === 0 ? config.serverName : ''));
     }
-    discoverWithService(rootObject, config.discoveryServiceTimeout || config.discoveryTimeout || 3500, complete);
+    discoverWithService(rootObject, config.discoveryServiceTimeout || 5000, complete);
   }
 
   return {

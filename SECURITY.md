@@ -20,7 +20,10 @@ within seven days when reasonably possible; this is a target, not an SLA.
 Ploff is an unofficial client intended for trusted TVs and home networks. The
 packaged TV app stores Plex tokens and profile credentials in a private,
 app-owned webOS DB8 kind with synchronization disabled. Browser `localStorage`
-contains only non-secret preferences and connection metadata. Existing
+contains only non-secret preferences, semantic media selections, subtitle
+presentation profiles, and connection metadata. Selection and presentation
+records include the server and active Plex Home profile identity where needed,
+so one profile cannot read another profile's preferences. Existing
 plaintext authentication records are migrated to private DB8 at startup and
 then removed from `localStorage`.
 
@@ -39,3 +42,18 @@ Plex authentication header; diagnostics remove authenticated URLs.
 GDM responses are treated as untrusted discovery hints. Authenticated server
 routes come from Plex account resources, and endpoint identity is checked
 without sending a token before a route is selected.
+
+## Release Supply Chain
+
+Tagged releases publish `SHA256SUMS` and an SPDX JSON SBOM generated from the
+extracted IPK payload, not from development-only dependencies. GitHub artifact
+attestations bind the downloadable IPK and the pushed installer container digest
+to the release workflow and source commit. GitHub Actions are pinned to immutable
+commit SHAs; the Docker build base and pull-request Gitleaks image are pinned by
+registry digest.
+
+Consumers can verify a downloaded IPK with GitHub CLI using:
+
+```sh
+gh attestation verify io.github.rhapsodos.ploff_<version>_all.ipk --repo lucabravi/ploff-webos
+```

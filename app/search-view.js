@@ -55,7 +55,9 @@
       renderWindow: { start: 0, end: 0, visibleStartRow: 0, offsetRows: 0 },
       visibleStartRow: 0,
       cardRenderToken: 0,
-      measurementCache: null
+      measurementCache: null,
+      resultCards: {},
+      focusTarget: null
     };
     var session;
     var t9Input;
@@ -158,7 +160,7 @@
         row = createElement('div', 'search-keyboard-row');
         for (column = 0; column < source[rowIndex].length; column += 1) {
           key = source[rowIndex][column];
-          button = createElement('button', 'search-key' + (key === 'space' ? ' is-space' : (key.length > 1 ? ' is-wide' : '')), keyLabel(key));
+          button = createElement('button', 'search-key' + (key === 'space' ? ' is-space' : (key.length > 1 ? ' is-wide' : '')) + ((key === 'backspace' || key === 'clear') ? ' is-destructive' : ''), keyLabel(key));
           button.type = 'button';
           button.setAttribute('data-search-key', key);
           button.setAttribute('data-search-row', rowIndex);
@@ -198,22 +200,42 @@
       return card;
     }
 
-    function updateCard(card, item, index, priority) {
+    function syncCard(card, item, index) {
       var image = card.getElementsByTagName('img')[0];
       var source = String(item && item.image || '');
       var title = mediaTitle(item);
       var library = String(item && (item.libraryTitle || item.library || '') || '');
+      var meta = mediaMeta(item);
+      var detail = mediaDetail(item);
+      var viewed = !!(item && item.viewed);
+      var key = mediaKey(item);
+      var presentation = card.__searchPresentation;
+      if (presentation && presentation.index === index && presentation.key === key && presentation.source === source &&
+          presentation.title === title && presentation.library === library && presentation.meta === meta &&
+          presentation.detail === detail && presentation.viewed === viewed) {
+        return image;
+      }
       card.className = 'search-card' + (item && item.viewed ? ' is-viewed' : '');
       card.setAttribute('data-search-index', index);
-      card.setAttribute('data-media-key', mediaKey(item));
+      card.setAttribute('data-media-key', key);
       card.setAttribute('aria-label', title + (library ? ', ' + library : ''));
       setText(card.querySelector('.search-library-badge'), library);
       setText(card.querySelector('.search-card-title'), title);
-      setText(card.querySelector('.search-card-meta'), mediaMeta(item));
-      setText(card.querySelector('.search-card-detail'), mediaDetail(item));
+      setText(card.querySelector('.search-card-meta'), meta);
+      setText(card.querySelector('.search-card-detail'), detail);
       image.alt = '';
       image.setAttribute('data-search-image', source);
       image.__searchImageSource = source;
+      card.__searchPresentation = {
+        index: index, key: key, source: source, title: title, library: library,
+        meta: meta, detail: detail, viewed: viewed
+      };
+      return image;
+    }
+
+    function updateCard(card, item, index, priority) {
+      var image = syncCard(card, item, index);
+      var source = String(item && item.image || '');
       return { target: image, specification: posterSpecification(image, source, priority) };
     }
 
@@ -264,6 +286,11 @@
       measured = measured || { columns: 1, visibleRows: 1, totalRows: 0 };
       measured.cardWidth = Math.max(64, Number(measured.cardWidth || cardWidth));
       measured.cardHeight = Math.max(64, Number(measured.cardHeight || cardHeight));
+      // A partially visible last row must still trigger scrolling when it receives focus.
+      measured.visibleRows = Math.max(1, Math.min(
+        Number(measured.visibleRows || 1),
+        Math.floor(Math.max(0, Number(container.clientHeight || 0) - 12) / measured.cardHeight) || 1
+      ));
       state.measurementCache = { key: cacheKey, layout: copyLayout(measured) };
       return measured;
     }
@@ -283,6 +310,7 @@
       var key;
       var priority;
       var posterJobs = [];
+      var resultCards = {};
       var token;
       if (!container) { return; }
       for (index = 0; index < container.children.length; index += 1) {
@@ -298,6 +326,7 @@
         state.renderWindow = { start: 0, end: 0, visibleStartRow: 0, offsetRows: 0 };
         state.visibleStartRow = 0;
         state.measurementCache = null;
+        state.resultCards = {};
         return;
       }
       state.layout = measureResults(container);
@@ -324,8 +353,10 @@
         card.__searchRenderToken = token;
         priority = state.focus.zone === 'results' && index === state.focus.index ? 0 : (index >= visibleStart && index < visibleEnd ? 1 : 2);
         posterJobs.push(updateCard(card, item, index, priority));
+        resultCards[index] = card;
         container.appendChild(card);
       }
+      state.resultCards = resultCards;
       if (values.posterLoader && values.posterLoader.loadBatch) {
         values.posterLoader.loadBatch(posterJobs);
       } else if (values.posterLoader && values.posterLoader.load) {
@@ -339,25 +370,23 @@
 
     function ensureWindow() {
       var nextWindow;
+      var container;
       if (state.focus.zone !== 'results' || !state.results.length) { return; }
       nextWindow = model.virtualWindow(
         state.focus.index, state.results.length, state.layout.columns, state.layout.visibleRows,
         Number(values.resultOverscanRows || 0), state.visibleStartRow
       );
-      if (nextWindow.start !== state.renderWindow.start || nextWindow.end !== state.renderWindow.end) { renderResults(); }
-    }
-
-    function keepFocusVisible(target) {
-      var container;
-      var nodeRect;
-      var containerRect;
-      if (!target || !target.hasAttribute || !target.hasAttribute('data-search-index')) { return; }
-      container = node(values.resultsId || 'search-results');
-      if (!container || !target.getBoundingClientRect || !container.getBoundingClientRect) { return; }
-      nodeRect = target.getBoundingClientRect();
-      containerRect = container.getBoundingClientRect();
-      if (nodeRect.bottom > containerRect.bottom) { container.scrollTop += nodeRect.bottom - containerRect.bottom + 12; }
-      else if (nodeRect.top < containerRect.top) { container.scrollTop -= containerRect.top - nodeRect.top + 12; }
+      if (nextWindow.start !== state.renderWindow.start || nextWindow.end !== state.renderWindow.end) {
+        renderResults();
+        return;
+      }
+      if (nextWindow.visibleStartRow !== state.visibleStartRow || nextWindow.offsetRows !== state.renderWindow.offsetRows) {
+        state.visibleStartRow = nextWindow.visibleStartRow;
+        state.renderWindow.visibleStartRow = nextWindow.visibleStartRow;
+        state.renderWindow.offsetRows = nextWindow.offsetRows;
+        container = node(values.resultsId || 'search-results');
+        if (container) { container.scrollTop = nextWindow.offsetRows * state.layout.cardHeight; }
+      }
     }
 
     function targetForFocus() {
@@ -365,22 +394,47 @@
       if (state.focus.zone === 'nav') { return values.navTarget ? values.navTarget(state.focus.navIndex) : null; }
       if (state.focus.zone === 'keyboard') {
         selector = '[data-search-row="' + state.focus.row + '"][data-search-column="' + state.focus.column + '"]';
-      } else { selector = '[data-search-index="' + state.focus.index + '"]'; }
+      } else { return state.resultCards[state.focus.index] || null; }
       return documentRef && documentRef.querySelector ? documentRef.querySelector(selector) : null;
+    }
+
+    function clearTrackedFocus() {
+      if (state.focusTarget) {
+        state.focusTarget.className = String(state.focusTarget.className || '').replace(/\s*is-focused/g, '');
+        state.focusTarget = null;
+        return;
+      }
+      if (values.clearFocus) { values.clearFocus(); }
+    }
+
+    function restoreResultScroll() {
+      var container;
+      var expected;
+      if (state.focus.zone !== 'results') { return; }
+      container = node(values.resultsId || 'search-results');
+      if (!container) { return; }
+      expected = state.renderWindow.offsetRows * state.layout.cardHeight;
+      if (container.scrollTop !== expected) { container.scrollTop = expected; }
     }
 
     function updateFocus() {
       var target;
+      var item;
       ensureWindow();
-      if (values.clearFocus) { values.clearFocus(); }
+      clearTrackedFocus();
       target = targetForFocus();
       if (target) {
+        if (state.focus.zone === 'results') {
+          item = state.results[state.focus.index];
+          if (item) { syncCard(target, item, state.focus.index); }
+        }
         target.className += ' is-focused';
         if (state.focus.zone === 'results' && values.prioritizePoster) { values.prioritizePoster(target); }
         if (!values.pointerSelectionActive || !values.pointerSelectionActive()) {
           if (target.focus) { target.focus(); }
-          keepFocusVisible(target);
+          restoreResultScroll();
         }
+        state.focusTarget = target;
       }
       if (values.onFocus) { values.onFocus(copyFocus(state.focus), target || null); }
       if (state.focus.zone === 'results' && state.results[state.focus.index] && values.onBackdrop) {
@@ -493,6 +547,10 @@
       if (session) { session.cancel(); }
       if (t9Input) { t9Input.cancel(); }
       if (values.posterLoader && values.posterLoader.cancelScope) { values.posterLoader.cancelScope('search'); }
+      if (state.focusTarget) {
+        state.focusTarget.className = String(state.focusTarget.className || '').replace(/\s*is-focused/g, '');
+        state.focusTarget = null;
+      }
       state.open = false;
       state.t9Preview = '';
       if (node(values.viewId || 'search-view')) { node(values.viewId || 'search-view').className = 'search-view is-hidden'; }

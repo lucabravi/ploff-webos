@@ -30,6 +30,17 @@
       return 0;
     }
     function pad(value) { return Number(value) < 10 ? '0' + Number(value) : String(value); }
+    function durationLabel(duration) {
+      var total = Math.round(Number(duration) / 1000);
+      var hours;
+      var minutes;
+      var seconds;
+      if (!isFinite(total) || total <= 0) { return '--:--'; }
+      hours = Math.floor(total / 3600);
+      minutes = Math.floor((total % 3600) / 60);
+      seconds = total % 60;
+      return (hours > 0 ? String(hours) + ':' + pad(minutes) : pad(minutes)) + ':' + pad(seconds);
+    }
     function windowRange() {
       var episodes = state.context && state.context.episodes || [];
       var start = Math.max(0, state.episodeIndex - 2);
@@ -107,7 +118,7 @@
       }
     }
     function imageSpecification(image, source, priority) {
-      var size = values.ProgressiveImages.renderedSize(image, 310, 124);
+      var size = values.ProgressiveImages.renderedSize(image, 310, 168);
       var preview = values.ProgressiveImages.previewSize(size.width, size.height, 128);
       return { source: source, previewWidth: preview.width, previewHeight: preview.height, width: size.width, height: size.height, priority: priority, scope: 'detail' };
     }
@@ -115,12 +126,14 @@
       var progress = clamp(Number(episode && episode.progress || 0), 0, 100);
       var track = card.querySelector('.episode-progress-track');
       var value = card.querySelector('.episode-progress-value');
+      var duration = card.querySelector('.episode-duration-badge');
       var focused = card.className.indexOf('is-focused') !== -1;
       var current = Number(position) === state.episodeIndex;
       var buffered = visibleRange && (Number(position) < visibleRange.start || Number(position) >= visibleRange.end);
       card.className = 'episode-card' + (episode.viewed ? ' is-viewed' : '') + (current ? ' is-current' : '') + (focused ? ' is-focused' : '') + (buffered ? ' is-buffered' : '');
+      if (duration) { duration.textContent = durationLabel(episode && episode.duration); }
       if (track && value) {
-        track.className = 'episode-progress-track' + (!episode.viewed && progress > 0 ? '' : ' is-hidden');
+        track.className = 'episode-progress-track' + (progress > 0 && progress < 100 ? '' : ' is-hidden');
         value.style.width = progress + '%';
       }
     }
@@ -151,6 +164,7 @@
           card = element('button', 'episode-card');
           card.type = 'button';
           image = element('img', 'episode-image'); image.alt = ''; card.appendChild(image);
+          card.appendChild(element('span', 'episode-duration-badge', durationLabel(episode.duration)));
           track = element('span', 'episode-progress-track'); progress = element('span', 'episode-progress-value'); track.appendChild(progress); card.appendChild(track);
           label = element('span', 'episode-label'); label.appendChild(element('span', 'episode-label-text')); card.appendChild(label);
           card.onclick = function () { if (values.onEpisodeActivate) { values.onEpisodeActivate(Number(this.getAttribute('data-episode-position'))); } };

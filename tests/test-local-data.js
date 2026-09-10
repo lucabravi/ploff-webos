@@ -17,10 +17,12 @@ var fixture = storage({
   'ploff.auth.v1': 'credentials',
   'ploff.settings.v1': 'settings',
   'ploff.mediaPreference.v1.example': 'preference',
+  'ploff.mediaPreference.v2.example|season|42': 'selection',
+  'ploff.subtitle-presentation.v2': 'presentation',
   unrelated: 'keep'
 });
 
-assert.strictEqual(LocalData.clear(fixture), 3, 'all Ploff-owned records must be removed');
+assert.strictEqual(LocalData.clear(fixture), 5, 'all Ploff-owned records must be removed');
 assert.deepStrictEqual(fixture.values(), { unrelated: 'keep' }, 'unrelated origin data must be preserved');
 assert.strictEqual(LocalData.clear(null), 0, 'missing storage must be harmless');
 var partial = storage({ 'ploff.one': 'one', 'ploff.two': 'two', unrelated: 'keep' });

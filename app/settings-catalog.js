@@ -24,6 +24,17 @@
       return SettingsSchema && SettingsSchema.allowed ? SettingsSchema.allowed(key) : [];
     }
 
+    function imageQualityValues(settings, key) {
+      var allowed = domainValues(key);
+      var cap;
+      if (!settings || settings.artworkDataSaver !== true || !SettingsSchema || typeof SettingsSchema.lightweightImageQualityCap !== 'function') {
+        return allowed;
+      }
+      cap = Number(SettingsSchema.lightweightImageQualityCap(key) || 0);
+      if (cap <= 0) { return allowed; }
+      return allowed.filter(function (value) { return Number(value) <= cap; });
+    }
+
     function supportsAccentColor(themeId) {
       var definition = ThemeRegistry && ThemeRegistry.get ? ThemeRegistry.get(themeId) : null;
       return !definition || definition.supportsAccentColor === true;
@@ -35,6 +46,11 @@
 
     function versionPriorityList(items) {
       return (items || []).map(function (key) { return values.t('settings.versionPriority.' + key); }).join(' > ');
+    }
+
+    function homeRowList(items) {
+      if (!(items || []).length) { return values.t('settings.homeRowsHidden'); }
+      return items.map(function (key) { return values.t('settings.homeRow.' + key); }).join(' > ');
     }
 
     function booleanChoices() {
@@ -67,13 +83,16 @@
         { key: 'visualTheme', section: 'interface', label: values.t('settings.visualTheme'), value: values.visualThemeLabel(settings.visualTheme), choices: choices(domainValues('visualTheme'), values.visualThemeLabel) },
         { key: 'accentColor', section: 'interface', label: values.t('settings.accentColor'), value: values.accentColorLabel(settings.accentColor), palette: true, choices: domainValues('accentColor').map(function (value) { return { value: value, label: values.accentColorLabel(value), color: values.accentValues[value] }; }) },
         { key: 'cardScale', section: 'interface', label: values.t('settings.cardSize'), value: settings.cardScale + '%', currentValue: settings.cardScale, choices: choices(domainValues('cardScale'), function (value) { return value + '%'; }), stepper: true, choiceVariant: 'card-scale' },
-        { key: 'artworkQuality', section: 'interface', label: values.t('settings.artworkQuality'), value: settings.artworkQuality + '%', currentValue: settings.artworkQuality, choices: choices(domainValues('artworkQuality'), function (value) { return value + '%'; }), stepper: true, choiceVariant: 'artwork-quality' },
-        { key: 'backdropQuality', section: 'interface', label: values.t('settings.backdropQuality'), value: settings.backdropQuality + '%', currentValue: settings.backdropQuality, choices: choices(domainValues('backdropQuality'), function (value) { return value + '%'; }), stepper: true, choiceVariant: 'backdrop-quality' },
+        { key: 'artworkDataSaver', section: 'interface', label: values.t('settings.artworkDataSaver'), value: values.t(settings.artworkDataSaver ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
+        { key: 'artworkQuality', section: 'interface', label: values.t('settings.artworkQuality'), value: settings.artworkQuality + '%', currentValue: settings.artworkQuality, choices: choices(imageQualityValues(settings, 'artworkQuality'), function (value) { return value + '%'; }), stepper: true, choiceVariant: 'artwork-quality' },
+        { key: 'backdropQuality', section: 'interface', label: values.t('settings.backdropQuality'), value: settings.backdropQuality + '%', currentValue: settings.backdropQuality, choices: choices(imageQualityValues(settings, 'backdropQuality'), function (value) { return value + '%'; }), stepper: true, choiceVariant: 'backdrop-quality' },
         { key: 'interfaceAnimations', section: 'interface', label: values.t('settings.interfaceAnimations'), value: values.t(settings.interfaceAnimations ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'wheelBehavior', section: 'interface', label: values.t('settings.wheelBehavior'), value: values.t(settings.wheelBehavior === 'page' ? 'settings.wheelPage' : 'settings.wheelItems'), choices: choices(domainValues('wheelBehavior'), function (value) { return values.t(value === 'page' ? 'settings.wheelPage' : 'settings.wheelItems'); }) },
         { key: 'searchT9Input', section: 'interface', label: values.t('settings.searchT9Input'), value: values.t(settings.searchT9Input ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'showWatchlist', section: 'interface', label: values.t('settings.showWatchlist'), value: values.t(settings.showWatchlist ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'showPlaylists', section: 'interface', label: values.t('settings.showPlaylists'), value: values.t(settings.showPlaylists ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
+        { key: 'homeRows', section: 'interface', label: values.t('settings.homeRows'), value: homeRowList(settings.homeRows), orderedEditor: true },
+        { key: 'uiTextScale', section: 'accessibility', label: values.t('settings.uiTextScale'), value: settings.uiTextScale + '%', currentValue: settings.uiTextScale, choices: choices(domainValues('uiTextScale'), function (value) { return value + '%'; }), stepper: true },
         { key: 'highContrast', section: 'accessibility', label: values.t('settings.highContrast'), value: values.t(settings.highContrast ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'strongFocus', section: 'accessibility', label: values.t('settings.strongFocus'), value: values.t(settings.strongFocus ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'safeAreaCalibration', section: 'accessibility', label: values.t('settings.safeAreaCalibration'), value: safeAreaLabel(settings), action: true, safeAreaCalibration: true },
@@ -91,6 +110,8 @@
         { key: 'subtitleSuppressedForAudio', section: 'languages', label: values.t('settings.subtitleSuppression'), value: languageList(settings.subtitleSuppressedForAudio, settings), editor: true },
         { key: 'subtitleMode', section: 'languages', label: values.t('settings.subtitleMode'), value: subtitleLabels[settings.subtitleMode], choices: choices(domainValues('subtitleMode'), function (value) { return subtitleLabels[value]; }) },
         { key: 'subtitleSourcePreference', section: 'languages', label: values.t('settings.subtitleSourcePreference'), value: values.t(settings.subtitleSourcePreference === 'internal' ? 'settings.preferInternalSubtitles' : 'settings.preferExternalSubtitles'), choices: choices(domainValues('subtitleSourcePreference'), function (value) { return values.t(value === 'internal' ? 'settings.preferInternalSubtitles' : 'settings.preferExternalSubtitles'); }) },
+        { key: 'subtitleRenderingSrt', section: 'languages', label: values.t('settings.subtitleRenderingSrt'), value: values.t(settings.subtitleRenderingSrt ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
+        { key: 'subtitleRenderingAss', section: 'languages', label: values.t('settings.subtitleRenderingAss'), value: values.t(settings.subtitleRenderingAss ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'backgroundMusic', section: 'audioAppearance', label: values.t('settings.backgroundMusic'), value: values.t(settings.backgroundMusic ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'backgroundVolume', section: 'audioAppearance', label: values.t('settings.backgroundVolume'), value: settings.backgroundVolume + '%', currentValue: settings.backgroundVolume, choices: choices(domainValues('backgroundVolume'), function (value) { return value + '%'; }), stepper: true },
         { key: 'backgroundDelay', section: 'audioAppearance', label: values.t('settings.backgroundDelay'), value: settings.backgroundDelay + ' ms', currentValue: settings.backgroundDelay, choices: choices(domainValues('backgroundDelay'), function (value) { return value + ' ms'; }), stepper: true },
@@ -119,11 +140,11 @@
     function categoryDefinitions() {
       return [
         { id: 'plex', keys: ['plexServer', 'plexProfile', 'networkStatus', 'disconnectPlex'] },
-        { id: 'navigation', keys: ['uiLanguage', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists'] },
-        { id: 'appearance', keys: ['visualTheme', 'accentColor', 'cardScale', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'backgroundMusic', 'backgroundVolume', 'backgroundDelay'] },
-        { id: 'accessibility', keys: ['highContrast', 'strongFocus', 'safeAreaCalibration'] },
+        { id: 'navigation', keys: ['uiLanguage', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists', 'homeRows'] },
+        { id: 'appearance', keys: ['visualTheme', 'accentColor', 'cardScale', 'artworkDataSaver', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'backgroundMusic', 'backgroundVolume', 'backgroundDelay'] },
+        { id: 'accessibility', keys: ['uiTextScale', 'highContrast', 'strongFocus', 'safeAreaCalibration'] },
         { id: 'playback', keys: ['lanVideoQuality', 'remoteVideoQuality', 'playbackMode', 'videoVersionPriorities', 'playbackCompatibility', 'autoplayDelay', 'upNextLayout', 'skipPromptDuration'] },
-        { id: 'languages', keys: ['audioLanguages', 'subtitleLanguages', 'subtitleSuppressedForAudio', 'subtitleMode', 'subtitleSourcePreference', 'subtitleAppearance'] },
+        { id: 'languages', keys: ['audioLanguages', 'subtitleLanguages', 'subtitleSuppressedForAudio', 'subtitleMode', 'subtitleSourcePreference', 'subtitleRenderingSrt', 'subtitleRenderingAss', 'subtitleAppearance'] },
         { id: 'data', keys: ['settingsBackup', 'diagnostics', 'privacy', 'deleteLocalData'] }
       ];
     }

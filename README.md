@@ -56,7 +56,8 @@ LG webOS TV / Chrome 53
         v
 app/index.html + app/styles.css + generated app/app.js
         |
-        +--> feature controllers --> shared TV views / remote + pointer input
+        +--> Core features --> shared TV views / remote + pointer input
+        +--> deferred app/player.js --> Player composition and playback
         |
         +--> Plex HTTP client ----------------------> Plex Media Server
         |
@@ -67,9 +68,11 @@ app/index.html + app/styles.css + generated app/app.js
 
 `app/coordinator/application-controller.js` is the composition root: it wires focused
 feature controllers together but does not own their Plex requests, DOM, timers, or
-private state. Browser runtime code remains dependency-free ES5. `app/app.js` and
-`app/styles.css` are checked-in generated artifacts for the TV package and must never
-be edited directly.
+private state. It also owns the single deferred-Player readiness transition and
+post-Home warm timer. Browser runtime code remains dependency-free ES5. `app/app.js`,
+`app/player.js`, and `app/styles.css` are checked-in generated artifacts and must never
+be edited directly. Player code loads after Home is focusable or on the first playback
+request; enabled local ASS prewarm remains in Core and independent of that load.
 
 Local Plex discovery and LAN playback do not require Plex cloud services. Plex linking
 is optional and adds Home profiles, Watchlist, remote servers, Relay failover, and
@@ -101,6 +104,14 @@ documentation map.
   <tr>
     <td align="center"><strong>Library recommendations</strong></td>
     <td align="center"><strong>Series detail and episode navigation</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/player.jpg" alt="Ploff player with playback controls"></td>
+    <td width="50%"><img src="docs/screenshots/queue-up-next.jpg" alt="Playback queue and Up Next episodes"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Player and playback controls</strong></td>
+    <td align="center"><strong>Playback queue and Up Next</strong></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/movie-detail.jpg" alt="Movie detail and playback choices"></td>
@@ -212,21 +223,24 @@ ares-novacom --getkey --device my-tv
 Keep Key Server enabled while running `ares-novacom`. When prompted, enter the
 passphrase shown by the Developer Mode app.
 
-Download the IPK and `SHA256SUMS` from
+Download the IPK, `SHA256SUMS`, and `SBOM.spdx.json` from
 [GitHub Releases](https://github.com/lucabravi/ploff-webos/releases), verify the
-download, then install and launch it:
+download and GitHub build provenance, then install and launch it:
 
 ```sh
 shasum -a 256 --check SHA256SUMS # macOS
 # sha256sum --check SHA256SUMS   # Linux
+gh attestation verify io.github.rhapsodos.ploff_<version>_all.ipk --repo lucabravi/ploff-webos
 ares-install --device my-tv io.github.rhapsodos.ploff_<version>_all.ipk
 ares-launch --device my-tv io.github.rhapsodos.ploff
 ```
 
 Replace `my-tv` with the name configured in `ares-setup-device`.
 
-Every tagged version publishes a generic IPK, checksum, and multi-architecture
-Docker installer. Release packages contain no Plex address or credentials.
+Every tagged version publishes a generic IPK, checksums, an SPDX JSON SBOM, and a
+multi-architecture Docker installer. GitHub artifact attestations bind the IPK
+and published container digest to the release workflow and source commit. Release
+packages contain no Plex address or credentials.
 
 </details>
 
@@ -388,6 +402,10 @@ requirements (`npm run verify`) applied to every change.
 ## License
 
 Released under the [MIT License](LICENSE).
+
+Packaged third-party components retain their own licenses and attribution in
+[`app/vendor/THIRD_PARTY_NOTICES.txt`](app/vendor/THIRD_PARTY_NOTICES.txt), including
+the corresponding-source provenance for the ASS renderer and the OFL-1.1 fallback font.
 
 Plex and Plex Media Server are trademarks of Plex, Inc. Ploff is independently
 developed and is not endorsed by Plex, Inc.

@@ -4,12 +4,13 @@ var acorn = require('acorn');
 var fs = require('fs');
 var path = require('path');
 
-function collectJavaScript(directory, files) {
+function collectJavaScript(directory, files, skipDirectory) {
   if (!fs.existsSync(directory)) { return files; }
+  if (skipDirectory && skipDirectory(directory)) { return files; }
   fs.readdirSync(directory).sort().forEach(function (name) {
     var file = path.join(directory, name);
     var stat = fs.statSync(file);
-    if (stat.isDirectory()) { collectJavaScript(file, files); }
+    if (stat.isDirectory()) { collectJavaScript(file, files, skipDirectory); }
     else if (/\.js$/.test(name)) { files.push(file); }
   });
   return files;
@@ -17,7 +18,10 @@ function collectJavaScript(directory, files) {
 
 function collectRuntimeFiles(projectRoot) {
   var files = [];
-  collectJavaScript(path.join(projectRoot, 'app'), files);
+  var vendor = path.resolve(path.join(projectRoot, 'app', 'vendor'));
+  collectJavaScript(path.join(projectRoot, 'app'), files, function (directory) {
+    return path.resolve(directory) === vendor;
+  });
   collectJavaScript(path.join(projectRoot, 'webos-service'), files);
   return files.sort();
 }

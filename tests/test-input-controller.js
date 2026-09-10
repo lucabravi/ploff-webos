@@ -323,3 +323,17 @@ function event(keyCode, calls) {
 }());
 
 console.log('Input controller checks passed');
+
+(function backCancelsPendingPlayerBeforeExistingOverlayRouting() {
+  [27, 461].forEach(function (key) {
+    var calls = [];
+    var controller = InputController.create({
+      sessionSnapshot: function () { return { appView: 'detail', choiceDialogOpen: true }; },
+      lifecycle: { cancelPendingPlayback: function () { calls.push('cancel-pending'); } },
+      overlays: { choiceDialog: function () { calls.push('choice'); } }
+    });
+    controller.handleKeyDown(event(key, calls));
+    assert.deepStrictEqual(calls, ['cancel-pending', 'prevent:' + key, 'choice'], 'Back must cancel a deferred intent before an animated close can race readiness');
+    controller.destroy();
+  });
+}());

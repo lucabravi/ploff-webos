@@ -295,7 +295,7 @@ navigationCallbacks[0](null, [{ title: 'Home', kind: 'home' }]);
 accountProfileCallbacks[0](null, { locale: 'it' });
 assert.strictEqual(appliedNavigation.length, 1, 'loaded navigation must be published through the application port');
 assert.strictEqual(homeLoads, 1, 'successful navigation loading must refresh Home');
-assert.strictEqual(watchlistLoads, 1, 'available Watchlist data must be preloaded');
+assert.strictEqual(watchlistLoads, 0, 'initial server load must not compete with Home by preloading Watchlist');
 assert.deepStrictEqual(seededAccounts, [{ locale: 'it' }], 'account profile settings must be seeded through the application port');
 
 feature.loadApplication();

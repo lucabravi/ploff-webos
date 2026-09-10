@@ -202,7 +202,7 @@
 
   function subtitleLanguages(profile) {
     var tracks = profile && profile.subtitleTracks || [];
-    var seen = {};
+    var seen = Object.create(null);
     var values = [];
     tracks.forEach(function (item) {
       var key = String(item.languageTag || item.languageCode || item.language || '').toLowerCase();

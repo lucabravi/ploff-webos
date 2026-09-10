@@ -46,15 +46,17 @@
     if (value !== undefined && value !== null && String(value) !== '') { rows.push({ label: label, value: String(value) }); }
   }
 
-  function create(profile, options, translate) {
+  function create(profile, options, translate, diagnostics) {
     var item = profile || {};
     var settings = options || {};
+    var diagnosticValues = diagnostics || {};
     var t = typeof translate === 'function' ? translate : function (key) { return key; };
     var details = item.videoDetails || {};
     var fileRows = [];
     var videoRows = [];
     var audioRows = [];
     var subtitleRows = [];
+    var diagnosticRows = [];
     var audio = selectedTrack(item.audioTracks, settings.audioStreamID);
     var subtitle = selectedTrack(item.subtitleTracks, settings.subtitleStreamID);
     var externalLabel = t('detail.external');
@@ -82,6 +84,9 @@
 
     add(subtitleRows, t('mediaDetails.selectedTrack'), subtitle ? trackLabel(subtitle, externalLabel) : t('mediaDetails.off'));
     if (subtitleRows.length) { sections.push({ title: t('mediaDetails.subtitles'), column: 'right', rows: subtitleRows }); }
+
+    add(diagnosticRows, t('mediaDetails.recoveryTrace'), diagnosticValues.recoveryTrace);
+    if (diagnosticRows.length) { sections.push({ title: t('mediaDetails.diagnostics'), column: 'right', rows: diagnosticRows }); }
 
     if (!sections.length) { sections.push({ title: t('mediaDetails.file'), column: 'left', rows: [{ label: t('mediaDetails.status'), value: t('player.unavailable') }] }); }
     return { sections: sections };

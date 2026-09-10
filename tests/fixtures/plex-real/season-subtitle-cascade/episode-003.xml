@@ -1,0 +1,64 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer size='1' allowSync='1' identifier='com.plexapp.plugins.library' librarySectionID='fixture-library-001' librarySectionTitle='Anime' librarySectionUUID='fixture-uuid-001' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632'>
+  <Video ratingKey='fixture-rating-007' key='/library/metadata/fixture-rating-007' parentRatingKey='fixture-rating-002' grandparentRatingKey='fixture-rating-003' guid='fixture-guid-007' parentGuid='fixture-guid-002' grandparentGuid='fixture-guid-003' grandparentSlug='the-eminence-in-shadow' type='episode' title='La Spadaccina Mediocre' titleSort='Spadaccina Mediocre' grandparentKey='/library/metadata/fixture-rating-003' parentKey='/library/metadata/fixture-rating-002' librarySectionTitle='Anime' librarySectionID='fixture-library-001' librarySectionKey='/library/sections/fixture-library-001' grandparentTitle='The Eminence in Shadow' parentTitle='Stagione 1' originalTitle='凡人の剣' contentRating='it/VM14' summary='Cid ha raggiunto i 15 anni e ha iniziato a frequentare l&apos;accademia di Midgar per schermidori magici, dove ha fatto nuove amicizie. Un giorno, come penitenza per essere andato male a una verifica, si dichiara alla seconda principessa del regno che accetta di uscire insieme a lui.' index='3' parentIndex='1' audienceRating='7.1' viewCount='1' lastViewedAt='1687336171' year='2022' thumb='/library/metadata/fixture-rating-007/thumb/1785008108' art='/library/metadata/fixture-rating-002/art/1782161989' parentThumb='/library/metadata/fixture-rating-002/thumb/1782161989' grandparentThumb='/library/metadata/fixture-rating-003/thumb/1786263822' grandparentArt='/library/metadata/fixture-rating-003/art/1786263822' grandparentTheme='/library/metadata/fixture-rating-003/theme/1786263822' duration='1431509' originallyAvailableAt='2022-10-19' addedAt='1705156406' updatedAt='1785008108' audienceRatingImage='themoviedb://image.rating' chapterSource='media'>
+    <Media id='fixture-media-006' duration='1431509' bitrate='1381' width='1920' height='1080' aspectRatio='1.78' audioChannels='2' audioCodec='aac' videoCodec='hevc' videoResolution='1080' container='mkv' videoFrameRate='24p' audioProfile='lc' videoProfile='main 10' hasVoiceActivity='1'>
+      <Part id='fixture-part-007' key='/library/parts/fixture-part-007/1705155475/file.mkv' duration='1431509' file='/fixtures/media/S01E03.mkv' size='247195899' audioProfile='lc' container='mkv' videoProfile='main 10'>
+        <Stream id='fixture-stream-030' streamType='1' default='1' codec='hevc' index='0' bitrate='1381' language='日本語' languageTag='ja' languageCode='jpn' bitDepth='10' chromaLocation='left' chromaSubsampling='4:2:0' codedHeight='1080' codedWidth='1920' colorRange='tv' frameRate='23.976' height='1080' level='150' profile='main 10' refFrames='1' title='[Judas] x265 10b' width='1920' displayTitle='1080p' extendedDisplayTitle='[Judas] x265 10b (1080p HEVC Main 10)'> </Stream>
+        <Stream id='fixture-stream-031' streamType='2' selected='1' default='1' codec='aac' index='1' channels='2' bitrate='159' language='日本語' languageTag='ja' languageCode='jpn' audioChannelLayout='stereo' profile='lc' samplingRate='48000' title='Japanese' displayTitle='日本語 (AAC Stereo)' extendedDisplayTitle='Japanese (日本語 AAC Stereo)'> </Stream>
+        <Stream id='fixture-stream-032' streamType='3' canAutoSync='0' default='1' codec='ass' index='2' bitrate='0' language='Italiano' languageTag='it' languageCode='ita' title='Italian' displayTitle='Italiano' extendedDisplayTitle='Italian (Italiano ASS)'> </Stream>
+        <Stream id='fixture-stream-033' streamType='3' canAutoSync='0' codec='ass' index='3' bitrate='0' language='English' languageTag='en' languageCode='eng' title='English' displayTitle='English' extendedDisplayTitle='English (ASS)'> </Stream>
+        <Stream id='fixture-stream-034' key='/library/streams/fixture-stream-034' streamType='3' canAutoSync='0' selected='1' codec='ass' language='Italiano' languageTag='it' languageCode='ita' format='ass' displayTitle='Italiano' extendedDisplayTitle='Italiano (ASS External)'> </Stream>
+      </Part>
+    </Media>
+    <Media id='fixture-media-007' duration='1421104' bitrate='4545' width='1920' height='1080' aspectRatio='1.78' audioChannels='2' audioCodec='opus' videoCodec='av1' videoResolution='1080' container='mkv' videoFrameRate='24p' videoProfile='main' hasVoiceActivity='1'>
+      <Part id='fixture-part-008' key='/library/parts/fixture-part-008/1769027228/file.mkv' duration='1421104' file='/fixtures/media/The Eminence in Shadow - S01E03 - Fencer Ordinaire.mkv' size='807348138' container='mkv' videoProfile='main'>
+        <Stream id='fixture-stream-035' streamType='1' default='1' codec='av1' index='0' bitrate='4545' language='English' languageTag='en' languageCode='eng' bitDepth='10' chromaSubsampling='4:2:0' codedHeight='1080' codedWidth='1920' colorPrimaries='bt709' colorRange='tv' colorSpace='bt709' colorTrc='bt709' frameRate='23.976' height='1080' level='8' profile='main' refFrames='1' width='1920' displayTitle='1080p' extendedDisplayTitle='1080p (AV1)'> </Stream>
+        <Stream id='fixture-stream-036' streamType='2' selected='1' default='1' codec='opus' index='1' channels='2' bitrate='189' language='日本語' languageTag='ja' languageCode='jpn' audioChannelLayout='stereo' samplingRate='48000' displayTitle='日本語 (OPUS Stereo)' extendedDisplayTitle='日本語 (OPUS Stereo)'> </Stream>
+        <Stream id='fixture-stream-037' streamType='2' codec='opus' index='2' channels='2' bitrate='189' language='English' languageTag='en' languageCode='eng' audioChannelLayout='stereo' samplingRate='48000' displayTitle='English (OPUS Stereo)' extendedDisplayTitle='English (OPUS Stereo)'> </Stream>
+        <Stream id='fixture-stream-038' streamType='3' canAutoSync='0' selected='1' default='1' codec='ass' index='3' bitrate='0' language='Italiano' languageTag='it' languageCode='ita' title='Dialoghi' displayTitle='Italiano' extendedDisplayTitle='Dialoghi (Italiano ASS)'> </Stream>
+        <Stream id='fixture-stream-039' streamType='3' canAutoSync='0' codec='ass' index='4' bitrate='13' language='English' languageTag='en' languageCode='eng' title='Full Subtitles [Shadow Garden]' displayTitle='English' extendedDisplayTitle='Full Subtitles [Shadow Garden] (English ASS)'> </Stream>
+        <Stream id='fixture-stream-040' streamType='3' canAutoSync='0' forced='1' codec='ass' index='5' bitrate='14' language='English' languageTag='en' languageCode='eng' title='Signs/Songs [Shadow Garden]' displayTitle='English Forced' extendedDisplayTitle='Signs/Songs [Shadow Garden] (English ASS)'> </Stream>
+      </Part>
+    </Media>
+    <Image alt='La Spadaccina Mediocre' type='coverPoster' url='/library/metadata/345/thumb/1786263822'/>
+    <Image alt='La Spadaccina Mediocre' type='snapshot' url='/library/metadata/5421/thumb/1785008108'/>
+    <Image alt='La Spadaccina Mediocre' type='background' url='/library/metadata/5418/art/1782161989'/>
+    <Image alt='La Spadaccina Mediocre' type='backgroundSquare' url='/library/metadata/345/squareArt/1786263822'/>
+    <UltraBlurColors topLeft='2f2356' topRight='933e4a' bottomRight='1d1d26' bottomLeft='1b1234'/>
+    <Guid id='imdb://tt22769264'/>
+    <Guid id='tmdb://3976936'/>
+    <Guid id='tvdb://9360998'/>
+    <Rating image='imdb://image.rating' value='7.5' type='audience'/>
+    <Rating image='themoviedb://image.rating' value='7.1' type='audience'/>
+    <Director id='772' filter='director=772' tag='Daisuke Takashima' tagKey='5e62461175440e0041faef85'/>
+    <Writer id='263' filter='writer=263' tag='Kanichi Kato' tagKey='6001d393558218002b04b024'/>
+    <Role id='7155' filter='actor=7155' tag='Seiichiro Yamashita' tagKey='5d776c7a96b655001fe320b4' role='Cid Kagenou / Shadow (voice)' thumb='https://plex.example.test/0/people/0cae0431355cda6f04a38d0c90fb336c.jpg'/>
+    <Role id='672' filter='actor=672' tag='Asami Seto' tagKey='5d776a06f617c90020167e8a' role='Alpha (voice)' thumb='https://plex.example.test/e/people/ee96b345c14d1de12dac966a05fe39da.jpg'/>
+    <Role id='673' filter='actor=673' tag='Kana Hanazawa' tagKey='5d77686c61141d001fb1a7db' role='Alexia Midgar (voice)' thumb='https://plex.example.test/c/people/c3e1925fa41fb02a5bf81ed525166635.jpg'/>
+    <Role id='669' filter='actor=669' tag='Inori Minase' tagKey='5d776d80ad5437001f7d7bab' role='Beta (voice)' thumb='https://plex.example.test/8/people/8a8e3f3cad7768922bd84dca6a31d207.jpg'/>
+    <Role id='670' filter='actor=670' tag='Suzuko Mimori' tagKey='5d776b1547dd6e001f6daebd' role='Gamma (voice)' thumb='https://plex.example.test/f/people/fdd587a9bd0661cd1f43a8ae995090c7.jpg'/>
+    <Role id='671' filter='actor=671' tag='Haruka Shiraishi' tagKey='5d7768cc47dd6e001f6bedcc' role='Rose Oriana (voice)' thumb='https://plex.example.test/5/people/5ebba953a97106b39722d3e816db6acd.jpg'/>
+    <Role id='674' filter='actor=674' tag='Fairouz Ai' tagKey='5f3fc6ad58b26e00425c172f' role='Delta (voice)' thumb='https://plex.example.test/a/people/a772e2962d89a3fbf78860452a3fb039.jpg'/>
+    <Role id='102' filter='actor=102' tag='Saya Aizawa' tagKey='5f406d7802101b0040fe25ee' role='Sherry Barnett (voice)' thumb='https://plex.example.test/6/people/6d1d6604cc15f9235fb11ac47981093a.jpg'/>
+    <Role id='13368' filter='actor=13368' tag='Hisako Kanemoto' tagKey='5f4004fa8642250042808f7e' role='Epsilon (voice)' thumb='https://plex.example.test/9/cc68393fae/people/90fdd1845e096ee8952e214fc081c024.jpg'/>
+    <Role id='675' filter='actor=675' tag='Yoshitsugu Matsuoka' tagKey='5d7768a133f255001e85b5f5' role='Skel Etal (voice)' thumb='https://plex.example.test/2/people/299e9612ada944c02af9132ac3ee2b02.jpg'/>
+    <Role id='677' filter='actor=677' tag='Ayaka Asai' tagKey='5d776c0496b655001fe234f7' role='Zeta (voice)' thumb='https://plex.example.test/a/people/aaf54b8442b6f55d00ce57916e22aeb6.jpg'/>
+    <Role id='17863' filter='actor=17863' tag='Shin Matsushige' tagKey='5f3fcebac63b480040d76499' role='Po Tato (voice)' thumb='https://plex.example.test/b/people/bce78318b373d62ecc325413ca2060e6.jpg'/>
+    <Role id='679' filter='actor=679' tag='Reina Kondo' tagKey='5d9c08d7ba6eb9001fbab4e7' role='Eta (voice)' thumb='https://plex.example.test/5/people/544f2c30a6824c89c083927725282390.jpg'/>
+    <Role id='680' filter='actor=680' tag='Yoko Hikasa' tagKey='5d776a2196b655001fde4274' role='Iris Midgar (voice)' thumb='https://plex.example.test/f/people/f4a7133e568f0cc06748b04198212995.jpg'/>
+    <Role id='681' filter='actor=681' tag='Rina Hidaka' tagKey='5d7768c19ab54400214eb1f6' role='Claire Kagenou (voice)' thumb='https://plex.example.test/8/people/833b61e0fb1f779359a8e777ddea87e1.jpg'/>
+    <Role id='18316' filter='actor=18316' tag='Masaya Matsukaze' tagKey='5d77683a961905001eb9503c' role='Zenon (voice)' thumb='https://plex.example.test/a/people/a3994df6b8eaf7633c7dc34188121883.jpg'/>
+    <Role id='12219' filter='actor=12219' tag='Rikuya Yasuda' tagKey='5f3fc77ecae2c60042e7bdce' role='Handsome (voice)' thumb='https://plex.example.test/5/people/564fe949f8f8818bbeffe29d0532af9c.jpg'/>
+    <Role id='111' filter='actor=111' tag='Yuki Ishikari' tagKey='5f3ffed6768fc7004053ac1d' role='Male Student (voice)' thumb='https://plex.example.test/8/people/81ffb9ddf92adde8196784347297ea1d.jpg'/>
+    <Role id='696' filter='actor=696' tag='Kento Shiraishi' tagKey='5f3fc4effea1a1003f9692c9' role='Male Student (voice)' thumb='https://plex.example.test/0/people/0f4993a0b807020f193a26e035b5900f.jpg'/>
+    <Role id='722' filter='actor=722' tag='Arisa Sakuraba' tagKey='5f4060005a76a80042dd485a' role='Female Student (voice)' thumb='https://plex.example.test/d/people/d08469f841e8f470ef7d521b216d43ae.jpg'/>
+    <Role id='699' filter='actor=699' tag='Natsumi Kawaida' tagKey='5f406af402101b0040fde974' role='Female Student (voice)' thumb='https://plex.example.test/4/people/4eae4383f43a8573256b972c876f0aa7.jpg'/>
+    <Role id='14042' filter='actor=14042' tag='Anzu Haruno' tagKey='5d9c08d2ffd9ef001e99b004' role='Female Student (voice)' thumb='https://plex.example.test/9/people/96083486e1b4401087c5988d8868f499.jpg'/>
+    <Role id='723' filter='actor=723' tag='Sayaka Kaneko' tagKey='5e1641921493cd003f0e87d2' role='Female Student (voice)' thumb='https://plex.example.test/d/people/d86350b9ee651109e792c41d8b33c609.jpg'/>
+    <Producer id='19241' filter='producer=19241' tag='Kazufumi Kikushima' tagKey='5f406bbcbf3e560040c28d13'/>
+    <Producer id='18636' filter='producer=18636' tag='Hajime Maruyama' tagKey='5e62461175440e0041faef7d'/>
+    <Producer id='19242' filter='producer=19242' tag='Takeo Mizuguchi' tagKey='6353a57a9a5b9cfb52884fb1'/>
+    <Producer id='19243' filter='producer=19243' tag='Hiroto Utsunomiya' tagKey='62bc6357d879102cb44c8fa4'/>
+    <Producer id='19244' filter='producer=19244' tag='Shota Watase' tagKey='5f406de0fea1a1003fa7e92c'/>
+  </Video>
+</MediaContainer>

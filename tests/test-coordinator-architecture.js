@@ -11,17 +11,22 @@ function rules(source, fileName) {
 assert.deepStrictEqual(
   rules("(function () { video.currentTime = 12; }());", 'player-feature-controller.js'),
   ['native-video-write'],
-  'only PlaybackController may assign native playback position'
+  'coordinators must not assign native playback position directly'
 );
 assert.deepStrictEqual(
   rules("(function () { video.src = '/next'; }());", 'detail-feature-controller.js'),
   ['native-video-write'],
-  'only PlaybackController may replace the native playback source'
+  'coordinators must not replace the native playback source directly'
 );
 assert.deepStrictEqual(
   rules("(function () { video.currentTime = 12; video.src = '/next'; }());", 'playback-controller.js'),
+  ['native-video-write', 'native-video-write'],
+  'PlaybackController must delegate native video mutation to NativeVideoDriver'
+);
+assert.deepStrictEqual(
+  rules("(function () { video.currentTime = 12; video.src = '/next'; }());", 'native-video-driver.js'),
   [],
-  'PlaybackController remains the native video owner'
+  'NativeVideoDriver is the only native video write owner'
 );
 assert.deepStrictEqual(
   rules("function create() { PlexClient.loadHome(); }", 'application-controller.js'),

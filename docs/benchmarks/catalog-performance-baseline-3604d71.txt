@@ -1,0 +1,95 @@
+Ploff catalog benchmark
+Node v22.16.0, items 5000, measured rounds 7
+
+focus-move-integrated: 1287.986 ms / 5000 iterations
+{"appendChild":30,"cardMetrics":61,"createdNodes":0,"focus":2,"layoutReads":4,"posterBatches":1,"posterJobs":30,"posterSpecifications":30,"querySelector":224,"removeChild":30,"setAttribute":90}
+
+scroll-same-window: 501.387 ms / 3000 iterations
+{"appendChild":30,"cardMetrics":61,"createdNodes":0,"focus":0,"layoutReads":0,"posterBatches":1,"posterJobs":30,"posterSpecifications":30,"querySelector":220,"removeChild":30,"setAttribute":90}
+
+scroll-row-boundary: 1209.415 ms / 1500 iterations
+{"appendChild":75.059,"cardMetrics":91,"createdNodes":35.069,"focus":0,"layoutReads":0,"posterBatches":1,"posterJobs":45,"posterSpecifications":45,"querySelector":362.063,"removeChild":44.99,"setAttribute":150.03}
+
+append-pages: 20.658 ms / 100 iterations
+{"appendChild":30,"cardMetrics":61,"createdNodes":0,"focus":0,"layoutReads":0,"posterBatches":1,"posterJobs":30,"posterSpecifications":30,"querySelector":220,"removeChild":30,"setAttribute":90}
+
+JSON
+{
+  "node": "v22.16.0",
+  "items": 5000,
+  "rounds": 7,
+  "results": [
+    {
+      "name": "focus-move-integrated",
+      "iterations": 5000,
+      "medianMs": 1287.986,
+      "operationsPerIteration": {
+        "appendChild": 30,
+        "cardMetrics": 61,
+        "createdNodes": 0,
+        "focus": 2,
+        "layoutReads": 4,
+        "posterBatches": 1,
+        "posterJobs": 30,
+        "posterSpecifications": 30,
+        "querySelector": 224,
+        "removeChild": 30,
+        "setAttribute": 90
+      }
+    },
+    {
+      "name": "scroll-same-window",
+      "iterations": 3000,
+      "medianMs": 501.387,
+      "operationsPerIteration": {
+        "appendChild": 30,
+        "cardMetrics": 61,
+        "createdNodes": 0,
+        "focus": 0,
+        "layoutReads": 0,
+        "posterBatches": 1,
+        "posterJobs": 30,
+        "posterSpecifications": 30,
+        "querySelector": 220,
+        "removeChild": 30,
+        "setAttribute": 90
+      }
+    },
+    {
+      "name": "scroll-row-boundary",
+      "iterations": 1500,
+      "medianMs": 1209.415,
+      "operationsPerIteration": {
+        "appendChild": 75.059,
+        "cardMetrics": 91,
+        "createdNodes": 35.069,
+        "focus": 0,
+        "layoutReads": 0,
+        "posterBatches": 1,
+        "posterJobs": 45,
+        "posterSpecifications": 45,
+        "querySelector": 362.063,
+        "removeChild": 44.99,
+        "setAttribute": 150.03
+      }
+    },
+    {
+      "name": "append-pages",
+      "iterations": 100,
+      "medianMs": 20.658,
+      "operationsPerIteration": {
+        "appendChild": 30,
+        "cardMetrics": 61,
+        "createdNodes": 0,
+        "focus": 0,
+        "layoutReads": 0,
+        "posterBatches": 1,
+        "posterJobs": 30,
+        "posterSpecifications": 30,
+        "querySelector": 220,
+        "removeChild": 30,
+        "setAttribute": 90
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secret identifiers in Plex fixtures and generated libass runtime"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^(?:tests/|app/vendor/subtitles-octopus-worker-legacy\.js$)''']
+regexes = ['''(?i)(?:tagKey|(?:grandparent|parent)?ratingKey|(?:playback|parsed\.video)\.ratingKey|keyStr)''']

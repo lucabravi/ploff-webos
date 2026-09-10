@@ -1,0 +1,55 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer size='1' allowSync='1' identifier='com.plexapp.plugins.library' librarySectionID='fixture-library-002' librarySectionTitle='Film' librarySectionUUID='fixture-uuid-002' mediaTagPrefix='/system/bundle/media/flags/' mediaTagVersion='1787214632'>
+  <Video ratingKey='fixture-rating-004' key='/library/metadata/fixture-rating-004' guid='fixture-guid-004' slug='the-quintessential-quintuplets-2023' studio='SHAFT' type='movie' title='The Quintessential Quintuplets∽' titleSort='Quintessential Quintuplets∽' librarySectionTitle='Film' librarySectionID='fixture-library-002' librarySectionKey='/library/sections/fixture-library-002' originalTitle='五等分の花嫁∽' summary='Un film che raccoglie alcune storie inedite tratte dal manga e non adattate nella serie televisiva anime principale.' audienceRating='6.4' viewCount='1' lastViewedAt='1785860949' year='2023' thumb='/library/metadata/fixture-rating-004/thumb/1786263957' art='/library/metadata/fixture-rating-004/art/1786263957' duration='2908000' originallyAvailableAt='2023-07-14' addedAt='1784562613' updatedAt='1786263957' audienceRatingImage='themoviedb://image.rating' chapterSource='media'>
+    <Media id='fixture-media-003' duration='2908000' bitrate='10864' width='1920' height='1080' aspectRatio='1.78' audioChannels='6' audioCodec='flac' videoCodec='hevc' videoResolution='1080' container='mkv' videoFrameRate='24p' videoProfile='main 10' hasVoiceActivity='0'>
+      <Part id='fixture-part-003' key='/library/parts/fixture-part-003/1760091871/file.mkv' duration='1451040' file='/fixtures/media/The Quintessential Quintuplets ∽ (2023) - pt1.mkv' size='1865715539' container='mkv' videoProfile='main 10'>
+        <Stream id='fixture-stream-012' streamType='1' default='1' codec='hevc' index='0' bitrate='8117' language='English' languageTag='en' languageCode='eng' bitDepth='10' chromaLocation='left' chromaSubsampling='4:2:0' codedHeight='1080' codedWidth='1920' colorRange='tv' frameRate='23.976' height='1080' level='150' profile='main 10' refFrames='1' width='1920' displayTitle='1080p' extendedDisplayTitle='1080p (HEVC Main 10)'> </Stream>
+        <Stream id='fixture-stream-013' streamType='2' selected='1' default='1' codec='flac' index='1' channels='6' bitrate='1540' language='日本語' languageTag='ja' languageCode='jpn' audioChannelLayout='5.1(side)' bitDepth='24' samplingRate='48000' title='FLAC 5.1' displayTitle='日本語 (FLAC 5.1)' extendedDisplayTitle='FLAC 5.1 (日本語)'> </Stream>
+        <Stream id='fixture-stream-014' streamType='2' codec='flac' index='2' channels='2' bitrate='590' language='日本語' languageTag='ja' languageCode='jpn' audioChannelLayout='stereo' bitDepth='16' samplingRate='48000' title='FLAC 2.0' displayTitle='日本語 (FLAC Stereo)' extendedDisplayTitle='FLAC 2.0 (日本語)'> </Stream>
+        <Stream id='fixture-stream-015' streamType='3' canAutoSync='0' selected='1' default='1' forced='1' codec='ass' index='3' bitrate='10' language='Italiano' languageTag='it' languageCode='ita' title='[WOR]ita' displayTitle='Italiano Forced' extendedDisplayTitle='[WOR]ita (Italiano Forced ASS)'> </Stream>
+      </Part>
+      <Part id='fixture-part-004' key='/library/parts/fixture-part-004/1760091689/file.mkv' duration='1456960' file='/fixtures/media/The Quintessential Quintuplets ∽ (2023) - pt2.mkv' size='1983799051' container='mkv' videoProfile='main 10'>
+        <Stream id='fixture-stream-016' streamType='1' default='1' codec='hevc' index='0' bitrate='8629' language='English' languageTag='en' languageCode='eng' bitDepth='10' chromaLocation='left' chromaSubsampling='4:2:0' codedHeight='1080' codedWidth='1920' colorRange='tv' frameRate='23.976' height='1080' level='150' profile='main 10' refFrames='1' width='1920' displayTitle='1080p' extendedDisplayTitle='1080p (HEVC Main 10)'> </Stream>
+        <Stream id='fixture-stream-017' streamType='2' selected='1' default='1' codec='flac' index='1' channels='6' bitrate='1590' language='日本語' languageTag='ja' languageCode='jpn' audioChannelLayout='5.1(side)' bitDepth='24' samplingRate='48000' title='FLAC 5.1' displayTitle='日本語 (FLAC 5.1)' extendedDisplayTitle='FLAC 5.1 (日本語)'> </Stream>
+        <Stream id='fixture-stream-018' streamType='2' codec='flac' index='2' channels='2' bitrate='629' language='日本語' languageTag='ja' languageCode='jpn' audioChannelLayout='stereo' bitDepth='16' samplingRate='48000' title='FLAC 2.0' displayTitle='日本語 (FLAC Stereo)' extendedDisplayTitle='FLAC 2.0 (日本語)'> </Stream>
+        <Stream id='fixture-stream-019' streamType='3' canAutoSync='0' selected='1' default='1' forced='1' codec='ass' index='3' bitrate='16' language='Italiano' languageTag='it' languageCode='ita' title='[WOR]ita' displayTitle='Italiano Forced' extendedDisplayTitle='[WOR]ita (Italiano Forced ASS)'> </Stream>
+      </Part>
+    </Media>
+    <Image alt='The Quintessential Quintuplets∽' type='coverPoster' url='/library/metadata/23831/thumb/1786263957'/>
+    <Image alt='The Quintessential Quintuplets∽' type='background' url='/library/metadata/23831/art/1786263957'/>
+    <UltraBlurColors topLeft='4f1b0f' topRight='9c3050' bottomRight='923c5a' bottomLeft='1f0406'/>
+    <Genre id='7' filter='genre=7' tag='Animazione'/>
+    <Genre id='51' filter='genre=51' tag='Romance'/>
+    <Genre id='8' filter='genre=8' tag='Commedia'/>
+    <Genre id='14' filter='genre=14' tag='Anime'/>
+    <Country id='37' filter='country=37' tag='Japan'/>
+    <Guid id='imdb://tt22759504'/>
+    <Guid id='tmdb://1153706'/>
+    <Guid id='tvdb://347400'/>
+    <Rating image='themoviedb://image.rating' value='6.4' type='audience'/>
+    <Director id='29642' filter='director=29642' tag='Yukihiro Miyamoto' tagKey='5d7769c323d5a3001f4fc12c'/>
+    <Director id='38779' filter='director=38779' tag='Koji Matsumura' tagKey='638b04adddaec46532b73bf0'/>
+    <Writer id='15984' filter='writer=15984' tag='Keiichiro Ochi' tagKey='5e16475461c6140040d7d1aa'/>
+    <Writer id='24732' filter='writer=24732' tag='Negi Haruba' tagKey='5f3fc54904a8650040970be2'/>
+    <Role id='675' filter='actor=675' tag='Yoshitsugu Matsuoka' tagKey='5d7768a133f255001e85b5f5' role='Fuutarou Uesugi (voice)' thumb='https://plex.example.test/2/people/299e9612ada944c02af9132ac3ee2b02.jpg'/>
+    <Role id='673' filter='actor=673' tag='Kana Hanazawa' tagKey='5d77686c61141d001fb1a7db' role='Ichika Nakano (voice)' thumb='https://plex.example.test/c/people/c3e1925fa41fb02a5bf81ed525166635.jpg'/>
+    <Role id='2205' filter='actor=2205' tag='Ayana Taketatsu' tagKey='5d77697551dd69001fe1747a' role='Nino Nakano (voice)' thumb='https://plex.example.test/6/people/6f9571b47a8973acadba46755eebd07d.jpg'/>
+    <Role id='2609' filter='actor=2609' tag='Miku Ito' tagKey='5ef07ae59af7140042a4473b' role='Miku Nakano (voice)' thumb='https://plex.example.test/6/people/6bcdb117a3a727c7df654a448e66c4cf.jpg'/>
+    <Role id='946' filter='actor=946' tag='Ayane Sakura' tagKey='5d7768f096b655001fdc5997' role='Yotsuba Nakano (voice)' thumb='https://plex.example.test/a/people/ab46b5cd5813980cff08146f668e0773.jpg'/>
+    <Role id='669' filter='actor=669' tag='Inori Minase' tagKey='5d776d80ad5437001f7d7bab' role='Itsuki Nakano (voice)' thumb='https://plex.example.test/8/people/8a8e3f3cad7768922bd84dca6a31d207.jpg'/>
+    <Role id='14822' filter='actor=14822' tag='Natsumi Takamori' tagKey='5d776991594b2b001e6a3eea' role='Raiha Uesugi (voice)' thumb='https://plex.example.test/2/people/2332cb63960ce6a3720a274189e5d6da.jpg'/>
+    <Role id='2036' filter='actor=2036' tag='Satomi Arai' tagKey='5d776a5196b655001fdeade6' role='Kiku-chan (voice)' thumb='https://plex.example.test/a/people/a5284ed65b43fc21e6ded43b3f5ab1f2.jpg'/>
+    <Role id='942' filter='actor=942' tag='Kohsuke Toriumi' tagKey='5d776869594b2b001e68b3e8' role='Manager (voice)' thumb='https://plex.example.test/0/people/0eb7a2f293c4147f7737fcd7b37b61c7.jpg'/>
+    <Role id='27276' filter='actor=27276' tag='Hayato Ito' tagKey='5f40520b03883a0040ba4e78' role='Maeda (voice)'/>
+    <Role id='2749' filter='actor=2749' tag='Soma Saito' tagKey='5d776ca747dd6e001f6edcab' role='Takeda (voice)' thumb='https://plex.example.test/7/people/7a6fa9cdc6c12b882fb957fcfed3f936.jpg'/>
+    <Role id='32' filter='actor=32' tag='Aya Uchida' tagKey='5d776b8ffb0d55001f56b518' role='Matsui (voice)' thumb='https://plex.example.test/5/people/56a4d4db488cd14c873803b2e8be4ef6.jpg'/>
+    <Role id='7612' filter='actor=7612' tag='Iori Saeki' tagKey='5ddba9f4e31d3d001d33397e' role='Tsubaki (voice)' thumb='https://plex.example.test/6/people/6b1248568e774fd6b8057353ba7578b8.jpg'/>
+    <Role id='14679' filter='actor=14679' tag='Hitomi Sasaki' tagKey='5f405ba01ae71000410cdcf8' role='Aoi (voice)' thumb='https://plex.example.test/3/people/3a048bbf276ade29a40aae060d0b62f3.jpg'/>
+    <Role id='27283' filter='actor=27283' tag='Yuta Aoki' tagKey='5f3fcf80c63b480040d779fb' role='Yamauchi (voice)' thumb='https://plex.example.test/d/people/d076d648f1b78505d10aad44df6aa44d.jpg'/>
+    <Role id='952' filter='actor=952' tag='Wataru Tsuyuzaki' tagKey='5fbbdda58f97df002da3937e' role='Attendant (voice)' thumb='https://plex.example.test/4/people/4b7c077264c74656fba3e66dac467ebb.jpg'/>
+    <Role id='38380' filter='actor=38380' tag='Ryusei Ishida' tagKey='66125b693d77afa980cd0d84' role='Man (voice)' thumb='https://plex.example.test/4/people/4bd3b96ddfc0cd62f043c33279c36bd5.jpg'/>
+    <Role id='28539' filter='actor=28539' tag='Ayaka Ohnishi' tagKey='661e3ccaf4b118815ca3eeb5' role='Woman A (voice)' thumb='https://plex.example.test/e/people/e39dae79394d597fecf453f19d6ca99b.jpg'/>
+    <Role id='26502' filter='actor=26502' tag='Sakura Kimura' tagKey='5d776c7a594b2b001e6f4b54' role='Woman B (voice)' thumb='https://plex.example.test/d/people/dd394d12e95141f48dbf9ef552931bdd.jpg'/>
+    <Producer id='32791' filter='producer=32791' tag='鈴木敬公' tagKey='69cc9c9d2dadba93162ee76f'/>
+  </Video>
+</MediaContainer>

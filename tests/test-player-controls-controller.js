@@ -40,7 +40,8 @@ function createHarness(extra) {
       { key: 'two', startTimeOffset: 30000, endTimeOffset: 90000 },
       { key: 'three', startTimeOffset: 90000, endTimeOffset: 120000 }
     ],
-    skipPromptDuration: 5
+    skipPromptDuration: 5,
+    seekSettling: extra && extra.seekSettling === true
   };
   var queue = { drawer: { open: false }, upNext: { visible: false, preparing: false } };
   var calls = [];
@@ -98,6 +99,7 @@ function createHarness(extra) {
     root: root, controller: controller, calls: calls, seeks: seeks, skipRenders: skipRenders,
     setNow: function (value) { now = value; },
     setPosition: function (value) { playback.positionSeconds = value; },
+    setSeekSettling: function (value) { playback.seekSettling = value === true; },
     setActive: function (value) { playback.active = value; },
     setQueue: function (value) { queue = value; },
     setSignature: function (value) { signature = value; },
@@ -162,6 +164,134 @@ function createHarness(extra) {
   h.setQueue({ drawer: { open: false }, upNext: { visible: true, preparing: false } });
   h.controller.updateSkip();
   assert.strictEqual(h.controller.snapshot().skip.visible, false, 'Up Next must suppress skip prompt');
+}());
+
+(function testActivatedSkipStaysHiddenUntilTheMarkerIsExited() {
+  var h = createHarness({ position: 20, now: 1000 });
+  h.controller.initializeHidden();
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, true);
+  assert.strictEqual(h.controller.snapshot().zone, 'skip');
+  assert.strictEqual(h.controller.handleKey(key(13), null), true, 'OK must activate the focused skip marker');
+  assert.strictEqual(h.seeks.length, 1, 'activating skip must issue one seek');
+  assert.strictEqual(h.seeks[0].options.source, 'skip');
+  assert.strictEqual(h.controller.snapshot().skip.visible, false, 'the skip marker must hide immediately after activation');
+  assert.strictEqual(h.controller.snapshot().skip.consumed, true, 'the active marker must be remembered as consumed');
+
+  h.controller.showFull();
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, false,
+    'a controls refresh while the seek is pending must not resurrect the consumed marker');
+  h.setPosition(29);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, false,
+    'a new seek that remains inside the consumed interval must stay hidden');
+
+  h.setPosition(30);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.marker, null,
+    'reaching the exclusive marker end must clear the consumed interval');
+  h.setPosition(20);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, true,
+    'seeking out and then back into the marker must allow a new skip prompt');
+}());
+
+(function testActivatedSkipSurvivesProjectedEndAndDecoderRollback() {
+  var h = createHarness({ position: 20, now: 1000 });
+  h.controller.initializeHidden();
+  h.controller.updateSkip();
+  h.controller.handleKey(key(13), null);
+  assert.strictEqual(h.controller.snapshot().skip.consumed, true, 'activated intro must start consumed');
+
+  h.setSeekSettling(true);
+  h.setPosition(30);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.consumed, true,
+    'the optimistic marker-end position must not clear consumption while the skip seek is settling');
+  assert.strictEqual(h.controller.snapshot().skip.visible, false,
+    'the skip prompt must stay hidden at the projected marker end');
+
+  h.setPosition(27);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, false,
+    'a bounded decoder rollback into the intro must not resurrect the consumed prompt');
+
+  h.setSeekSettling(false);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.consumed, true,
+    'once the decoder settles inside the consumed marker, consumption must remain until playback exits it');
+  h.setPosition(30);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.marker, null,
+    'after settlement, naturally exiting the marker must release the consumed state');
+}());
+
+(function testCompactOkActivatesVisibleSkipWithoutOpeningFullControls() {
+  var h = createHarness({ position: 0, now: 10000 });
+  h.controller.initializeHidden();
+  h.controller.handleKey(key(39), 'right');
+  assert.strictEqual(h.controller.snapshot().mode, 'timeline', 'seek input must leave compact timeline controls visible');
+  assert.strictEqual(h.controller.snapshot().zone, 'timeline', 'timeline seek must retain timeline focus');
+
+  h.setPosition(20);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, true, 'entering the marker must show the skip prompt');
+  assert.strictEqual(h.controller.snapshot().zone, 'timeline', 'the standalone prompt must not steal timeline focus');
+
+  assert.strictEqual(h.controller.handleKey(key(13), null), true, 'OK must be handled while the standalone skip prompt is visible');
+  assert.strictEqual(h.seeks.length, 2, 'OK must issue exactly one additional seek for the skip action');
+  assert.strictEqual(h.seeks[1].seconds, 30, 'skip OK must seek to the marker end');
+  assert.strictEqual(h.seeks[1].options.source, 'skip', 'skip OK must use the skip seek source');
+  assert.strictEqual(h.controller.snapshot().mode, 'timeline', 'skip OK must not expand compact controls to full mode');
+  assert.strictEqual(h.controller.snapshot().skip.visible, false, 'skip OK must hide the prompt immediately');
+  assert.strictEqual(h.controller.snapshot().skip.consumed, true, 'skip OK must consume the active marker');
+
+  h.setSeekSettling(true);
+  h.setPosition(30);
+  h.controller.updateSkip();
+  h.setPosition(29.5);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, false,
+    'the skip seek target followed by a keyframe rollback must not resurrect the consumed prompt');
+  h.setSeekSettling(false);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, false,
+    'decoder settlement inside the consumed interval must keep the compact skip prompt hidden');
+}());
+
+(function testCompactOkAlsoActivatesCreditsMarker() {
+  var h = createHarness({
+    position: 70,
+    now: 10000,
+    markers: [{ key: 'credits:80000:90000', type: 'credits', startTimeOffset: 80000, endTimeOffset: 90000 }]
+  });
+  h.controller.initializeHidden();
+  h.controller.handleKey(key(39), 'right');
+  h.setPosition(85);
+  h.controller.updateSkip();
+
+  h.controller.handleKey(key(13), null);
+  assert.strictEqual(h.seeks[h.seeks.length - 1].seconds, 90, 'OK must skip to the end of a visible credits marker');
+  assert.strictEqual(h.seeks[h.seeks.length - 1].options.source, 'skip');
+  assert.strictEqual(h.controller.snapshot().skip.visible, false, 'credits prompt must hide immediately after OK');
+  assert.strictEqual(h.controller.snapshot().skip.consumed, true, 'credits marker must remain consumed after activation');
+}());
+
+(function testFullControlsKeepFocusedButtonPriorityOverVisibleSkip() {
+  var h = createHarness({ position: 20, now: 10000 });
+  h.controller.initializeHidden();
+  h.controller.updateSkip();
+  h.controller.showFull();
+  h.controller.setZone('buttons', 1);
+  assert.strictEqual(h.controller.snapshot().skip.visible, true, 'full controls may keep the active skip prompt visible');
+  assert.strictEqual(h.controller.snapshot().mode, 'full');
+
+  assert.strictEqual(h.controller.handleKey(key(13), null), true);
+  assert.strictEqual(h.seeks.length, 0, 'full controls must not let a visible skip prompt override the focused button');
+  assert.strictEqual(h.calls.some(function (entry) { return entry[0] === 'toggle'; }), true,
+    'full controls must preserve the focused Play/Pause action');
+  assert.strictEqual(h.controller.snapshot().skip.visible, true, 'using another full-control action must not consume the skip marker');
 }());
 
 (function testSkipPromptDoesNotHijackTimelineSeekOrHorizontalInput() {
@@ -258,6 +388,48 @@ function createHarness(extra) {
 (function testNativePlaybackIsolation() {
   var source = require('fs').readFileSync(require('path').join(__dirname, '../app/coordinator/player-controls-controller.js'), 'utf8');
   assert.ok(!/currentTime|\.src\s*=|PlaybackClock|rebuildCurrentStream|sendPlayerTimeline|player-video/.test(source), 'presentation controller must not own native stream or clock state');
+}());
+
+
+
+(function testExtractedZoneRoutingPreservesChaptersSettingsAndSkipPrecedence() {
+  var h = createHarness({ position: 20 });
+  h.controller.focus('buttons', 1);
+  h.controller.handleKey(key(40), 'down');
+  assert.strictEqual(h.controller.snapshot().chapter.open, true, 'Down from player buttons must open Chapters when chapters exist');
+  h.controller.closeChapters(true);
+  h.controller.focus('chapter-hint', 0);
+  h.controller.handleKey(key(40), 'down');
+  assert.strictEqual(h.controller.snapshot().chapter.open, true, 'Down from the chapter hint must open the same Chapters drawer');
+  h.controller.closeChapters(true);
+  h.controller.setSettingsOpen(true);
+  h.controller.focus('buttons', 1);
+  h.controller.handleKey(key(40), 'down');
+  assert.strictEqual(h.controller.snapshot().chapter.open, false, 'Settings navigation must keep Down inside Settings instead of opening Chapters');
+  assert.strictEqual(h.controller.snapshot().settingIndex, 2, 'Settings Down must still skip disabled rows after routing extraction');
+
+  h = createHarness({ position: 20 });
+  h.controller.focus('timeline', 0);
+  h.controller.updateSkip();
+  assert.strictEqual(h.controller.snapshot().skip.visible, true);
+  h.controller.handleKey(key(38), 'up');
+  assert.strictEqual(h.controller.snapshot().zone, 'skip', 'Up from timeline must still prioritize a visible Skip action');
+}());
+
+(function testInputRoutingDelegatesByInteractionZone() {
+  var fs = require('fs');
+  var path = require('path');
+  var source = fs.readFileSync(path.join(__dirname, '../app/coordinator/player-controls-controller.js'), 'utf8');
+  [
+    'handleChaptersKey', 'handleSettingsKey', 'handleCompactModeKey',
+    'handleSkipKey', 'handleTimelineKey', 'handleButtonsKey', 'handleChapterHintKey'
+  ].forEach(function (name) {
+    assert.ok(new RegExp('function ' + name + '\\(').test(source), 'player controls input routing must delegate to ' + name);
+  });
+  var start = source.indexOf('    function handleKey(event, _direction) {');
+  var end = source.indexOf('    function pointerFocus(', start);
+  var body = source.slice(start, end);
+  assert.ok(body.split('\n').length <= 50, 'player controls handleKey must remain a compact interaction dispatcher');
 }());
 
 console.log('Player controls controller tests passed');

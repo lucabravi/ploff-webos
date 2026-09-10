@@ -21,9 +21,11 @@
   var ACCENT_COLORS = SettingsSchema.allowed('accentColor');
   var VISUAL_THEMES = SettingsSchema.allowed('visualTheme');
   var SETTINGS_BACKUP_MODES = SettingsSchema.allowed('settingsBackupMode');
+  var HOME_ROWS = SettingsSchema.allowed('homeRows');
   var SUBTITLE_BACKGROUNDS = SettingsSchema.allowed('subtitleBackground');
   var SUBTITLE_EDGES = SettingsSchema.allowed('subtitleEdge');
   var SUBTITLE_POSITIONS = SettingsSchema.allowed('subtitlePosition');
+  var SUBTITLE_SIZES = SettingsSchema.allowed('subtitleSize');
   var SAFE_AREA_INSETS = SettingsSchema.allowed('safeAreaTop');
 
   /** @returns {PloffSettingsRecord} */
@@ -86,6 +88,17 @@
     return result;
   }
 
+  function orderedSubset(value, allowed, fallback) {
+    var source;
+    var result = [];
+    if (Object.prototype.toString.call(value) !== '[object Array]') { return fallback.slice(); }
+    source = value;
+    source.forEach(function (item) {
+      if (contains(allowed, item) && !contains(result, item)) { result.push(item); }
+    });
+    return result;
+  }
+
   function normalizeDefinition(definition, value, fallback) {
     var allowed = definition.allowed || [];
     if (definition.kind === 'ui-language') {
@@ -102,7 +115,25 @@
     if (definition.kind === 'enum') { return enumValue(value, allowed, fallback); }
     if (definition.kind === 'language-list') { return languageList(value); }
     if (definition.kind === 'priority-list') { return priorityList(value, allowed); }
+    if (definition.kind === 'ordered-subset') { return orderedSubset(value, allowed, fallback); }
     return fallback;
+  }
+
+  function lightweightImageQualityCap(key) {
+    return SettingsSchema && typeof SettingsSchema.lightweightImageQualityCap === 'function'
+      ? Number(SettingsSchema.lightweightImageQualityCap(key) || 0)
+      : 0;
+  }
+
+  function applyLightweightImageQualityCaps(result) {
+    var artworkCap;
+    var backdropCap;
+    if (!result || result.artworkDataSaver !== true) { return result; }
+    artworkCap = lightweightImageQualityCap('artworkQuality');
+    backdropCap = lightweightImageQualityCap('backdropQuality');
+    if (artworkCap > 0 && result.artworkQuality > artworkCap) { result.artworkQuality = artworkCap; }
+    if (backdropCap > 0 && result.backdropQuality > backdropCap) { result.backdropQuality = backdropCap; }
+    return result;
   }
 
   /** @returns {PloffSettingsRecord} */
@@ -127,7 +158,7 @@
       }
       result[definition.key] = normalizeDefinition(definition, rawValue, fallback[definition.key]);
     }
-    return result;
+    return applyLightweightImageQualityCaps(result);
   }
 
 
@@ -236,13 +267,16 @@
     SUBTITLE_BACKGROUNDS: SUBTITLE_BACKGROUNDS.slice(),
     SUBTITLE_EDGES: SUBTITLE_EDGES.slice(),
     SUBTITLE_POSITIONS: SUBTITLE_POSITIONS.slice(),
+    SUBTITLE_SIZES: SUBTITLE_SIZES.slice(),
     ARTWORK_QUALITIES: ARTWORK_QUALITIES.slice(),
     BACKDROP_QUALITIES: BACKDROP_QUALITIES.slice(),
     VIDEO_QUALITIES: VIDEO_QUALITIES.slice(),
     SETTINGS_BACKUP_MODES: SETTINGS_BACKUP_MODES.slice(),
+    HOME_ROWS: HOME_ROWS.slice(),
     STORAGE_KEY: STORAGE_KEY,
     defaults: defaults,
     languageList: languageList,
+    lightweightImageQualityCap: lightweightImageQualityCap,
     load: load,
     migrate: migrate,
     primaryLanguage: primaryLanguage,

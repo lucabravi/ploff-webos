@@ -1,4 +1,7 @@
 body.visual-theme-immersive {
+  --detail-preference-badge-background: rgba(99,74,86,.34);
+  --detail-preference-badge-border: rgba(218,185,199,.38);
+  --detail-preference-badge-text: #eadce2;
   --theme-app-background: #0b0c0e;
   --theme-app-text: #f5f5f5;
   --theme-scroll-track: #292d32;
@@ -22,6 +25,22 @@ body.visual-theme-immersive {
   --panel-shadow: 0 18px 60px rgba(0,0,0,.72);
 }
 
+
+body.visual-theme-immersive .topbar {
+  border-bottom: 0;
+  background: linear-gradient(180deg, rgba(11,9,10,.94) 0%, rgba(11,9,10,.82) 58%, rgba(11,9,10,0) 100%);
+}
+
+body.visual-theme-immersive .topbar:after {
+  content: '';
+  position: absolute;
+  right: 3.2%;
+  bottom: 0;
+  left: 3.2%;
+  height: 1px;
+  background: linear-gradient(to right, rgba(226,178,163,0) 0%, rgba(226,178,163,.22) 50%, rgba(226,178,163,0) 100%);
+  pointer-events: none;
+}
 
 body.visual-theme-immersive.is-home-surface-active .home-preview {
   box-sizing:border-box;
@@ -56,6 +75,8 @@ body.visual-theme-immersive .home-preview-title {
   color: #fff;
   font-size: 48px;
   line-height: 1.08;
+  letter-spacing: -.01em;
+  text-shadow: 0 2px 24px rgba(0,0,0,.5);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -96,3 +117,20 @@ body.visual-theme-immersive.is-home-surface-active .content {
 
 body.visual-theme-immersive .media-card { overflow: hidden; }
 body.visual-theme-immersive .section-title { margin-bottom: 14px; }
+
+body.visual-theme-immersive .search-t9-legend,
+body.visual-theme-immersive .library-filter-drawer,
+body.visual-theme-immersive .choice-dialog-panel,
+body.visual-theme-immersive .text-input-dialog-panel,
+body.visual-theme-immersive .update-dialog-panel,
+body.visual-theme-immersive .detail-summary-dialog-panel,
+body.visual-theme-immersive .media-info-dialog-panel,
+body.visual-theme-immersive .privacy-dialog-panel {
+  border: 1px solid rgba(225,205,198,.14);
+  border-radius: var(--theme-corner-radius);
+  background: linear-gradient(165deg, rgba(23,19,21,.98) 0%, rgba(18,15,16,.98) 100%);
+}
+
+body.visual-theme-immersive .library-filter-drawer {
+  border-left: 3px solid var(--accent, #13b8ad);
+}

@@ -1,6 +1,7 @@
 'use strict';
 
 var assert = require('assert');
+var MediaProfile = require('../app/media-profile');
 var PlexClient = require('../app/plex-client');
 
 function element(name, attributes, children) {
@@ -29,7 +30,7 @@ function element(name, attributes, children) {
 function mediaDocument() {
   var partOne = element('Part', { id: 'part-1', key: '/library/parts/1/file.mkv', file: '/media/one.mkv', size: '1000', duration: '120000' }, [
     element('Stream', { id: 'audio-1', streamType: '2', language: 'Japanese', languageTag: 'ja', codec: 'aac', selected: '1', channels: '2' }),
-    element('Stream', { id: 'subtitle-1', streamType: '3', language: 'Italiano', languageTag: 'it', codec: 'srt', key: '/library/streams/1' })
+    element('Stream', { id: 'subtitle-1', streamType: '3', language: 'Italiano', languageTag: 'it', codec: 'ass', key: '/library/streams/1' })
   ]);
   var partTwo = element('Part', { id: 'part-2', key: '/library/parts/2/file.mkv', file: '/media/two.mkv', size: '2000', duration: '120000' }, [
     element('Stream', { id: 'audio-2', streamType: '2', language: 'English', languageTag: 'en', codec: 'aac', selected: '1', channels: '6' })
@@ -63,42 +64,76 @@ global.DOMParser = function () {
 
 global.XMLHttpRequest = function () {
   requests.push(this);
-  this.open = function () {};
+  this.open = function (method, url) { this.method = method; this.url = url; };
   this.send = function () {};
   this.abort = function () {};
 };
 
-var playback = null;
-PlexClient.loadPlayback({ apiBaseUrl: '/plex-api', token: '' }, '42', 'session', function (error, value) {
+var detail = null;
+PlexClient.loadMetadata({ apiBaseUrl: '/plex-api', token: '' }, '42', function (error, value) {
   assert.ifError(error);
-  playback = value;
+  detail = value;
 });
 requests[0].status = 200;
 requests[0].readyState = 4;
 requests[0].responseText = '<xml/>';
 requests[0].onreadystatechange();
 
-var profile = null;
-PlexClient.loadMediaProfile({ apiBaseUrl: '/plex-api', token: '' }, '42', function (error, value) {
+var playback = null;
+PlexClient.loadPlayback({ apiBaseUrl: '/plex-api', token: '' }, '42', 'session', function (error, value) {
   assert.ifError(error);
-  profile = value;
+  playback = value;
 });
 requests[1].status = 200;
 requests[1].readyState = 4;
 requests[1].responseText = '<xml/>';
 requests[1].onreadystatechange();
 
-assert.strictEqual(parseCount, 2, 'each metadata request must parse its XML exactly once');
+var profile = null;
+PlexClient.loadMediaProfile({ apiBaseUrl: '/plex-api', token: '' }, '42', function (error, value) {
+  assert.ifError(error);
+  profile = value;
+});
+requests[2].status = 200;
+requests[2].readyState = 4;
+requests[2].responseText = '<xml/>';
+requests[2].onreadystatechange();
+
+assert.strictEqual(parseCount, 3, 'each metadata request must parse its XML exactly once');
+assert.ok(detail.mediaProfile, 'the first detail metadata response must expose its playable MediaProfile without a second request');
+assert.strictEqual(detail.mediaProfile.versions.length, 2, 'detail metadata must retain every playable version from the first response');
+assert.strictEqual(detail.mediaProfile.versions[0].subtitleTracks[0].key, '/library/streams/1', 'the first metadata response must expose the external subtitle key needed for immediate ASS prefetch');
+assert.deepStrictEqual(detail.mediaProfile.versions.map(function (item) { return [item.mediaIndex, item.partIndex, item.partId]; }),
+  profile.versions.map(function (item) { return [item.mediaIndex, item.partIndex, item.partId]; }),
+  'the profile extracted from loadMetadata must match the dedicated media-profile parser');
 assert.strictEqual(playback.mediaVersions.length, 2, 'playback must retain every parsed Plex version');
 assert.strictEqual(profile.versions.length, 2, 'media detail must retain the same parsed Plex versions');
 assert.deepStrictEqual(playback.mediaVersions.map(function (item) { return [item.mediaIndex, item.partIndex, item.partId]; }),
   profile.versions.map(function (item) { return [item.mediaIndex, item.partIndex, item.partId]; }),
   'playback and media detail must preserve identical Media/Part ordering');
-assert.deepStrictEqual(playback.audioTracks[0], PlexClient.trackFromAttributes({
+assert.deepStrictEqual(playback.audioTracks[0], MediaProfile.trackFromAttributes({
   id: 'audio-2', streamType: '2', language: 'English', languageTag: 'en', codec: 'aac', selected: '1', channels: '6'
 }), 'playback must consume the streams belonging to the selected parsed version');
 assert.strictEqual(profile.versions[playback.mediaIndex].audioTracks[0].id, playback.audioTracks[0].id,
   'media detail and playback must preserve the same track identity for the selected version');
+
+var selectionError = null;
+var selectionPlayback = null;
+PlexClient.loadPlayback({ apiBaseUrl: '/plex-api', token: '' }, '42', 'session-with-preferences', {}, function (error, value) {
+  selectionError = error || null;
+  selectionPlayback = value || null;
+});
+requests[3].status = 200;
+requests[3].readyState = 4;
+requests[3].responseText = '<xml/>';
+requests[3].onreadystatechange();
+assert.strictEqual(requests[4].method, 'PUT', 'playback preferences must persist the selected Plex streams before reporting readiness');
+requests[4].status = 500;
+requests[4].readyState = 4;
+requests[4].responseText = '';
+requests[4].onreadystatechange();
+assert.ok(selectionError, 'stream-selection failure must fail loadPlayback instead of starting playback with stale Plex tracks');
+assert.strictEqual(selectionPlayback, null, 'failed stream selection must not publish a ready playback object');
 
 global.DOMParser = previousDomParser;
 global.XMLHttpRequest = previousXhr;

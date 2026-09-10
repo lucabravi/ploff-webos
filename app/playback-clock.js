@@ -71,5 +71,67 @@
     return Math.max(0, Number(state && state.time || 0));
   }
 
-  return { anchor: anchor, create: create, freeze: freeze, observe: observe, position: position };
+  function optionalNumber(value) {
+    var numeric;
+    if (value === null || value === undefined || value === '') { return null; }
+    numeric = Number(value);
+    return isFinite(numeric) ? numeric : null;
+  }
+
+  function assessBufferResume(checkpoint, offsetBase, nativeTime, options) {
+    var source = checkpoint || {};
+    var values = options || {};
+    var target = optionalNumber(source.absoluteTime);
+    var checkpointNative = optionalNumber(source.nativeTime);
+    var checkpointOffset = optionalNumber(source.offsetBase);
+    var offset = optionalNumber(offsetBase);
+    var native = optionalNumber(nativeTime);
+    var backwardTolerance = Math.max(0, Number(values.backwardTolerance || 0));
+    var forwardLimit = Math.max(backwardTolerance, Number(values.forwardLimit || backwardTolerance));
+    var candidate;
+    var delta;
+    var reason = 'accepted';
+    var accepted = true;
+    if (target === null || checkpointNative === null || checkpointOffset === null || offset === null || native === null) {
+      accepted = false;
+      reason = 'invalid-sample';
+      candidate = target === null ? null : target;
+      delta = null;
+    } else {
+      candidate = Math.max(0, offset + native);
+      delta = candidate - target;
+      if (Math.abs(offset - checkpointOffset) > 0.05) {
+        accepted = false;
+        reason = 'offset-changed';
+      } else if (Math.abs(offset) > forwardLimit && Math.abs(native - target) <= forwardLimit &&
+          Math.abs(native - checkpointNative) > forwardLimit) {
+        accepted = false;
+        reason = 'native-domain-flip';
+      } else if (delta < -backwardTolerance) {
+        accepted = false;
+        reason = 'backward-jump';
+      } else if (delta > forwardLimit) {
+        accepted = false;
+        reason = 'forward-jump';
+      }
+    }
+    return {
+      accepted: accepted,
+      reason: reason,
+      target: target,
+      candidate: candidate,
+      delta: delta,
+      nativeTime: native,
+      offsetBase: offset
+    };
+  }
+
+  return {
+    anchor: anchor,
+    assessBufferResume: assessBufferResume,
+    create: create,
+    freeze: freeze,
+    observe: observe,
+    position: position
+  };
 }));

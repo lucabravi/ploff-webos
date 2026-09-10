@@ -117,6 +117,7 @@
       var direction;
       var target;
       if (destroyed) { return false; }
+      if (event && (event.keyCode === 27 || event.keyCode === 461)) { call(lifecycle.cancelPendingPlayback); }
       current = snapshot();
       direction = directionForKey(event && event.keyCode);
       if (Number(event && event.keyCode || 0) === 13 && call(contextMenu.holding) === true) {

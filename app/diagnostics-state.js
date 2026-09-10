@@ -91,6 +91,27 @@
     };
   }
 
+  function startup(value) {
+    var source = value || {};
+    var assSource = source.ass || {};
+    var assNames = 'workerRequested workerCreated staticMemoryReady workerInitSent workerInitReceived fontRequested fontReady libassRuntimeReady warmTrackReady warmFirstFrame realAssFetchStart realAssFetchEnd realAssSetTrackStart realAssSetTrackReady firstRealAssFrame'.split(' ');
+    var ass = {};
+    var index;
+    function metric(target, name) {
+      var result = Number(target[name]);
+      return isFinite(result) && result >= 0 ? result : null;
+    }
+    for (index = 0; index < assNames.length; index += 1) { ass[assNames[index]] = metric(assSource, assNames[index]); }
+    return {
+      bootstrap: metric(source, 'bootstrap'),
+      compositionReady: metric(source, 'compositionReady'),
+      serverReady: metric(source, 'serverReady'),
+      firstHomeContent: metric(source, 'firstHomeContent'),
+      firstFocusableUi: metric(source, 'firstFocusableUi'),
+      ass: ass
+    };
+  }
+
   function playback(value) {
     var source = value || null;
     if (!source) { return null; }
@@ -118,6 +139,7 @@
       device: device(source.device),
       network: network(source.network),
       playback: playback(source.playback),
+      startup: startup(source.startup),
       error: sanitizeText(source.error)
     };
   }
@@ -131,6 +153,7 @@
     sanitizeText: sanitizeText,
     sanitizeServerUri: sanitizeServerUri,
     server: server,
+    startup: startup,
     snapshot: snapshot
   };
 }));

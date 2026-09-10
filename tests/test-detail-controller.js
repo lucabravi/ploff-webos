@@ -57,7 +57,8 @@ function harness(extra) {
     openSummary: function () { actions.push(['summary']); },
     toggleWatched: function () { actions.push(['watched']); },
     toggleWatchlist: function () { actions.push(['watchlist']); },
-    openDetailOptions: function () { actions.push(['options']); }
+    openDetailOptions: function () { actions.push(['options']); },
+    activateExtended: function () { actions.push(['activate-extended']); }
   };
   Object.keys(extra || {}).forEach(function (key) { values[key] = extra[key]; });
   return {
@@ -84,6 +85,19 @@ function harness(extra) {
   h.metadata[1].callback(null, { ratingKey: 'm2', type: 'movie' });
   assert.strictEqual(h.controller.snapshot().currentDetail.ratingKey, 'm2');
   assert.strictEqual(h.controller.snapshot().returnView, 'library');
+}());
+
+(function testRepeatedSelectedMetadataLoadRejectsOlderSameItemResponse() {
+  var h = harness();
+  h.controller.open({ ratingKey: 'same-movie', type: 'movie' }, { returnView: 'home' });
+  h.controller.loadSelected({ ratingKey: 'same-movie' }, function () { h.actions.push(['older-complete']); });
+  h.controller.loadSelected({ ratingKey: 'same-movie' }, function () { h.actions.push(['newer-complete']); });
+
+  h.metadata[1].callback(null, { ratingKey: 'same-movie', type: 'movie', title: 'Fresh metadata' });
+  h.metadata[0].callback(null, { ratingKey: 'same-movie', type: 'movie', title: 'Stale metadata' });
+
+  assert.strictEqual(h.controller.snapshot().currentDetail.title, 'Fresh metadata', 'an older same-item metadata response must not overwrite a newer recovery/retry result');
+  assert.deepStrictEqual(h.actions.filter(function (entry) { return /-complete$/.test(entry[0]); }), [['newer-complete']], 'only the latest same-item metadata load may publish completion');
 }());
 
 (function testEpisodeAndSeasonPreviewGeneration() {
@@ -115,6 +129,41 @@ function harness(extra) {
   h.metadata[h.metadata.length - 2].callback(null, { ratingKey: 'e1', type: 'episode' });
   h.metadata[h.metadata.length - 1].callback(null, { ratingKey: 'e2', type: 'episode' });
   assert.strictEqual(h.controller.snapshot().currentDetail.ratingKey, 'e2', 'only the currently focused episode may replace detail metadata');
+}());
+
+(function testInlineMediaProfileSkipsDuplicateRequestAndDebounce() {
+  var states = [];
+  var h = harness({ onMediaProfileState: function (state) { states.push(state); } });
+  var profile = { ratingKey: 'inline-episode', mediaIndex: 0, partIndex: 0, audioTracks: [], subtitleTracks: [] };
+  var detail = { ratingKey: 'inline-episode', type: 'episode', mediaProfile: profile };
+  var completions = [];
+  h.controller.open(detail);
+  h.controller.setCurrentDetail(detail);
+  h.controller.queueMediaProfile(detail, 'server|profile|season', function (error, value) {
+    completions.push([error, value]);
+  });
+  assert.strictEqual(h.mediaProfiles.length, 0, 'an inline profile from loadMetadata must not trigger a duplicate loadMediaProfile request');
+  assert.strictEqual(Object.keys(h.root.timers).length, 0, 'an inline profile must bypass the 120 ms debounce and loading-label timers');
+  assert.deepStrictEqual(h.actions.filter(function (entry) { return entry[0] === 'profile'; }), [['profile', profile]], 'the inline profile must become the active detail profile immediately');
+  assert.deepStrictEqual(completions, [[null, profile]], 'queue completion must publish the already-loaded profile synchronously');
+  assert.strictEqual(h.controller.snapshot().mediaProfileLoading, false, 'an inline profile must leave the media-profile gate ready immediately');
+  assert.strictEqual(states.length, 1, 'the ready media-profile state must publish immediately so Detail can start ASS prefetch without waiting for another request');
+  assert.strictEqual(states[0].mediaProfileLoading, false);
+}());
+
+(function testMismatchedInlineMediaProfileFallsBackToDedicatedRequest() {
+  var h = harness();
+  var detail = {
+    ratingKey: 'current-episode',
+    type: 'episode',
+    mediaProfile: { ratingKey: 'stale-episode', mediaIndex: 0, partIndex: 0, audioTracks: [], subtitleTracks: [] }
+  };
+  h.controller.open(detail);
+  h.controller.setCurrentDetail(detail);
+  h.controller.queueMediaProfile(detail, 'server|profile|season');
+  h.root.runAll();
+  assert.strictEqual(h.mediaProfiles.length, 1, 'a stale inline profile must never suppress the dedicated media-profile fallback');
+  assert.strictEqual(h.mediaProfiles[0].key, 'current-episode');
 }());
 
 (function testMediaProfileGateAndPlainPlaybackRequest() {
@@ -174,6 +223,16 @@ function harness(extra) {
   assert.strictEqual(h.actions.some(function (entry) { return entry[0] === 'close-detail'; }), false, 'Back must respect the opening grace period');
   h.setNow(1600); h.controller.handleKey({ keyCode: 461 }, null);
   assert.strictEqual(h.actions[h.actions.length - 1][0], 'close-detail');
+}());
+
+(function testExtendedDetailConfirmationDoesNotFallThroughToMainPlayback() {
+  var h = harness();
+  h.controller.open({ ratingKey: 'm1', type: 'movie' });
+  h.controller.setCurrentDetail({ ratingKey: 'm1', type: 'movie' });
+  h.controller.setFocus({ zone: 'extended' });
+  assert.strictEqual(h.controller.handleKey({ keyCode: 13 }, null).handled, true, 'OK in extended detail remains consumed by the detail surface');
+  assert.ok(h.actions.some(function (entry) { return entry[0] === 'activate-extended'; }), 'OK in extended detail must delegate activation to the extended surface instead of becoming a no-op');
+  assert.strictEqual(h.playback.length, 0, 'extended activation must never fall through to playback of the main title');
 }());
 
 (function testOverlayAndAllActionFocusRoutes() {
@@ -298,6 +357,77 @@ function harness(extra) {
   assert.strictEqual(detached.controller.snapshot().selectedItem, null, 'destroyed detail controllers must ignore late semantic mutations');
   assert.strictEqual(detached.controller.snapshot().currentDetail, null, 'destroyed detail controllers must not resurrect detail state');
   assert.strictEqual(detached.controller.snapshot().playPending, false, 'destroyed detail controllers must keep transient state cleared');
+}());
+
+(function testPlaybackProgressCheckpointBelongsToDetailStateOwner() {
+  var h = harness();
+  var selected = { ratingKey: 'e1', duration: 120000, viewOffset: 0, progress: 0, viewed: false };
+  var detail = { ratingKey: 'e1', type: 'episode', duration: 120000, viewOffset: 0, progress: 0, viewed: false };
+  var context = { seasons: [{ ratingKey: 's1' }], episodes: [{ ratingKey: 'e1', duration: 120000, viewOffset: 0, progress: 0, viewed: false }] };
+  h.controller.setSelectedItem(selected);
+  h.controller.setCurrentDetail(detail);
+  h.controller.setSeriesContext(context);
+
+  assert.strictEqual(h.controller.recordPlaybackProgress('e1', 60), true, 'the detail state owner must accept a confirmed local playback checkpoint');
+  assert.strictEqual(h.controller.snapshot().currentDetail.viewOffset, 60000);
+  assert.strictEqual(h.controller.snapshot().currentDetail.progress, 50, 'current detail progress must use the shared 0-100 scale');
+  assert.strictEqual(h.controller.snapshot().selectedItem.progress, 50, 'the retained browsing item must receive the same checkpoint');
+  assert.strictEqual(h.controller.snapshot().seriesContext.episodes[0].progress, 50, 'the retained episode model must receive the same checkpoint');
+  assert.strictEqual(h.controller.playbackProgressPending('e1'), true, 'the fresh local checkpoint must remain protected while Plex may lag');
+}());
+
+(function testPlaybackProgressReconciliationProtectsThenReleasesLocalCheckpoint() {
+  var h = harness();
+  var detail = { ratingKey: 'e1', type: 'episode', duration: 120000, viewOffset: 0, progress: 0, viewed: false };
+  h.controller.setSelectedItem({ ratingKey: 'e1', duration: 120000, viewOffset: 0, progress: 0, viewed: false });
+  h.controller.setCurrentDetail(detail);
+  h.controller.setSeriesContext({ seasons: [{ ratingKey: 's1' }], episodes: [{ ratingKey: 'e1', duration: 120000, viewOffset: 0, progress: 0, viewed: false }] });
+  h.controller.recordPlaybackProgress('e1', 60);
+
+  var stale = [{ ratingKey: 'e1', duration: 120000, viewOffset: 30000, progress: 25, viewed: false }];
+  assert.strictEqual(h.controller.reconcilePlaybackEpisodes(stale), true, 'stale Plex metadata must keep the local checkpoint pending');
+  assert.strictEqual(stale[0].viewOffset, 60000, 'the reconciled payload must protect the newer local offset before presentation consumes it');
+  assert.strictEqual(stale[0].progress, 50);
+  assert.strictEqual(h.controller.snapshot().currentDetail.viewOffset, 60000);
+
+  var caughtUp = [{ ratingKey: 'e1', duration: 120000, viewOffset: 59000, progress: 49.1667, viewed: true }];
+  assert.strictEqual(h.controller.reconcilePlaybackEpisodes(caughtUp), false, 'Plex within the existing two-second tolerance must release checkpoint protection');
+  assert.strictEqual(h.controller.playbackProgressPending('e1'), false);
+  assert.strictEqual(h.controller.snapshot().currentDetail.viewOffset, 59000, 'after catch-up the authoritative Plex value must win');
+  assert.strictEqual(h.controller.snapshot().currentDetail.viewed, true);
+}());
+
+(function testWatchedPlexStateImmediatelyReleasesLocalCheckpoint() {
+  var h = harness();
+  h.controller.setSelectedItem({ ratingKey: 'e1', duration: 120000, viewOffset: 0, progress: 0, viewed: false });
+  h.controller.setCurrentDetail({ ratingKey: 'e1', type: 'episode', duration: 120000, viewOffset: 0, progress: 0, viewed: false });
+  h.controller.setSeriesContext({ seasons: [{ ratingKey: 's1' }], episodes: [{ ratingKey: 'e1', duration: 120000, viewOffset: 0, progress: 0, viewed: false }] });
+  h.controller.recordPlaybackProgress('e1', 114);
+
+  h.controller.reconcilePlaybackEpisodes([{ ratingKey: 'e1', duration: 120000, viewOffset: 0, progress: 0, viewed: true }]);
+
+  assert.strictEqual(h.controller.playbackProgressPending('e1'), false,
+    'authoritative watched metadata must release stale-progress protection immediately');
+  assert.strictEqual(h.controller.snapshot().currentDetail.viewOffset, 0,
+    'watched metadata must not be replaced by the previous local resume offset');
+  assert.strictEqual(h.controller.snapshot().currentDetail.progress, 0,
+    'watched metadata must not render a nearly-full progress bar');
+}());
+
+(function testPlaybackProgressCheckpointExpiresAndResetsWithDetailLifecycle() {
+  var h = harness();
+  h.controller.setCurrentDetail({ ratingKey: 'e1', duration: 120000, viewOffset: 0 });
+  h.controller.setSeriesContext({ seasons: [{ ratingKey: 's1' }], episodes: [{ ratingKey: 'e1', duration: 120000, viewOffset: 0, progress: 0 }] });
+  h.controller.recordPlaybackProgress('e1', 60);
+  h.setNow(8000);
+  assert.strictEqual(h.controller.playbackProgressPending('e1'), false, 'the six-second stale-metadata guard must expire');
+  h.controller.reconcilePlaybackEpisodes([{ ratingKey: 'e1', duration: 120000, viewOffset: 30000, progress: 25 }]);
+  assert.strictEqual(h.controller.snapshot().currentDetail.viewOffset, 30000, 'expired protection must not override fresh Plex state');
+
+  h.setNow(9000);
+  h.controller.recordPlaybackProgress('e1', 45);
+  h.controller.open({ ratingKey: 'm2', type: 'movie' });
+  assert.strictEqual(h.controller.playbackProgressPending('e1'), false, 'opening a new detail generation must clear the old playback checkpoint');
 }());
 
 (function testNativePlaybackIsolationAndLegacyOwnership() {

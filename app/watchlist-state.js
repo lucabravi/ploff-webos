@@ -26,11 +26,12 @@
   }
 
   function resolve(items, resolver, concurrency, callback) {
-    var seen = {};
+    var seen = Object.create(null);
     var queue = [];
     var results = [];
     var active = 0;
     var completed = 0;
+    var firstError = null;
     var limit = Math.max(1, Number(concurrency) || 4);
     (items || []).forEach(function (item, originalIndex) {
       var guid = String(item.guid || '');
@@ -42,7 +43,7 @@
     function finishIfReady() {
       if (completed !== queue.length) { return false; }
       results.sort(function (left, right) { return left.index - right.index; });
-      callback(null, results.map(function (entry) { return entry.item; }));
+      callback(firstError, results.map(function (entry) { return entry.item; }));
       return true;
     }
     function pump() {
@@ -56,6 +57,7 @@
             var merged;
             active -= 1;
             completed += 1;
+            if (error && !firstError) { firstError = error; }
             if (!error && localItem) {
               merged = {};
               Object.keys(localItem).forEach(function (key) { merged[key] = localItem[key]; });

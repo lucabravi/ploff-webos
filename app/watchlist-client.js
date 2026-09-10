@@ -84,9 +84,11 @@
     var settings = options || {};
     var base = settings.baseUrl || DEFAULT_BASE;
     return request(rootObject, settings, 'GET', String(base).replace(/\/$/, '') + '/', function (error, text) {
+      var provider;
       if (error) { callback(error); return; }
-      try { callback(null, providerFromJson(text, base)); }
-      catch (parseError) { callback(parseError); }
+      try { provider = providerFromJson(text, base); }
+      catch (parseError) { callback(parseError); return; }
+      callback(null, provider);
     });
   }
 
@@ -155,9 +157,11 @@
       searchTypes: 'movies,tv',
       includeMetadata: 1
     }), function (error, text) {
+      var items;
       if (error) { callback(error); return; }
-      try { callback(null, searchItemsFromJson(text)); }
-      catch (parseError) { callback(parseError); }
+      try { items = searchItemsFromJson(text); }
+      catch (parseError) { callback(parseError); return; }
+      callback(null, items);
     });
   }
 
@@ -168,9 +172,11 @@
       'X-Plex-Container-Start': Math.max(0, Number(start) || 0),
       'X-Plex-Container-Size': Math.min(100, Math.max(1, Number(size) || 100))
     }), function (error, text) {
+      var items;
       if (error) { callback(error); return; }
-      try { callback(null, itemsFromJson(text)); }
-      catch (parseError) { callback(parseError); }
+      try { items = itemsFromJson(text); }
+      catch (parseError) { callback(parseError); return; }
+      callback(null, items);
     });
   }
 

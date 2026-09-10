@@ -37,7 +37,10 @@ function confirmation(token) {
     onState: function (state) { states.push(state); },
     onCancel: function (value) { cancellations.push(value.token); }
   });
+  assert.strictEqual(typeof controller.isOpen, 'function', 'queue gap owner must expose a cheap open-state query');
+  assert.strictEqual(controller.isOpen(), false, 'a fresh queue gap must report closed without cloning its confirmation snapshot');
   assert.strictEqual(controller.open(confirmation()), true);
+  assert.strictEqual(controller.isOpen(), true, 'opening the queue gap must update the owner query');
   assert.strictEqual(controller.snapshot().focus, 0, 'gap confirmation must default to the non-destructive action');
   assert.strictEqual(controller.open(confirmation()), false, 'opening the same token twice must not duplicate the modal');
   assert.strictEqual(states.length, 1, 'repeated activation must not publish another modal state');
@@ -49,6 +52,7 @@ function confirmation(token) {
   assert.strictEqual(controller.snapshot().focus, 0);
   assert.strictEqual(controller.activate(), 'cancel');
   assert.deepStrictEqual(cancellations, ['gap-1']);
+  assert.strictEqual(controller.isOpen(), false, 'closing the queue gap must update the owner query');
   assert.strictEqual(controller.snapshot().open, false);
 }());
 

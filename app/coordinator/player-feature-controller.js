@@ -5,6 +5,9 @@
 }(this, function () {
   'use strict';
 
+  var SUBTITLE_AUTOMATIC_VALUE = '__automatic__';
+  var SUBTITLE_OFF_VALUE = '__off__';
+
   function create(options) {
     var values = options || {};
     var platform = values.platform || {};
@@ -30,7 +33,15 @@
     var QueueGapController = modules.QueueGapController;
     var QueueGapView = modules.QueueGapView;
     var PlaybackController = modules.PlaybackController;
+    var NativeVideoDriver = modules.NativeVideoDriver;
+    var PlaybackReposition = modules.PlaybackReposition;
+    var PlaybackSession = modules.PlaybackSession;
+    var PlaybackTimeline = modules.PlaybackTimeline;
+    var SubtitleRuntime = modules.SubtitleRuntime;
     var PlayerControlsController = modules.PlayerControlsController;
+    var PlayerSubtitleEditorController = modules.PlayerSubtitleEditorController;
+    var PlayerQueueController = modules.PlayerQueueController;
+    var InputCommandRouter = modules.InputCommandRouter;
     var PlaybackQueueModel = modules.PlaybackQueueModel;
     var PlayerControlsState = modules.PlayerControlsState;
     var PlayerControlsView = modules.PlayerControlsView;
@@ -45,8 +56,14 @@
     var PlayerTimelinePolicy = modules.PlayerTimelinePolicy;
     var ResumeChoice = modules.ResumeChoice;
     var SubtitleSync = modules.SubtitleSync;
+    var SubtitleEditorSession = modules.SubtitleEditorSession;
     var SubtitleEditorView = modules.SubtitleEditorView;
+    var SubtitleStyleDialog = modules.SubtitleStyleDialog;
+    var Settings = modules.Settings;
     var SubtitleOffsetStore = modules.SubtitleOffsetStore;
+    var SubtitleSeriesOffset = modules.SubtitleSeriesOffset;
+    var AssSubtitleRenderer = modules.AssSubtitleRenderer;
+    var AssSubtitlePrefetchPolicy = root.PloffAssSubtitlePrefetchPolicy;
     var VersionSelection = modules.VersionSelection;
     var MediaInfo = modules.MediaInfo;
     var MediaProfile = modules.MediaProfile;
@@ -55,35 +72,30 @@
     var UpNextState = modules.UpNextState;
     var UpNextTiming = modules.UpNextTiming;
     var UpNextView = modules.UpNextView;
+    if (!InputCommandRouter || typeof InputCommandRouter.playerQueue !== 'function') {
+      throw new Error('PlayerFeatureController requires InputCommandRouter');
+    }
     var formatTime = PlayerTimelinePolicy && PlayerTimelinePolicy.formatTime ? PlayerTimelinePolicy.formatTime : function (value) { return String(value || 0); };
     var formatLongTime = PlayerTimelinePolicy && PlayerTimelinePolicy.formatLongTime ? PlayerTimelinePolicy.formatLongTime : formatTime;
     var destroyed = false;
+    var initialized = false;
     var generation = 0;
     var playbackQueueController = null;
+    var playerQueueController = null;
     var queueGapController = null;
     var queueGapView = null;
     var queueGapSource = '';
-    var queueGapGeneration=0,queueGapVisible=false;
+    var queueGapGeneration = 0;
     var playerControlsController = null;
     var playbackController = null;
-    var playlistQueueScrollDirection = 0;
-    var playlistQueuePrefetchDirection = { direction: 0, pendingDirection: 0, pendingCount: 0 };
-    var playlistQueueCards = {};
-    var playlistQueuePrefetchImages = {};
-    var playlistQueueRenderToken = 0;
-    var playlistQueueSpacers = {};
-    var playlistQueueCardOriginIdentity = '';
-    var playlistQueuePlaybackPaused = null;
     var playerErrorVisible = false;
     var playerErrorIndex = 0;
     var playerErrorRetryAction = null;
     var playerErrorFallbackAction = null;
     var resumeChoiceState = null;
-    var resumeChoiceVisible = false;
     var playerControlsView = null;
     var playerChaptersView = null;
-    var subtitleEditorView = null;
-    var subtitleEditorIndex = 0;
+    var playerSubtitleEditorController = null;
     var subtitlePanelTransitionTimer = null;
     var containerDirectPlayTransitionTimer = null;
     var containerOriginRestoreTimer = null;
@@ -96,6 +108,9 @@
     var autoplayPrefetchImage = null;
     var playbackAtEnd = false;
     var episodeCommandGeneration = 0;
+    var nextAssTarget = null;
+    var nextAssPrefetchKey = '';
+    var standaloneDetailState = null;
 
     function call(callback, arg1, arg2, arg3, arg4, arg5, arg6) {
       if (typeof callback === 'function') { return callback(arg1, arg2, arg3, arg4, arg5, arg6); }
@@ -133,17 +148,93 @@
     function setPlaybackIdentity(identity) { return call(statePorts.setPlaybackIdentity, identity); }
     function pointerSelectionActive() { return call(statePorts.pointerSelectionActive) === true; }
     function navigationHasFocus() { return call(statePorts.navigationHasFocus) === true; }
-    function activeServerSnapshot() { return call(dataPorts.activeServer) || null; }
     function activeServerIdentity() {
-      var server = activeServerSnapshot();
+      var server = call(dataPorts.activeServer) || null;
       return server && (server.machineIdentifier || server.uri) || config.apiBaseUrl || 'local';
     }
-    function detailSnapshot() { return call(detailPorts.snapshot) || {}; }
-    function detailPlaybackPreferences(versionAffinity) { return call(detailPorts.playbackPreferences, versionAffinity) || {}; }
+    function subtitlePresentationIdentity() {
+      var identity = call(dataPorts.mediaIdentity);
+      if (identity && typeof identity === 'object') {
+        return [identity.server || identity.uri || activeServerIdentity(), identity.profile || 'local'].join('|');
+      }
+      return activeServerIdentity();
+    }
+    function detailSnapshot() { return standaloneDetailState || call(detailPorts.snapshot) || {}; }
+    function subtitlePresentationDetail(playbackValue) {
+      var state = detailSnapshot();
+      return state.currentDetail || state.selectedItem || playbackValue || null;
+    }
+    function subtitlePresentation(track, playbackValue) {
+      if (!SubtitleSeriesOffset) { return null; }
+      return SubtitleSeriesOffset.resolve(storage, subtitlePresentationIdentity(), subtitlePresentationDetail(playbackValue), track || null);
+    }
+    function selectedPlaybackSubtitleTrack(playbackValue) {
+      var playback = playbackValue || currentPlayerPlayback();
+      return playback ? selectedSubtitleTrack(playback, playback.options && playback.options.subtitleStreamID) : null;
+    }
+    function globalSubtitlePresentation() {
+      var settings = currentSettings();
+      return {
+        subtitleSize: Number(settings.subtitleSize || 100),
+        subtitleBackground: String(settings.subtitleBackground || 'off'),
+        subtitleEdge: String(settings.subtitleEdge || 'shadow'),
+        renderSrt: settings.subtitleRenderingSrt === true,
+        renderAss: settings.subtitleRenderingAss === true,
+        offsetMs: 0
+      };
+    }
+    function subtitlePresentationLayers(playbackValue) {
+      var playback = playbackValue || currentPlayerPlayback();
+      var track = selectedPlaybackSubtitleTrack(playback);
+      if (!SubtitleSeriesOffset || typeof SubtitleSeriesOffset.resolveLayers !== 'function') { return { media: null, season: null }; }
+      return SubtitleSeriesOffset.resolveLayers(storage, subtitlePresentationIdentity(), subtitlePresentationDetail(playback), track);
+    }
+    function subtitlePresentationParent(playbackValue) {
+      if (!SubtitleSeriesOffset || typeof SubtitleSeriesOffset.parent !== 'function') { return globalSubtitlePresentation(); }
+      return SubtitleSeriesOffset.parent(storage, subtitlePresentationIdentity(), subtitlePresentationDetail(playbackValue), globalSubtitlePresentation(), selectedPlaybackSubtitleTrack(playbackValue));
+    }
+    function effectiveSubtitlePresentation(playbackValue, preferredTrack) {
+      if (!SubtitleSeriesOffset || typeof SubtitleSeriesOffset.effective !== 'function') { return globalSubtitlePresentation(); }
+      var playback = playbackValue || currentPlayerPlayback();
+      var track = selectedPlaybackSubtitleTrack(playback) || preferredTrack || null;
+      return SubtitleSeriesOffset.effective(storage, subtitlePresentationIdentity(), subtitlePresentationDetail(playback), globalSubtitlePresentation(), track);
+    }
+    function mergeSubtitlePresentation(baseValue, overrideValue) {
+      var result = copyRecord(baseValue) || {};
+      var override = overrideValue || {};
+      var key;
+      for (key in override) {
+        if (Object.prototype.hasOwnProperty.call(override, key)) { result[key] = override[key]; }
+      }
+      return result;
+    }
+    function subtitlePresentationScope(layers) {
+      if (layers && layers.media) { return 'media'; }
+      if (layers && layers.season) { return 'season'; }
+      return 'global';
+    }
+    function saveMediaSubtitleEffective(playbackValue, effectiveValue) {
+      var detail = subtitlePresentationDetail(playbackValue);
+      var parent;
+      var sparse;
+      var playback = playbackValue || currentPlayerPlayback();
+      var track = selectedPlaybackSubtitleTrack(playback);
+      if (!SubtitleSeriesOffset || !detail || !effectiveValue || !track || typeof SubtitleSeriesOffset.saveProfile !== 'function') { return false; }
+      parent = subtitlePresentationParent(playback);
+      sparse = SubtitleSeriesOffset.diff(parent, effectiveValue);
+      return SubtitleSeriesOffset.saveProfile(storage, subtitlePresentationIdentity(), detail, 'media', track, sparse);
+    }
+    function detailPlaybackPreferences(versionAffinity) {
+      var result = call(detailPorts.playbackPreferences, versionAffinity) || {};
+      var presentation = effectiveSubtitlePresentation(null, result.subtitleTrackPreference || null);
+      if (presentation && presentation.subtitleSize) { result.subtitleSize = presentation.subtitleSize; }
+      return result;
+    }
+    function detailPlaybackPreferencesFor(detail, versionAffinity) {
+      return call(detailPorts.playbackPreferencesFor, detail, versionAffinity) || detailPlaybackPreferences(versionAffinity);
+    }
     function saveDetailMediaOverride() { return call(detailPorts.saveMediaOverride); }
     function applyLocalPlaybackProgress(ratingKey, seconds) { return call(detailPorts.applyLocalPlaybackProgress, ratingKey, seconds); }
-    function refreshEpisodePlaybackState(ratingKey, seconds) { return call(detailPorts.refreshPlaybackState, ratingKey, seconds); }
-    function reconcileLibraryPlaybackProgress(ratingKey, seconds) { return call(libraryPorts.refreshAfterPlayback, ratingKey, seconds); }
     function playbackQueueSnapshot() { return playbackQueueController ? playbackQueueController.snapshot() : {}; }
 
     function copyRecord(source) {
@@ -217,6 +308,12 @@
       if (index < 0) { index = 0; }
       return list[Math.max(0, Math.min(list.length - 1, index + (direction < 0 ? -1 : 1)))];
     }
+
+    function subtitleSizeValues() {
+      var values = Settings && Settings.SUBTITLE_SIZES;
+      return values && values.length ? values.slice() : [100];
+    }
+
     function mediaVersionLabel(profile, automatic) {
       return MediaChoiceModel.versionLabel(profile, {
         automatic: automatic,
@@ -228,7 +325,7 @@
     function openPlayerMediaInfo() {
       var playerPlayback = playbackController ? playbackController.snapshot().playback : null;
       if (!playerPlayback || !playerPlayback.mediaProfile || !MediaInfo || typeof MediaInfo.create !== 'function') { return false; }
-      return call(dialogsPorts.openMediaInfo, MediaInfo.create(playerPlayback.mediaProfile, playerPlayback.options || {}, t), 'player');
+      return call(dialogsPorts.openMediaInfo, MediaInfo.create(playerPlayback.mediaProfile, playerPlayback.options || {}, t, { recoveryTrace: playerPlayback.diagnosticRecoveryTrace || '' }), 'player');
     }
     function clearOwnedTimer(timer) {
       var index;
@@ -271,20 +368,40 @@
       return playbackController ? playbackController.snapshot().playback : null;
     }
 
-    function subtitleEditorAvailability(playbackValue) {
-      var playback = playbackValue || currentPlayerPlayback();
-      if (!playback || !SubtitleSync) { return { enabled: false, reason: 'unsupported', track: null }; }
-      return SubtitleSync.availability(playback.options.subtitleStreamID, playback.subtitleTracks || [], {});
+    function subtitleEditorAvailability() {
+      var playback;
+      var selectedId;
+      var selectedTrack;
+      var compatibleTrack;
+      if (!playbackController || typeof playbackController.subtitleEditorAvailability !== 'function') {
+        return { enabled: false, reason: 'unsupported' };
+      }
+      playback = currentPlayerPlayback();
+      selectedId = String(playback && playback.options && playback.options.subtitleStreamID || '');
+      selectedTrack = selectedSubtitleTrack(playback, selectedId);
+      if (selectedTrack && SubtitleSync && !SubtitleSync.advancedEditorSupported(selectedTrack)) {
+        return { enabled: false, reason: 'unsupported' };
+      }
+      if (!selectedId && playback && SubtitleSync) {
+        compatibleTrack = (playback.subtitleTracks || []).some(function (track) {
+          return SubtitleSync.advancedEditorSupported(track);
+        });
+        if (!compatibleTrack) { return { enabled: false, reason: 'unsupported' }; }
+      }
+      return playbackController.subtitleEditorAvailability();
     }
 
     function subtitleOffsetFor(track, playbackValue) {
       var playback = playbackValue || currentPlayerPlayback();
       var classification;
       var identity;
+      var presentation;
       if (!playback || !track || !SubtitleSync) { return 0; }
+      presentation = subtitlePresentation(track, playback);
+      if (presentation) { return Math.round(Number(presentation.offsetMs || 0)); }
       classification = SubtitleSync.classify(track);
-      if (classification.kind === 'external-text') { return Math.round(Number(track.offset || 0)); }
-      if (classification.kind !== 'embedded-text' || !SubtitleOffsetStore) { return 0; }
+      if (classification.kind === 'external-text' || classification.kind === 'external-ass') { return Math.round(Number(track.offset || 0)); }
+      if ((classification.kind !== 'embedded-text' && classification.kind !== 'embedded-ass') || !SubtitleOffsetStore) { return 0; }
       identity = activeServerIdentity();
       return SubtitleOffsetStore.get(storage, identity, playback.partId, track.id);
     }
@@ -292,6 +409,150 @@
     function ensurePlayerControlsView() {
       if (!playerControlsView) { playerControlsView = PlayerControlsView.create({ document: document, setText: setText }); }
       return playerControlsView;
+    }
+
+    function loadSubtitlePresentation(playbackValue) {
+      var playback = playbackValue || currentPlayerPlayback();
+      var globals = globalSubtitlePresentation();
+      var layers = subtitlePresentationLayers(playback);
+      var parent = mergeSubtitlePresentation(globals, layers.season);
+      return {
+        effective: mergeSubtitlePresentation(parent, layers.media),
+        parent: parent,
+        globals: globals,
+        layers: layers,
+        scope: subtitlePresentationScope(layers),
+        inheritedStreamID: playback ? inheritedSubtitleStreamId(playback) : ''
+      };
+    }
+
+    function selectedSubtitleTrack(playbackValue, streamId) {
+      if (!playbackValue) { return null; }
+      return MediaInfo.selectedTrack(playbackValue.subtitleTracks || [], String(streamId || ''));
+    }
+
+    function saveSubtitlePresentation(scope, draftValue) {
+      var playback = currentPlayerPlayback();
+      var detail = subtitlePresentationDetail(playback);
+      var draft = draftValue || {};
+      var stateValue = draft.state || {};
+      var style = draft.style || {};
+      var capabilities = draft.capabilities || {};
+      var desired;
+      var identity;
+      var track;
+      var streamId;
+      var parent;
+      var layers;
+      var existingLayer;
+      var classification;
+      var textTrack;
+      var sparse;
+      var mediaRemainder;
+      var mediaLayer;
+      function finish(saved) {
+        if (saved && draft.trackChanged === true) {
+          if (draft.trackChanged === true && draft.trackIntent === 'inherit') {
+            call(detailPorts.setTrackPreference, 'subtitles', null, false);
+          } else {
+            call(detailPorts.setTrackPreference, 'subtitles', track, !streamId);
+          }
+        }
+        return saved;
+      }
+      if (!SubtitleSeriesOffset || !playback || !detail || typeof SubtitleSeriesOffset.saveProfile !== 'function') { return false; }
+      identity = subtitlePresentationIdentity();
+      streamId = String(stateValue.selectedStreamID === undefined ? playback.options.subtitleStreamID || '' : stateValue.selectedStreamID || '');
+      track = selectedSubtitleTrack(playback, streamId);
+      if (!track) { return streamId ? false : finish(true); }
+      classification = SubtitleSync && typeof SubtitleSync.classify === 'function' ? SubtitleSync.classify(track) : { kind: '' };
+      textTrack = classification.kind === 'external-text' || classification.kind === 'embedded-text';
+      layers = SubtitleSeriesOffset.resolveLayers(storage, identity, detail, track);
+      existingLayer = scope === 'season' ? layers.season : layers.media;
+      desired = {};
+      if (capabilities.size !== false) { desired.subtitleSize = Number(stateValue.subtitleSize || playback.options.subtitleSize || 100); }
+      else if (classification.kind !== 'unsupported' && existingLayer &&
+          Object.prototype.hasOwnProperty.call(existingLayer, 'subtitleSize')) {
+        desired.subtitleSize = existingLayer.subtitleSize;
+      }
+      if (capabilities.offset !== false) { desired.offsetMs = Math.round(Number(stateValue.offsetMs || 0)); }
+      else if (existingLayer && Object.prototype.hasOwnProperty.call(existingLayer, 'offsetMs')) { desired.offsetMs = existingLayer.offsetMs; }
+      if (capabilities.background !== false) { desired.subtitleBackground = String(style.subtitleBackground || 'off'); }
+      else if (textTrack && existingLayer && Object.prototype.hasOwnProperty.call(existingLayer, 'subtitleBackground')) {
+        desired.subtitleBackground = existingLayer.subtitleBackground;
+      }
+      if (capabilities.edge !== false) { desired.subtitleEdge = String(style.subtitleEdge || 'shadow'); }
+      else if (textTrack && existingLayer && Object.prototype.hasOwnProperty.call(existingLayer, 'subtitleEdge')) {
+        desired.subtitleEdge = existingLayer.subtitleEdge;
+      }
+      if (scope === 'season') {
+        sparse = SubtitleSeriesOffset.diff(globalSubtitlePresentation(), desired);
+        mediaLayer = layers.media || {};
+        mediaRemainder = {};
+        if (capabilities.size === false && classification.kind !== 'unsupported' &&
+            Object.prototype.hasOwnProperty.call(mediaLayer, 'subtitleSize')) {
+          mediaRemainder.subtitleSize = mediaLayer.subtitleSize;
+        }
+        if (capabilities.offset === false && Object.prototype.hasOwnProperty.call(mediaLayer, 'offsetMs')) {
+          mediaRemainder.offsetMs = mediaLayer.offsetMs;
+        }
+        if (capabilities.background === false && textTrack &&
+            Object.prototype.hasOwnProperty.call(mediaLayer, 'subtitleBackground')) {
+          mediaRemainder.subtitleBackground = mediaLayer.subtitleBackground;
+        }
+        if (capabilities.edge === false && textTrack &&
+            Object.prototype.hasOwnProperty.call(mediaLayer, 'subtitleEdge')) {
+          mediaRemainder.subtitleEdge = mediaLayer.subtitleEdge;
+        }
+        return finish(typeof SubtitleSeriesOffset.updateProfileLayers === 'function'
+          ? SubtitleSeriesOffset.updateProfileLayers(storage, identity, detail, track, sparse, true, mediaRemainder)
+          : SubtitleSeriesOffset.saveSeason(storage, identity, detail, { track: track, subtitleSize: sparse.subtitleSize, offsetMs: sparse.offsetMs, subtitleBackground: sparse.subtitleBackground, subtitleEdge: sparse.subtitleEdge }));
+      }
+      if (draft.resetSeason === true && typeof SubtitleSeriesOffset.clearProfile === 'function') {
+        if (!SubtitleSeriesOffset.clearProfile(storage, identity, detail, 'season', track)) { return false; }
+      }
+      parent = SubtitleSeriesOffset.parent(storage, identity, detail, globalSubtitlePresentation(), track);
+      sparse = SubtitleSeriesOffset.diff(parent, desired);
+      return finish(SubtitleSeriesOffset.saveProfile(storage, identity, detail, 'media', track, sparse));
+    }
+
+    function resetSubtitlePresentation(scope, playbackValue) {
+      var playback = playbackValue || currentPlayerPlayback();
+      var layers;
+      var globals;
+      var effective;
+      if (!SubtitleSeriesOffset || !playback) { return null; }
+      layers = subtitlePresentationLayers(playback);
+      globals = globalSubtitlePresentation();
+      if (scope === 'season') {
+        effective = mergeSubtitlePresentation(globals, layers.media);
+        return {
+          effective: effective,
+          selectedStreamID: String(playback.options.subtitleStreamID || ''),
+          scope: layers.media ? 'media' : 'global',
+          trackIntent: 'inherit',
+          resetSeason: true
+        };
+      }
+      effective = mergeSubtitlePresentation(globals, layers.season);
+      return {
+        effective: effective,
+        selectedStreamID: String(playback.options.subtitleStreamID || ''),
+        scope: layers.season ? 'season' : 'global',
+        trackIntent: 'inherit',
+        resetSeason: false
+      };
+    }
+
+    function previewEffectiveSubtitleStyle(playbackValue) {
+      var effective = effectiveSubtitlePresentation(playbackValue);
+      var settings = currentSettings();
+      call(settingsPorts.previewSubtitleStyle, {
+        subtitleBackground: effective.subtitleBackground,
+        subtitleEdge: effective.subtitleEdge,
+        subtitleSize: effective.subtitleSize,
+        subtitlePosition: Number(settings.subtitlePosition || 7)
+      });
     }
 
     function setPlayerLoading(loading, preserveFrame) {
@@ -328,7 +589,11 @@
         durationSeconds: current ? current.durationSeconds : 0,
         markers: playback && playback.markers || [],
         chapters: playback && playback.chapters || [],
-        skipPromptDuration: currentSettings().skipPromptDuration
+        skipPromptDuration: currentSettings().skipPromptDuration,
+        seekSettling: !!(current && (
+          (current.pendingSeek !== null && current.pendingSeek !== undefined) ||
+          current.nativeSeekPending || current.decoderSettlementPending || current.streamSwitching
+        ))
       };
     }
 
@@ -434,7 +699,7 @@
     function showPlayerControls() { if (playerControlsController) { playerControlsController.showFull(); } }
 
     function initializePlayerControlsHidden() {
-      closePlaylistQueueDrawer(false);
+      playerQueueController.close(false);
       if (playerControlsController) { playerControlsController.initializeHidden(); }
     }
 
@@ -458,12 +723,14 @@
       var chapterHint = document.getElementById('player-chapters-hint');
       var index;
       var buttonIndex = Math.max(0, Math.min(buttons.length - 1, Number(snapshot.buttonIndex || 0)));
-      document.getElementById('player-timeline-button').className = 'player-timeline-button' + (snapshot.zone === 'timeline' ? ' is-focused' : '');
+      document.getElementById('player-timeline-button').className = 'player-timeline-button' + (!snapshot.settingsOpen && snapshot.zone === 'timeline' ? ' is-focused' : '');
       skipButton.className = playerSkipMarkerClass(!(snapshot.skip && snapshot.skip.visible), snapshot);
       renderChapterHint(snapshot);
       for (index = 0; index < buttons.length; index += 1) {
-        buttons[index].className = buttons[index].className.replace(/\s*is-focused/g, '') + (snapshot.zone === 'buttons' && index === buttonIndex ? ' is-focused' : '');
+        buttons[index].className = buttons[index].className.replace(/\s*is-focused/g, '') +
+          (!snapshot.settingsOpen && snapshot.zone === 'buttons' && index === buttonIndex ? ' is-focused' : '');
       }
+      if (snapshot.settingsOpen) { return; }
       if (pointerSelectionActive()) { return; }
       if (snapshot.zone === 'chapters') { updateChapterFocus(snapshot); }
       else if (snapshot.zone === 'chapter-hint' && chapterHintVisible()) { chapterHint.focus(); }
@@ -478,6 +745,47 @@
 
     function episodeCommandAvailable(state) {
       return state === 'available' || state === 'confirmation-required';
+    }
+
+    function nextAssPrefetchIdentity(target, snapshotValue) {
+      var current = currentPlayerPlayback() || {};
+      var options = current.options || {};
+      var item = target && (target.item || target) || {};
+      return [
+        current.ratingKey || '',
+        current.partId || '',
+        options.mediaIndex !== undefined ? options.mediaIndex : current.mediaIndex || 0,
+        options.partIndex !== undefined ? options.partIndex : current.partIndex || 0,
+        options.subtitleStreamID || '',
+        item.ratingKey || '',
+        target && (target.occurrenceId || target.index) || '',
+        snapshotValue && snapshotValue.durationSeconds || ''
+      ].join('|');
+    }
+
+    function maybePrefetchNextAss(snapshotValue) {
+      var current;
+      var markers;
+      var position;
+      var duration;
+      var key;
+      if (!AssSubtitlePrefetchPolicy || typeof AssSubtitlePrefetchPolicy.due !== 'function' || !nextAssTarget) { return false; }
+      current = currentPlayerPlayback();
+      if (!current || !snapshotValue) { return false; }
+      position = Number(snapshotValue.positionSeconds || 0);
+      duration = Number(snapshotValue.durationSeconds || 0);
+      markers = snapshotValue.markers || current.markers || [];
+      if (!AssSubtitlePrefetchPolicy.due(position, duration, markers)) { return false; }
+      key = nextAssPrefetchIdentity(nextAssTarget, snapshotValue);
+      if (!key || key === nextAssPrefetchKey) { return false; }
+      nextAssPrefetchKey = key;
+      call(dataPorts.prefetchNextAss, nextAssTarget, detailPlaybackPreferencesFor(nextAssTarget.detail, null), key);
+      return true;
+    }
+
+    function resetNextAssTarget() {
+      nextAssTarget = null;
+      nextAssPrefetchKey = '';
     }
 
     function updateEpisodeCommands() {
@@ -502,6 +810,16 @@
         immediate = playbackQueueController.resolveAdjacentState(direction, function (error, result) {
           if (destroyed || requestGeneration !== episodeCommandGeneration) { return; }
           availability[key] = !error && !!result && episodeCommandAvailable(result.state);
+          if (key === 'next') {
+            if (!error && result && result.state === 'available') {
+              nextAssTarget = result;
+              prefetchAutoplayBackdrop(result);
+              maybePrefetchNextAss(playbackController && playbackController.snapshot());
+            } else {
+              resetNextAssTarget();
+              call(dataPorts.cancelAssPrefetch, 'next ASS target unavailable');
+            }
+          }
           render();
         }, detailQueueSnapshot());
         if (immediate && immediate.state !== 'resolving') {
@@ -560,7 +878,7 @@
     function playerSettingsRowsSnapshot() {
       var rows = playerSettingRows();
       var playback = currentPlayerPlayback();
-      var advanced = subtitleEditorAvailability(playback);
+      var advanced = subtitleEditorAvailability();
       var result = [];
       var key;
       var index;
@@ -580,17 +898,18 @@
       var focusIndex = Math.max(0, Math.min(rows.length - 1, Number(current.settingIndex || 0)));
       var settingKey;
       var index;
-      if (!playback) { return; }
-      advanced = subtitleEditorAvailability(playback);
-      setText('setting-audio', trackLabel(playback.audioTracks, playback.options.audioStreamID, t('player.automatic')));
-      setText('setting-subtitles', subtitleTrackLabelWithOffset(playback));
-      setText('setting-size', playback.options.subtitleSize + '%');
-      setText('setting-subtitle-advanced', t(advanced.enabled ? 'player.subtitleAvailable' : 'player.subtitleUnsupported'));
-      setText('setting-version', mediaVersionLabelForPlayback(playback));
-      setText('setting-quality', settingsPorts.videoQualityLabel(playback.requestedVideoQuality || playback.options.videoQuality));
-      setText('setting-playback-mode', settingsPorts.playbackPreferenceLabel(playback.requestedPlaybackMode || playback.options.playbackMode));
-      renderPlayerPlaybackSummary(playback);
-      renderPlaybackInfo(playback);
+      advanced = playback ? subtitleEditorAvailability() : { enabled: false };
+      if (playback) {
+        setText('setting-audio', trackLabel(playback.audioTracks, playback.options.audioStreamID, t('player.automatic')));
+        setText('setting-subtitles', subtitleTrackLabelWithOffset(playback));
+        setText('setting-size', playback.options.subtitleSize + '%');
+        setText('setting-subtitle-advanced', t(advanced.enabled ? 'player.subtitleAvailable' : 'player.subtitleUnsupported'));
+        setText('setting-version', mediaVersionLabelForPlayback(playback));
+        setText('setting-quality', settingsPorts.videoQualityLabel(playback.requestedVideoQuality || playback.options.videoQuality));
+        setText('setting-playback-mode', settingsPorts.playbackPreferenceLabel(playback.requestedPlaybackMode || playback.options.playbackMode));
+        renderPlayerPlaybackSummary(playback);
+        renderPlaybackInfo(playback);
+      }
       for (index = 0; index < rows.length; index += 1) {
         settingKey = rows[index].getAttribute('data-setting');
         disabled = playerSettingDisabled(settingKey, advanced, playback);
@@ -602,8 +921,6 @@
       }
       if (current.settingsOpen && rows[focusIndex] && !rows[focusIndex].disabled && !(pointerSelectionActive())) { rows[focusIndex].focus(); }
     }
-
-    function renderPlayerSettingsState(snapshot) { updateSettingsDisplay(snapshot); }
 
     function playbackModeLabel(mode) {
       var keys = {
@@ -623,13 +940,26 @@
       return t('player.unavailable');
     }
 
+    function renderLocalSubtitleRendererBadge(snapshot) {
+      var badge = document.getElementById('player-subtitle-renderer-badge');
+      var localSubtitle = snapshot && snapshot.localSubtitle;
+      var label = '';
+      if (snapshot && snapshot.subtitleRenderMode === 'local' && localSubtitle) {
+        label = (localSubtitle.rendererType === 'ass' ? 'ASS / SSA' : 'SRT / WebVTT') + ' \u00b7 ' + t('player.localRenderer');
+      }
+      setText('player-subtitle-renderer-badge', label);
+      if (badge) { badge.className = 'player-subtitle-renderer-badge' + (label ? '' : ' is-hidden'); }
+    }
+
     function renderPlayerPlaybackSummary(playbackValue) {
-      var playback = playbackValue || currentPlayerPlayback();
+      var runtimeSnapshot = playbackController ? playbackController.snapshot() : null;
+      var playback = playbackValue || runtimeSnapshot && runtimeSnapshot.playback || null;
       if (!playback) {
         setText('player-track-audio', t('player.unavailable'));
         setText('player-track-subtitles', t('subtitle.off'));
         setText('player-quality', '');
         setText('player-delivery-mode', '');
+        renderLocalSubtitleRendererBadge(null);
         return;
       }
       setText('player-track-audio', trackLabel(playback.audioTracks, playback.options.audioStreamID, t('player.automatic')));
@@ -637,6 +967,7 @@
       setText('player-quality', t('player.quality') + ': ' + settingsPorts.videoQualityLabel(playback.options.videoQuality));
       setText('player-connection-route', settingsPorts.connectionRouteLabel());
       setText('player-delivery-mode', compactPlaybackModeLabel(playback.playbackMode));
+      renderLocalSubtitleRendererBadge(runtimeSnapshot);
     }
 
     function renderPlaybackInfo(playbackValue) {
@@ -657,17 +988,23 @@
       setText('playback-info-source', sourceParts.join(' / ') || t('player.unavailable'));
       isTranscoded = playback.playbackMode === 'transcode-audio-video' || playback.playbackMode === 'transcode-video';
       setText('playback-info-hdr', dynamicRange ? t(isTranscoded ? 'player.hdrTranscoded' : 'player.hdrDirect', { range: dynamicRange }) : t('player.sdr'));
-      setText('playback-info-mode', playbackModeLabel(playback.playbackMode));
+      setText('playback-info-mode', playbackModeLabel(playback.playbackMode) + (playback.diagnosticRecoveryTrace ? ' \u00b7 ' + playback.diagnosticRecoveryTrace : ''));
       fileNode = document.getElementById('playback-info-file');
       if (fileNode) { fileNode.title = playback.fileName || ''; }
     }
 
     function cycleTrack(tracks, currentId, direction, allowOff) {
-      var ids = allowOff ? [''] : [];
+      var ids = allowOff ? [SUBTITLE_AUTOMATIC_VALUE, SUBTITLE_OFF_VALUE] : [];
       var index;
       for (index = 0; index < tracks.length; index += 1) { ids.push(tracks[index].id); }
-      index = Math.max(0, ids.indexOf(currentId));
+      index = ids.indexOf(currentId);
+      if (index === -1 && allowOff) { index = 0; }
       return ids[Math.max(0, Math.min(ids.length - 1, index + direction))] || '';
+    }
+
+    function inheritedSubtitleStreamId(playbackValue) {
+      var resolved = detailPorts.resolvePlaybackTracks ? call(detailPorts.resolvePlaybackTracks, playbackValue) : null;
+      return resolved ? String(resolved.subtitleStreamID || '') : '';
     }
 
     function applyPlayerTrackChoice(kind, value) {
@@ -675,6 +1012,8 @@
       var direction = typeof value === 'number' ? value : null;
       var tracks;
       var selected;
+      var selectedTrack;
+      var resolved;
       if (!playback || !playbackController) { return; }
       tracks = kind === 'audio' ? playback.audioTracks : playback.subtitleTracks;
       selected = direction === null ? String(value || '') : cycleTrack(
@@ -683,14 +1022,37 @@
         direction,
         kind === 'subtitles'
       );
-      playbackController.changeTrack(kind, { id: selected, apply: false });
-      detailPorts.setTrackPreference(kind, MediaInfo.selectedTrack(tracks, selected), kind === 'subtitles' && !selected);
+      if (kind !== 'subtitles') {
+        if (selected === SUBTITLE_AUTOMATIC_VALUE) {
+          detailPorts.setTrackPreference(kind, null, false);
+          resolved = call(detailPorts.resolvePlaybackTracks, playback);
+          selected = resolved && resolved.audioStreamID || '';
+        } else {
+          detailPorts.setTrackPreference(kind, MediaInfo.selectedTrack(tracks, selected), false);
+        }
+        playbackController.changeTrack(kind, { id: selected, apply: false });
+        updateSettingsDisplay();
+        return;
+      }
+      if (selected === SUBTITLE_AUTOMATIC_VALUE) {
+        detailPorts.setTrackPreference('subtitles', null, false);
+        resolved = call(detailPorts.resolvePlaybackTracks, playback);
+        selected = resolved && resolved.subtitleStreamID || '';
+      } else if (selected === SUBTITLE_OFF_VALUE || !selected) {
+        selected = '';
+        detailPorts.setTrackPreference('subtitles', null, true);
+      } else {
+        selectedTrack = MediaInfo.selectedTrack(tracks, selected);
+        detailPorts.setTrackPreference('subtitles', selectedTrack, false);
+      }
+      playbackController.changeTrack('subtitles', { id: selected, apply: false });
       updateSettingsDisplay();
     }
 
     function applyPlayerSettingChoice(key, value) {
       var playback = currentPlayerPlayback();
-      var sizes = [75, 100, 125, 150];
+      var controlsState = playerControlsSnapshot();
+      var sizes = subtitleSizeValues();
       var direction = typeof value === 'number' ? value : null;
       var index;
       var next;
@@ -702,6 +1064,15 @@
           next = sizes[Math.max(0, Math.min(sizes.length - 1, index + direction))];
         }
         playbackController.changeVersion({ kind: 'settings', subtitleSize: next });
+        if (playback.options.localSubtitleOverlay && controlsState.settingsSignature &&
+            settingsSignatureWithoutSubtitleSize(controlsState.settingsSignature) === settingsSignatureWithoutSubtitleSize(currentPlayerSettingsSignature())) {
+          playerControlsController.setSettingsSignature(currentPlayerSettingsSignature());
+        }
+        (function () {
+          var desired = copyRecord(effectiveSubtitlePresentation(playback)) || {};
+          desired.subtitleSize = next;
+          saveMediaSubtitleEffective(playback, desired);
+        }());
       } else if (key === 'quality') {
         next = direction === null ? String(value) : cycleValue(['original', '12000', '8000', '4000'], playback.requestedVideoQuality || playback.options.videoQuality, direction);
         playbackController.changeVersion({ kind: 'settings', videoQuality: next });
@@ -721,17 +1092,60 @@
         returnFocus: returnFocus
       });
     }
-
-    function playerTrackChoices(tracks, includeOff) {
-      return MediaChoiceModel.trackChoices(tracks, {
-        off: includeOff ? { value: '', label: t('subtitle.off') } : null,
-        label: function (track) { return MediaProfile.trackDisplayLabel(track, t('detail.external')); }
+    function openRenderingGlobalConfirmation(name, enabled, confirm, returnFocus) {
+      var key = name === 'ass'
+        ? (enabled ? 'player.subtitleRenderingAssEnableGlobalConfirm' : 'player.subtitleRenderingAssDisableGlobalConfirm')
+        : (enabled ? 'player.subtitleRenderingSrtEnableGlobalConfirm' : 'player.subtitleRenderingSrtDisableGlobalConfirm');
+      return dialogsPorts.openChoice({
+        title: t(key),
+        choices: [
+          { value: 'yes', label: t('common.yes') },
+          { value: 'no', label: t('common.no') }
+        ],
+        selectedValue: 'no',
+        variant: 'confirm',
+        apply: function (choice) { if (choice && choice.value === 'yes') { call(confirm); } },
+        returnFocus: returnFocus
       });
     }
 
-    function applySelectedPlaybackVersion(version) {
+    function playerTrackChoices(tracks, includeOff) {
+      var choices = MediaChoiceModel.trackChoices(tracks, {
+        off: includeOff ? { value: SUBTITLE_OFF_VALUE, label: t('subtitle.off') } : null,
+        label: function (track) { return MediaProfile.trackDisplayLabel(track, t('detail.external')); }
+      });
+      choices.unshift({ value: SUBTITLE_AUTOMATIC_VALUE, label: t('player.automatic'), track: null });
+      return choices;
+    }
+
+    function automaticPlaybackVersion(playback) {
+      var versions = playback && playback.mediaVersions || [];
+      var settings = currentSettings();
+      var selected;
+      if (VersionSelection && typeof VersionSelection.selectAutomatic === 'function') {
+        selected = VersionSelection.selectAutomatic(versions, call(dataPorts.playbackCapabilities) || {}, playback && (playback.requestedPlaybackMode || playback.options && playback.options.playbackMode) || 'auto', settings.videoVersionPriorities);
+      }
+      return selected || versions[0] || null;
+    }
+
+    function playbackVersionChoice(playback) {
+      var preference = call(detailPorts.preferenceSnapshot) || {};
+      var override = preference.override || {};
+      var versions = playback && playback.mediaVersions || [];
+      var resolved;
+      if (!override.versionSignature) { return 'auto'; }
+      resolved = playback && playback.options && MediaChoiceModel && MediaChoiceModel.findVersion
+        ? MediaChoiceModel.findVersion(versions, MediaChoiceModel.versionValue(playback.options))
+        : null;
+      if (resolved && VersionSelection && typeof VersionSelection.matchesAffinity === 'function' &&
+          VersionSelection.matchesAffinity(resolved, override.versionSignature)) {
+        return MediaChoiceModel.versionValue(resolved);
+      }
+      return 'auto';
+    }
+
+    function changeSelectedPlaybackVersion(version) {
       if (!version || !playbackController) { return; }
-      detailPorts.setPlaybackVersion(version.mediaIndex, version.partIndex);
       playbackController.changeVersion({
         mediaIndex: version.mediaIndex,
         partIndex: version.partIndex,
@@ -741,11 +1155,20 @@
       });
     }
 
+    function applySelectedPlaybackVersion(version) {
+      if (!version || !playbackController) { return; }
+      detailPorts.setPlaybackVersion(version.mediaIndex, version.partIndex);
+      changeSelectedPlaybackVersion(version);
+    }
+
     function setPlaybackVersionChoice(value) {
       var playback = currentPlayerPlayback();
       var versions = playback && playback.mediaVersions || [];
       var version = MediaChoiceModel.findVersion(versions, value);
-      if (version) { applySelectedPlaybackVersion(version); }
+      if (String(value) === 'auto') {
+        detailPorts.setPlaybackVersion(null, null);
+        changeSelectedPlaybackVersion(automaticPlaybackVersion(playback));
+      } else if (version) { applySelectedPlaybackVersion(version); }
     }
 
     function openPlayerSettingChoiceForKey(key) {
@@ -756,19 +1179,29 @@
       var choices = [];
       var selected = '';
       var versions;
+      var preferenceSnapshot;
+      var override;
       if (!row || row.disabled || !key || !playback) { return; }
       if (key === 'subtitle-advanced') { openSubtitleEditor(); return; }
       if (key === 'media-info') { openPlayerMediaInfo(); return; }
+      if (key === 'audio' || key === 'subtitles') {
+        preferenceSnapshot = call(detailPorts.preferenceSnapshot) || {};
+        override = preferenceSnapshot.override || {};
+      }
       if (key === 'audio') {
-        choices = playerTrackChoices(playback.audioTracks, false); selected = playback.options.audioStreamID;
+        choices = playerTrackChoices(playback.audioTracks, false);
+        selected = override.audioTrack ? playback.options.audioStreamID : SUBTITLE_AUTOMATIC_VALUE;
       } else if (key === 'subtitles') {
-        choices = playerTrackChoices(playback.subtitleTracks, true); selected = playback.options.subtitleStreamID;
+        choices = playerTrackChoices(playback.subtitleTracks, true);
+        selected = SUBTITLE_AUTOMATIC_VALUE;
+        if (override.subtitlesOff) { selected = SUBTITLE_OFF_VALUE; }
+        else if (override.subtitleTrack) { selected = playback.options.subtitleStreamID; }
       } else if (key === 'size') {
-        choices = [75, 100, 125, 150].map(function (size) { return { value: String(size), label: size + '%' }; }); selected = String(playback.options.subtitleSize);
+        choices = subtitleSizeValues().map(function (size) { return { value: String(size), label: size + '%' }; }); selected = String(playback.options.subtitleSize);
       } else if (key === 'version') {
         versions = playback.mediaVersions || [];
-        choices = MediaChoiceModel.versionChoices(versions, function (version) { return mediaVersionLabel(version, false); });
-        selected = MediaChoiceModel.versionValue(playback.options);
+        choices = [{ value: 'auto', label: mediaVersionLabel(automaticPlaybackVersion(playback), true), version: null }].concat(MediaChoiceModel.versionChoices(versions, function (version) { return mediaVersionLabel(version, false); }));
+        selected = playbackVersionChoice(playback);
       } else if (key === 'quality') {
         choices = ['original', '12000', '8000', '4000'].map(function (value) { return { value: value, label: settingsPorts.videoQualityLabel(value) }; });
         selected = playback.requestedVideoQuality || playback.options.videoQuality;
@@ -785,7 +1218,9 @@
       var playback = playbackValue || currentPlayerPlayback();
       var versions = playback && playback.mediaVersions || [];
       var version = playback ? MediaChoiceModel.findVersion(versions, MediaChoiceModel.versionValue(playback.options)) : null;
-      return version ? mediaVersionLabel(version, false) : t('player.versionAuto');
+      return playbackVersionChoice(playback) === 'auto'
+        ? mediaVersionLabel(automaticPlaybackVersion(playback), true)
+        : (version ? mediaVersionLabel(version, false) : t('player.versionAuto'));
     }
 
     function cyclePlaybackVersion(direction) {
@@ -793,12 +1228,16 @@
       var versions = playback && playback.mediaVersions || [];
       var index = 0;
       var currentIndex;
+      var selected = playbackVersionChoice(playback);
       if (!playback || versions.length < 2) { return; }
-      for (currentIndex = 0; currentIndex < versions.length; currentIndex += 1) {
-        if (versions[currentIndex].mediaIndex === playback.options.mediaIndex && versions[currentIndex].partIndex === playback.options.partIndex) { index = currentIndex; break; }
+      if (selected !== 'auto') {
+        for (currentIndex = 0; currentIndex < versions.length; currentIndex += 1) {
+          if (MediaChoiceModel.versionValue(versions[currentIndex]) === selected) { index = currentIndex + 1; break; }
+        }
       }
-      index = (index + direction + versions.length) % versions.length;
-      applySelectedPlaybackVersion(versions[index]);
+      index = (index + (direction < 0 ? -1 : 1) + versions.length + 1) % (versions.length + 1);
+      if (index === 0) { setPlaybackVersionChoice('auto'); }
+      else { applySelectedPlaybackVersion(versions[index - 1]); }
     }
 
     // Player surface, error/resume overlays, settings, and subtitle editor presentation.
@@ -821,101 +1260,13 @@
       return playbackSnapshot().subtitleEditor || { open: false };
     }
 
-    function ensureSubtitleEditorView() {
-      if (!subtitleEditorView) {
-        subtitleEditorView = SubtitleEditorView.create({ document: document, setText: setText, SubtitleSync: SubtitleSync });
-      }
-      return subtitleEditorView;
-    }
-
-    function subtitleEditorControls() { return ensureSubtitleEditorView().controls(); }
-
-    function subtitleEditorControlIndex(name) {
-      var controls = subtitleEditorControls();
-      var index;
-      for (index = 0; index < controls.length; index += 1) {
-        if (controls[index].getAttribute('data-subtitle-editor') === name) { return index; }
-      }
-      return -1;
-    }
-
-    function moveSubtitleEditorFocus(direction) {
-      var rows = [['track'], ['size'], ['timeline'], ['minus', 'plus', 'loop', 'cancel', 'apply']];
-      var controls = subtitleEditorControls();
-      var current = controls[subtitleEditorIndex] && controls[subtitleEditorIndex].getAttribute('data-subtitle-editor');
-      var row = 0;
-      var column = 0;
-      var targetRow;
-      var targetColumn;
-      var index;
-      for (index = 0; index < rows.length; index += 1) {
-        if (rows[index].indexOf(current) !== -1) { row = index; column = rows[index].indexOf(current); break; }
-      }
-      if (direction === 'left' || direction === 'right') {
-        targetColumn = Math.max(0, Math.min(rows[row].length - 1, column + (direction === 'left' ? -1 : 1)));
-        subtitleEditorIndex = subtitleEditorControlIndex(rows[row][targetColumn]);
-        return;
-      }
-      targetRow = Math.max(0, Math.min(rows.length - 1, row + (direction === 'up' ? -1 : 1)));
-      targetColumn = Math.max(0, Math.min(rows[targetRow].length - 1, column));
-      subtitleEditorIndex = subtitleEditorControlIndex(rows[targetRow][targetColumn]);
-    }
-
-    function subtitleEditorTracks() {
-      var playback = currentPlayerPlayback();
-      var ids = [''];
-      if (!playback || !SubtitleSync) { return ids; }
-      (playback.subtitleTracks || []).forEach(function (track) {
-        if (SubtitleSync.classify(track).supported) { ids.push(String(track.id || '')); }
-      });
-      return ids;
-    }
-
-    function subtitleEditorTrackChoices() {
-      var playback = currentPlayerPlayback();
-      var choices = [{ value: '', label: t('subtitle.off') }];
-      if (!playback) { return choices; }
-      (playback.subtitleTracks || []).forEach(function (track) {
-        if (SubtitleSync.classify(track).supported) {
-          choices.push({ value: String(track.id || ''), label: trackLabel(playback.subtitleTracks, track.id, t('subtitle.off')), languageCode: track.languageTag || track.languageCode || track.language || '' });
-        }
-      });
-      return choices;
-    }
-
-    function updateSubtitleEditorProgress() {
-      var current = playbackSnapshot();
-      if (!current.durationSeconds) { return 0; }
-      return Math.max(0, Math.min(100, current.positionSeconds / current.durationSeconds * 100));
-    }
-
-    function renderSubtitleEditor(stateValue) {
-      var current = playbackSnapshot();
-      var playback = current.playback;
-      var state = stateValue || current.subtitleEditor;
-      var track;
-      if (!state || !state.open || !playback) { return; }
-      track = MediaInfo.selectedTrack(playback.subtitleTracks, state.selectedStreamID);
-      ensureSubtitleEditorView().render({
-        status: state.status || '',
-        track: track ? trackLabel(playback.subtitleTracks, track.id, t('subtitle.off')) : t('subtitle.off'),
-        size: state.subtitleSize,
-        offsetMs: state.offsetMs,
-        progress: updateSubtitleEditorProgress(),
-        index: subtitleEditorIndex,
-        currentTime: formatTime(current.positionSeconds),
-        duration: formatTime(current.durationSeconds),
-        loop: state.loop,
-        pointerActive: !!(pointerSelectionActive())
-      });
-    }
-
     function setSubtitleEditorPanelOpen(open) {
       var controls = document.getElementById('player-controls');
       var settings = document.getElementById('player-settings');
       var editor = document.getElementById('subtitle-editor');
       subtitlePanelTransitionTimer = clearOwnedTimer(subtitlePanelTransitionTimer);
       if (open) {
+        setPlayerPanelOverlayPosition(true);
         controls.style.transition = 'opacity 100ms linear';
         settings.style.transition = 'opacity 100ms linear';
         controls.style.opacity = '0';
@@ -927,15 +1278,17 @@
           settings.className = 'player-settings is-hidden';
           settings.setAttribute('aria-hidden', 'true');
           editor.className = 'subtitle-editor is-transitioning-in';
-          ensureSubtitleEditorView().setOpen(true);
-          renderSubtitleEditor();
+          if (playerSubtitleEditorController) {
+            playerSubtitleEditorController.setViewOpen(true);
+            playerSubtitleEditorController.render();
+          }
         }, settingsPorts.animationDuration(100));
         return;
       }
       editor.className = 'subtitle-editor is-transitioning-out';
       subtitlePanelTransitionTimer = scheduleOwned(function () {
         subtitlePanelTransitionTimer = null;
-        ensureSubtitleEditorView().setOpen(false);
+        if (playerSubtitleEditorController) { playerSubtitleEditorController.setViewOpen(false); }
         settings.className = 'player-settings';
         settings.setAttribute('aria-hidden', 'false');
         controls.style.transition = 'opacity 100ms linear';
@@ -951,115 +1304,15 @@
     }
 
     function updateSubtitleEditorPresentation(stateValue) {
-      var state = stateValue || subtitleEditorSnapshot();
-      if (state.open) {
-        if (document.getElementById('subtitle-editor').className.indexOf('is-hidden') !== -1) { setSubtitleEditorPanelOpen(true); }
-        renderSubtitleEditor(state);
-      } else if (document.getElementById('subtitle-editor').className.indexOf('is-hidden') === -1) {
-        setSubtitleEditorPanelOpen(false);
-      }
+      if (playerSubtitleEditorController) { playerSubtitleEditorController.update(stateValue); }
     }
 
     function openSubtitleEditor() {
-      if (!playbackController || !playbackController.openSubtitleEditor()) { return false; }
-      subtitleEditorIndex = 0;
-      setSubtitleEditorPanelOpen(true);
-      renderSubtitleEditor();
-      return true;
-    }
-
-    function cycleSubtitleEditorTrack(direction) {
-      var state = subtitleEditorSnapshot();
-      var tracks = subtitleEditorTracks();
-      var index;
-      if (!state.open || !tracks.length) { return; }
-      index = tracks.indexOf(String(state.selectedStreamID || ''));
-      index = (Math.max(0, index) + direction + tracks.length) % tracks.length;
-      playbackController.openSubtitleEditor({ action: 'set-track', streamId: tracks[index] });
-    }
-
-    function setSubtitleEditorSize(value) {
-      if (playbackController) { playbackController.openSubtitleEditor({ action: 'set-size', size: Number(value) }); }
-    }
-
-    function cycleSubtitleEditorSize(direction) {
-      var state = subtitleEditorSnapshot();
-      var sizes = [75, 100, 125, 150];
-      var index = sizes.indexOf(Number(state.subtitleSize || 100));
-      setSubtitleEditorSize(sizes[Math.max(0, Math.min(sizes.length - 1, index + direction))]);
-    }
-
-    function openSubtitleEditorChoice(name) {
-      var state = subtitleEditorSnapshot();
-      var choices;
-      var selected;
-      if (name === 'track') { choices = subtitleEditorTrackChoices(); selected = String(state.selectedStreamID || ''); }
-      else { choices = [75, 100, 125, 150].map(function (size) { return { value: String(size), label: size + '%' }; }); selected = String(state.subtitleSize || 100); }
-      openChoiceDialog(t(name === 'track' ? 'player.subtitles' : 'player.subtitleSize'), choices, selected, function (choice) {
-        if (name === 'track') { playbackController.openSubtitleEditor({ action: 'set-track', streamId: choice.value }); }
-        else { setSubtitleEditorSize(choice.value); }
-      }, function () { renderSubtitleEditor(); });
-    }
-
-    function adjustSubtitleEditorOffset(delta) {
-      if (playbackController) { playbackController.openSubtitleEditor({ action: 'adjust-offset', delta: delta }); }
-    }
-
-    function seekSubtitleEditor(direction) {
-      if (playbackController) { playbackController.openSubtitleEditor({ action: 'seek', delta: direction * 10 }); }
-    }
-
-    function finishSubtitleEditor() {
-      setSubtitleEditorPanelOpen(false);
-      saveDetailMediaOverride();
-    }
-
-    function closeSubtitleEditor(apply) {
-      if (!playbackController) { return; }
-      if (apply) {
-        playbackController.applySubtitleEditor({}, function (error) {
-          if (error) { diagnosticsPorts.setError(error); renderSubtitleEditor(); return; }
-          finishSubtitleEditor();
-        });
-      } else {
-        playbackController.cancelSubtitleEditor(function (error) {
-          if (error) { diagnosticsPorts.setError(error); }
-          finishSubtitleEditor();
-        });
-      }
-    }
-
-    function activateSubtitleEditorControl(name) {
-      var state = subtitleEditorSnapshot();
-      if (state.applying) { if (name === 'cancel') { closeSubtitleEditor(false); } return; }
-      if (name === 'track') { openSubtitleEditorChoice('track'); }
-      else if (name === 'size') { openSubtitleEditorChoice('size'); }
-      else if (name === 'minus') { adjustSubtitleEditorOffset(-100); }
-      else if (name === 'plus') { adjustSubtitleEditorOffset(100); }
-      else if (name === 'loop' && state.bounds && state.bounds.end > state.bounds.start) { playbackController.openSubtitleEditor({ action: 'toggle-loop' }); }
-      else if (name === 'apply') { closeSubtitleEditor(true); }
-      else if (name === 'cancel') { closeSubtitleEditor(false); }
+      return playerSubtitleEditorController ? playerSubtitleEditorController.open() : false;
     }
 
     function handleSubtitleEditorKey(event, direction) {
-      var state = subtitleEditorSnapshot();
-      var controls;
-      var name;
-      if (!state.open) { return false; }
-      controls = subtitleEditorControls();
-      name = controls[subtitleEditorIndex] && controls[subtitleEditorIndex].getAttribute('data-subtitle-editor');
-      if (event.keyCode === 27 || event.keyCode === 461) { closeSubtitleEditor(false); return true; }
-      if (state.applying) { return true; }
-      if (event.keyCode === 415) { if (playbackSnapshot().paused) { playbackController.toggle(); } return true; }
-      if (event.keyCode === 19) { if (!playbackSnapshot().paused) { playbackController.toggle(); } return true; }
-      if (direction === 'up' || direction === 'down') { moveSubtitleEditorFocus(direction); renderSubtitleEditor(); }
-      else if (direction === 'left' || direction === 'right') {
-        if (name === 'track') { cycleSubtitleEditorTrack(direction === 'left' ? -1 : 1); }
-        else if (name === 'size') { cycleSubtitleEditorSize(direction === 'left' ? -1 : 1); }
-        else if (name === 'timeline') { seekSubtitleEditor(direction === 'left' ? -1 : 1); }
-        else { moveSubtitleEditorFocus(direction); renderSubtitleEditor(); }
-      } else if (event.keyCode === 13) { activateSubtitleEditorControl(name); }
-      return true;
+      return destroyed || !playerSubtitleEditorController ? false : playerSubtitleEditorController.handleKey(event, direction);
     }
 
     function applyPlayerSettings() {
@@ -1083,11 +1336,26 @@
       ].join('|');
     }
 
+    function settingsSignatureWithoutSubtitleSize(signature) {
+      var parts = String(signature || '').split('|');
+      if (parts.length > 2) { parts[2] = ''; }
+      return parts.join('|');
+    }
+
+    function setPlayerPanelOverlayPosition(open) {
+      var view = document.getElementById('player-view');
+      var className;
+      if (!view) { return; }
+      className = view.className.replace(/\s*has-player-panel-open/g, '');
+      view.className = className + (open ? ' has-player-panel-open' : '');
+    }
+
     function applyPlayerSettingsOpen(open) {
       var controls = document.getElementById('player-controls');
       var settings = document.getElementById('player-settings');
       subtitlePanelTransitionTimer = clearOwnedTimer(subtitlePanelTransitionTimer);
       if (open) {
+        setPlayerPanelOverlayPosition(true);
         updateSettingsDisplay(playerControlsSnapshot());
         settings.className = 'player-settings is-hidden';
         settings.setAttribute('aria-hidden', 'true');
@@ -1105,14 +1373,13 @@
           subtitlePanelTransitionTimer = null;
           settings.className = 'player-settings is-hidden'; settings.setAttribute('aria-hidden', 'true'); settings.style.opacity = ''; settings.style.pointerEvents = '';
           controls.style.transition = 'opacity 100ms linear'; controls.style.opacity = '1'; controls.style.pointerEvents = '';
+          setPlayerPanelOverlayPosition(false);
           updatePlayerButtonFocus();
         }, settingsPorts.animationDuration(100));
       }
     }
 
     function setSettingsOpen(open) { return playerControlsController.setSettingsOpen(open); }
-    function togglePlayback() { return playbackController && playbackController.toggle(); }
-
     function playerDisplayTitle(detail) {
       var subtitle = detail.subtitle || '';
       var episodeTitle;
@@ -1216,11 +1483,12 @@
     }
 
     function cancelResumeChoice() {
-      resumeChoiceVisible = false; resumeChoiceState = null;
+      resumeChoiceState = null;
       document.getElementById('resume-choice').className = 'resume-choice is-hidden';
       document.getElementById('resume-choice').setAttribute('aria-hidden', 'true');
       if (typeof restoreContainerDirectPlayOrigin === 'function' && restoreContainerDirectPlayOrigin()) { return; }
       document.getElementById('player-view').className = 'player-view is-hidden';
+      standaloneDetailState = null;
       enterDetailView(); detailPorts.showSurface({ restoreTheme: true });
     }
 
@@ -1230,6 +1498,8 @@
       if (!detail || !playbackController) { return false; }
       playbackQueueController.resetPlaybackSession();
       cancelAutoplayCountdown(); resetSkipPrompt(); renderPlayerTitle(detail);
+      previewEffectiveSubtitleStyle(null);
+      call(dataPorts.prefetchCurrentAss, detail, call(detailPorts.selectedMediaProfile), call(detailPorts.resolvedTracks));
       return playbackController.open({
         item: detailState.selectedItem || detail,
         detail: detail,
@@ -1242,7 +1512,7 @@
     function beginPlayer(startOffset) {
       showPlayerSurface();
       if (typeof completeContainerDirectPlayStart === 'function') { completeContainerDirectPlayStart(); }
-      resumeChoiceVisible = false; resumeChoiceState = null;
+      resumeChoiceState = null;
       document.getElementById('resume-choice').className = 'resume-choice is-hidden';
       document.getElementById('resume-choice').setAttribute('aria-hidden', 'true');
       startCurrentPlayback(startOffset);
@@ -1255,7 +1525,7 @@
     }
 
     function handleResumeChoiceKey(event, direction) {
-      if (!resumeChoiceVisible) { return false; }
+      if (!resumeChoiceState) { return false; }
       if (direction === 'left' || direction === 'right') { resumeChoiceState = ResumeChoice.move(resumeChoiceState, direction === 'left' ? -1 : 1); renderResumeChoice(); }
       else if (event.keyCode === 13 || event.keyCode === 415) { activateResumeChoice(); }
       else if (event.keyCode === 27 || event.keyCode === 461) { ResumeChoice.cancel(); cancelResumeChoice(); }
@@ -1272,8 +1542,28 @@
       detailPorts.setPlayPending(false);
       resumeChoiceState = ResumeChoice.create(detail.viewOffset);
       if (!resumeChoiceState.visible) { beginPlayer(null); return; }
-      showPlayerSurface(); resumeChoiceVisible = true;
+      showPlayerSurface();
       document.getElementById('resume-choice').className = 'resume-choice'; document.getElementById('resume-choice').setAttribute('aria-hidden', 'false'); renderResumeChoice();
+    }
+
+    function openStandalone(request) {
+      var detail = request && request.detail;
+      var item = request && (request.item || request.detail);
+      if (destroyed || !detail || !detail.ratingKey) { return false; }
+      standaloneDetailState = {
+        selectedItem: item || detail,
+        currentDetail: detail,
+        seriesContext: null,
+        seasonIndex: 0,
+        episodeIndex: 0
+      };
+      if (request && request.resume === false) {
+        detailPorts.setPlayPending(false);
+        beginPlayer(0);
+      } else {
+        openPlayer();
+      }
+      return currentView() === 'player' || resumeChoiceState !== null;
     }
 
     function queueGapRangeValue(range, name, fallback) {
@@ -1304,7 +1594,6 @@
     }
 
     function renderQueueGap(snapshot) {
-      queueGapVisible=!!(snapshot&&snapshot.open);
       if (queueGapView) { queueGapView.render(snapshot || { open: false }, queueGapLabels(snapshot && snapshot.confirmation)); }
     }
 
@@ -1321,7 +1610,7 @@
       return true;
     }
 
-    function queueGapOpen(){return queueGapVisible;}
+    function queueGapOpen() { return !!(queueGapController && queueGapController.isOpen && queueGapController.isOpen()); }
 
     function handleAdjacentResolution(error, result, source) {
       if (destroyed) { return; }
@@ -1371,24 +1660,28 @@
 
     function restorePlayerSurfaceAfterClose(destination) {
       invalidateQueueGap();
-      cancelAutoplayCountdown(); resetSkipPrompt(); resetChapterDrawer(); closePlaylistQueueDrawer(false);
+      cancelAutoplayCountdown(); resetSkipPrompt(); resetChapterDrawer(); playerQueueController.close(false);
       playbackAtEnd = false;
       hideEndPauseOverlay();
       subtitlePanelTransitionTimer = clearOwnedTimer(subtitlePanelTransitionTimer);
       containerDirectPlayTransitionTimer = clearOwnedTimer(containerDirectPlayTransitionTimer);
-      ensureSubtitleEditorView().setOpen(false); ensureSubtitleEditorView().hideOverlay();
+      if (playerSubtitleEditorController) { playerSubtitleEditorController.hideSurface(); }
       document.getElementById('player-controls').style.opacity = '';
       document.getElementById('player-controls').style.pointerEvents = '';
       document.getElementById('player-controls').style.transition = '';
       document.getElementById('player-settings').style.opacity = '';
       document.getElementById('player-settings').style.pointerEvents = '';
       document.getElementById('player-settings').style.transition = '';
-      resumeChoiceVisible = false; resumeChoiceState = null;
+      resumeChoiceState = null;
       document.getElementById('resume-choice').className = 'resume-choice is-hidden';
       document.getElementById('resume-choice').setAttribute('aria-hidden', 'true');
       setPlayerLoading(false); hidePlayerError(); playerErrorRetryAction = null; playerErrorFallbackAction = null;
       playerControlsController.reset(); document.getElementById('player-settings').className = 'player-settings is-hidden'; document.getElementById('player-settings').setAttribute('aria-hidden', 'true');
       document.getElementById('player-view').className = 'player-view is-hidden';
+      resetNextAssTarget();
+      call(dataPorts.cancelAssPrefetch, 'player closed');
+      call(settingsPorts.restoreSubtitleStyle, currentSettings());
+      standaloneDetailState = null;
       if (destination === 'home') {
         playbackQueueController.clear();
         detailPorts.leave();
@@ -1413,14 +1706,6 @@
     }
     function playlistQueuePlayable(items) {
       return PlaybackQueueModel.playableItems(items);
-    }
-
-    function playbackQueueItemDisplayTitle(item) {
-      return PlaybackQueueModel.itemDisplayTitle(item);
-    }
-
-    function playbackQueueTypeLabel(item) {
-      return PlaybackQueueModel.itemTypeLabel(item, currentSettings() && currentSettings().uiLanguage);
     }
 
     function playlistQueueSeriesContext(context) {
@@ -1452,10 +1737,6 @@
     }
 
 
-    function playlistQueueLabel() {
-      return String(currentSettings() && currentSettings().uiLanguage || 'en').toLowerCase().indexOf('it') === 0 ? 'Coda' : 'Queue';
-    }
-
     function detailQueueSnapshot() {
       var snapshot = detailSnapshot();
       return {
@@ -1464,52 +1745,6 @@
         seasonIndex: snapshot.seasonIndex,
         episodeIndex: snapshot.episodeIndex
       };
-    }
-
-    function updatePlaybackQueuePresentation() {
-      var queueState;
-      var identity;
-      if (destroyed) { return; }
-      queueState = playbackQueueSnapshot();
-      identity = String(queueState.sequence && queueState.sequence.identity || '');
-      if (identity !== playlistQueueCardOriginIdentity) {
-        releasePlaylistQueueCards(null);
-        releasePlaylistQueuePrefetchImages(null);
-        playlistQueueCardOriginIdentity = identity;
-      }
-      if (queueState.drawer.open) {
-        renderPlaybackQueueDrawerState(queueState.drawer);
-      } else {
-        updatePlaylistQueueButton(queueState);
-      }
-    }
-
-    function renderPlaybackQueueDrawerState(snapshot) {
-      if (destroyed) { return; }
-      var drawer;
-      var player;
-      var detailState;
-      var queue = snapshot && snapshot.queue;
-      var currentIndex = Number(snapshot && snapshot.currentIndex || 0);
-      ensurePlaylistQueueUi();
-      drawer = document.getElementById('player-playlist-queue');
-      player = document.getElementById('player-view');
-      if (!drawer || !player) { return; }
-      if (snapshot && snapshot.open) {
-        detailState = detailQueueSnapshot();
-        drawer.className = 'player-playlist-queue is-open';
-        drawer.setAttribute('aria-hidden', 'false');
-        player.className = player.className.replace(/\s*has-playlist-queue-open/g, '') + ' has-playlist-queue-open';
-        renderPlaylistQueueDrawer(detailState, queue, currentIndex);
-        updatePlaylistQueueDrawerFocus(queue, snapshot, currentIndex);
-        resetPlaylistQueueViewportScroll();
-      } else {
-        drawer.className = 'player-playlist-queue';
-        drawer.setAttribute('aria-hidden', 'true');
-        player.className = player.className.replace(/\s*has-playlist-queue-open/g, '');
-        resetPlaylistQueueViewportScroll();
-      }
-      updatePlaylistQueueButton({ drawer: snapshot }, !!queue);
     }
 
     function handlePlaybackQueueError(error) {
@@ -1562,12 +1797,13 @@
         cancelAutoplayCountdown(false);
         detailPorts.queueMediaProfile(request.detail);
         detailPorts.renderEpisodeContext();
-        updatePlaylistQueueButton();
+        playerQueueController.updateButton();
+        previewEffectiveSubtitleStyle(null);
         playbackController.startItem(target, {
           detail: request.detail,
           startOffset: request.resumeOffset || null,
-          preferences: detailPorts.playbackPreferences(request.versionAffinity || null),
-          versionAffinity: request.versionAffinity || null
+          preferences: detailPlaybackPreferencesFor(request.detail, null),
+          versionAffinity: null
         }, function (error) { if (error) { handlePlaybackQueueError(error); } });
         return true;
       }
@@ -1615,468 +1851,8 @@
       playbackQueueController.resolveAdjacent(direction, callback, detailQueueSnapshot());
     }
 
-    function ensurePlaylistQueueUi() {
-      var row;
-      var settings;
-      var button;
-      var drawer;
-      var header;
-      if (document.getElementById('player-playlist-queue-button')) { return; }
-      row = document.querySelector('.player-buttons');
-      settings = document.getElementById('player-settings-button');
-      if (!row || !settings) { return; }
-      button = element('button', 'player-button player-icon-button player-playlist-queue-command is-unavailable');
-      button.id = 'player-playlist-queue-button';
-      button.type = 'button';
-      button.setAttribute('aria-controls', 'player-playlist-queue');
-      button.setAttribute('aria-expanded', 'false');
-      button.appendChild(element('span', 'playlist-queue-icon-line'));
-      button.appendChild(element('span', 'playlist-queue-icon-line'));
-      button.appendChild(element('span', 'playlist-queue-icon-line'));
-      row.insertBefore(button, settings);
-      drawer = element('aside', 'player-playlist-queue');
-      drawer.id = 'player-playlist-queue';
-      drawer.setAttribute('aria-hidden', 'true');
-      header = element('div', 'player-playlist-queue-header');
-      header.appendChild(element('h3', 'player-playlist-queue-title'));
-      header.appendChild(element('span', 'player-playlist-queue-position'));
-      drawer.appendChild(header);
-      drawer.appendChild(element('div', 'player-playlist-queue-list'));
-      document.getElementById('player-view').appendChild(drawer);
-    }
-
     function playlistQueueCurrentIndex(queue, snapshotValue) {
       return Math.max(0, playbackQueueController.activeIndex(queue, snapshotValue || detailQueueSnapshot()));
-    }
-
-    function playlistQueueAvailable() {
-      return !!playbackQueueController.activeQueue(detailQueueSnapshot());
-    }
-
-    function updatePlaylistQueueButton(queueState, availableValue) {
-      var button;
-      var available;
-      var snapshot = queueState || playbackQueueSnapshot();
-      ensurePlaylistQueueUi();
-      button = document.getElementById('player-playlist-queue-button');
-      if (!button) { return; }
-      available = availableValue === undefined ? playlistQueueAvailable() : availableValue;
-      button.className = 'player-button player-icon-button player-playlist-queue-command' +
-        (available ? '' : ' is-unavailable');
-      button.setAttribute('aria-label', playlistQueueLabel());
-      button.setAttribute('aria-expanded', snapshot.drawer.open ? 'true' : 'false');
-      if (!available && snapshot.drawer.open) { closePlaylistQueueDrawer(false); }
-    }
-
-    function playlistQueueNowPlayingClass(current, paused) {
-      return 'playlist-queue-card-now-playing' +
-        (current ? (paused ? '' : ' is-playing') : ' is-hidden');
-    }
-
-    function playlistQueueCardClass(index, currentIndex, focused, viewed) {
-      return 'chapter-card playlist-queue-card' +
-        (index === currentIndex ? ' is-current' : '') +
-        (focused ? ' is-focused' : '') +
-        (viewed ? ' is-viewed' : '');
-    }
-
-    function playlistQueueViewportItems(list) {
-      var height = Math.max(1, Number(list && list.clientHeight || 0));
-      return height > 1 ? Math.max(1, Math.ceil(height / 208)) : 5;
-    }
-
-    function playlistQueueSdSize() {
-      return ProgressiveImages && ProgressiveImages.previewSize
-        ? ProgressiveImages.previewSize(390, 148, 96)
-        : { width: 96, height: 36 };
-    }
-
-    function playlistQueueSpacer(name, count) {
-      var spacer = playlistQueueSpacers[name];
-      var height;
-      if (count <= 0) { return null; }
-      if (!spacer) {
-        spacer = element('div', 'playlist-queue-spacer ' + name);
-        spacer.setAttribute('aria-hidden', 'true');
-        playlistQueueSpacers[name] = spacer;
-      }
-      height = count * 208 + 'px';
-      if (spacer.style.height !== height) { spacer.style.height = height; }
-      return spacer;
-    }
-
-    function reconcilePlaylistQueueNodes(list, desiredNodes) {
-      var index;
-      var current;
-      if (!list) { return; }
-      for (index = list.childNodes.length - 1; index >= 0; index -= 1) {
-        current = list.childNodes[index];
-        if (desiredNodes.indexOf(current) < 0) { list.removeChild(current); }
-      }
-      for (index = 0; index < desiredNodes.length; index += 1) {
-        current = list.childNodes[index] || null;
-        if (current !== desiredNodes[index]) { list.insertBefore(desiredNodes[index], current); }
-      }
-    }
-
-    function loadPlaylistQueueArtwork(image, source, tier, priority) {
-      var loader = typeof shellPorts.posterLoader === 'function' ? shellPorts.posterLoader() : null;
-      var preview;
-      var requestKey;
-      if (!image || !source || tier === 'none') { return; }
-      requestKey = String(tier) + '|' + String(source);
-      if (image.__playlistQueueArtworkKey === requestKey) { return; }
-      image.__playlistQueueArtworkKey = requestKey;
-      if (tier === 'final') {
-        loadRenderedPoster(image, source, priority, 'playlist-queue', 390, 148);
-        return;
-      }
-      if (!loader || !loader.load) { return; }
-      preview = playlistQueueSdSize();
-      loader.load(image, {
-        source: source,
-        previewWidth: preview.width,
-        previewHeight: preview.height,
-        width: preview.width,
-        height: preview.height,
-        priority: priority,
-        scope: 'playlist-queue'
-      });
-    }
-
-    function playlistQueueCardKey(record, absoluteIndex) {
-      return String(record && record.occurrenceId || 'queue-occurrence-' + absoluteIndex);
-    }
-
-    function createPlaylistQueueCard() {
-      var card = element('button', 'chapter-card playlist-queue-card');
-      var imageFrame = element('span', 'playlist-queue-card-image-frame');
-      var image = element('img', 'chapter-card-image playlist-queue-card-image');
-      var badge = element('span', 'playlist-queue-card-badge');
-      var nowPlaying = element('span', 'playlist-queue-card-now-playing');
-      var caption = element('span', 'chapter-card-caption playlist-queue-card-caption');
-      var title = element('span', 'chapter-card-title playlist-queue-card-title');
-      var position = element('span', 'chapter-card-time');
-      card.type = 'button';
-      image.alt = '';
-      nowPlaying.setAttribute('aria-hidden', 'true');
-      imageFrame.appendChild(image);
-      caption.appendChild(title);
-      caption.appendChild(position);
-      card.appendChild(imageFrame);
-      card.appendChild(badge);
-      card.appendChild(nowPlaying);
-      card.appendChild(caption);
-      card.__playlistQueueImage = image;
-      card.__playlistQueueBadge = badge;
-      card.__playlistQueueNowPlaying = nowPlaying;
-      card.__playlistQueueTitle = title;
-      card.__playlistQueuePosition = position;
-      return card;
-    }
-
-    function releasePlaylistQueueCards(retained) {
-      var loader = typeof shellPorts.posterLoader === 'function' ? shellPorts.posterLoader() : null;
-      var keys = Object.keys(playlistQueueCards);
-      var index;
-      var card;
-      for (index = 0; index < keys.length; index += 1) {
-        if (retained && retained[keys[index]]) { continue; }
-        card = playlistQueueCards[keys[index]];
-        if (loader && loader.load && card && card.__playlistQueueImage) {
-          card.__playlistQueueImage.__playlistQueueArtworkKey = '';
-          loader.load(card.__playlistQueueImage, { source: '', scope: 'playlist-queue' });
-        }
-        delete playlistQueueCards[keys[index]];
-      }
-    }
-
-    function releasePlaylistQueuePrefetchImages(retained) {
-      var loader = typeof shellPorts.posterLoader === 'function' ? shellPorts.posterLoader() : null;
-      var keys = Object.keys(playlistQueuePrefetchImages);
-      var index;
-      var image;
-      for (index = 0; index < keys.length; index += 1) {
-        if (retained && retained[keys[index]]) { continue; }
-        image = playlistQueuePrefetchImages[keys[index]];
-        if (loader && loader.load && image) {
-          image.__playlistQueuePrefetchKey = '';
-          loader.load(image, { source: '', scope: 'playlist-queue-prefetch' });
-        }
-        delete playlistQueuePrefetchImages[keys[index]];
-      }
-    }
-
-    function prefetchPlaylistQueueArtwork(records) {
-      var loader = typeof shellPorts.posterLoader === 'function' ? shellPorts.posterLoader() : null;
-      var preview = playlistQueueSdSize();
-      var retained = {};
-      var index;
-      var record;
-      var item;
-      var key;
-      var image;
-      var requestKey;
-      if (!loader || !loader.load) {
-        releasePlaylistQueuePrefetchImages(null);
-        return;
-      }
-      for (index = 0; index < (records || []).length; index += 1) {
-        record = records[index];
-        item = record && record.item;
-        if (!item || !item.image) { continue; }
-        key = playlistQueueCardKey(record, Number(record.absoluteIndex || 0));
-        retained[key] = true;
-        image = playlistQueuePrefetchImages[key];
-        if (!image) {
-          image = element('img', 'playlist-queue-prefetch-image');
-          playlistQueuePrefetchImages[key] = image;
-        }
-        requestKey = String(item.image) + '|' + preview.width + 'x' + preview.height;
-        if (image.__playlistQueuePrefetchKey === requestKey) { continue; }
-        image.__playlistQueuePrefetchKey = requestKey;
-        loader.load(image, {
-          source: item.image,
-          previewWidth: preview.width,
-          previewHeight: preview.height,
-          width: preview.width,
-          height: preview.height,
-          priority: 2,
-          scope: 'playlist-queue-prefetch'
-        });
-      }
-      releasePlaylistQueuePrefetchImages(retained);
-    }
-
-    function setPlaylistQueueText(node, value) {
-      value = String(value === null || value === undefined ? '' : value);
-      if (node && node.textContent !== value) { node.textContent = value; }
-    }
-
-    function setPlaylistQueueClass(node, value) {
-      value = String(value || '');
-      if (node && node.className !== value) { node.className = value; }
-    }
-
-    function setPlaylistQueueAttribute(node, name, value) {
-      value = String(value === null || value === undefined ? '' : value);
-      if (node && (!node.getAttribute || node.getAttribute(name) !== value)) { node.setAttribute(name, value); }
-    }
-
-    function updatePlaylistQueueCard(card, item, absoluteIndex, currentIndex, focused, total, paused) {
-      var itemPosition = playbackQueueItemPosition(item, absoluteIndex, total);
-      var itemTitle = playbackQueueItemDisplayTitle(item);
-      var typeLabel = playbackQueueTypeLabel(item);
-      var viewedLabel;
-      card.__playlistQueueIsViewed = !!item.viewed;
-      viewedLabel = card.__playlistQueueIsViewed ? ', ' + t('library.watched') : '';
-      setPlaylistQueueClass(card, playlistQueueCardClass(absoluteIndex, currentIndex, focused, card.__playlistQueueIsViewed));
-      setPlaylistQueueAttribute(card, 'data-playlist-queue-index', absoluteIndex);
-      setPlaylistQueueAttribute(card, 'aria-label', typeLabel + ', ' + itemTitle + ', ' + itemPosition + viewedLabel);
-      setPlaylistQueueText(card.__playlistQueueBadge, typeLabel);
-      setPlaylistQueueClass(card.__playlistQueueNowPlaying,
-        playlistQueueNowPlayingClass(absoluteIndex === currentIndex, paused));
-      setPlaylistQueueText(card.__playlistQueueTitle, itemTitle);
-      setPlaylistQueueText(card.__playlistQueuePosition, itemPosition);
-    }
-
-    function updatePlaylistQueuePlaybackMarkers(paused) {
-      var keys;
-      var index;
-      var card;
-      var current;
-      paused = paused === true;
-      if (playlistQueuePlaybackPaused === paused) { return; }
-      playlistQueuePlaybackPaused = paused;
-      keys = Object.keys(playlistQueueCards);
-      for (index = 0; index < keys.length; index += 1) {
-        card = playlistQueueCards[keys[index]];
-        current = (' ' + String(card.className || '') + ' ').indexOf(' is-current ') >= 0;
-        setPlaylistQueueClass(card.__playlistQueueNowPlaying, playlistQueueNowPlayingClass(current, paused));
-      }
-    }
-
-    function scrollPlaylistQueueFocus(direction, card, next) {
-      var list = document.querySelector('.player-playlist-queue-list');
-      if (!list || !card) { return; }
-      list.scrollTop = PlaybackQueueModel.drawerScrollTop({
-        scrollTop: list.scrollTop,
-        clientHeight: list.clientHeight,
-        focusedTop: card.offsetTop,
-        focusedHeight: card.offsetHeight,
-        nextTop: next ? next.offsetTop : NaN,
-        nextHeight: next ? next.offsetHeight : 0,
-        direction: direction,
-        isLast: !next
-      });
-    }
-
-    function resetPlaylistQueueViewportScroll() {
-      var drawer = document.getElementById('player-playlist-queue');
-      var player = document.getElementById('player-view');
-      if (root.scrollTo) { root.scrollTo(0, 0); }
-      if (document.documentElement) { document.documentElement.scrollLeft = 0; }
-      if (document.body) { document.body.scrollLeft = 0; }
-      if (player) { player.scrollLeft = 0; }
-      if (drawer) { drawer.scrollLeft = 0; }
-    }
-
-    function focusPlaylistQueueDrawerCard(card) {
-      if (!card || !card.focus) { return; }
-      resetPlaylistQueueViewportScroll();
-      card.focus();
-      resetPlaylistQueueViewportScroll();
-    }
-
-    function updatePlaylistQueueDrawerFocus(queueValue, drawerValue, currentIndexValue) {
-      var queue = queueValue || playbackQueueModel();
-      var drawerState = drawerValue || playbackQueueSnapshot().drawer;
-      var keys = Object.keys(playlistQueueCards);
-      var currentIndex;
-      var cardIndex;
-      var index;
-      var card;
-      var focused = null;
-      var next = null;
-      if (!queue) { return; }
-      currentIndex = currentIndexValue === undefined ? playlistQueueCurrentIndex(queue) : Number(currentIndexValue || 0);
-      for (index = 0; index < keys.length; index += 1) {
-        card = playlistQueueCards[keys[index]];
-        cardIndex = Number(card.getAttribute('data-playlist-queue-index'));
-        setPlaylistQueueClass(card, playlistQueueCardClass(cardIndex, currentIndex, cardIndex === drawerState.index, card.__playlistQueueIsViewed));
-        if (cardIndex === drawerState.index) { focused = card; }
-        else if (cardIndex === drawerState.index + 1) { next = card; }
-      }
-      scrollPlaylistQueueFocus(playlistQueueScrollDirection, focused, next);
-      playlistQueueScrollDirection = 0;
-      resetPlaylistQueueViewportScroll();
-      if (!(pointerSelectionActive()) && drawerState.focusReady) { focusPlaylistQueueDrawerCard(focused); }
-    }
-
-    function playbackQueueItemPosition(item, absoluteIndex, total) {
-      return (absoluteIndex + 1) + '/' + total;
-    }
-
-    function applyPlaylistQueueDrawerWindow(queue, drawerState, list, title, position, windowResult, direction, currentIndexValue) {
-      var currentIndex = Number(currentIndexValue || 0);
-      var total = Math.max(0, Number(windowResult && windowResult.total || 0));
-      var windowValue = windowResult && windowResult.bounds || PlaybackQueueModel.windowBounds({ total: total });
-      var records = windowResult && windowResult.items || [];
-      var retainedCards = {};
-      var record;
-      var absoluteIndex;
-      var item;
-      var cardKey;
-      var card;
-      var image;
-      var artworkTier;
-      var posterLoader = typeof shellPorts.posterLoader === 'function' ? shellPorts.posterLoader() : null;
-      var desiredNodes = [];
-      var playbackPaused = playbackSnapshot().paused === true;
-      var spacer;
-      var offset;
-      playlistQueuePlaybackPaused = playbackPaused;
-      setPlaylistQueueText(title, queue.title || playlistQueueLabel());
-      setPlaylistQueueText(position, (currentIndex + 1) + ' / ' + total);
-      spacer = playlistQueueSpacer('is-before', windowValue.retainedStart);
-      if (spacer) { desiredNodes.push(spacer); }
-      for (offset = 0; offset < records.length; offset += 1) {
-        record = records[offset];
-        absoluteIndex = Number(record && record.absoluteIndex || 0);
-        item = record && record.item;
-        if (!item) { continue; }
-        cardKey = playlistQueueCardKey(record, absoluteIndex);
-        retainedCards[cardKey] = true;
-        card = playlistQueueCards[cardKey];
-        if (!card) {
-          card = createPlaylistQueueCard();
-          playlistQueueCards[cardKey] = card;
-        }
-        updatePlaylistQueueCard(card, item, absoluteIndex, currentIndex, absoluteIndex === drawerState.index, total, playbackPaused);
-        card.setAttribute('data-playlist-queue-index', absoluteIndex);
-        card.setAttribute('data-playlist-queue-occurrence', String(record.occurrenceId || ''));
-        desiredNodes.push(card);
-        image = card.__playlistQueueImage;
-        artworkTier = PlaybackQueueModel.windowTier(windowValue, absoluteIndex);
-        if (item.image) { loadPlaylistQueueArtwork(image, item.image, artworkTier, absoluteIndex === drawerState.index ? 0 : 1); }
-        else if (posterLoader && posterLoader.load) { posterLoader.load(image, { source: '', scope: 'playlist-queue' }); }
-      }
-      spacer = playlistQueueSpacer('is-after', total - windowValue.retainedEnd);
-      if (spacer) { desiredNodes.push(spacer); }
-      reconcilePlaylistQueueNodes(list, desiredNodes);
-      releasePlaylistQueueCards(retainedCards);
-      prefetchPlaylistQueueArtwork(windowResult && windowResult.prefetchItems || []);
-      playlistQueueScrollDirection = direction;
-      updatePlaylistQueueDrawerFocus(queue, drawerState, currentIndex);
-    }
-
-    function renderPlaylistQueueDrawer(detailStateValue, queueValue, currentIndexValue) {
-      var detailState = detailStateValue || detailQueueSnapshot();
-      var queue = queueValue || playbackQueueModel(detailState);
-      var drawer;
-      var list;
-      var title;
-      var position;
-      var currentIndex = currentIndexValue === undefined ? playlistQueueCurrentIndex(queue, detailState) : Number(currentIndexValue || 0);
-      var renderToken = playlistQueueRenderToken += 1;
-      var direction = playlistQueueScrollDirection;
-      ensurePlaylistQueueUi();
-      drawer = document.getElementById('player-playlist-queue');
-      list = drawer && drawer.querySelector('.player-playlist-queue-list');
-      title = drawer && drawer.querySelector('.player-playlist-queue-title');
-      position = drawer && drawer.querySelector('.player-playlist-queue-position');
-      if (!drawer || !list || !queue) { return; }
-      playbackQueueController.loadDrawerWindow({
-        viewportItems: playlistQueueViewportItems(list),
-        direction: playlistQueuePrefetchDirection.direction
-      }, function (error, windowResult) {
-        var liveQueueState = playbackQueueSnapshot();
-        if (destroyed || renderToken !== playlistQueueRenderToken || !liveQueueState.drawer.open) { return; }
-        if (error || !windowResult) {
-          showMessage(t('status.libraryUnavailable'));
-          return;
-        }
-        applyPlaylistQueueDrawerWindow(queue, liveQueueState.drawer, list, title, position, windowResult, direction, currentIndex);
-      }, detailState);
-    }
-
-    function openPlaylistQueueDrawer() {
-      if (!playlistQueueAvailable() || currentView() !== 'player') { return; }
-      playlistQueueScrollDirection = 0;
-      playlistQueuePrefetchDirection = { direction: 0, pendingDirection: 0, pendingCount: 0 };
-      ensurePlaylistQueueUi();
-      closeChapterDrawer(false);
-      cancelAutoplayCountdown(false);
-      showPlayerControls();
-      playerControlsController.cancelControlsTimeout();
-      playbackQueueController.openDrawer(detailQueueSnapshot(), settingsPorts.animationDuration(220));
-    }
-
-    function closePlaylistQueueDrawer(restoreFocus) {
-      playlistQueueScrollDirection = 0;
-      playlistQueuePrefetchDirection = { direction: 0, pendingDirection: 0, pendingCount: 0 };
-      playbackQueueController.closeDrawer();
-      if (restoreFocus && currentView() === 'player') {
-        var buttons = document.querySelectorAll('.player-button');
-        var index;
-        for (index = 0; index < buttons.length; index += 1) {
-          if (buttons[index].id === 'player-playlist-queue-button') { playerControlsController.setZone('buttons', index); break; }
-        }
-        showPlayerControls();
-      }
-    }
-
-    function movePlaylistQueueDrawerFocus(direction) {
-      playlistQueueScrollDirection = Number(direction) < 0 ? -1 : 1;
-      if (PlaybackQueueModel && PlaybackQueueModel.prefetchDirection) {
-        playlistQueuePrefetchDirection = PlaybackQueueModel.prefetchDirection(
-          playlistQueuePrefetchDirection,
-          playlistQueueScrollDirection
-        );
-      } else {
-        playlistQueuePrefetchDirection.direction = playlistQueueScrollDirection;
-      }
-      playbackQueueController.moveDrawer(direction, detailQueueSnapshot());
     }
 
     function playlistQueueVersionAffinity() {
@@ -2093,22 +1869,15 @@
       var currentIndex;
       if (!queue || currentView() !== 'player') { return; }
       currentIndex = playlistQueueCurrentIndex(queue, detail);
-      if (Number(index) === Number(currentIndex)) { closePlaylistQueueDrawer(true); return; }
-      closePlaylistQueueDrawer(false);
+      if (Number(index) === Number(currentIndex)) { playerQueueController.close(true); return; }
+      playerQueueController.close(false);
       playbackQueueController.requestIndex(index, { versionAffinity: playlistQueueVersionAffinity() }, detail);
     }
 
-    function handlePlaylistQueuePointerFocus(button) {
-      if (!playbackQueueSnapshot().drawer.open || !button || !button.hasAttribute('data-playlist-queue-index')) { return false; }
-      playbackQueueController.pointDrawer(Number(button.getAttribute('data-playlist-queue-index')), detailQueueSnapshot());
-      return true;
-    }
-
     function clearPlaylistPlaybackQueue() {
-      releasePlaylistQueueCards(null);
-      releasePlaylistQueuePrefetchImages(null);
+      if (playerQueueController) { playerQueueController.resetPresentation(); }
       playbackQueueController.clear();
-      updatePlaylistQueueButton();
+      if (playerQueueController) { playerQueueController.updateButton(); }
     }
 
     function playlistQueueContainer() {
@@ -2127,7 +1896,7 @@
       var active = playbackQueueController.activatePlaylist(state.currentDetail.ratingKey);
       if (!active) { return false; }
       detailPorts.setPlaylistContext(active.context, active.index);
-      updatePlaylistQueueButton(null, true);
+      playerQueueController.updateButton(null, true);
       return true;
     }
 
@@ -2237,82 +2006,104 @@
 
     function handlePlaylistQueueKeyCapture(event) {
       var item;
-      var playImmediately;
       var view = currentView();
       var queueState = playbackQueueSnapshot();
+      var route = {
+        view: view,
+        keyCode: event.keyCode,
+        directPlayPending: !!queueState.directPlayPending,
+        drawerOpen: !!(queueState.drawer && queueState.drawer.open)
+      };
+      var command;
       var controlsState;
       var libraryState;
       var detailState;
-      if (queueState.directPlayPending && view !== 'player') {
+      if (route.directPlayPending && view !== 'player') {
+        command = InputCommandRouter.playerQueue(route);
+        if (command === 'pending-cancel') {
+          consumePlaylistEvent(event);
+          restoreContainerDirectPlayOrigin();
+          return true;
+        }
         consumePlaylistEvent(event);
-        if (event.keyCode === 27 || event.keyCode === 461) { restoreContainerDirectPlayOrigin(); }
         return true;
       }
       if (view === 'player') {
-        if (queueState.drawer.open) {
-          consumePlaylistEvent(event);
-          if (event.keyCode === 38) { movePlaylistQueueDrawerFocus(-1); }
-          else if (event.keyCode === 40) { movePlaylistQueueDrawerFocus(1); }
-          else if (event.keyCode === 13) { switchPlayerQueueItem(queueState.drawer.index); }
-          else if (event.keyCode === 27 || event.keyCode === 461 || event.keyCode === 37) { closePlaylistQueueDrawer(true); }
-          return true;
-        }
-        controlsState = playerControlsSnapshot();
-        if (controlsState.mode === 'full' && controlsState.zone === 'buttons' &&
-            playerButtonAction(controlsState.buttonIndex) === 'queue' &&
-            event.keyCode === 13) {
-          consumePlaylistEvent(event);
-          openPlaylistQueueDrawer();
-          return true;
+        if (!route.drawerOpen) {
+          controlsState = playerControlsSnapshot();
+          route.queueButtonFocused = controlsState.mode === 'full' && controlsState.zone === 'buttons' &&
+            playerButtonAction(controlsState.buttonIndex) === 'queue';
         }
       }
       if (view === 'library') {
         libraryState = libraryPorts.snapshot().library;
-        if (libraryState.zone === 'grid' && event.keyCode === 415) {
-          item = libraryPorts.focusedItem();
-          if (item && item.containerKey && playbackQueueContainerKind(item)) {
-            consumePlaylistEvent(event);
-            startContainerPlayback(item);
-            return true;
-          }
-        }
+        route.libraryZone = libraryState.zone;
         if (libraryState.zone === 'grid' && (event.keyCode === 13 || event.keyCode === 415)) {
           item = libraryPorts.focusedItem();
-          if (playlistQueueContainer() && item && !item.containerKey && playlistQueuePlayable([item]).length) {
-            consumePlaylistEvent(event);
-            playImmediately = event.keyCode === 415;
-            openPlaylistLibraryItem(item, playImmediately);
-            return true;
+          route.focusedContainerPlayable = !!(item && item.containerKey && playbackQueueContainerKind(item));
+          if (!route.focusedContainerPlayable) {
+            route.playlistContainerActive = !!playlistQueueContainer();
+            route.focusedPlaylistPlayable = !!(item && !item.containerKey && playlistQueuePlayable([item]).length);
           }
-          clearPlaylistPlaybackQueue();
-          return false;
         }
       }
       if (view === 'detail') {
         detailState = detailSnapshot();
-        if (queueState.playlistQueue && detailState.currentDetail &&
-            (event.keyCode === 13 || event.keyCode === 415) && detailState.zone === 'episodes') {
-          clearPlaylistPlaybackQueue();
-          return false;
-        }
-        if (queueState.playlistQueue && detailState.currentDetail &&
-            ((event.keyCode === 415 && detailState.zone !== 'episodes') ||
-             (event.keyCode === 13 && detailState.zone === 'play' && detailState.actionIndex === 0))) {
-          if (activatePlaylistPlaybackQueue(detailState)) {
-            consumePlaylistEvent(event);
-            openPlayer(detailState);
-            return true;
-          }
-          return false;
-        }
+        route.playlistQueue = !!queueState.playlistQueue;
+        route.detailPresent = !!detailState.currentDetail;
+        route.detailZone = detailState.zone;
+        route.detailActionIndex = detailState.actionIndex;
       }
-      if ((event.keyCode === 13 || event.keyCode === 415) && navigationHasFocus()) {
-        clearPlaylistPlaybackQueue();
+      command = InputCommandRouter.playerQueue(route);
+      if (command === 'pass' && (event.keyCode === 13 || event.keyCode === 415)) {
+        route.navigationFocused = navigationHasFocus();
+        command = InputCommandRouter.playerQueue(route);
+      }
+      if (command === 'drawer-consume') {
+        consumePlaylistEvent(event);
+        return true;
+      }
+      if (command === 'drawer-up' || command === 'drawer-down') {
+        consumePlaylistEvent(event);
+        playerQueueController.move(command === 'drawer-up' ? -1 : 1);
+        return true;
+      }
+      if (command === 'drawer-activate') {
+        consumePlaylistEvent(event);
+        switchPlayerQueueItem(queueState.drawer.index);
+        return true;
+      }
+      if (command === 'drawer-close') {
+        consumePlaylistEvent(event);
+        playerQueueController.close(true);
+        return true;
+      }
+      if (command === 'drawer-open') {
+        consumePlaylistEvent(event);
+        playerQueueController.open();
+        return true;
+      }
+      if (command === 'library-start-container') {
+        consumePlaylistEvent(event);
+        startContainerPlayback(item);
+        return true;
+      }
+      if (command === 'library-open-detail' || command === 'library-open-play') {
+        consumePlaylistEvent(event);
+        openPlaylistLibraryItem(item, command === 'library-open-play');
+        return true;
+      }
+      if (command === 'detail-activate') {
+        if (activatePlaylistPlaybackQueue(detailState)) {
+          consumePlaylistEvent(event);
+          openPlayer(detailState);
+          return true;
+        }
         return false;
       }
-      if ((view === 'home' || view === 'search' || view === 'watchlist') &&
-          (event.keyCode === 13 || event.keyCode === 415)) {
+      if (command === 'clear-pass') {
         clearPlaylistPlaybackQueue();
+        return false;
       }
       return false;
     }
@@ -2327,7 +2118,7 @@
       if (!button || button.disabled) { return false; }
       if (view === 'player' && button.id === 'player-playlist-queue-button') {
         consumePlaylistEvent(event);
-        openPlaylistQueueDrawer();
+        playerQueueController.open();
         return true;
       }
       if (view === 'player' && queueState.drawer.open && button.hasAttribute('data-playlist-queue-index')) {
@@ -2371,34 +2162,30 @@
       });
     }
 
-    function prefetchAutoplayBackdrop() {
+    function prefetchAutoplayBackdrop(target) {
       var detailState = detailSnapshot();
-      if (destroyed) { return; }
-      var currentKey = String(detailState.currentDetail && detailState.currentDetail.ratingKey || '');
-      if (currentSettings().autoplayDelay === 0 || currentView() !== 'player' || !root.Image) { return; }
-      resolvePlaybackQueueAdjacent(1, function (target) {
-        var currentDetailState = detailSnapshot();
-        var source;
-        var key;
-        var preview;
-        if (!target || currentView() !== 'player' || String(currentDetailState.currentDetail && currentDetailState.currentDetail.ratingKey || '') !== currentKey) { return; }
-        source = artworkUrl(target.item || {});
-        key = [currentKey, target.index, source].join('|');
-        if (!source || !playbackQueueController.claimBackdropPrefetch(key)) { return; }
-        if (autoplayPrefetchImage) {
-          autoplayPrefetchImage.onload = null;
-          autoplayPrefetchImage.onerror = null;
-        }
-        preview = new root.Image();
-        autoplayPrefetchImage = preview;
-        preview.onload = preview.onerror = function () {
-          if (autoplayPrefetchImage === preview) { autoplayPrefetchImage = null; }
-          preview.onload = null;
-          preview.onerror = null;
-          preview = null;
-        };
-        preview.src = imageRequestUrl(source, 640, 360, 'up-next-backdrop');
-      });
+      var currentKey;
+      var source;
+      var key;
+      var preview;
+      if (destroyed || !target || currentSettings().autoplayDelay === 0 || currentView() !== 'player' || !root.Image) { return; }
+      currentKey = String(detailState.currentDetail && detailState.currentDetail.ratingKey || '');
+      source = artworkUrl(target.item || {});
+      key = [currentKey, target.index, source].join('|');
+      if (!source || !playbackQueueController.claimBackdropPrefetch(key)) { return; }
+      if (autoplayPrefetchImage) {
+        autoplayPrefetchImage.onload = null;
+        autoplayPrefetchImage.onerror = null;
+      }
+      preview = new root.Image();
+      autoplayPrefetchImage = preview;
+      preview.onload = preview.onerror = function () {
+        if (autoplayPrefetchImage === preview) { autoplayPrefetchImage = null; }
+        preview.onload = null;
+        preview.onerror = null;
+        preview = null;
+      };
+      preview.src = imageRequestUrl(source, 640, 360, 'up-next-backdrop');
     }
 
     function setAutoplayBackdropVisible(visible) {
@@ -2476,26 +2263,19 @@
     function handleControlsKey(event, direction) { return destroyed ? false : playerControlsController.handleKey(event, direction); }
         function handleResumeKey(event, direction) { return destroyed ? false : handleResumeChoiceKey(event, direction); }
     function handleErrorKey(event, direction) { return destroyed ? false : handlePlayerErrorKey(event, direction); }
-    function pointerCaptureFocus(button) { return destroyed ? false : handlePlaylistQueuePointerFocus(button); }
+    function pointerCaptureFocus(button) { return destroyed ? false : playerQueueController.pointerFocus(button); }
     function pointerCaptureClick(event, button) { return destroyed ? false : handlePlaylistQueuePointerClick(event, button); }
     function pointerFocus(zone, index) {
       if (destroyed) { return false; }
       if (zone === 'resume') {
-        if (!resumeChoiceVisible || !resumeChoiceState) { return false; }
+        if (!resumeChoiceState) { return false; }
         resumeChoiceState.index = Math.max(0, Math.min(2, Number(index) || 0));
         return updateResumeChoiceFocus();
       }
       return playerControlsController.pointerFocus(zone, index);
     }
     function pointerSubtitleFocus(button) {
-      var controls = subtitleEditorControls();
-      var index;
-      if (destroyed) { return false; }
-      for (index = 0; index < controls.length; index += 1) {
-        if (controls[index] === button) { subtitleEditorIndex = index; break; }
-      }
-      renderSubtitleEditor();
-      return true;
+      return destroyed || !playerSubtitleEditorController ? false : playerSubtitleEditorController.pointerFocus(button);
     }
     function pointerActivity() { return destroyed ? false : playerControlsController.pointerActivity(); }
     function pointerSeek(seconds) { return destroyed ? false : playerControlsController.pointerSeek(seconds); }
@@ -2520,8 +2300,8 @@
       setText('setting-size-label', t('player.subtitleSize'));
       setText('setting-subtitle-advanced-label', t('player.advancedSubtitles'));
       setText('setting-version-label', t('detail.version'));
-      setText('setting-quality-label', t('settings.videoQuality'));
-      setText('setting-playback-mode-label', t('settings.playbackMode'));
+      setText('setting-quality-label', t('player.videoQuality'));
+      setText('setting-playback-mode-label', t('player.playbackMode'));
       setText('player-settings-close', t('common.close'));
       setText('player-track-audio-label', t('player.audio') + ': ');
       setText('player-track-subtitles-label', t('player.subtitles') + ': ');
@@ -2546,7 +2326,13 @@
       setText('subtitle-editor-title', t('player.advancedSubtitles'));
       setText('subtitle-editor-track-label', t('player.subtitles'));
       setText('subtitle-editor-size-label', t('player.subtitleSize'));
+      setText('subtitle-editor-background-label', t('settings.subtitleBackground'));
+      setText('subtitle-editor-edge-label', t('settings.subtitleEdge'));
+      setText('subtitle-editor-render-srt-label', t('settings.subtitleRenderingSrt'));
+      setText('subtitle-editor-render-ass-label', t('settings.subtitleRenderingAss'));
       setText('subtitle-editor-loop-label', t('player.subtitleLoop'));
+      setText('subtitle-editor-reset-label', t('player.subtitleReset'));
+      setText('subtitle-editor-apply-season-label', t('player.subtitleApplySeason'));
       setText('subtitle-editor-apply-label', t('player.subtitleApply'));
       setText('subtitle-editor-cancel-label', t('player.cancel'));
     }
@@ -2555,7 +2341,7 @@
         playback: publicPlaybackSnapshot(),
         queue: queueSnapshot(),
         controls: playerControlsSnapshot(),
-        resumeChoiceOpen: resumeChoiceVisible,
+        resumeChoiceOpen: resumeChoiceState !== null,
         queueGapOpen: !!queueGapOpen(),
         errorOpen: playerErrorVisible,
         subtitleEditorOpen: subtitleEditorSnapshot().open,
@@ -2568,358 +2354,479 @@
     function controlsSnapshot() { return playerControlsSnapshot(); }
 
     function destroy() {
-      var entry;
+      var cleanupError = null;
+      function release(callback) {
+        try { callback(); } catch (error) { if (!cleanupError) { cleanupError = error; } }
+      }
+      function releaseOwner(owner) { if (owner && owner.destroy) { release(function () { owner.destroy(); }); } }
       if (destroyed) { return; }
       destroyed = true;
       generation += 1;
-      subtitlePanelTransitionTimer = clearOwnedTimer(subtitlePanelTransitionTimer);
-      containerDirectPlayTransitionTimer = clearOwnedTimer(containerDirectPlayTransitionTimer);
-      containerOriginRestoreTimer = clearOwnedTimer(containerOriginRestoreTimer);
+      resetNextAssTarget();
+      // A failed constructor has never owned a playback/prefetch session.
+      if (initialized) { release(function () { call(dataPorts.cancelAssPrefetch, 'player destroyed'); }); }
+      while (ownedTimers.length) { release(function () { clearOwnedTimer(ownedTimers[ownedTimers.length - 1]); }); }
+      subtitlePanelTransitionTimer = null;
+      containerDirectPlayTransitionTimer = null;
+      containerOriginRestoreTimer = null;
       containerOriginRestoreGeneration += 1;
-      while (ownedTimers.length) { clearOwnedTimer(ownedTimers[ownedTimers.length - 1]); }
       if (autoplayPrefetchImage) {
         autoplayPrefetchImage.onload = null;
         autoplayPrefetchImage.onerror = null;
         autoplayPrefetchImage = null;
       }
       while (eventListeners.length) {
-        entry = eventListeners.pop();
-        if (entry.target && entry.target.removeEventListener) { entry.target.removeEventListener(entry.name, entry.handler, entry.options); }
+        release(function () {
+          var entry = eventListeners.pop();
+          if (entry.target && entry.target.removeEventListener) { entry.target.removeEventListener(entry.name, entry.handler, entry.options); }
+        });
       }
-      fixedClickTargets.forEach(function (target) { target.onclick = null; });
+      fixedClickTargets.forEach(function (target) { release(function () { target.onclick = null; }); });
       fixedClickTargets = [];
       episodeCommandGeneration += 1;
-      if (shellPorts.cancelImages) {
-        shellPorts.cancelImages('playlist-queue');
-        shellPorts.cancelImages('playlist-queue-prefetch');
-        shellPorts.cancelImages('up-next-backdrop');
-      }
-      releasePlaylistQueueCards(null);
-      releasePlaylistQueuePrefetchImages(null);
+      standaloneDetailState = null;
+      if (initialized && shellPorts.cancelImages) { release(function () { shellPorts.cancelImages('up-next-backdrop'); }); }
       playerErrorRetryAction = null;
-      if (playerControlsController && playerControlsController.destroy) { playerControlsController.destroy(); }
-      if (playbackController && playbackController.destroy) { playbackController.destroy(); }
-      if (playbackQueueController && playbackQueueController.destroy) { playbackQueueController.destroy(); }
-      if (queueGapController && queueGapController.destroy) { queueGapController.destroy(); }
+      releaseOwner(playerControlsController);
+      releaseOwner(playerSubtitleEditorController);
+      releaseOwner(playbackController);
+      releaseOwner(playerQueueController);
+      releaseOwner(playbackQueueController);
+      releaseOwner(queueGapController);
+      if (cleanupError) { throw cleanupError; }
     }
 
     requireCreate(PlaybackQueueController, 'PlaybackQueueController');
     requireCreate(PlaybackController, 'PlaybackController');
     requireCreate(PlayerControlsController, 'PlayerControlsController');
+    requireCreate(PlayerSubtitleEditorController, 'PlayerSubtitleEditorController');
+    requireCreate(PlayerQueueController, 'PlayerQueueController');
     if (!UpNextView || typeof UpNextView.create !== 'function') { throw new Error('PlayerFeatureController requires UpNextView'); }
     requireCreate(QueueGapController, 'QueueGapController');
     requireCreate(QueueGapView, 'QueueGapView');
-    upNextView = UpNextView.create({
-      document: document,
-      ProgressiveImages: ProgressiveImages,
-      resolveImageUrl: function (source, width, height) { return imageRequestUrl(source, width, height, 'up-next-card'); }
-    });
-    queueGapView = QueueGapView.create({
-      document: document,
-      ProgressiveImages: ProgressiveImages,
-      resolveImageUrl: function (source, width, height) { return imageRequestUrl(source, width, height, 'queue-gap'); }
-    });
-    queueGapController = QueueGapController.create({
-      isValid: function (confirmation) {
-        return !destroyed && queueGapGeneration === generation && playbackQueueController &&
-          playbackQueueController.isConfirmationCurrent(confirmation);
-      },
-      onState: renderQueueGap,
-      onConfirm: function (target) {
-        var source = queueGapSource;
-        queueGapSource = '';
-        queueGapGeneration = 0;
-        playbackQueueController.requestResolved(target, {
-          origin: source === 'up-next' ? 'up-next' : 'queue',
-          versionAffinity: playlistQueueVersionAffinity()
-        });
-      },
-      onCancel: function () {
-        var source = queueGapSource;
-        queueGapSource = '';
-        queueGapGeneration = 0;
-        if (source === 'up-next') {
-          playbackQueueController.cancelUpNext(true);
-          showCompletedPlayerControls();
+    try {
+      upNextView = UpNextView.create({
+        document: document,
+        ProgressiveImages: ProgressiveImages,
+        resolveImageUrl: function (source, width, height) { return imageRequestUrl(source, width, height, 'up-next-card'); }
+      });
+      queueGapView = QueueGapView.create({
+        document: document,
+        ProgressiveImages: ProgressiveImages,
+        resolveImageUrl: function (source, width, height) { return imageRequestUrl(source, width, height, 'queue-gap'); }
+      });
+      queueGapController = QueueGapController.create({
+        isValid: function (confirmation) {
+          return !destroyed && queueGapGeneration === generation && playbackQueueController &&
+            playbackQueueController.isConfirmationCurrent(confirmation);
+        },
+        onState: renderQueueGap,
+        onConfirm: function (target) {
+          var source = queueGapSource;
+          queueGapSource = '';
+          queueGapGeneration = 0;
+          playbackQueueController.requestResolved(target, {
+            origin: source === 'up-next' ? 'up-next' : 'queue',
+            versionAffinity: playlistQueueVersionAffinity()
+          });
+        },
+        onCancel: function () {
+          var source = queueGapSource;
+          queueGapSource = '';
+          queueGapGeneration = 0;
+          if (source === 'up-next') {
+            playbackQueueController.cancelUpNext(true);
+            showCompletedPlayerControls();
+          }
         }
-      }
-    });
-    playbackQueueController = PlaybackQueueController.create({
-      root: root,
-      PlaybackQueueModel: PlaybackQueueModel,
-      QueueSequenceContract: QueueSequenceContract,
-      BoundedQueueCache: BoundedQueueCache,
-      SeriesQueueProvider: SeriesQueueProvider,
-      PlexContainerQueueProvider: PlexContainerQueueProvider,
-      UpNextState: UpNextState,
-      UpNextTiming: UpNextTiming,
-      currentDetailSnapshot: detailQueueSnapshot,
-      queueLabel: playlistQueueLabel,
-      loadSeasonEpisodes: function (season, callback) { return PlexClient.loadSeasonEpisodes(config, season.ratingKey, '', callback); },
-      loadContainerPage: function (container, start, size, callback) { return PlexClient.loadLibraryContainerPage(config, container, start, size, callback); },
-      loadMetadata: function (ratingKey, callback) { return PlexClient.loadMetadata(config, ratingKey, callback); },
-      requestPlayback: applyPlaybackQueueRequest,
-      onPlaybackError: handlePlaybackQueueError,
-      onQueueChanged: function () { invalidateQueueGap(); updatePlaybackQueuePresentation(); },
-      onDrawerState: renderPlaybackQueueDrawerState,
-      onRestoreOrigin: restorePlaybackQueueOrigin,
-      autoplaySettings: function () { return { delay: currentSettings().autoplayDelay, layout: currentSettings().upNextLayout }; },
-      playerActive: function () { return currentView() === 'player'; },
-      endOfQueueTarget: function () {
-        return {
-          action: 'home',
-          item: { action: 'home', title: t('nav.home'), imageUrl: 'ploff-logo.svg' }
-        };
-      },
-      requestHome: closePlayerToHome,
-      upNextItem: function (target, layout) {
-        var item = target && (target.item || target) || {};
-        if (target && target.action === 'home') {
+      });
+      playbackQueueController = PlaybackQueueController.create({
+        root: root,
+        PlaybackQueueModel: PlaybackQueueModel,
+        QueueSequenceContract: QueueSequenceContract,
+        BoundedQueueCache: BoundedQueueCache,
+        SeriesQueueProvider: SeriesQueueProvider,
+        PlexContainerQueueProvider: PlexContainerQueueProvider,
+        UpNextState: UpNextState,
+        UpNextTiming: UpNextTiming,
+        currentDetailSnapshot: detailQueueSnapshot,
+        queueLabel: function () { return playerQueueController.label(); },
+        loadSeasonEpisodes: function (season, callback) { return PlexClient.loadSeasonEpisodes(config, season.ratingKey, '', callback); },
+        loadContainerPage: function (container, start, size, callback) { return PlexClient.loadLibraryContainerPage(config, container, start, size, callback); },
+        loadMetadata: function (ratingKey, callback) { return PlexClient.loadMetadata(config, ratingKey, callback); },
+        requestPlayback: applyPlaybackQueueRequest,
+        onPlaybackError: handlePlaybackQueueError,
+        onQueueChanged: function () { invalidateQueueGap(); if (playerQueueController) { playerQueueController.updatePresentation(); } },
+        onDrawerState: function (snapshot) { if (playerQueueController) { playerQueueController.renderDrawerState(snapshot); } },
+        onRestoreOrigin: restorePlaybackQueueOrigin,
+        autoplaySettings: function () { return { delay: currentSettings().autoplayDelay, layout: currentSettings().upNextLayout }; },
+        playerActive: function () { return currentView() === 'player'; },
+        endOfQueueTarget: function () {
           return {
             action: 'home',
-            title: item.title || t('nav.home'),
-            imageUrl: item.imageUrl || 'ploff-logo.svg'
+            item: { action: 'home', title: t('nav.home'), imageUrl: 'ploff-logo.svg' }
           };
-        }
-        var source = layout === 'bottom-panel'
-          ? (item.art || item.image || item.thumb || '')
-          : (item.image || item.thumb || item.art || '');
-        return {
-          ratingKey: item.ratingKey,
-          title: item.type === 'episode' && item.detail ? item.detail : item.title,
-          parentTitle: item.parentTitle || item.meta,
-          grandparentTitle: item.grandparentTitle || (item.type === 'episode' ? item.title : ''),
-          imageSource: source
-        };
-      },
-      renderUpNext: renderPlaybackQueueUpNext,
-      loadUpNextBackdrop: loadAutoplayBackdrop,
-      clearUpNextBackdrop: clearAutoplayBackdrop,
-      resetSkipPrompt: resetSkipPrompt,
-      onUpNextCancelled: function (target) {
-        if (target && target.action === 'home') { showEndPauseOverlay(); }
-        else { showCompletedPlayerControls(); }
-      },
-      onUpNextRearmed: function () {
-        playbackAtEnd = false;
-        hideEndPauseOverlay();
-        playerControlsController.resumeAutoHide();
-      },
-      onGapRequired: function (confirmation, source) { openQueueGap(confirmation, source); },
-      versionAffinity: playlistQueueVersionAffinity,
-      closePlayer: closePlayer
-    });
-    playbackController = PlaybackController.create({
-      root: root,
-      document: document,
-      video: document.getElementById('player-video'),
-      config: config,
-      storage: storage,
-      PlexClient: PlexClient,
-      PlaybackClock: PlaybackClock,
-      PlaybackRecovery: PlaybackRecovery,
-      PlaybackStrategy: PlaybackStrategy,
-      PlayerSeekController: PlayerSeekController,
-      PlayerTimelinePolicy: PlayerTimelinePolicy,
-      PlayerBufferingIndicator: PlayerBufferingIndicator,
-      SubtitleSync: SubtitleSync,
-      SubtitleOffsetStore: SubtitleOffsetStore,
-      capabilities: function () { return call(dataPorts.playbackCapabilities) || {}; },
-      isActive: function () { return currentView() === 'player'; },
-      isOffline: function () { return root.navigator && root.navigator.onLine === false; },
-      subscribeNetwork: function (listener) { return dataPorts.subscribeNetwork(listener); },
-      networkAvailable: function (snapshot) { return snapshot && snapshot.lanAvailable !== false; },
-      playbackPreferences: function (request) { return detailPlaybackPreferences(request && request.versionAffinity); },
-      resolveVersionTracks: function (current) {
-        return detailPorts ? detailPorts.resolvePlaybackTracks(current) : null;
-      },
-      subtitleIdentity: function () { return activeServerIdentity(); },
-      translate: t,
-      setStatus: function (key) {
-        if (key === 'playing' || key === 'paused') {
-          setText('player-status', '');
-          return;
-        }
-        var keys = {
-          preparing: 'status.preparing', playing: 'status.playing', paused: 'status.paused', ended: 'status.ended',
-          'stream-error': 'status.streamError', 'track-error': 'status.trackError',
-          'waiting-network': 'player.waitingNetwork', 'playback-error': 'status.playbackError'
-        };
-        setText('player-status', t(keys[key] || 'status.preparing'));
-      },
-      setLoading: setPlayerLoading,
-      renderProgress: updatePlayerDisplay,
-      updateEstimatedEnd: updateEstimatedEndTime,
-      renderPlaybackInfo: renderPlaybackInfo,
-      renderSubtitleOverlay: function (cues, positionMs, offsetMs, size) {
-        ensureSubtitleEditorView().renderOverlay(cues, positionMs, offsetMs, size);
-      },
-      hideSubtitleOverlay: function () { ensureSubtitleEditorView().hideOverlay(); },
-      onOpening: function () {
-        if (destroyed) { return; }
-        generation += 1;
-        playbackAtEnd = false;
-        playlistQueuePlaybackPaused = null;
-        hideEndPauseOverlay();
-        invalidateQueueGap();
-        playbackQueueController.resetPlaybackSession();
-        cancelAutoplayCountdown();
-        resetSkipPrompt();
-        hidePlayerError();
-      },
-      onPlaybackLoaded: function (playback, request) {
-        if (destroyed) { return; }
-        playbackAtEnd = false;
-        hideEndPauseOverlay();
-        setPlaybackIdentity(playback && (playback.ratingKey || playback.session) || null);
-        if (request && request.versionAffinity && detailPorts) { detailPorts.setPlaybackVersion(playback.mediaIndex, playback.partIndex); }
-        renderPlayerTitle(detailSnapshot().currentDetail || request.detail || playback);
-        renderPlaybackInfo();
-        updateEpisodeCommands();
-        updatePlaylistQueueButton();
-        playbackQueueModel();
-        prefetchAutoplayBackdrop();
-        playerControlsController.setZone('buttons', 1);
-        playerControlsController.setSettingsSignature(currentPlayerSettingsSignature());
-        initializePlayerControlsHidden();
-      },
-      onState: function (snapshot) {
-        var remaining;
-        if (destroyed) { return; }
-        remaining = Number(snapshot.durationSeconds || 0) - Number(snapshot.positionSeconds || 0);
-        if (playbackAtEnd && isFinite(remaining) && remaining > 1.5) {
+        },
+        requestHome: closePlayerToHome,
+        upNextItem: function (target, layout) {
+          var item = target && (target.item || target) || {};
+          if (target && target.action === 'home') {
+            return {
+              action: 'home',
+              title: item.title || t('nav.home'),
+              imageUrl: item.imageUrl || 'ploff-logo.svg'
+            };
+          }
+          var source = layout === 'bottom-panel'
+            ? (item.art || item.image || item.thumb || '')
+            : (item.image || item.thumb || item.art || '');
+          return {
+            ratingKey: item.ratingKey,
+            title: item.type === 'episode' && item.detail ? item.detail : item.title,
+            parentTitle: item.parentTitle || item.meta,
+            grandparentTitle: item.grandparentTitle || (item.type === 'episode' ? item.title : ''),
+            imageSource: source
+          };
+        },
+        renderUpNext: renderPlaybackQueueUpNext,
+        loadUpNextBackdrop: loadAutoplayBackdrop,
+        clearUpNextBackdrop: clearAutoplayBackdrop,
+        resetSkipPrompt: resetSkipPrompt,
+        onUpNextCancelled: function (target) {
+          if (target && target.action === 'home') { showEndPauseOverlay(); }
+          else { showCompletedPlayerControls(); }
+        },
+        onUpNextRearmed: function () {
           playbackAtEnd = false;
           hideEndPauseOverlay();
-        }
-        playbackQueueController.observePlayback(snapshot.positionSeconds, snapshot.durationSeconds);
-        if (queueGapSource === 'up-next' && Number(snapshot.durationSeconds || 0) - Number(snapshot.positionSeconds || 0) >= 5) { invalidateQueueGap(); }
-        updatePlayerDisplay(snapshot.positionSeconds, snapshot.durationSeconds, snapshot);
-        updatePlaylistQueuePlaybackMarkers(snapshot.paused === true);
-        updateSubtitleEditorPresentation(snapshot.subtitleEditor);
-        renderPlayerPlaybackSummary();
-      },
-      onEnded: function () {
-        if (destroyed) { return; }
-        playbackAtEnd = true;
-        startAutoplayCountdown();
-      },
-      onClosed: function (position, reported, ratingKey) {
-        if (destroyed) { return; }
-        playbackAtEnd = false;
-        hideEndPauseOverlay();
-        if (!playbackController.snapshot().active) { setPlaybackIdentity(null); }
-        if (reported) {
-          applyLocalPlaybackProgress(ratingKey, position);
-          reconcileLibraryPlaybackProgress(ratingKey, position);
-        }
-        refreshEpisodePlaybackState(ratingKey, position);
-      },
-      onError: function (error) { if (!destroyed && error) { diagnosticsPorts.setError(error); } },
-      onDirectPlaybackFailure: function (error, retryAction, switchToAutomaticAction) {
-        if (!destroyed) { showPlayerError(false, retryAction, switchToAutomaticAction); }
-      },
-      showError: showPlayerError,
-      hideError: hidePlayerError,
-      onTrackChanged: function () { if (!destroyed) { updateSettingsDisplay(); } },
-      onVersionChanged: function () { if (!destroyed) { updateSettingsDisplay(); } },
-      onSettingsApplied: function () { if (!destroyed) { updateSettingsDisplay(); saveDetailMediaOverride(); } },
-      onSubtitleEditorState: function (snapshot) { if (!destroyed) { updateSubtitleEditorPresentation(snapshot); } },
-      onSubtitleUnavailable: function () { if (!destroyed) { showMessage(t('player.subtitleSyncUnavailable')); } },
-      resolveAdjacent: function (direction, callback) {
-        var requestGeneration = generation;
-        resolvePlaybackQueueAdjacent(direction, function (target) {
-          var item;
-          if (destroyed || requestGeneration !== generation) { return; }
-          item = target && (target.item || target.episode || target);
-          if (!item || !item.ratingKey) { callback(null, null); return; }
-          PlexClient.loadMetadata(config, item.ratingKey, function (error, detail) {
+          playerControlsController.resumeAutoHide();
+        },
+        onGapRequired: function (confirmation, source) { openQueueGap(confirmation, source); },
+        versionAffinity: playlistQueueVersionAffinity,
+        closePlayer: closePlayer
+      });
+      playerQueueController = PlayerQueueController.create({
+        root: root,
+        document: document,
+        PlaybackQueueModel: PlaybackQueueModel,
+        ProgressiveImages: ProgressiveImages,
+        queueController: playbackQueueController,
+        detailSnapshot: detailQueueSnapshot,
+        playbackSnapshot: playbackSnapshot,
+        currentView: currentView,
+        currentSettings: currentSettings,
+        pointerActive: pointerSelectionActive,
+        translate: t,
+        element: element,
+        posterLoader: function () { return typeof shellPorts.posterLoader === 'function' ? shellPorts.posterLoader() : null; },
+        loadRenderedPoster: loadRenderedPoster,
+        cancelImages: function (scope) { return call(shellPorts.cancelImages, scope); },
+        showMessage: showMessage,
+        closeChapterDrawer: closeChapterDrawer,
+        cancelAutoplay: cancelAutoplayCountdown,
+        showControls: showPlayerControls,
+        cancelControlsTimeout: function () { if (playerControlsController) { playerControlsController.cancelControlsTimeout(); } },
+        setControlsZone: function (zone, index) { if (playerControlsController) { playerControlsController.setZone(zone, index); } },
+        animationDuration: settingsPorts.animationDuration
+      });
+      playbackController = PlaybackController.create({
+        root: root,
+        document: document,
+        video: document.getElementById('player-video'),
+        config: config,
+        storage: storage,
+        PlexClient: PlexClient,
+        PlaybackClock: PlaybackClock,
+        PlaybackRecovery: PlaybackRecovery,
+        NativeVideoDriver: NativeVideoDriver,
+        PlaybackReposition: PlaybackReposition,
+        PlaybackSession: PlaybackSession,
+        PlaybackTimeline: PlaybackTimeline,
+        SubtitleRuntime: SubtitleRuntime,
+        PlaybackStrategy: PlaybackStrategy,
+        PlayerSeekController: PlayerSeekController,
+        PlayerTimelinePolicy: PlayerTimelinePolicy,
+        PlayerBufferingIndicator: PlayerBufferingIndicator,
+        SubtitleSync: SubtitleSync,
+        SubtitleEditorSession: SubtitleEditorSession,
+        SubtitleOffsetStore: SubtitleOffsetStore,
+        subtitlePresentation: function (current, track) { return subtitlePresentation(track, current); },
+        AssSubtitleRenderer: AssSubtitleRenderer,
+        AssSubtitlePrefetch: dataPorts.AssSubtitlePrefetch,
+        assSubtitlePrefetchIdentity: dataPorts.assSubtitlePrefetchIdentity,
+        subtitleRendering: function () {
+          var presentation = effectiveSubtitlePresentation(currentPlayerPlayback());
+          return {
+            srt: presentation.renderSrt === true,
+            ass: presentation.renderAss === true
+          };
+        },
+        capabilities: function () { return call(dataPorts.playbackCapabilities) || {}; },
+        isActive: function () { return currentView() === 'player'; },
+        isOffline: function () { return root.navigator && root.navigator.onLine === false; },
+        subscribeNetwork: function (listener) { return dataPorts.subscribeNetwork(listener); },
+        networkAvailable: function (snapshot) { return snapshot && snapshot.lanAvailable !== false; },
+        playbackPreferences: function (request) { return detailPlaybackPreferences(request && request.versionAffinity); },
+        resolveVersionTracks: function (current) {
+          return detailPorts ? detailPorts.resolvePlaybackTracks(current) : null;
+        },
+        subtitleIdentity: function () { return activeServerIdentity(); },
+        translate: t,
+        setStatus: function (key) {
+          if (key === 'playing' || key === 'paused') {
+            setText('player-status', '');
+            return;
+          }
+          var keys = {
+            preparing: 'status.preparing', playing: 'status.playing', paused: 'status.paused', ended: 'status.ended',
+            'stream-error': 'status.streamError', 'track-error': 'status.trackError',
+            'waiting-network': 'player.waitingNetwork', 'playback-error': 'status.playbackError'
+          };
+          setText('player-status', t(keys[key] || 'status.preparing'));
+        },
+        setLoading: setPlayerLoading,
+        renderProgress: updatePlayerDisplay,
+        updateEstimatedEnd: updateEstimatedEndTime,
+        renderPlaybackInfo: renderPlaybackInfo,
+        renderSubtitleOverlay: function (cues, positionMs, offsetMs, size) {
+          if (playerSubtitleEditorController) { playerSubtitleEditorController.renderOverlay(cues, positionMs, offsetMs, size); }
+        },
+        hideSubtitleOverlay: function () { if (playerSubtitleEditorController) { playerSubtitleEditorController.hideOverlay(); } },
+        onOpening: function () {
+          if (destroyed) { return; }
+          generation += 1;
+          resetNextAssTarget();
+          playbackAtEnd = false;
+          if (playerQueueController) { playerQueueController.resetPlaybackState(); }
+          hideEndPauseOverlay();
+          invalidateQueueGap();
+          playbackQueueController.resetPlaybackSession();
+          cancelAutoplayCountdown();
+          resetSkipPrompt();
+          hidePlayerError();
+        },
+        onPlaybackLoaded: function (playback, request) {
+          var settingsWereOpen;
+          if (destroyed) { return; }
+          settingsWereOpen = !!(playerControlsController && playerControlsController.snapshot().settingsOpen);
+          playbackAtEnd = false;
+          hideEndPauseOverlay();
+          resetNextAssTarget();
+          setPlaybackIdentity(playback && (playback.ratingKey || playback.session) || null);
+          renderPlayerTitle(detailSnapshot().currentDetail || request.detail || playback);
+          renderPlaybackInfo();
+          updateEpisodeCommands();
+          playerQueueController.updateButton();
+          playbackQueueModel();
+          playerControlsController.setSettingsSignature(currentPlayerSettingsSignature());
+          if (settingsWereOpen) { updateSettingsDisplay(); }
+          else {
+            playerControlsController.setZone('buttons', 1);
+            initializePlayerControlsHidden();
+          }
+        },
+        onState: function (snapshot) {
+          var remaining;
+          if (destroyed) { return; }
+          remaining = Number(snapshot.durationSeconds || 0) - Number(snapshot.positionSeconds || 0);
+          if (playbackAtEnd && isFinite(remaining) && remaining > 1.5) {
+            playbackAtEnd = false;
+            hideEndPauseOverlay();
+          }
+          playbackQueueController.observePlayback(snapshot.positionSeconds, snapshot.durationSeconds);
+          maybePrefetchNextAss(snapshot);
+          if (queueGapSource === 'up-next' && Number(snapshot.durationSeconds || 0) - Number(snapshot.positionSeconds || 0) >= 5) { invalidateQueueGap(); }
+          updatePlayerDisplay(snapshot.positionSeconds, snapshot.durationSeconds, snapshot);
+          playerQueueController.updatePlaybackMarkers(snapshot.paused === true);
+          updateSubtitleEditorPresentation(snapshot.subtitleEditor);
+          renderPlayerPlaybackSummary();
+        },
+        onEnded: function () {
+          if (destroyed) { return; }
+          playbackAtEnd = true;
+          setPlayerLoading(false);
+          if (standaloneDetailState) { showCompletedPlayerControls(); return; }
+          startAutoplayCountdown();
+        },
+        onClosed: function (position, reported, ratingKey) {
+          if (destroyed) { return; }
+          playbackAtEnd = false;
+          hideEndPauseOverlay();
+          if (!playbackController.snapshot().active) { setPlaybackIdentity(null); }
+          if (reported) {
+            applyLocalPlaybackProgress(ratingKey, position);
+            call(libraryPorts.refreshAfterPlayback, ratingKey, position);
+          }
+          call(detailPorts.refreshPlaybackState, ratingKey, position);
+        },
+        onError: function (error) { if (!destroyed && error) { diagnosticsPorts.setError(error); } },
+        onDirectPlaybackFailure: function (error, retryAction, switchToAutomaticAction) {
+          if (!destroyed) { showPlayerError(false, retryAction, switchToAutomaticAction); }
+        },
+        showError: showPlayerError,
+        hideError: hidePlayerError,
+        onTrackChanged: function () {
+          if (destroyed) { return; }
+          nextAssPrefetchKey = '';
+          call(dataPorts.cancelAssPrefetch, 'subtitle selection changed');
+          updateSettingsDisplay();
+        },
+        onVersionChanged: function () {
+          if (destroyed) { return; }
+          nextAssPrefetchKey = '';
+          call(dataPorts.cancelAssPrefetch, 'media version changed');
+          updateSettingsDisplay();
+        },
+        onSettingsApplied: function () { if (!destroyed) { updateSettingsDisplay(); saveDetailMediaOverride(); } },
+        onSubtitleEditorState: function (snapshot) { if (!destroyed) { updateSubtitleEditorPresentation(snapshot); } },
+        onSubtitleUnavailable: function () { if (!destroyed) { showMessage(t('player.subtitleSyncUnavailable')); } },
+        resolveAdjacent: function (direction, callback) {
+          var requestGeneration = generation;
+          resolvePlaybackQueueAdjacent(direction, function (target) {
+            var item;
             if (destroyed || requestGeneration !== generation) { return; }
-            if (error || !detail) { callback(error || null, null); return; }
-            callback(null, { item: item, detail: detail, queueTarget: target, versionAffinity: playlistQueueVersionAffinity() });
+            item = target && (target.item || target.episode || target);
+            if (!item || !item.ratingKey) { callback(null, null); return; }
+            PlexClient.loadMetadata(config, item.ratingKey, function (error, detail) {
+              if (destroyed || requestGeneration !== generation) { return; }
+              if (error || !detail) { callback(error || null, null); return; }
+              callback(null, { item: item, detail: detail, queueTarget: target, versionAffinity: null });
+            });
           });
-        });
-      },
-      onAdjacentStarted: function (target) {
-        if (destroyed) { return; }
-        var queueTarget = target && target.queueTarget;
-        var detail = target && target.detail;
-        var item = target && target.item;
-        var queue = queueTarget && queueTarget.queue;
-        var seriesTarget = seriesPlaybackTarget(queue, item, detailSnapshot().seriesContext);
-        var context = seriesTarget ? seriesTarget.context : (queue ? playlistQueueSeriesContext(queue) : null);
-        var seasonIndex = seriesTarget ? seriesTarget.seasonIndex : 0;
-        var episodeIndex = seriesTarget ? seriesTarget.episodeIndex : (queueTarget && Number(queueTarget.index || 0));
-        if (!detail) { return; }
-        detailPorts.setPlaybackContext(detail, item || detail, context, seasonIndex, episodeIndex);
-        detailPorts.queueMediaProfile(detail);
-        detailPorts.renderEpisodeContext();
-        renderPlayerTitle(detail);
-        updatePlaylistQueueButton();
-      }
-    });
-    playerControlsController = PlayerControlsController.create({
-      root: root,
-      PlayerControlsState: PlayerControlsState,
-      ChapterState: ChapterState,
-      SkipMarkerState: SkipMarkerState,
-      queueController: playbackQueueController,
-      now: function () { return new Date().getTime(); },
-      playerActive: function () { return currentView() === 'player'; },
-      playbackSnapshot: playerControlsPlaybackSnapshot,
-      buttonCount: function () { return document.querySelectorAll('.player-button').length; },
-      buttonAvailable: playerButtonAvailable,
-      buttonAction: playerButtonAction,
-      settingsRows: playerSettingsRowsSnapshot,
-      settingsSignature: currentPlayerSettingsSignature,
-      applySettings: applyPlayerSettings,
-      renderMode: function (mode, snapshot) { renderPlayerControlsMode(snapshot); },
-      renderFocus: renderPlayerFocusState,
-      renderChapters: renderPlayerChaptersState,
-      onChaptersClosed: function (restoreFocus) {
-        if (restoreFocus) { ensurePlayerChaptersView().markHintReturning(); }
-      },
-      renderSkip: renderPlayerSkipState,
-      renderSettings: renderPlayerSettingsState,
-      onSettingsOpenChanged: applyPlayerSettingsOpen,
-      toggle: function () { playbackController.toggle(); },
-      mediaPlay: function () { if (playbackController.snapshot().paused) { playbackController.toggle(); } },
-      mediaPause: function () { if (!playbackController.snapshot().paused) { playbackController.toggle(); } },
-      seekAbsolute: function (seconds, options) { playbackController.seekAbsolute(seconds, options || {}); },
-      startAdjacent: function (direction) { switchPlayerEpisode(direction); },
-      changeTrack: applyPlayerTrackChoice,
-      changeVersion: function (value) {
-        if (typeof value === 'number') { cyclePlaybackVersion(value); }
-        else { setPlaybackVersionChoice(value); }
-        updateSettingsDisplay();
-      },
-      changeSetting: applyPlayerSettingChoice,
-      openSettingChoice: openPlayerSettingChoiceForKey,
-      openSubtitleEditor: function () { openSubtitleEditor(); },
-      openMediaInfo: openPlayerMediaInfo,
-      openQueue: openPlaylistQueueDrawer,
-      closeQueue: closePlaylistQueueDrawer,
-      cancelUpNext: function () { cancelAutoplayCountdown(true); },
-      closePlayer: closePlayer
-    });
+        },
+        onAdjacentStarted: function (target) {
+          if (destroyed) { return; }
+          var queueTarget = target && target.queueTarget;
+          var detail = target && target.detail;
+          var item = target && target.item;
+          var queue = queueTarget && queueTarget.queue;
+          var seriesTarget = seriesPlaybackTarget(queue, item, detailSnapshot().seriesContext);
+          var context = seriesTarget ? seriesTarget.context : (queue ? playlistQueueSeriesContext(queue) : null);
+          var seasonIndex = seriesTarget ? seriesTarget.seasonIndex : 0;
+          var episodeIndex = seriesTarget ? seriesTarget.episodeIndex : (queueTarget && Number(queueTarget.index || 0));
+          if (!detail) { return; }
+          detailPorts.setPlaybackContext(detail, item || detail, context, seasonIndex, episodeIndex);
+          detailPorts.queueMediaProfile(detail);
+          detailPorts.renderEpisodeContext();
+          renderPlayerTitle(detail);
+          playerQueueController.updateButton();
+        }
+      });
+      playerSubtitleEditorController = PlayerSubtitleEditorController.create({
+        platform: { document: document },
+        modules: {
+          SubtitleSync: SubtitleSync,
+          SubtitleStyleDialog: SubtitleStyleDialog,
+          SubtitleEditorView: SubtitleEditorView,
+          Settings: Settings,
+          MediaInfo: MediaInfo
+        },
+        playback: {
+          snapshot: playbackSnapshot,
+          availability: function (streamId) { return playbackController.subtitleEditorAvailability(streamId); },
+          open: function (editorOptions) { return playbackController.openSubtitleEditor(editorOptions); },
+          apply: function (editorOptions, callback) { return playbackController.applySubtitleEditor(editorOptions, callback); },
+          cancel: function (callback) { return playbackController.cancelSubtitleEditor(callback); },
+          toggle: function () { return playbackController.toggle(); }
+        },
+        settings: {
+          current: currentSettings,
+          previewStyle: settingsPorts.previewSubtitleStyle,
+          restoreStyle: settingsPorts.restoreSubtitleStyle,
+          commitRendering: settingsPorts.commitSubtitleRendering
+        },
+        presentation: {
+          t: t,
+          setText: setText,
+          trackLabel: trackLabel,
+          subtitleSizes: subtitleSizeValues,
+          formatTime: formatTime,
+          pointerActive: pointerSelectionActive,
+          seasonAvailable: function (playbackValue) {
+            return !!SubtitleSeriesOffset && !!SubtitleSeriesOffset.seasonRatingKey(subtitlePresentationDetail(playbackValue));
+          },
+          load: loadSubtitlePresentation,
+          save: saveSubtitlePresentation,
+          reset: resetSubtitlePresentation,
+          finish: saveDetailMediaOverride,
+          reportError: function (error) { diagnosticsPorts.setError(error); },
+          setPanelOpen: setSubtitleEditorPanelOpen,
+          openChoice: openChoiceDialog,
+          confirmRendering: openRenderingGlobalConfirmation
+        }
+      });
 
-    ensurePlaylistQueueUi();
-    updatePlaylistQueueButton();
-    bindEvent(document.getElementById('player-video'), 'click', onVideoClick);
-    bindClick('player-previous', function () { switchPlayerEpisode(-1); });
-    bindClick('player-toggle', togglePlayback);
-    bindClick('player-next', function () { switchPlayerEpisode(1); });
-    bindClick('player-settings-button', function () { setSettingsOpen(true); });
-    bindClick('player-media-info', openPlayerMediaInfo);
-    bindClick('player-error-retry', retryPlaybackFromError);
-    bindClick('player-error-settings', activatePlayerErrorSecondary);
-    bindClick('player-error-back', function () { hidePlayerError(); playerErrorRetryAction = null; playerErrorFallbackAction = null; closePlayer(); });
-    bindClick('autoplay-play', confirmAutoplayCountdown);
-    bindClick('autoplay-cancel', function () { cancelAutoplayCountdown(true); });
-    bindClick('queue-gap-stay', function () { queueGapController.cancel(); });
-    bindClick('queue-gap-continue', function () { queueGapController.confirm(); });
+      playerControlsController = PlayerControlsController.create({
+        root: root,
+        PlayerControlsState: PlayerControlsState,
+        ChapterState: ChapterState,
+        SkipMarkerState: SkipMarkerState,
+        queueController: playbackQueueController,
+        now: function () { return new Date().getTime(); },
+        playerActive: function () { return currentView() === 'player'; },
+        playbackSnapshot: playerControlsPlaybackSnapshot,
+        buttonCount: function () { return document.querySelectorAll('.player-button').length; },
+        buttonAvailable: playerButtonAvailable,
+        buttonAction: playerButtonAction,
+        settingsRows: playerSettingsRowsSnapshot,
+        settingsSignature: currentPlayerSettingsSignature,
+        applySettings: applyPlayerSettings,
+        renderMode: function (mode, snapshot) { renderPlayerControlsMode(snapshot); },
+        renderFocus: renderPlayerFocusState,
+        renderChapters: renderPlayerChaptersState,
+        onChaptersClosed: function (restoreFocus) {
+          if (restoreFocus) { ensurePlayerChaptersView().markHintReturning(); }
+        },
+        renderSkip: renderPlayerSkipState,
+        renderSettings: updateSettingsDisplay,
+        onSettingsOpenChanged: applyPlayerSettingsOpen,
+        toggle: function () { playbackController.toggle(); },
+        mediaPlay: function () { if (playbackController.snapshot().paused) { playbackController.toggle(); } },
+        mediaPause: function () { if (!playbackController.snapshot().paused) { playbackController.toggle(); } },
+        seekAbsolute: function (seconds, options) { playbackController.seekAbsolute(seconds, options || {}); },
+        startAdjacent: function (direction) { switchPlayerEpisode(direction); },
+        changeTrack: applyPlayerTrackChoice,
+        changeVersion: function (value) {
+          if (typeof value === 'number') { cyclePlaybackVersion(value); }
+          else { setPlaybackVersionChoice(value); }
+          updateSettingsDisplay();
+        },
+        changeSetting: applyPlayerSettingChoice,
+        openSettingChoice: openPlayerSettingChoiceForKey,
+        openSubtitleEditor: function () { openSubtitleEditor(); },
+        openMediaInfo: openPlayerMediaInfo,
+        openQueue: function () { return playerQueueController.open(); },
+        closeQueue: function (restoreFocus) { return playerQueueController.close(restoreFocus); },
+        cancelUpNext: function () { cancelAutoplayCountdown(true); },
+        closePlayer: closePlayer
+      });
+
+      playerQueueController.ensureUi();
+      playerQueueController.updateButton();
+      bindEvent(document.getElementById('player-video'), 'click', onVideoClick);
+      bindClick('player-previous', function () { switchPlayerEpisode(-1); });
+      bindClick('player-toggle', playbackController.toggle);
+      bindClick('player-next', function () { switchPlayerEpisode(1); });
+      bindClick('player-settings-button', function () { setSettingsOpen(true); });
+      bindClick('player-media-info', openPlayerMediaInfo);
+      bindClick('player-error-retry', retryPlaybackFromError);
+      bindClick('player-error-settings', activatePlayerErrorSecondary);
+      bindClick('player-error-back', function () { hidePlayerError(); playerErrorRetryAction = null; playerErrorFallbackAction = null; closePlayer(); });
+      bindClick('autoplay-play', confirmAutoplayCountdown);
+      bindClick('autoplay-cancel', function () { cancelAutoplayCountdown(true); });
+      bindClick('queue-gap-stay', function () { queueGapController.cancel(); });
+      bindClick('queue-gap-continue', function () { queueGapController.confirm(); });
+
+      translateStatic();
+      initialized = true;
+    } catch (error) {
+      try { destroy(); } catch (_cleanupError) { /* Preserve the construction failure after best-effort rollback. */ }
+      throw error;
+    }
 
     return {
       open: openPlayer,
+      openStandalone: openStandalone,
       handleQueueCapture: handleQueueCapture,
       handleQueueGapKey: handleQueueGapKey,
       handleQueueKey: handleQueueKey,

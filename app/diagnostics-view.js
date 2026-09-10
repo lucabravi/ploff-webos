@@ -19,6 +19,7 @@
     var identityGeneration = 0;
     var identityState = { error: '', identity: null, reachable: false };
     var supportQrOpen = false;
+    var supportQrFocus = 'close';
 
     function text(key) {
       return values.t(key);
@@ -75,6 +76,36 @@
       return formats.length ? formats.join(' / ') : text('diagnostics.no');
     }
 
+    function startupMilliseconds(value) {
+      var result = Number(value);
+      return isFinite(result) && result >= 0 ? String(Math.round(result)) + ' ms' : text('diagnostics.none');
+    }
+
+    function assStartupSummary(value) {
+      var ass = value || {};
+      var parts = [];
+      function number(name) {
+        var result = Number(ass[name]);
+        return isFinite(result) && result >= 0 ? result : null;
+      }
+      function appendValue(label, value) {
+        if (value !== null) { parts.push(label + '=' + Math.round(value)); }
+      }
+      function appendDuration(label, startName, endName) {
+        var start = number(startName);
+        var end = number(endName);
+        if (start !== null && end !== null && end >= start) { appendValue(label, end - start); }
+      }
+      appendValue('ready', number('firstRealAssFrame'));
+      appendDuration('worker', 'workerRequested', 'workerCreated');
+      appendDuration('libass', 'workerInitReceived', 'libassRuntimeReady');
+      appendDuration('warm', 'libassRuntimeReady', 'warmFirstFrame');
+      appendDuration('fetch', 'realAssFetchStart', 'realAssFetchEnd');
+      appendDuration('track', 'realAssSetTrackStart', 'realAssSetTrackReady');
+      appendDuration('frame', 'realAssSetTrackReady', 'firstRealAssFrame');
+      return parts.length ? 'ASS ' + parts.join(' / ') + ' ms' : text('diagnostics.none');
+    }
+
     function renderFocus() {
       var buttons = documentRef.querySelectorAll('[data-diagnostics-action]');
       var index;
@@ -90,6 +121,7 @@
       var scrollTop = content.scrollTop;
       var playback = snapshot.playback;
       var network = snapshot.network || { status: 'unknown', lanAvailable: null, internetAvailable: null, connectionType: '', localAddress: '' };
+      var startup = snapshot.startup || {};
       var serverRows;
       var columns;
       values.setText('diagnostics-title', text('diagnostics.title'));
@@ -100,6 +132,14 @@
       content.innerHTML = '';
       columns = appendColumns(content);
       appendSection(columns[0], 'diagnostics.app', [['diagnostics.appVersion', snapshot.appVersion]]);
+      appendSection(columns[0], 'diagnostics.startup', [
+        ['diagnostics.startupBootstrap', startupMilliseconds(startup.bootstrap)],
+        ['diagnostics.startupComposition', startupMilliseconds(startup.compositionReady)],
+        ['diagnostics.startupServer', startupMilliseconds(startup.serverReady)],
+        ['diagnostics.startupHome', startupMilliseconds(startup.firstHomeContent)],
+        ['diagnostics.startupFocus', startupMilliseconds(startup.firstFocusableUi)],
+        ['player.subtitles', assStartupSummary(startup.ass)]
+      ]);
       serverRows = [
         ['diagnostics.serverName', snapshot.server.name],
         ['diagnostics.serverVersion', snapshot.server.version],
@@ -157,11 +197,23 @@
       var dialog = documentRef.getElementById('diagnostics-qr-dialog');
       if (!supportQrOpen) { return; }
       supportQrOpen = false;
+      supportQrFocus = 'close';
       if (dialog) {
         dialog.className = 'diagnostics-qr-dialog is-hidden';
         dialog.setAttribute('aria-hidden', 'true');
       }
       renderFocus();
+    }
+
+    function focusSupportQr(target) {
+      var reportText = documentRef.getElementById('diagnostics-report-text');
+      var closeButton = documentRef.getElementById('diagnostics-qr-close');
+      supportQrFocus = target === 'report' ? 'report' : 'close';
+      if (supportQrFocus === 'report' && reportText && reportText.focus) {
+        reportText.focus();
+      } else if (closeButton && closeButton.focus) {
+        closeButton.focus();
+      }
     }
 
     function openSupportQr() {
@@ -181,6 +233,7 @@
       dialog.className = 'diagnostics-qr-dialog';
       dialog.setAttribute('aria-hidden', 'false');
       supportQrOpen = true;
+      supportQrFocus = 'close';
       if (fallback) { fallback.className = 'diagnostics-qr-fallback is-hidden'; fallback.textContent = ''; }
       if (reportText) { reportText.textContent = String(report.body || report.serialized || ''); }
       try {
@@ -192,7 +245,7 @@
           fallback.textContent = text('diagnostics.qrUnavailable');
         }
       }
-      if (closeButton && closeButton.focus && !values.isPointerSelectionActive()) { closeButton.focus(); }
+      if (closeButton && closeButton.focus && !values.isPointerSelectionActive()) { focusSupportQr('close'); }
     }
 
     function clearRequest() {
@@ -236,6 +289,21 @@
       content.scrollTop = Math.max(0, Math.min(maximum, content.scrollTop + (direction === 'down' ? distance : -distance)));
     }
 
+    function scrollSupportQr(direction) {
+      var reportText = documentRef.getElementById('diagnostics-report-text');
+      var distance;
+      var maximum;
+      var current;
+      var next;
+      if (!reportText) { return false; }
+      distance = Math.max(100, Math.round((reportText.clientHeight || 180) * 0.55));
+      maximum = Math.max(0, (reportText.scrollHeight || 0) - (reportText.clientHeight || 0));
+      current = Number(reportText.scrollTop) || 0;
+      next = Math.max(0, Math.min(maximum, current + (direction === 'down' ? distance : -distance)));
+      reportText.scrollTop = next;
+      return next !== current;
+    }
+
     function activate() {
       if (focusIndex === 0) { refresh(); }
       else if (focusIndex === 1) { openSupportQr(); }
@@ -251,7 +319,17 @@
       if (!active) { return; }
       event.preventDefault();
       if (supportQrOpen) {
-        if (event.keyCode === 13 || event.keyCode === 27 || event.keyCode === 461) { closeSupportQr(); }
+        if (event.keyCode === 27 || event.keyCode === 461) { closeSupportQr(); return; }
+        if (event.keyCode === 13) {
+          if (supportQrFocus === 'close') { closeSupportQr(); }
+          return;
+        }
+        if (direction === 'up') {
+          if (supportQrFocus === 'close') { focusSupportQr('report'); }
+          else { scrollSupportQr('up'); }
+        } else if (direction === 'down' && supportQrFocus === 'report' && !scrollSupportQr('down')) {
+          focusSupportQr('close');
+        }
         return;
       }
       if (event.keyCode === 27 || event.keyCode === 461) { close(); return; }
@@ -290,6 +368,7 @@
       activate: activate,
       close: close,
       closeSupportQr: closeSupportQr,
+      focusSupportQr: focusSupportQr,
       destroy: close,
       handleKey: handleKey,
       isOpen: function () { return active; },

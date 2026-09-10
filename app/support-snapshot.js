@@ -50,6 +50,10 @@
     return value === true;
   }
 
+  function optionalBoolean(value) {
+    return typeof value === 'boolean' ? value : null;
+  }
+
   function selectedTrackId(source, kind) {
     var options = source && source.options || {};
     return String(options[kind === 'audio' ? 'audioStreamID' : 'subtitleStreamID'] || '');
@@ -260,6 +264,20 @@
       buffering: boolean(current.buffering),
       nativeSeekPending: boolean(current.nativeSeekPending),
       clockRepairCount: number(current.clockRepairCount),
+      clock: {
+        offsetBase: optionalNumber(current.offsetBase),
+        nativeCurrentTime: optionalNumber(current.nativeCurrentTime),
+        nativeAbsoluteTime: optionalNumber(current.nativeAbsoluteTime),
+        bufferStartNative: optionalNumber(current.bufferStartNative),
+        bufferStartPublic: optionalNumber(current.bufferStartPublic),
+        bufferStartOffsetBase: optionalNumber(current.bufferStartOffsetBase),
+        recoveryAccepted: optionalBoolean(current.bufferRecoveryAccepted),
+        recoveryReason: text(current.bufferRecoveryReason, 40),
+        recoveryInitialReason: text(current.bufferRecoveryInitialReason, 40),
+        recoveryDelta: optionalNumber(current.bufferRecoveryDelta),
+        recoveryTarget: optionalNumber(current.bufferRecoveryTarget),
+        recoveryCandidate: optionalNumber(current.bufferRecoveryCandidate)
+      },
       nativeReadyState: optionalNumber(current.nativeReadyState),
       nativeNetworkState: optionalNumber(current.nativeNetworkState),
       nativeErrorCode: optionalNumber(current.nativeErrorCode),
@@ -435,8 +453,10 @@
     var result = { v: report.schema, app: report.appVersion, at: report.timestamp };
     var playback = report.playback;
     var mediaValue;
+    /** @type {Object<string, *>} */
     var playbackValue;
     var native = {};
+    var clock = {};
     var subtitles = {};
     var jsErrors = report.jsErrors || [];
     var jsMaximum = jsErrorLimit === undefined ? MAX_JS_ERRORS : Math.max(0, jsErrorLimit);
@@ -478,6 +498,21 @@
       put(native, 'n', playback.nativeNetworkState);
       put(native, 'e', playback.nativeErrorCode);
       if (Object.keys(native).length) { playbackValue.native = native; }
+      if (playback.clock) {
+        put(clock, 'o', playback.clock.offsetBase);
+        put(clock, 'n', playback.clock.nativeCurrentTime);
+        put(clock, 'a', playback.clock.nativeAbsoluteTime);
+        put(clock, 'bn', playback.clock.bufferStartNative);
+        put(clock, 'bp', playback.clock.bufferStartPublic);
+        put(clock, 'bo', playback.clock.bufferStartOffsetBase);
+        put(clock, 'ok', playback.clock.recoveryAccepted);
+        put(clock, 'r', playback.clock.recoveryReason);
+        put(clock, 'ir', playback.clock.recoveryInitialReason);
+        put(clock, 'd', playback.clock.recoveryDelta);
+        put(clock, 't', playback.clock.recoveryTarget);
+        put(clock, 'c', playback.clock.recoveryCandidate);
+        if (Object.keys(clock).length) { playbackValue.clock = clock; }
+      }
       put(subtitles, 'o', playback.subtitleOffsetMs);
       put(subtitles, 's', playback.subtitleSize);
       if (Object.keys(subtitles).length) { playbackValue.subtitles = subtitles; }
@@ -512,6 +547,7 @@
     var subtitle = [];
     var queue = [];
     var native = [];
+    var clock = [];
     var subtitles = [];
     var index;
     addLine(lines, 'v', value.app);
@@ -603,6 +639,19 @@
         if (playback.native.n !== undefined) { addPart(native, 'network=' + playback.native.n); }
         if (playback.native.e !== undefined) { addPart(native, 'error=' + playback.native.e); }
         addLine(lines, 'native', native.join(' / '));
+      }
+      if (playback.clock) {
+        if (playback.clock.o !== undefined) { addPart(clock, 'offset=' + playback.clock.o); }
+        if (playback.clock.n !== undefined) { addPart(clock, 'native=' + playback.clock.n); }
+        if (playback.clock.a !== undefined) { addPart(clock, 'absolute=' + playback.clock.a); }
+        if (playback.clock.bp !== undefined && playback.clock.bn !== undefined && playback.clock.bo !== undefined) {
+          addPart(clock, 'buffer=' + playback.clock.bp + '@' + playback.clock.bn + '+' + playback.clock.bo);
+        }
+        if (playback.clock.r) { addPart(clock, 'recovery=' + playback.clock.r); }
+        if (playback.clock.ir) { addPart(clock, 'initial=' + playback.clock.ir); }
+        if (playback.clock.d !== undefined) { addPart(clock, 'delta=' + playback.clock.d); }
+        if (playback.clock.ok !== undefined) { addPart(clock, 'accepted=' + playback.clock.ok); }
+        addLine(lines, 'clock', clock.join(' / '));
       }
       if (playback.subtitles) {
         if (playback.subtitles.o !== undefined) { addPart(subtitles, 'offset=' + playback.subtitles.o + 'ms'); }

@@ -22,12 +22,14 @@
       watchdogTimer = null;
     }
 
-    function hide() {
+    function hide(nativeAdvanced) {
       clearTimers();
       advancingSamples = 0;
-      if (!visible) { return; }
-      visible = false;
-      values.onHide();
+      if (visible) {
+        visible = false;
+        values.onHide();
+      }
+      if (nativeAdvanced === true && typeof values.onAdvance === 'function') { values.onAdvance(); }
     }
 
     function watch() {
@@ -39,7 +41,7 @@
         if (current > lastPosition + 0.05) { advancingSamples += 1; }
         else { advancingSamples = 0; }
         lastPosition = current;
-        if (advancingSamples >= 2) { hide(); return; }
+        if (advancingSamples >= 2) { hide(true); return; }
         watch();
       }, watchdogDelay);
     }
@@ -51,7 +53,11 @@
       graceTimer = values.root.setTimeout(function () {
         var current = Number(values.position() || 0);
         graceTimer = null;
-        if (!values.isEligible() || current > initialPosition + 0.05) { return; }
+        if (!values.isEligible()) { return; }
+        if (current > initialPosition + 0.05) {
+          if (typeof values.onAdvance === 'function') { values.onAdvance(); }
+          return;
+        }
         visible = true;
         lastPosition = current;
         advancingSamples = 0;

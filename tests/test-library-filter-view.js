@@ -190,6 +190,13 @@ assert.strictEqual(stale.view.snapshot().options, null, 'a stale callback must n
 stale.requests[1].callback(null, { year: [{ value: 'new', label: 'New' }], genre: [] });
 assert.strictEqual(stale.view.snapshot().options.year[0].label, 'New', 'the current callback must install options');
 
+var retryAfterFailure = createFixture();
+retryAfterFailure.view.open({ key: 'movies' });
+retryAfterFailure.requests[0].callback(new Error('offline'));
+retryAfterFailure.view.close('cancel');
+retryAfterFailure.view.open({ key: 'movies' });
+assert.strictEqual(retryAfterFailure.requests.length, 2, 'reopening the same library after an option load failure must retry the request');
+
 var stablePointer = createFixture();
 stablePointer.view.open({ key: 'movies' });
 stablePointer.requests[0].callback(null, { year: [{ value: '2020', label: '2020' }], genre: [{ value: 'drama', label: 'Drama' }] });

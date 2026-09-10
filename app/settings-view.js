@@ -64,14 +64,14 @@
       var count = rows ? rows.length : rowsOrCount;
       var candidate = clamp(index, count);
       var step = Number(direction || 0);
-      if (rows && rows[candidate] && rows[candidate].readOnly) {
+      if (rows && rows[candidate] && (rows[candidate].readOnly || rows[candidate].disabled)) {
         step = step || 1;
-        while (candidate >= 0 && candidate < count && rows[candidate].readOnly) {
+        while (candidate >= 0 && candidate < count && (rows[candidate].readOnly || rows[candidate].disabled)) {
           candidate += step;
         }
         if (candidate < 0 || candidate >= count) {
           candidate = clamp(index - step, count);
-          while (candidate >= 0 && candidate < count && rows[candidate].readOnly) {
+          while (candidate >= 0 && candidate < count && (rows[candidate].readOnly || rows[candidate].disabled)) {
             candidate -= step;
           }
         }
@@ -198,15 +198,18 @@
           container.appendChild(rowElement);
           continue;
         }
-        rowElement = values.element(row.readOnly ? 'div' : 'button', 'app-setting-row' +
+        var nonInteractive = row.readOnly || row.disabled;
+        rowElement = values.element(nonInteractive ? 'div' : 'button', 'app-setting-row' +
           (row.readOnly ? ' is-read-only' : '') +
+          (row.disabled ? ' is-disabled' : '') +
           (row.versionRow ? ' is-version' : '') +
           (index === 0 && state.serverEditorOpen ? ' has-inline-editor' : ''));
-        if (!row.readOnly) {
+        if (!nonInteractive) {
           rowElement.type = 'button';
           rowElement.setAttribute('data-setting-index', index);
         } else {
-          rowElement.setAttribute('aria-readonly', 'true');
+          if (row.readOnly) { rowElement.setAttribute('aria-readonly', 'true'); }
+          if (row.disabled) { rowElement.setAttribute('aria-disabled', 'true'); }
         }
         if (row.serverEditor) { rowElement.setAttribute('aria-expanded', state.serverEditorOpen ? 'true' : 'false'); }
         rowElement.appendChild(values.element('span', 'app-setting-label', row.label));

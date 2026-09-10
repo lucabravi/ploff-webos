@@ -24,7 +24,7 @@ assert.ok(playbackReads('subtitleTrackLabelWithOffset', 'playerSettingDisabled')
   'subtitle labels must reuse one playback snapshot');
 assert.ok(playbackReads('playerSettingDisabled', 'playerSettingRows') <= 1,
   'setting availability must reuse one playback snapshot');
-assert.ok(playbackReads('updateSettingsDisplay', 'renderPlayerSettingsState') <= 1,
+assert.ok(playbackReads('updateSettingsDisplay', 'playbackModeLabel') <= 1,
   'one settings render must read the playback snapshot once');
 assert.ok(playbackReads('renderPlayerPlaybackSummary', 'renderPlaybackInfo') <= 1,
   'one compact summary render must read the playback snapshot once');
@@ -36,5 +36,17 @@ assert.ok(playbackReads('mediaVersionLabelForPlayback', 'cyclePlaybackVersion') 
   'version labels must reuse one playback snapshot');
 assert.ok(!/renderPlayerPlaybackSummary\(\)/.test(functionBody('renderPlaybackInfo', 'cycleTrack')),
   'playback information rendering must not redraw the compact summary implicitly');
+
+assert.ok(!/function subtitleEditorTrackAllowed\(/.test(source),
+  'Player must not duplicate Playback subtitle-editor eligibility policy');
+assert.ok(!/SubtitleSync\.availability\(/.test(source),
+  'Player must query Playback for runtime subtitle-editor availability');
+
+assert.ok(/PlayerSubtitleEditorController/.test(source),
+  'Player must delegate subtitle-editor presentation to its dedicated owner');
+assert.ok(!/subtitleEditorStyleOriginal|subtitleEditorStyleDraft|subtitleRenderingDraft|subtitleRenderingAutoAss|subtitleEditorIndex/.test(source),
+  'Player must not retain subtitle-editor presentation draft state after extraction');
+assert.ok(!/function (?:renderSubtitleEditor|openSubtitleEditorChoice|closeSubtitleEditor|ensureAssRenderingDraftForTrack)\(/.test(source),
+  'Player must not reintroduce subtitle-editor presentation helpers owned by PlayerSubtitleEditorController');
 
 console.log('Player feature hot-path checks passed');

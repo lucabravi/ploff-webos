@@ -54,6 +54,8 @@
       };
     }
 
+    function isOpen() { return state.open; }
+
     function publish() { call(values.onState, snapshot()); }
 
     function closeSilently() {
@@ -148,6 +150,7 @@
       activate: activate,
       handleKey: handleKey,
       invalidate: invalidate,
+      isOpen: isOpen,
       snapshot: snapshot,
       destroy: destroy
     };

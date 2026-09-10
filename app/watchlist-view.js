@@ -20,7 +20,7 @@
       open: false, items: [], focusIndex: 0, zone: 'grid', provider: null,
       generation: 0, providerGeneration: 0, request: null, localRequests: [], providerRequest: null, mutationRequest: null,
       loading: false, error: null, loadedIdentity: '', byLocalKey: {}, mutationPending: false,
-      providerCallbacks: []
+      providerCallbacks: [], mountedStart: 0, mountedEnd: 0
     };
 
     function node(id) { return documentRef && documentRef.getElementById ? documentRef.getElementById(id) : null; }
@@ -101,7 +101,46 @@
       } else if (values.onNavigationFocus) { values.onNavigationFocus(); }
       if (values.renderFocus) { values.renderFocus(snapshot()); }
     }
-    function renderGrid() {
+    function rangeForRow(row) {
+      var columnCount = columns();
+      var totalRows = Math.ceil(state.items.length / columnCount);
+      var startRow;
+      var endRow;
+      row = totalRows ? clamp(row, 0, totalRows - 1) : 0;
+      startRow = Math.max(0, row - 2);
+      endRow = Math.min(totalRows, row + 3);
+      return { start: startRow * columnCount, end: Math.min(state.items.length, endRow * columnCount) };
+    }
+    function mountedRange() {
+      return rangeForRow(Math.floor(state.focusIndex / columns()));
+    }
+    function virtualRowHeight(profile, metrics) {
+      var height = profile && profile.metrics ? Number(profile.metrics.height || 0) : Number(metrics && metrics.height || 0);
+      var gap = profile ? Number(profile.posterGap || 0) : 0;
+      if (!height) { height = Number(metrics && metrics.imageHeight || 0); }
+      return Math.max(0, height + gap);
+    }
+    function appendSpacer(content, className, itemCount, columnCount, rowHeight) {
+      var rowCount;
+      var spacer;
+      if (!content || !itemCount || !rowHeight) { return; }
+      rowCount = Math.ceil(itemCount / columnCount);
+      if (!rowCount) { return; }
+      spacer = element('div', className);
+      spacer.style.width = '100%';
+      spacer.style.height = String(rowCount * rowHeight) + 'px';
+      spacer.style.flex = '0 0 100%';
+      spacer.setAttribute('aria-hidden', 'true');
+      content.appendChild(spacer);
+    }
+    function focusIsMounted() {
+      return state.focusIndex >= state.mountedStart && state.focusIndex < state.mountedEnd;
+    }
+    function ensureFocusMounted() {
+      if (state.open && state.items.length && !focusIsMounted()) { renderGrid(); }
+    }
+
+    function renderGrid(rangeOverride) {
       var content = node(values.contentId || 'watchlist-grid-content');
       var jobs = [];
       var index;
@@ -111,12 +150,21 @@
       var caption;
       var profile;
       var metrics;
+      var range;
+      var columnCount;
+      var rowHeight;
       if (!content) { if (values.render) { values.render(snapshot()); } return; }
       if (values.posterLoader && values.posterLoader.cancelScope) { values.posterLoader.cancelScope(values.scope || 'watchlist'); }
       content.innerHTML = '';
       profile = values.cardProfile ? values.cardProfile() : null;
       metrics = profile ? profile.metrics : (values.cardMetrics ? values.cardMetrics() : { width: 200, imageHeight: 300 });
-      for (index = 0; index < state.items.length; index += 1) {
+      range = rangeOverride || mountedRange();
+      columnCount = columns();
+      rowHeight = virtualRowHeight(profile, metrics);
+      state.mountedStart = range.start;
+      state.mountedEnd = range.end;
+      appendSpacer(content, 'watchlist-virtual-spacer is-before', range.start, columnCount, rowHeight);
+      for (index = range.start; index < range.end; index += 1) {
         item = state.items[index];
         card = element('button', 'watchlist-card' + (item.viewed ? ' is-viewed' : ''));
         card.type = 'button'; card.setAttribute('data-watchlist-index', index);
@@ -135,8 +183,25 @@
           jobs.push({ target: image, specification: values.renderedPosterSpecification(image, item.image, index === state.focusIndex ? 0 : 1, values.scope || 'watchlist', metrics.width, metrics.imageHeight) });
         }
       }
+      appendSpacer(content, 'watchlist-virtual-spacer is-after', state.items.length - range.end, columnCount, rowHeight);
       if (values.posterLoader && values.posterLoader.loadBatch) { values.posterLoader.loadBatch(jobs); }
       if (values.render) { values.render(snapshot()); }
+    }
+    function onScroll() {
+      var container = node(values.gridId || 'watchlist-grid');
+      var profile;
+      var metrics;
+      var rowHeight;
+      var row;
+      var range;
+      if (!state.open || !state.items.length || !container) { return; }
+      profile = values.cardProfile ? values.cardProfile() : null;
+      metrics = profile ? profile.metrics : (values.cardMetrics ? values.cardMetrics() : { width: 200, imageHeight: 300 });
+      rowHeight = virtualRowHeight(profile, metrics);
+      if (!rowHeight) { return; }
+      row = Math.max(0, Math.floor((Number(container.scrollTop) || 0) / rowHeight));
+      range = rangeForRow(row);
+      if (range.start !== state.mountedStart || range.end !== state.mountedEnd) { renderGrid(range); }
     }
     function render() {
       if (!state.open) { return; }
@@ -169,8 +234,8 @@
       state.localRequests = [];
       state.loading = false;
       state.error = error || null;
-      state.items = error ? [] : array(items);
-      state.loadedIdentity = identity;
+      state.items = array(items);
+      state.loadedIdentity = error ? '' : identity;
       state.focusIndex = clamp(state.focusIndex, 0, Math.max(0, state.items.length - 1));
       if (!state.items.length && state.zone === 'grid') { state.zone = 'nav'; }
       indexItems(); notifyItemsChanged(); render();
@@ -208,10 +273,11 @@
     function reset() {
       state.generation += 1; cancel();
       state.items = []; state.focusIndex = 0; state.zone = 'nav'; state.provider = null;
+      state.mountedStart = 0; state.mountedEnd = 0;
       state.loading = false; state.error = null; state.loadedIdentity = ''; state.byLocalKey = {}; state.mutationPending = false;
       notifyItemsChanged();
     }
-    function setFocus(index) { state.zone = 'grid'; state.focusIndex = clamp(index, 0, Math.max(0, state.items.length - 1)); applyFocus(); }
+    function setFocus(index) { state.zone = 'grid'; state.focusIndex = clamp(index, 0, Math.max(0, state.items.length - 1)); ensureFocusMounted(); applyFocus(); }
     function focusNavigation() { state.zone = 'nav'; applyFocus(); }
     function focusContent() { if (state.items.length) { state.zone = 'grid'; } else { state.zone = 'nav'; } applyFocus(); }
     function focusedItem() { return state.items[state.focusIndex] || null; }
@@ -242,6 +308,7 @@
       } else if (event && event.keyCode === 13) {
         item = focusedItem(); if (item && values.onOpenDetail) { values.onOpenDetail(item); } return;
       }
+      ensureFocusMounted();
       applyFocus();
     }
     function pointerIndex(value) {
@@ -280,7 +347,7 @@
 
     return {
       snapshot: snapshot, open: open, leave: leave, close: leave, load: load, cancel: cancel, reset: reset,
-      render: render, refreshFocus: applyFocus, setFocus: setFocus, focusNavigation: focusNavigation, focusContent: focusContent,
+      render: render, refreshFocus: applyFocus, onScroll: onScroll, setFocus: setFocus, focusNavigation: focusNavigation, focusContent: focusContent,
       focusedItem: focusedItem, handleKeyDown: handleKeyDown,
       pointerFocus: pointerFocus, restoreFocus: restoreFocus, findLocal: findLocal,
       setProvider: setProvider, getProvider: getProvider, ensureProvider: ensureProvider, toggle: toggle, seed: seed

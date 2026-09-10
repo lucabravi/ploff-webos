@@ -26,6 +26,7 @@ var config = { apiBaseUrl: '/plex-api', accountBaseUrl: '/account', token: 'toke
 cancellable('account profile loading', function () { return PlexClient.loadAccountProfile(config, function () {}); });
 cancellable('navigation loading', function () { return PlexClient.loadNavigation(config, function () {}); });
 cancellable('metadata loading', function () { return PlexClient.loadMetadata(config, '10', function () {}); });
+cancellable('extras loading', function () { return PlexClient.loadExtras(config, '10', function () {}); });
 cancellable('playback loading', function () { return PlexClient.loadPlayback(config, '11', 'session', {}, function () {}); });
 cancellable('playback preparation', function () {
   return PlexClient.preparePlayback(config, {
@@ -42,8 +43,11 @@ cancellable('watched-state updates', function () {
 cancellable('Continue Watching removal', function () {
   return PlexClient.removeFromContinueWatching(config, '42', function () {});
 });
-assert.strictEqual(xhrs[xhrs.length - 1].method, 'PUT', 'Continue Watching removal must use the PMS PUT action');
-assert.ok(/\/actions\/removeFromContinueWatching\?/.test(xhrs[xhrs.length - 1].url) && /ratingKey=42/.test(xhrs[xhrs.length - 1].url), 'Continue Watching removal must send the selected rating key');
+cancellable('library refresh', function () { return PlexClient.refreshLibrary(config, '2', function () {}); });
+cancellable('forced library metadata refresh', function () { return PlexClient.refreshLibraryMetadata(config, '2', function () {}); });
+cancellable('single metadata refresh', function () { return PlexClient.refreshMetadata(config, '42', function () {}); });
+assert.strictEqual(xhrs[xhrs.length - 4].method, 'PUT', 'Continue Watching removal must use the PMS PUT action');
+assert.ok(/\/actions\/removeFromContinueWatching\?/.test(xhrs[xhrs.length - 4].url) && /ratingKey=42/.test(xhrs[xhrs.length - 4].url), 'Continue Watching removal must send the selected rating key');
 
 var watchedHandle = PlexClient.setWatchedAndReset(config, '41', true, function () {});
 var watchedRequest = xhrs[xhrs.length - 1];
@@ -54,6 +58,56 @@ var progressRequest = xhrs[xhrs.length - 1];
 assert.notStrictEqual(progressRequest, watchedRequest, 'a successful watched update must start progress reset');
 watchedHandle.abort();
 assert.strictEqual(progressRequest.aborted, true, 'composite watched cancellation must abort the active progress reset');
+
+var previousFilterDomParser = global.DOMParser;
+var filterStart = xhrs.length;
+var filterError = null;
+var filterResult = null;
+global.DOMParser = function () {
+  this.parseFromString = function () {
+    return { getElementsByTagName: function () { return []; } };
+  };
+};
+PlexClient.loadLibraryFilterOptions(config, { key: '2' }, function (error, result) {
+  filterError = error || null;
+  filterResult = result || null;
+});
+assert.strictEqual(xhrs.length, filterStart + 5, 'advanced library filters must request each Plex metadata facet');
+xhrs.slice(filterStart).forEach(function (xhr, index) {
+  xhr.status = index === 0 ? 500 : 200;
+  xhr.readyState = 4;
+  xhr.responseText = '<MediaContainer />';
+  xhr.onreadystatechange();
+});
+assert.ok(filterError, 'one failed Plex metadata facet must keep advanced filter options retryable');
+assert.ok(filterResult && filterResult.hdr, 'a partial advanced-filter response may still expose its fallback choices');
+global.DOMParser = previousFilterDomParser;
+
+var previousInvalidFilterDomParser = global.DOMParser;
+var invalidFilterStart = xhrs.length;
+var invalidFilterError = null;
+var filterParseCalls = 0;
+global.DOMParser = function () {
+  this.parseFromString = function () {
+    filterParseCalls += 1;
+    return {
+      getElementsByTagName: function (name) {
+        return name === 'parsererror' && filterParseCalls === 1 ? [{}] : [];
+      }
+    };
+  };
+};
+PlexClient.loadLibraryFilterOptions(config, { key: '2' }, function (error) {
+  invalidFilterError = error || null;
+});
+xhrs.slice(invalidFilterStart).forEach(function (xhr) {
+  xhr.status = 200;
+  xhr.readyState = 4;
+  xhr.responseText = '<MediaContainer />';
+  xhr.onreadystatechange();
+});
+assert.ok(invalidFilterError, 'one invalid Plex metadata facet must keep advanced filter options retryable');
+global.DOMParser = previousInvalidFilterDomParser;
 
 var previousDomParser = global.DOMParser;
 function directory(attributes) {

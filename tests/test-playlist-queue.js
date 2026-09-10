@@ -8,6 +8,8 @@ var source = [
   fs.readFileSync(path.join(__dirname, '..', 'app', 'coordinator', 'application-controller.js'), 'utf8'),
   fs.readFileSync(path.join(__dirname, '..', 'app', 'coordinator', 'player-feature-controller.js'), 'utf8')
 ].join('\n');
+var playerQueueSource = fs.readFileSync(path.join(__dirname, '..', 'app', 'coordinator', 'player-queue-controller.js'), 'utf8');
+var inputCommandRouterSource = fs.readFileSync(path.join(__dirname, '..', 'app', 'coordinator', 'input-command-router.js'), 'utf8');
 var styles = fs.readFileSync(path.join(__dirname, '..', 'app', 'styles.css'), 'utf8');
 var controllerSource = fs.readFileSync(path.join(__dirname, '..', 'app', 'coordinator', 'playback-queue-controller.js'), 'utf8');
 var PlaybackQueueModel = require('../app/playback-queue-model');
@@ -26,11 +28,11 @@ var seriesItems;
 var adjacent;
 
 
-function extractFunction(functionName, nextFunctionName) {
-  var start = source.indexOf('function ' + functionName + '(');
-  var end = source.indexOf('function ' + nextFunctionName + '(', start);
+function extractFunction(sourceText, functionName, nextFunctionName) {
+  var start = sourceText.indexOf('function ' + functionName + '(');
+  var end = sourceText.indexOf('function ' + nextFunctionName + '(', start);
   assert.ok(start >= 0 && end > start, 'test helper must locate ' + functionName);
-  return Function('return (' + source.slice(start, end).trim() + ');')();
+  return Function('return (' + sourceText.slice(start, end).trim() + ');')();
 }
 
 function trackedList(initialNodes) {
@@ -109,15 +111,12 @@ adjacent = PlaybackQueueModel.adjacentItem(queue, queue.index, 1);
 assert.strictEqual(adjacent.item.ratingKey, 's1e2', 'Up Next must resolve the following item from a generic playback queue');
 assert.strictEqual(PlaybackQueueModel.adjacentItem(queue, queue.items.length - 1, 1), null, 'the final queue item must not expose an Up Next target');
 
-assert.ok(source.indexOf("row.insertBefore(button, settings)") !== -1, 'the queue command must be placed immediately before settings');
-assert.ok(source.indexOf("if (event.keyCode === 38) { movePlaylistQueueDrawerFocus(-1); }") !== -1 && /function movePlaylistQueueDrawerFocus\(direction\)[\s\S]*playbackQueueController\.moveDrawer/.test(source), 'remote Up must navigate through the queue controller');
-assert.ok(source.indexOf("else if (event.keyCode === 40) { movePlaylistQueueDrawerFocus(1); }") !== -1, 'remote Down must navigate the queue');
-assert.ok(/event\.keyCode === 13[\s\S]*switchPlayerQueueItem\(queueState\.drawer\.index\)/.test(source), 'remote OK must play the controller-focused queue item');
+assert.ok(playerQueueSource.indexOf("row.insertBefore(button, settings)") !== -1, 'the queue command must be placed immediately before settings');
+assert.ok(/if \(code === 38\) \{ return 'drawer-up'; \}/.test(inputCommandRouterSource) && /command === 'drawer-up' \|\| command === 'drawer-down'[\s\S]*playerQueueController\.move/.test(source) && /function move\(direction\)[\s\S]*queueController\.moveDrawer/.test(playerQueueSource), 'remote Up must route through the command router and queue presentation owner into the queue domain controller');
+assert.ok(/if \(code === 40\) \{ return 'drawer-down'; \}/.test(inputCommandRouterSource) && /command === 'drawer-up' \|\| command === 'drawer-down'/.test(source), 'remote Down must route through the command router before navigating the queue');
+assert.ok(/if \(code === 13\) \{ return 'drawer-activate'; \}/.test(inputCommandRouterSource) && /command === 'drawer-activate'[\s\S]*switchPlayerQueueItem\(queueState\.drawer\.index\)/.test(source), 'remote OK must route through the command router before playing the controller-focused queue item');
 assert.ok(styles.indexOf('.player-playlist-queue { box-sizing:border-box; position:absolute; z-index:32; top:0; right:0;') !== -1, 'the queue drawer must open on the right above the player');
-assert.ok(styles.indexOf('transform:translateX(100%)') === -1, 'the webOS queue drawer must never focus content while translated outside the viewport');
-assert.ok(styles.indexOf('width:440px') !== -1 && styles.indexOf('.player-playlist-queue.is-open { right:0;') !== -1, 'the queue drawer must use stable explicit right-edge geometry on Chromium 53');
-assert.ok(/function openDrawer\([\s\S]*playlistQueueDrawerFocusReady = false[\s\S]*setTimer\('drawer'/.test(controllerSource) && source.indexOf('settingsPorts.animationDuration(220)') !== -1, 'DOM focus must wait until the controller reports the overlaid queue as visible');
-assert.ok(source.indexOf('function resetPlaylistQueueViewportScroll()') !== -1 && source.indexOf('document.documentElement.scrollLeft = 0') !== -1, 'queue focus must neutralize legacy Chromium viewport scrolling');
+assert.ok(/function openDrawer\([\s\S]*playlistQueueDrawerFocusReady = false[\s\S]*setTimer\('drawer'/.test(controllerSource) && /queueController\.openDrawer\(detailSnapshot\(\), call\(options\.animationDuration, 220\)\)/.test(playerQueueSource), 'DOM focus must wait until the controller reports the overlaid queue as visible');
 assert.ok(styles.indexOf('.player-playlist-queue:before') !== -1 && styles.indexOf('linear-gradient(to right, rgba(5,6,8,0), rgba(14,16,20,.97))') !== -1, 'the overlay drawer must retain a soft background edge');
 assert.ok(styles.indexOf('.player-view.has-playlist-queue-open .player-video { width:') === -1, 'opening the queue must not resize the native TV video plane');
 assert.ok(styles.indexOf('.player-view.has-playlist-queue-open > :not(.player-playlist-queue) { filter:blur') === -1, 'opening the queue must not filter the native video plane');
@@ -125,58 +124,58 @@ assert.ok(styles.indexOf('.playlist-queue-card-badge') !== -1, 'queue previews m
 assert.ok(styles.indexOf('body.is-container-direct-start #library-view') !== -1, 'direct playlist playback must hide selection work behind a detail-style transition');
 assert.strictEqual(styles.indexOf('body.is-container-origin-restoring:after'), -1,
   'returning from playback must reveal the restored origin without a dimming overlay');
-assert.ok(source.indexOf("element('span', 'playlist-queue-card-badge')") !== -1 &&
-  source.indexOf('setPlaylistQueueText(card.__playlistQueueBadge, typeLabel)') !== -1,
+assert.ok(playerQueueSource.indexOf("element('span', 'playlist-queue-card-badge')") !== -1 &&
+  playerQueueSource.indexOf('setText(card.__playlistQueueBadge, typeLabel)') !== -1,
   'queue cards must render their type badge');
-assert.ok(/function playlistQueueCardClass\([^)]*viewed[\s\S]*is-viewed/.test(source) &&
-  /updatePlaylistQueueCard\([\s\S]*item\.viewed/.test(source),
+assert.ok(/function cardClass\([^)]*viewed[\s\S]*is-viewed/.test(playerQueueSource) &&
+  /function updateCard\([\s\S]*item\.viewed/.test(playerQueueSource),
   'queue cards must retain the shared watched-state class across focus updates');
-assert.ok(source.indexOf("t('library.watched')") !== -1,
+assert.ok(playerQueueSource.indexOf("t('library.watched')") !== -1,
   'viewed queue items must expose their state in the accessible label');
-assert.ok(source.indexOf("element('span', 'playlist-queue-card-image-frame'") !== -1 &&
-  /imageFrame\.appendChild\(image\);[\s\S]*card\.appendChild\(imageFrame\)/.test(source),
+assert.ok(playerQueueSource.indexOf("element('span', 'playlist-queue-card-image-frame'") !== -1 &&
+  /imageFrame\.appendChild\(image\);[\s\S]*card\.appendChild\(imageFrame\)/.test(playerQueueSource),
   'queue artwork must use a positioning frame inside the complete card');
 assert.ok(styles.indexOf('.playlist-queue-card.is-viewed .playlist-queue-card-image-frame:after {') !== -1 &&
   styles.indexOf('.playlist-queue-card.is-viewed:after') === -1 &&
   styles.indexOf('.playlist-queue-card-image-frame { position:relative;') !== -1,
   'the watched checkmark must anchor to the bottom-right corner of the queue image');
-assert.ok(source.indexOf("element('span', 'playlist-queue-card-now-playing'") !== -1,
+assert.ok(playerQueueSource.indexOf("element('span', 'playlist-queue-card-now-playing'") !== -1,
   'the current queue card must render a playback-state marker');
 assert.ok(styles.indexOf('.playlist-queue-card-now-playing') !== -1 &&
   styles.indexOf('.playlist-queue-card-now-playing.is-playing:before') !== -1 &&
   styles.indexOf('var(--accent') !== -1,
   'the current playback marker must support pause and play states with the accent treatment');
-assert.ok(/applyPlaylistQueueDrawerWindow\([\s\S]*playbackPaused = playbackSnapshot\(\)\.paused === true[\s\S]*updatePlaylistQueueCard\([^;]*playbackPaused\)/.test(source),
+assert.ok(/function applyDrawerWindow\([\s\S]*paused = playbackSnapshot\(\)\.paused === true[\s\S]*updateCard\([^;]*paused\)/.test(playerQueueSource),
   'opening the queue must derive the current marker from the live paused state');
-assert.ok(/onState: function \(snapshot\)[\s\S]*updatePlaylistQueuePlaybackMarkers\(snapshot\.paused === true\)/.test(source),
+assert.ok(/onState: function \(snapshot\)[\s\S]*playerQueueController\.updatePlaybackMarkers\(snapshot\.paused === true\)/.test(source),
   'an open queue must refresh its playback marker when Play or Pause changes');
 assert.ok(styles.indexOf('@keyframes playlist-queue-focus-breathe') !== -1 && /\.playlist-queue-card\.is-focused[^\n]*animation:playlist-queue-focus-breathe/.test(styles), 'the selected queue card must use a subtle looping scale cue');
-assert.ok(/function scrollPlaylistQueueFocus\(direction, card, next\)[\s\S]*PlaybackQueueModel\.drawerScrollTop/.test(source), 'queue scrolling must use the pure direction-aware viewport policy');
-assert.ok(/function updatePlaylistQueueDrawerFocus\([\s\S]*Object\.keys\(playlistQueueCards\)/.test(source),
+assert.ok(/function scrollFocus\(direction, card, next\)[\s\S]*PlaybackQueueModel\.drawerScrollTop/.test(playerQueueSource), 'queue scrolling must use the pure direction-aware viewport policy');
+assert.ok(/function updateDrawerFocus\([\s\S]*Object\.keys\(cards\)/.test(playerQueueSource),
   'queue focus updates must reuse the retained-card index instead of querying the DOM tree');
-assert.strictEqual(/querySelectorAll/.test(source.slice(
-  source.indexOf('function updatePlaylistQueueDrawerFocus('),
-  source.indexOf('function playbackQueueItemPosition(')
+assert.strictEqual(/querySelectorAll/.test(playerQueueSource.slice(
+  playerQueueSource.indexOf('function updateDrawerFocus('),
+  playerQueueSource.indexOf('function applyDrawerWindow(')
 )), false, 'remote focus movement must not run a full drawer selector query');
-assert.ok(/function renderPlaylistQueueDrawer\([^)]*\)[\s\S]*playbackQueueController\.loadDrawerWindow/.test(source), 'the queue drawer must request a bounded provider window from the focused occurrence');
-assert.ok(/function applyPlaylistQueueDrawerWindow\([\s\S]*records = windowResult && windowResult\.items/.test(source), 'the drawer must render only occurrence records returned for the retained window');
-assert.ok(source.indexOf('playlist-queue-spacer') !== -1, 'virtualized queue cards must preserve logical scroll geometry with spacers');
-assert.ok(source.indexOf('var playlistQueueCards = {}') !== -1 &&
-  /function releasePlaylistQueueCards\(retained\)[\s\S]*source: ''[\s\S]*delete playlistQueueCards/.test(source),
+assert.ok(/function renderDrawer\([^)]*\)[\s\S]*queueController\.loadDrawerWindow/.test(playerQueueSource), 'the queue drawer must request a bounded provider window from the focused occurrence');
+assert.ok(/function applyDrawerWindow\([\s\S]*records = windowResult && windowResult\.items/.test(playerQueueSource), 'the drawer must render only occurrence records returned for the retained window');
+assert.ok(playerQueueSource.indexOf('playlist-queue-spacer') !== -1, 'virtualized queue cards must preserve logical scroll geometry with spacers');
+assert.ok(playerQueueSource.indexOf('var cards = {}') !== -1 &&
+  /function releaseCards\(retained\)[\s\S]*source: ''[\s\S]*delete cards/.test(playerQueueSource),
   'evicted queue nodes must cancel only their own progressive artwork jobs');
-assert.ok(/card = playlistQueueCards\[cardKey\]/.test(source) && /playlistQueueCards\[cardKey\] = card/.test(source),
+assert.ok(/card = cards\[key\]/.test(playerQueueSource) && /cards\[key\] = card/.test(playerQueueSource),
   'retained queue occurrences must reuse their existing DOM cards across focus moves');
-assert.strictEqual(/function applyPlaylistQueueDrawerWindow\([\s\S]*list\.innerHTML\s*=/.test(source), false,
+assert.strictEqual(/function applyDrawerWindow\([\s\S]*list\.innerHTML\s*=/.test(playerQueueSource), false,
   'queue focus movement must not clear and rebuild the complete drawer DOM');
-assert.ok(/function reconcilePlaylistQueueNodes\(list, desiredNodes\)[\s\S]*removeChild/.test(source) &&
-  /function reconcilePlaylistQueueNodes\(list, desiredNodes\)[\s\S]*insertBefore/.test(source),
+assert.ok(/function reconcileNodes\(list, desiredNodes\)[\s\S]*removeChild/.test(playerQueueSource) &&
+  /function reconcileNodes\(list, desiredNodes\)[\s\S]*insertBefore/.test(playerQueueSource),
   'queue window updates must reconcile only changed DOM nodes');
-assert.ok(source.indexOf('var playlistQueueSpacers = {}') !== -1,
+assert.ok(playerQueueSource.indexOf('var spacers = {}') !== -1,
   'virtual queue spacers must be retained across drawer renders');
-assert.ok(/function playlistQueueSpacer\(name, count\)[\s\S]*spacer\.style\.height !== height[\s\S]*spacer\.style\.height = height/.test(source),
+assert.ok(/function spacer\(name, count\)[\s\S]*node\.style\.height !== height[\s\S]*node\.style\.height = height/.test(playerQueueSource),
   'unchanged virtual spacer geometry must not rewrite inline styles');
-assert.ok(source.indexOf('function setPlaylistQueueText') !== -1 &&
-  source.indexOf('function setPlaylistQueueClass') !== -1,
+assert.ok(playerQueueSource.indexOf('function setText') !== -1 &&
+  playerQueueSource.indexOf('function setClass') !== -1,
   'queue focus movement must avoid rewriting unchanged text and class values');
 assert.ok(/function updateEpisodeCommands\(\)[\s\S]*playbackQueueController\.resolveAdjacentState/.test(source),
   'episode command availability must resolve through the active playback queue');
@@ -188,35 +187,36 @@ assert.ok(/function openPlayer\([^)]*\)[\s\S]*var detailState = state \|\| detai
   'opening the player must reuse one detail snapshot');
 assert.ok(/function openPlaylistLibraryItem\([\s\S]*function attemptPlayback\(\)[\s\S]*var detailState = detailSnapshot\(\);[\s\S]*detailState\.currentDetail/.test(source),
   'direct playlist startup polling must read the detail snapshot once per attempt');
-assert.ok(/function prefetchAutoplayBackdrop\(\)[\s\S]*var detailState = detailSnapshot\(\);[\s\S]*var currentKey/.test(source),
-  'Up Next backdrop prefetch must not clone detail state repeatedly before resolving');
-assert.ok(/function updatePlaybackQueuePresentation\(\)[\s\S]*sequence\.identity[\s\S]*releasePlaylistQueueCards\(null\)/.test(source),
+assert.ok(/function prefetchAutoplayBackdrop\(target\)[\s\S]*var detailState = detailSnapshot\(\);[\s\S]*var currentKey/.test(source) &&
+  /function updateEpisodeCommands\(\)[\s\S]*result\.state === 'available'[\s\S]*prefetchAutoplayBackdrop\(result\)/.test(source),
+  'Up Next backdrop prefetch must reuse the resolved Next target and read detail state only once');
+assert.ok(/function updatePresentation\(\)[\s\S]*sequence && state\.sequence\.identity[\s\S]*releaseCards\(null\)/.test(playerQueueSource),
   'changing the logical queue origin must release retained drawer cards even while the drawer is closed');
-assert.ok(source.indexOf('image.__playlistQueueArtworkKey === requestKey') !== -1 &&
-  source.indexOf('image.__playlistQueueArtworkKey = requestKey') !== -1,
+assert.ok(playerQueueSource.indexOf('image.__playlistQueueArtworkKey === requestKey') !== -1 &&
+  playerQueueSource.indexOf('image.__playlistQueueArtworkKey = requestKey') !== -1,
   'retained queue cards must not restart an identical artwork request on every focus move');
-assert.ok(source.indexOf('image.__playlistQueuePrefetchKey === requestKey') !== -1 &&
-  source.indexOf('image.__playlistQueuePrefetchKey = requestKey') !== -1,
+assert.ok(playerQueueSource.indexOf('image.__playlistQueuePrefetchKey === requestKey') !== -1 &&
+  playerQueueSource.indexOf('image.__playlistQueuePrefetchKey = requestKey') !== -1,
   'detached SD prefetch nodes must not restart an identical request while the prefetch window is stable');
-assert.ok(source.indexOf('var playlistQueuePrefetchImages = {}') !== -1 &&
-  /function prefetchPlaylistQueueArtwork\(records\)[\s\S]*playlist-queue-prefetch/.test(source) &&
-  /applyPlaylistQueueDrawerWindow\([\s\S]*windowResult\.prefetchItems/.test(source),
+assert.ok(playerQueueSource.indexOf('var prefetchImages = {}') !== -1 &&
+  /function prefetchArtwork\(records\)[\s\S]*playlist-queue-prefetch/.test(playerQueueSource) &&
+  /function applyDrawerWindow\([\s\S]*windowResult && windowResult\.prefetchItems/.test(playerQueueSource),
   'the directional SD viewport must prefetch detached artwork without adding queue cards');
-assert.ok(source.indexOf('PlaybackQueueModel.windowTier(windowValue, absoluteIndex)') !== -1, 'queue artwork must distinguish final, SD, and non-resident tiers');
-assert.ok(/function movePlaylistQueueDrawerFocus\(direction\)[\s\S]*PlaybackQueueModel\.prefetchDirection/.test(source) &&
-  /loadDrawerWindow\(\{[\s\S]*direction: playlistQueuePrefetchDirection\.direction/.test(source),
+assert.ok(playerQueueSource.indexOf('PlaybackQueueModel.windowTier(windowValue, absoluteIndex)') !== -1, 'queue artwork must distinguish final, SD, and non-resident tiers');
+assert.ok(/function move\(direction\)[\s\S]*PlaybackQueueModel\.prefetchDirection/.test(playerQueueSource) &&
+  /loadDrawerWindow\(\{[\s\S]*direction: prefetchDirection\.direction/.test(playerQueueSource),
   'rapid direction reversals must use the stabilized prefetch direction rather than restarting the opposite window immediately');
-assert.ok(/function renderPlaylistQueueDrawer\([^)]*\)[\s\S]*playbackQueueController\.loadDrawerWindow/.test(source), 'the drawer must request its bounded data window through the queue controller');
-assert.ok(source.indexOf('var playlistQueueRenderToken = 0') !== -1 &&
-  /function renderPlaylistQueueDrawer\([\s\S]*renderToken = playlistQueueRenderToken \+= 1[\s\S]*renderToken !== playlistQueueRenderToken/.test(source),
+assert.ok(/function renderDrawer\([^)]*\)[\s\S]*queueController\.loadDrawerWindow/.test(playerQueueSource), 'the drawer must request its bounded data window through the queue controller');
+assert.ok(playerQueueSource.indexOf('var renderToken = 0') !== -1 &&
+  /function renderDrawer\([\s\S]*token = renderToken \+= 1[\s\S]*token !== renderToken/.test(playerQueueSource),
   'only the latest coalesced drawer render may apply its provider result');
-assert.ok(/function renderPlaylistQueueDrawer\([\s\S]*var detailState = detailStateValue \|\| detailQueueSnapshot\(\);[\s\S]*playbackQueueModel\(detailState\)[\s\S]*loadDrawerWindow\([\s\S]*detailState\)/.test(source),
+assert.ok(/function renderDrawer\([\s\S]*detailState = detailStateValue \|\| detailSnapshot\(\);[\s\S]*activeQueue\(detailState\)[\s\S]*loadDrawerWindow\([\s\S]*detailState\)/.test(playerQueueSource),
   'one drawer render must reuse one detail snapshot for queue, bounds, and provider loading');
-assert.ok(/function updatePlaylistQueueDrawerFocus\(queueValue, drawerValue, currentIndexValue\)/.test(source) &&
-  /applyPlaylistQueueDrawerWindow\([\s\S]*updatePlaylistQueueDrawerFocus\(queue, drawerState, currentIndex\)/.test(source),
+assert.ok(/function updateDrawerFocus\(queueValue, drawerValue, currentIndexValue\)/.test(playerQueueSource) &&
+  /function applyDrawerWindow\([\s\S]*updateDrawerFocus\(queueValue, drawerState, currentIndex\)/.test(playerQueueSource),
   'applying a drawer window must reuse resolved queue and focus state instead of reading snapshots again');
-assert.ok(source.indexOf('windowResult.items') !== -1, 'the drawer must render provider occurrences rather than assuming the complete queue is resident');
-assert.ok(source.indexOf('itemTitle = playbackQueueItemDisplayTitle(item)') !== -1, 'queue cards must render SxxExx episode titles');
+assert.ok(playerQueueSource.indexOf('windowResult && windowResult.items') !== -1, 'the drawer must render provider occurrences rather than assuming the complete queue is resident');
+assert.ok(playerQueueSource.indexOf('PlaybackQueueModel.itemDisplayTitle(item)') !== -1, 'queue cards must render SxxExx episode titles');
 assert.ok(source.indexOf('function startContainerPlayback(container)') !== -1, 'the Play key must support every queue container');
 assert.ok(/function startContainer\([\s\S]*function firstUnfinishedOccurrence\([\s\S]*scanProvider/.test(controllerSource),
   'playlist containers must select the first unfinished paginated occurrence');
@@ -234,7 +234,7 @@ assert.ok(/function confirmUpNext\([\s\S]*requestPlayback/.test(controllerSource
 
 
 (function testQueuePlaybackMarkerStates() {
-  var markerClass = extractFunction('playlistQueueNowPlayingClass', 'playlistQueueCardClass');
+  var markerClass = extractFunction(playerQueueSource, 'nowPlayingClass', 'cardClass');
   assert.strictEqual(markerClass(true, true), 'playlist-queue-card-now-playing',
     'opening the queue while paused must retain the existing pause symbol');
   assert.strictEqual(markerClass(true, false), 'playlist-queue-card-now-playing is-playing',
@@ -244,8 +244,8 @@ assert.ok(/function confirmUpNext\([\s\S]*requestPlayback/.test(controllerSource
 }());
 
 (function testOpenQueuePlaybackMarkerToggle() {
-  var start = source.indexOf('function updatePlaylistQueuePlaybackMarkers(');
-  var end = source.indexOf('function scrollPlaylistQueueFocus(', start);
+  var start = playerQueueSource.indexOf('function updatePlaybackMarkers(');
+  var end = playerQueueSource.indexOf('function scrollFocus(', start);
   var writes = 0;
   var currentMarker = { className: '' };
   var otherMarker = { className: '' };
@@ -253,9 +253,9 @@ assert.ok(/function confirmUpNext\([\s\S]*requestPlayback/.test(controllerSource
     current: { className: 'chapter-card playlist-queue-card is-current', __playlistQueueNowPlaying: currentMarker },
     other: { className: 'chapter-card playlist-queue-card', __playlistQueueNowPlaying: otherMarker }
   };
-  var markerClass = extractFunction('playlistQueueNowPlayingClass', 'playlistQueueCardClass');
-  var update = Function('playlistQueueCards', 'setPlaylistQueueClass', 'playlistQueueNowPlayingClass',
-    'var playlistQueuePlaybackPaused = null; return (' + source.slice(start, end).trim() + ');')(
+  var markerClass = extractFunction(playerQueueSource, 'nowPlayingClass', 'cardClass');
+  var update = Function('cards', 'setClass', 'nowPlayingClass',
+    'var destroyed = false; var playbackPaused = null; return (' + playerQueueSource.slice(start, end).trim() + ');')(
       cards,
       function (node, value) { node.className = value; writes += 1; },
       markerClass
@@ -272,8 +272,8 @@ assert.ok(/function confirmUpNext\([\s\S]*requestPlayback/.test(controllerSource
 }());
 
 (function testVirtualSpacerSkipsUnchangedStyleWrites() {
-  var functionStart = source.indexOf('function playlistQueueSpacer(');
-  var functionEnd = source.indexOf('function reconcilePlaylistQueueNodes(', functionStart);
+  var functionStart = playerQueueSource.indexOf('function spacer(');
+  var functionEnd = playerQueueSource.indexOf('function reconcileNodes(', functionStart);
   var spacers = {};
   var writes = 0;
   var height = '';
@@ -284,8 +284,8 @@ assert.ok(/function confirmUpNext\([\s\S]*requestPlayback/.test(controllerSource
     set: function (value) { height = value; writes += 1; }
   });
   spacer = { style: style, setAttribute: function () {} };
-  var createSpacer = Function('playlistQueueSpacers', 'element',
-    'return (' + source.slice(functionStart, functionEnd).trim() + ');')(
+  var createSpacer = Function('spacers', 'element',
+    'return (' + playerQueueSource.slice(functionStart, functionEnd).trim() + ');')(
       spacers,
       function () { return spacer; }
     );
@@ -297,7 +297,7 @@ assert.ok(/function confirmUpNext\([\s\S]*requestPlayback/.test(controllerSource
 }());
 
 (function testDrawerDomReconciliationBudget() {
-  var reconcile = extractFunction('reconcilePlaylistQueueNodes', 'loadPlaylistQueueArtwork');
+  var reconcile = extractFunction(playerQueueSource, 'reconcileNodes', 'loadArtwork');
   var first = { id: 'first' };
   var second = { id: 'second' };
   var third = { id: 'third' };

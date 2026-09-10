@@ -50,7 +50,7 @@
 
   function relevantCloudItems(query, items) {
     var terms = SearchText.terms(query);
-    var seen = {};
+    var seen = Object.create(null);
     return (items || []).filter(function (item, index) {
       var title = SearchText.normalize(item && item.title);
       var guid = String(item && item.guid || '');
@@ -64,7 +64,7 @@
   }
 
   function mergeLocalResults(localItems, resolvedItems) {
-    var seen = {};
+    var seen = Object.create(null);
     var result = [];
     (localItems || []).concat(resolvedItems || []).forEach(function (item) {
       var key = String(item && item.ratingKey || '');

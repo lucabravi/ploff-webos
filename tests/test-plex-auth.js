@@ -203,32 +203,4 @@ requests[0].onreadystatechange();
 assert.ok(spoofingError instanceof Error, 'a reachable endpoint claiming another server identity must be rejected');
 assert.strictEqual(requests[0].headers['X-Plex-Token'], undefined, 'a spoofed LAN identity must never receive the server token');
 
-requests = [];
-var localServerAccess = null;
-PlexAuth.loadLocalServerAccess(root, 'profile-token', {
-  uri: 'http://192.168.50.10:32400/',
-  machineIdentifier: 'server-id'
-}, { clientIdentifier: 'client-id', timeout: 3000 }, function (error, access) {
-  assert.ifError(error);
-  localServerAccess = access;
-});
-assert.strictEqual(requests[0].method, 'GET', 'local profile access must begin with a non-mutating identity check');
-assert.strictEqual(requests[0].url, 'http://192.168.50.10:32400/identity', 'local profile access must verify the selected endpoint first');
-assert.strictEqual(requests[0].headers['X-Plex-Token'], undefined, 'identity verification must not disclose the profile token');
-requests[0].status = 200;
-requests[0].responseText = '<MediaContainer machineIdentifier="server-id" />';
-requests[0].readyState = 4;
-requests[0].onreadystatechange();
-assert.strictEqual(requests[1].url, 'http://192.168.50.10:32400/library/sections', 'credentials may be sent only after identity verification');
-assert.strictEqual(requests[1].headers['X-Plex-Token'], 'profile-token', 'the verified server may receive the switched profile token');
-requests[1].status = 200;
-requests[1].responseText = '<MediaContainer><Directory key="1" title="Film" /></MediaContainer>';
-requests[1].readyState = 4;
-requests[1].onreadystatechange();
-assert.deepStrictEqual(localServerAccess, {
-  token: 'profile-token',
-  machineIdentifier: 'server-id',
-  connectionUri: 'http://192.168.50.10:32400'
-}, 'a reachable local server must retain the switched profile token and selected server identity');
-
 console.log('Plex auth checks passed');

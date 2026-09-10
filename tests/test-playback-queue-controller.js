@@ -263,6 +263,19 @@ function createHarness(extra) {
     'paginated drawer loading must not materialize the complete collection in the playback queue');
 }());
 
+(function testClosedVisibleOnlyDrawerWindowDoesNotHydrateTheRetainedSdRange() {
+  var h = createHarness();
+  var playlist = { containerType: 'playlist', containerKey: '/playlists/visible-only/items', title: 'Visible only', totalSize: 200 };
+  var first = { ratingKey: 'm1', type: 'movie', title: 'One' };
+  h.controller.prepareContainer(playlist, [first], first, 0, {});
+  h.setDetail({ currentDetail: first, seriesContext: { playlistQueue: true }, episodeIndex: 0 });
+  h.controller.loadDrawerWindow({ viewportItems: 5, direction: 0, focusIndex: 50, visibleOnly: true }, function () {});
+  assert.strictEqual(h.pageLoads.length, 1,
+    'closed visible-only queue warming must not hydrate extra provider pages from the retained SD drawer window');
+  assert.strictEqual(h.pageLoads[0].start, 40,
+    'visible-only queue warming must request only the provider page intersecting the five visible occurrences');
+}());
+
 (function testPublicSnapshotDoesNotExposeQueueState() {
   var h = createHarness();
   var playlist = { containerType: 'playlist', containerKey: '/playlists/1/items', title: 'Playlist' };
@@ -524,6 +537,33 @@ function createHarness(extra) {
     'all callers waiting for the shared drawer window must receive the result');
   assert.strictEqual(results[0].items[0].item.ratingKey, 'm1');
   assert.strictEqual(results[1].items[0].item.ratingKey, 'm1');
+}());
+
+(function changingSeriesCurrentMustReleasePendingAdjacentState() {
+  var seasons = [{ ratingKey: 's1', index: 1, leafCount: 2 }, { ratingKey: 's2', index: 2, leafCount: 1 }];
+  var s1 = [episode('s1e1', 1, 1), episode('s1e2', 1, 2)];
+  var s2 = [episode('s2e1', 2, 1)];
+  var h = createHarness({ detail: detailFor(s1[1], seasons, s1, 0, 1) });
+  var staleDelivered = 0;
+  var fresh = null;
+
+  h.controller.resolveAdjacentState(1, function () { staleDelivered += 1; });
+  assert.strictEqual(h.seasonLoads.length, 1,
+    'resolving next from the season boundary must leave an adjacent decision pending');
+
+  h.setDetail(detailFor(s1[0], seasons, s1, 0, 0));
+  h.controller.activeQueue();
+  h.controller.resolveAdjacentState(1, function (error, result) {
+    assert.ifError(error);
+    fresh = result;
+  });
+
+  assert.ok(fresh && fresh.state === 'available',
+    'changing the current episode must allow a fresh adjacent decision immediately');
+  assert.strictEqual(fresh.item.ratingKey, 's1e2');
+  h.seasonLoads[0].callback(null, s2);
+  assert.strictEqual(staleDelivered, 0,
+    'the adjacent decision that belonged to the previous episode must remain stale');
 }());
 
 

@@ -68,6 +68,18 @@ function createFixture() {
     delivery: 'direct-play',
     attempts: ['direct-play', 'direct-stream'],
     position: 125,
+    offsetBase: 120,
+    nativeCurrentTime: 5,
+    nativeAbsoluteTime: 125,
+    bufferStartNative: 4,
+    bufferStartPublic: 124,
+    bufferStartOffsetBase: 120,
+    bufferRecoveryAccepted: false,
+    bufferRecoveryReason: 'forward-jump',
+    bufferRecoveryInitialReason: 'native-domain-flip',
+    bufferRecoveryDelta: 9,
+    bufferRecoveryTarget: 124,
+    bufferRecoveryCandidate: 133,
     buffered: [{ start: 120, end: 180 }],
     state: 'playing'
   };
@@ -111,7 +123,8 @@ function createFixture() {
       playbackCompatibility: function () { return { schemaVersion: 3, ruleVersion: 1, formatRuleCount: 2, fileExceptionCount: 3, fileExceptionTtlDays: 30 }; },
       playbackSnapshot: function () { return playback; },
       playbackDiagnostics: function () { return diagnostics; },
-      jsErrors: function () { return [{ type: 'error', message: 'runtime failure' }]; }
+      jsErrors: function () { return [{ type: 'error', message: 'runtime failure' }]; },
+      startupSnapshot: function () { return { bootstrap: 0, compositionReady: 12 }; }
     },
     transport: {
       loadIdentity: function () { calls.push('load-identity'); return null; }
@@ -155,7 +168,35 @@ function createFixture() {
   assert.strictEqual(playback.attempts.join(','), 'direct-play,direct-stream');
   assert.strictEqual(playback.buffered, 'T120-T180');
   assert.strictEqual(playback.duration, 7200);
+  assert.deepStrictEqual({
+    offsetBase: playback.offsetBase,
+    nativeCurrentTime: playback.nativeCurrentTime,
+    nativeAbsoluteTime: playback.nativeAbsoluteTime,
+    bufferStartNative: playback.bufferStartNative,
+    bufferStartPublic: playback.bufferStartPublic,
+    bufferStartOffsetBase: playback.bufferStartOffsetBase,
+    bufferRecoveryAccepted: playback.bufferRecoveryAccepted,
+    bufferRecoveryReason: playback.bufferRecoveryReason,
+    bufferRecoveryInitialReason: playback.bufferRecoveryInitialReason,
+    bufferRecoveryDelta: playback.bufferRecoveryDelta,
+    bufferRecoveryTarget: playback.bufferRecoveryTarget,
+    bufferRecoveryCandidate: playback.bufferRecoveryCandidate
+  }, {
+    offsetBase: 120,
+    nativeCurrentTime: 5,
+    nativeAbsoluteTime: 125,
+    bufferStartNative: 4,
+    bufferStartPublic: 124,
+    bufferStartOffsetBase: 120,
+    bufferRecoveryAccepted: false,
+    bufferRecoveryReason: 'forward-jump',
+    bufferRecoveryInitialReason: 'native-domain-flip',
+    bufferRecoveryDelta: 9,
+    bufferRecoveryTarget: 124,
+    bufferRecoveryCandidate: 133
+  }, 'Diagnostics must carry the bounded buffering-clock allowlist into SupportSnapshot');
   assert.deepStrictEqual(providers.jsErrors(), [{ type: 'error', message: 'runtime failure' }]);
+  assert.deepStrictEqual(providers.startup(), { bootstrap: 0, compositionReady: 12 }, 'feature must expose startup metrics only through DiagnosticsController providers');
 }());
 
 (function ownsLifecycleAndSemanticInput() {

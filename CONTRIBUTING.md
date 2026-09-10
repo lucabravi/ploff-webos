@@ -11,8 +11,8 @@ code must remain dependency-free ES5: no classes, arrow functions, `let`,
 Canonical application code lives in complete ES5 UMD modules under
 `app/coordinator/` plus focused support modules under `app/`. The legacy
 `app/source/` directory must not be reintroduced. Do not edit generated
-`app/app.js` directly. After changing a coordinator module, run
-`npm run build:app`; `npm run verify` rejects a stale bundle and runs the
+`app/app.js` or `app/player.js` directly. After changing a coordinator module,
+Player-manifest source, or runtime loader, run `npm run build:app`; `npm run verify` rejects either stale bundle and runs the
 parser-backed `npm run check:es5` compatibility gate. Development scripts and
 tests may use the repository's supported Node.js syntax; delivered files under
 `app/` and `webos-service/` may not.
@@ -67,10 +67,22 @@ npm run verify
 
 Add or update focused tests whenever behavior changes. Run
 `npm run test:pre-release` before a release and after changing asynchronous
-lifecycle, cancellation, or teardown behavior. Follow the manual TV matrix in
+lifecycle, cancellation, or teardown behavior. Before changing PlaybackController seek,
+buffering, recovery, or subtitle synchronization, read `docs/playback-invariants.md`;
+safe reposition/restore flows must reuse the existing seek path rather than treating
+`PlaybackRecovery.rebuild()` as a generic seek. Follow the manual TV matrix in
 `docs/testing.md` for focus, Back, pointer, wheel, playback, or native media
 changes. Keep commits narrowly scoped and explain user-visible behavior in the
 pull request.
+
+Playback runtime ownership is intentionally split: physical media-element commands belong to
+`NativeVideoDriver`, seek/settlement policy to `PlaybackReposition`, lifecycle state to
+`PlaybackSession`, clock/reporting/keepalive to `PlaybackTimeline`, local subtitle runtime to
+`SubtitleRuntime`, and queue-drawer presentation to `PlayerQueueController`. Do not route around
+those owners or make `PlaybackReposition` depend on `PlaybackRecovery`. The reviewed boundaries are
+enforced by `npm run check:maintainability`. Feature code must consume Plex transport through
+`PlexFeaturePorts`. Changing the shipped `PloffClient` compatibility surface requires an explicit
+update to its focused public-surface test rather than an incidental helper export.
 
 When adding a new persisted data category, extend the local-data deletion path and its
 tests in the same change. Update `PRIVACY.md` and `SECURITY.md` whenever persisted or

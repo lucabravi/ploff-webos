@@ -5,7 +5,7 @@
 - webOS version: <version>
 - Tester: <name>
 - Result: <PASS or FAIL>
-- Matrix SHA-256: f9769612fc4bcd5d2a8c4c5466e48cbbea4b0e8ed0f7c634654ef14ec9211401
+- Matrix SHA-256: b46900c77227125cf325a4d716aa3a50bb01e0ac49249c03edab1131a6085dea
 ## Regression matrix
 
 Copy this file to `docs/release-signoff/v<major>.<minor>.<patch>.md`, replace
@@ -16,15 +16,15 @@ physical run. The repository test keeps this template digest synchronized.
 
 - [ ] 1. Startup, onboarding, server/profile loading, refresh stability, and restart
 - [ ] 2. Home focus, navbar long-press, Search T9, libraries, Watchlist, and playlists
-- [ ] 3. Sorting, filters, virtual cards, empty states, and disabled empty Collections
-- [ ] 4. Detail origins, media mutations, version browser, season bulk actions, theme continuity, and Back restore
-- [ ] 5. Direct Play, Direct Stream, transcode modes, HDR diagnostics, and recovery
-- [ ] 6. Resume, play from beginning, bidirectional/offset seek, rebuild, and recovery
-- [ ] 7. Audio, subtitles, versions, advanced synchronization, and unsupported formats
+- [ ] 3. Sorting, filters, virtual cards, catalog Detail/Back restoration, and disabled empty Collections
+- [ ] 4. Detail origins, contextual watched/progress actions, More Details snap/focus, media mutations, version browser, season bulk actions, theme continuity, and Back restore
+- [ ] 5. Direct Play, sticky Direct Play recovery, Direct Stream, transcode modes, HDR diagnostics, and repeated buffering-clock recovery
+- [ ] 6. Resume, play from beginning, initial-startup seek autoplay, bidirectional/offset seek, timeout/mismatch/terminal sticky retry, buffering pause/seek supersession, rebuild, and recovery
+- [ ] 7. Audio, subtitles through 200%, global renderer confirmations, renderer transitions/seek, paused/no-rebuffer seek presentation gating, late keyframe ASS invalidation, buffering clock parity, local-renderer badge, ASS karaoke, advanced synchronization, and unsupported formats
 - [ ] 8. Playlist/episode queues, drawer content, playing badge, and focus positioning
-- [ ] 9. Up Next resolution/countdown/seek cancellation/re-arm and skip-prompt focus behavior
+- [ ] 9. Up Next resolution/countdown/seek cancellation/re-arm and skip-prompt focus/OK/consumption behavior
 - [ ] 10. Chapters, Previous/Next, Back/Stop, and exact playback-origin restoration
 - [ ] 11. Magic Remote hover, click, wheel, timeline, queue, and long-press behavior
-- [ ] 12. LAN/internet loss and recovery across every active application view
-- [ ] 13. User diagnostics, redaction, state accuracy, and polling teardown
+- [ ] 12. LAN/internet loss, short/long playback interruption, and recovery across every active application view
+- [ ] 13. User diagnostics, buffering-clock evidence, redaction, state accuracy, and polling teardown
 - [ ] 14. Poster sizes, artwork/backdrop quality, overscan, languages, accessibility, and focus visibility
