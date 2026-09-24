@@ -21,7 +21,7 @@
     function loadImage(image, chapter, priority) {
       var size = values.ProgressiveImages.renderedSize(image, 300, 132);
       var preview = values.ProgressiveImages.previewSize(size.width, size.height, 96);
-      values.posterLoader.load(image, { source: chapter.thumb, previewWidth: preview.width, previewHeight: preview.height, width: size.width, height: size.height, priority: priority, scope: 'chapters' });
+      values.posterLoader.load(image, { source: chapter.thumb, previewWidth: preview.width, previewHeight: preview.height, width: size.width, height: size.height, priority: priority, scope: 'chapters', sourceContext: typeof values.sourceContext === 'function' ? values.sourceContext() : null });
     }
     function ensureVisible(card) {
       var list = node('player-chapters-list');
@@ -33,12 +33,15 @@
       if (left < list.scrollLeft) { list.scrollLeft = Math.max(0, left - 5); }
       else if (right > list.scrollLeft + list.clientWidth) { list.scrollLeft = right - list.clientWidth + 5; }
     }
-    function updateFocus(index, open) {
+    function updateFocus(index, open, currentIndex) {
       var cards = documentRef.querySelectorAll('[data-chapter-index]');
       var card;
       var image;
       var item;
-      for (item = 0; item < cards.length; item += 1) { cards[item].className = 'chapter-card' + (open && item === index ? ' is-focused' : ''); }
+      currentIndex = currentIndex === undefined ? null : Number(currentIndex);
+      for (item = 0; item < cards.length; item += 1) {
+        cards[item].className = 'chapter-card' + (open && item === currentIndex ? ' is-current' : '') + (open && item === index ? ' is-focused' : '');
+      }
       card = open && cards[index];
       if (!card) { return; }
       image = card.getElementsByTagName('img')[0];
@@ -70,7 +73,7 @@
       drawer.className = 'player-chapters-drawer'; setOpenClass(true);
       loadImage(images[state.index], chapters[state.index], 0);
       for (index = 0; index < chapters.length; index += 1) { if (index !== state.index) { loadImage(images[index], chapters[index], 1); } }
-      updateFocus(state.index, true);
+      updateFocus(state.index, true, state.currentIndex === undefined ? state.index : state.currentIndex);
     }
     function renderHint(visible, focused) {
       node('player-chapters-hint').className = 'player-chapters-hint' + (!visible ? ' is-hidden' : '') + (visible && focused ? ' is-focused' : '');

@@ -1,6 +1,6 @@
-# Codex TODO — Collect private real Plex fixtures
+# TODO — Collect private real Plex fixtures
 
-This checklist is for an agent with authorized access to the real Plex Media Server.
+This checklist is for a maintainer with authorized access to the real Plex Media Server.
 Its purpose is to collect representative API responses that can later be turned into
 stable regression fixtures for Ploff.
 
@@ -166,7 +166,7 @@ plex-real-fixtures-sanitized/
 ├── multiversion/
 │   └── multiversion.xml
 ├── collections/
-│   └── collection-order.xml
+│   └── code-geass.xml
 ├── playlists/
 │   └── quintessential-quintuplets.xml
 ├── edge/

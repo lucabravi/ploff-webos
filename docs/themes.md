@@ -178,7 +178,7 @@ npm run build:app
 ```
 
 `app/styles.css` and `app/app.js` are generated artifacts and must never be edited by
-hand. Before handing work to another developer or Codex, run:
+hand. Before handing work to another developer, run:
 
 ```sh
 npm run verify

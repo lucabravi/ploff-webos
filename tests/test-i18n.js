@@ -3,6 +3,7 @@
 var assert = require('assert');
 var fs = require('fs');
 var path = require('path');
+var vm = require('vm');
 var I18n = require('../app/i18n');
 
 function loadLocale(locale) {
@@ -41,6 +42,8 @@ assert.strictEqual(I18n.t('it', 'search.typeMore'), 'Inserisci almeno 2 caratter
 assert.strictEqual(I18n.t('en', 'library.catalog'), 'Full Catalog', 'English library catalog label must be available');
 assert.strictEqual(I18n.t('it', 'library.unwatched'), 'Non visti', 'Italian watched filter labels must be available');
 assert.strictEqual(I18n.t('it', 'home.recommended'), 'Consigliati per te', 'the recommended Home row must be localized');
+assert.strictEqual(I18n.t('en', 'home.recentInLibrary', { library: 'Anime' }), 'Recently Added in Anime', 'Home Recently Added row headings must interpolate the library name in English');
+assert.strictEqual(I18n.t('it', 'home.recentInLibrary', { library: 'Anime' }), 'Aggiunti di recente in Anime', 'Home Recently Added row headings must interpolate the library name in Italian');
 assert.strictEqual(I18n.t('en', 'library.recommended'), 'Recommended', 'the per-library recommendation tab must be localized');
 
 assert.strictEqual(I18n.language('it-IT'), 'it', 'Italian regional locales must resolve to Italian');
@@ -54,6 +57,11 @@ assert.strictEqual(I18n.t('ja', 'nav.settings'), '設定', 'Japanese translation
 assert.strictEqual(I18n.t('ko', 'nav.settings'), '설정', 'Korean translations must be available');
 assert.strictEqual(I18n.t('it', 'missing.key'), 'missing.key', 'missing translations must fail visibly but safely');
 assert.strictEqual(I18n.t('it', 'media.episodeCount', { count: 3 }), '3 episodi', 'translations must interpolate values');
+assert.strictEqual(I18n.t('it', 'media.episodeNumber', { number: 7 }), 'Episodio 7', 'recent episode cards must hide titles behind a localized episode-number label');
+assert.strictEqual(I18n.t('en', 'common.unknown'), 'Unknown', 'generic unknown media metadata must be localizable');
+assert.strictEqual(I18n.t('es', 'common.unknown'), 'Desconocido', 'generic unknown media metadata must follow the active locale');
+assert.strictEqual(I18n.t('it', 'media.newEpisodeCount', { count: 3 }), '3 nuovi episodi', 'Italian recent groups must describe newly added episodes');
+assert.strictEqual(I18n.t('en', 'media.newEpisodeCount', { count: 3 }), '3 new episodes', 'English recent groups must describe newly added episodes');
 assert.strictEqual(I18n.t('en', 'settings.wheelBehavior'), 'Wheel action', 'wheel behavior must have portable English copy');
 assert.strictEqual(I18n.t('it', 'settings.wheelItems'), 'Sposta la selezione', 'Italian wheel item mode must use user-friendly copy');
 assert.strictEqual(I18n.t('it', 'settings.backgroundMusic'), 'Musica del tema', 'Italian settings must identify Plex theme music explicitly');
@@ -71,21 +79,32 @@ Object.keys(subtitleOriginLabels).forEach(function (locale) {
   assert.strictEqual(I18n.t(locale, 'settings.preferExternalSubtitles'), subtitleOriginLabels[locale][0], locale + ' external subtitle preference must describe external files');
   assert.strictEqual(I18n.t(locale, 'settings.preferInternalSubtitles'), subtitleOriginLabels[locale][1], locale + ' embedded subtitle preference must use embedded terminology');
 });
-var homeOrderingLabels = {
-  en: 'Home item ordering',
-  it: 'Ordinamento elementi home',
-  es: 'Orden de elementos de Inicio',
-  fr: 'Ordre des éléments d’accueil',
-  de: 'Reihenfolge der Home-Elemente',
-  pt: 'Ordem dos itens da tela inicial',
-  ja: 'ホーム項目の並び順',
-  ko: '홈 항목 순서'
+var homeStateLocales = ['en', 'it', 'es', 'fr', 'de', 'pt', 'ja', 'ko'];
+homeStateLocales.forEach(function (locale) {
+  var homeOrderLabel = I18n.t(locale, 'settings.homeRows');
+  assert.ok(I18n.t(locale, 'state.homeRowsHidden').length > 10, locale + ' hidden Home state must remain informative');
+  assert.ok(I18n.t(locale, 'state.homeRowsUnavailable').length > 10, locale + ' unavailable Home state must remain informative');
+  assert.ok(I18n.t(locale, 'state.homeRowsHidden').indexOf(homeOrderLabel) !== -1, locale + ' hidden Home state must point to Home item order');
+  assert.ok(I18n.t(locale, 'state.homeRowsUnavailable').indexOf(homeOrderLabel) !== -1, locale + ' unavailable Home state must point to Home item order');
+});
+var simplifiedHomeLibraryLabels = {
+  en: ['Navigation bar style', 'Servers & libraries', 'Home item order', 'Name', 'Library name', 'Server name'],
+  it: ['Stile barra di navigazione', 'Server e librerie', 'Ordine elementi Home', 'Nome', 'Nome libreria', 'Nome server'],
+  es: ['Estilo de la barra de navegación', 'Servidores y bibliotecas', 'Orden de elementos de Inicio', 'Nombre', 'Nombre de biblioteca', 'Nombre del servidor'],
+  fr: ['Style de la barre de navigation', 'Serveurs et bibliothèques', 'Ordre des éléments de l’accueil', 'Nom', 'Nom de la bibliothèque', 'Nom du serveur'],
+  de: ['Stil der Navigationsleiste', 'Server und Bibliotheken', 'Reihenfolge der Home-Elemente', 'Name', 'Bibliotheksname', 'Servername'],
+  pt: ['Estilo da barra de navegação', 'Servidores e bibliotecas', 'Ordem dos itens da tela inicial', 'Nome', 'Nome da biblioteca', 'Nome do servidor'],
+  ja: ['ナビゲーションバーのスタイル', 'サーバーとライブラリ', 'ホーム項目の順序', '名前', 'ライブラリ名', 'サーバー名'],
+  ko: ['탐색 모음 스타일', '서버 및 라이브러리', '홈 항목 순서', '이름', '라이브러리 이름', '서버 이름']
 };
-Object.keys(homeOrderingLabels).forEach(function (locale) {
-  var label = homeOrderingLabels[locale];
-  assert.strictEqual(I18n.t(locale, 'settings.homeRows'), label, locale + ' Home ordering setting must use the new navigation label');
-  assert.ok(I18n.t(locale, 'state.homeRowsHidden').indexOf(label) !== -1, locale + ' hidden Home state must reference the renamed settings destination');
-  assert.ok(I18n.t(locale, 'state.homeRowsUnavailable').indexOf(label) !== -1, locale + ' unavailable Home state must reference the renamed settings destination');
+Object.keys(simplifiedHomeLibraryLabels).forEach(function (locale) {
+  var labels = simplifiedHomeLibraryLabels[locale];
+  assert.strictEqual(I18n.t(locale, 'settings.libraryDisplayMode'), labels[0], locale + ' Navigation bar style label must be explicit');
+  assert.strictEqual(I18n.t(locale, 'settings.libraryTabs.title'), labels[1], locale + ' Servers and libraries label must be explicit');
+  assert.strictEqual(I18n.t(locale, 'settings.homeRows'), labels[2], locale + ' Home item order label must be explicit');
+  assert.strictEqual(I18n.t(locale, 'settings.libraryTabs.alias'), labels[3], locale + ' library customization must use Name instead of Alias');
+  assert.strictEqual(I18n.t(locale, 'settings.libraryTabs.aliasTitle'), labels[4], locale + ' library name editor must avoid Alias terminology');
+  assert.strictEqual(I18n.t(locale, 'settings.libraryTabs.serverAliasTitle'), labels[5], locale + ' server name editor must avoid Alias terminology');
 });
 assert.strictEqual(I18n.t('it', 'settings.backup.title'), 'Impostazioni Ploff salvate', 'Italian saved-settings title must describe the stored result rather than the save action');
 assert.strictEqual(I18n.t('it', 'settings.backup.chooseSave'), 'Scegli le impostazioni salvate', 'Italian load flow must consistently refer to saved settings');
@@ -200,6 +219,13 @@ assert.strictEqual(I18n.t('pt', 'media.episodeCount', { count: 2 }), '2 epis\u00
 assert.strictEqual(I18n.t('ko', 'media.episodeCount', { count: 2 }), '에피소드 2개', 'Korean counters must interpolate values');
 assert.strictEqual(I18n.t('en', 'status.opening', { title: 'Example' }), 'Opening Example', 'fallback actions must not leak a fixed UI language');
 assert.strictEqual(I18n.t('it', 'nav.main'), 'Navigazione principale', 'navigation accessibility labels must be localized');
+assert.strictEqual(I18n.t('it', 'settings.sectionMultiServer'), 'Multi-Server', 'cross-server controls must expose the Italian Multi-Server subsection title');
+assert.strictEqual(I18n.t('it', 'settings.aggregateLibraries'), 'Unisci tab di librerie omonime', 'Italian library merge copy must describe the visible tabs');
+assert.strictEqual(I18n.t('it', 'settings.aggregateLibrariesDescription'), 'Mostra come un unico tab le librerie con lo stesso nome e tipo presenti su server Plex diversi, unendone i contenuti.');
+assert.strictEqual(I18n.t('it', 'settings.aggregateHomeLibraries'), 'Unisci librerie omonime nella Home', 'Italian Home merge copy must describe the whole Home-library behavior');
+assert.strictEqual(I18n.t('it', 'settings.aggregateHomeLibrariesDescription'), 'Combina nella Home le librerie con lo stesso nome e tipo presenti su server Plex diversi e semplifica i relativi badge di provenienza.');
+assert.strictEqual(I18n.t('it', 'settings.libraryTabs.disableServer'), 'Disabilita', 'server actions must use the requested concise Italian Disable copy');
+assert.strictEqual(I18n.t('it', 'settings.libraryTabs.enableServer'), 'Abilita', 'disabled servers must expose a matching Enable action');
 assert.strictEqual(I18n.t('en', 'player.timeline'), 'Playback position', 'timeline accessibility labels must be localized');
 assert.strictEqual(I18n.t('es', 'library.continue'), 'Seguir viendo', 'Spanish must localize the primary library navigation');
 assert.strictEqual(I18n.t('fr', 'player.chapters'), 'Chapitres', 'French must localize chapter navigation');
@@ -207,9 +233,28 @@ assert.strictEqual(I18n.t('de', 'settings.interfaceLanguage'), 'Sprache der Ober
 assert.strictEqual(I18n.t('pt-BR', 'player.skipIntro'), 'Pular introdu\u00e7\u00e3o', 'Brazilian Portuguese must localize player actions');
 assert.strictEqual(I18n.languageName('fr', 'pt'), 'Portugais (Br\u00e9sil)', 'language names must follow the active interface locale');
 assert.deepStrictEqual(I18n.supportedLanguages().sort(), ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt'], 'the locale registry must expose every selectable UI language');
+assert.strictEqual(typeof I18n.has, 'function', 'the locale registry must expose registration checks for lazy production locales');
+assert.strictEqual(I18n.has('it'), true, 'CommonJS development registry must report registered locales');
+
+(function browserRegistryKeepsCanonicalLanguagesWithoutPreloadedDictionaries() {
+  var source = fs.readFileSync(path.join(__dirname, '..', 'app', 'i18n.js'), 'utf8');
+  var context = {};
+  vm.runInNewContext(source, context, { filename: 'i18n.js' });
+  assert.strictEqual(context.PloffI18n.supportedLanguages().slice().sort().join(','), 'de,en,es,fr,it,ja,ko,pt',
+    'browser registry must expose every selectable language before any lazy locale file registers');
+  assert.strictEqual(context.PloffI18n.has('it'), false, 'browser registry must distinguish supported languages from dictionaries loaded so far');
+  assert.strictEqual(context.PloffI18n.nativeLanguageName('en'), 'English', 'lazy production registry must know the English native name before loading its dictionary');
+  assert.strictEqual(context.PloffI18n.nativeLanguageName('it'), 'Italiano', 'lazy production registry must know the Italian native name before loading its dictionary');
+  assert.strictEqual(context.PloffI18n.nativeLanguageName('ja'), '日本語', 'lazy production registry must know the Japanese native name before loading its dictionary');
+  assert.strictEqual(context.PloffI18n.nativeLanguageName('ko'), '한국어', 'lazy production registry must know the Korean native name before loading its dictionary');
+}());
 var indexHtml = fs.readFileSync(path.join(__dirname, '..', 'app', 'index.html'), 'utf8');
+assert.ok(indexHtml.indexOf('locale-bootstrap.js?v=dev') !== -1, 'the TV shell must select its startup locale');
 I18n.supportedLanguages().forEach(function (locale) {
-  assert.ok(indexHtml.indexOf('locales/' + locale + '.js?v=dev') !== -1, locale + ' locale must be loaded by the TV shell');
+  var localePath = path.join(__dirname, '..', 'app', 'locales', locale + '.js');
+  assert.ok(fs.statSync(localePath).size > 0, locale + ' must remain loadable when selected');
+  assert.strictEqual(indexHtml.indexOf('locales/' + locale + '.js?v=dev'), -1,
+    locale + ' must not be loaded before it is selected');
 });
 
 console.log('i18n checks passed');

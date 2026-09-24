@@ -141,7 +141,6 @@
     dynamicRange: dynamicRange,
     next: next,
     plan: plan,
-    selectedVersion: selectedVersion,
     supportsDynamicRange: supportsDynamicRange
   };
 }));

@@ -146,7 +146,6 @@ function harness(overrides) {
   var overlays = [];
   var errors = [];
   var metadataCalls = [];
-  var adjacentStarted = [];
   var closed = [];
   var directFallbacks = [];
   var openings = 0;
@@ -215,6 +214,7 @@ function harness(overrides) {
     NativeVideoDriver: NativeVideoDriver,
     PlaybackReposition: PlaybackReposition,
     PlaybackSession: PlaybackSession,
+    PlaybackOperation: require('../../app/playback-operation'),
     PlaybackTimeline: PlaybackTimeline,
     PlaybackStrategy: PlaybackStrategy,
     compatibilityMemory: overrides.compatibilityMemory,
@@ -250,8 +250,6 @@ function harness(overrides) {
     resolveVersionTracks: overrides.resolveVersionTracks || function () { return null; },
     subtitleIdentity: function () { return 'server'; },
     translate: function (key) { return 'translated:' + key; },
-    resolveAdjacent: overrides.resolveAdjacent,
-    onAdjacentStarted: function (target) { adjacentStarted.push(target); },
     onClosed: function (position, reported, ratingKey) { closed.push({ position: position, reported: reported, ratingKey: ratingKey }); },
     onEnded: function () { ended += 1; }
   };
@@ -271,7 +269,6 @@ function harness(overrides) {
     overlays: overlays,
     errors: errors,
     metadataCalls: metadataCalls,
-    adjacentStarted: adjacentStarted,
     directFallbacks: directFallbacks,
     openings: function () { return openings; },
     playbackLoads: function () { return playbackLoads; },

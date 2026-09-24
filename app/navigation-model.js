@@ -9,27 +9,7 @@
   'use strict';
 
   var STORAGE_KEY = 'ploff.libraryOrder.v1';
-
-  function libraryKeys(items) {
-    return (items || []).filter(function (item) { return item.kind === 'library' && item.key; })
-      .map(function (item) { return String(item.key); });
-  }
-
-  function applyLibraryOrder(items, keys) {
-    var order = Object.prototype.toString.call(keys) === '[object Array]' ? keys.map(String) : [];
-    var libraries = (items || []).filter(function (item) { return item.kind === 'library'; });
-    var originalOrder = libraryKeys(libraries);
-    var fixedBefore = (items || []).filter(function (item) { return item.kind === 'home'; });
-    var fixedAfter = (items || []).filter(function (item) { return item.kind !== 'home' && item.kind !== 'library'; });
-    libraries.sort(function (left, right) {
-      var leftIndex = order.indexOf(String(left.key));
-      var rightIndex = order.indexOf(String(right.key));
-      if (leftIndex < 0) { leftIndex = order.length; }
-      if (rightIndex < 0) { rightIndex = order.length; }
-      return leftIndex - rightIndex || originalOrder.indexOf(String(left.key)) - originalOrder.indexOf(String(right.key));
-    });
-    return fixedBefore.concat(libraries, fixedAfter);
-  }
+  var PREVIEW_DELAY_MS = 200;
 
   function moveLibrary(items, index, direction) {
     var result = (items || []).slice();
@@ -93,10 +73,9 @@
   }
 
   return {
+    PREVIEW_DELAY_MS: PREVIEW_DELAY_MS,
     STORAGE_KEY: STORAGE_KEY,
-    applyLibraryOrder: applyLibraryOrder,
     createPreviewScheduler: createPreviewScheduler,
-    libraryKeys: libraryKeys,
     load: load,
     moveLibrary: moveLibrary,
     restoreVisibleIndex: restoreVisibleIndex,

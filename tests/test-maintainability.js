@@ -175,6 +175,100 @@ function rules(result) {
     'decomposed input routers must not silently regrow into monoliths');
 }());
 
+(function onlyTheResolverMayConsumeVariantProjection() {
+  [
+    'MultiServerMedia.selectSourceVariant(item, machine);',
+    "var project = media['selectSourceVariant']; project(item, machine);"
+  ].forEach(function (source) {
+    assert.ok(rules(Maintainability.analyzeSource(source, 'detail-feature-controller.js')).indexOf('media-source-resolution-owner') >= 0,
+      'a feature must not independently project variants, including through an alias');
+    assert.strictEqual(rules(Maintainability.analyzeSource(source, 'media-source-resolver.js')).indexOf('media-source-resolution-owner'), -1);
+  });
+}());
+
+(function removedFallbackOwnersCannotReturnSilently() {
+  ['routeableSourceVariant', 'routeableMediaTarget', 'routeableQueueItem', 'itemForSourceVariant',
+    'preferredSourceItem', 'preferredSourceUnavailable', 'availableSourceItems', 'sourceFallbackRequired', 'sourceVariantItem'].forEach(function (name) {
+    var source = 'function ' + name + '(item) { return item; }';
+    assert.ok(rules(Maintainability.analyzeSource(source, 'player-feature-controller.js')).indexOf('media-source-resolution-owner') >= 0,
+      'the old private picker must not return: ' + name);
+  });
+}());
+
+(function retiredRuntimeApisCannotReturnSilently() {
+  [
+    ['playback-controller.js', 'startAdjacent'],
+    ['playback-queue-controller.js', 'resolveAdjacent'],
+    ['progressive-images.js', 'deferNavigationLoads'],
+    ['library-sources-controller.js', 'sourceIdForMedia'],
+    ['ass-subtitle-prefetch.js', 'peek']
+  ].forEach(function (entry) {
+    var source = 'function ' + entry[1] + '() { return true; }';
+    assert.ok(rules(Maintainability.analyzeSource(source, entry[0])).indexOf('retired-runtime-api') >= 0,
+      'retired runtime API must stay removed: ' + entry[0] + '#' + entry[1]);
+  });
+}());
+
+(function retiredRuntimeExportsCannotReturnSilently() {
+  var source = [
+    "(function (root, factory) {",
+    "  if (typeof module === 'object' && module.exports) { module.exports = factory(); }",
+    "  else { root.PloffDeviceLocale = factory(); }",
+    "}(this, function () {",
+    "  function primaryLanguage(value) { return value; }",
+    "  function detect() { return primaryLanguage('en'); }",
+    "  return { detect: detect, primaryLanguage: primaryLanguage };",
+    "}));"
+  ].join('\n');
+  var result = Maintainability.analyzeSource(source, 'device-locale.js');
+  assert.ok(rules(result).indexOf('retired-runtime-export') >= 0,
+    'retired module export must stay private: device-locale.js#primaryLanguage');
+  assert.strictEqual(rules(Maintainability.analyzeSource(
+    "function primaryLanguage(value) { return value; }", 'device-locale.js')).indexOf('retired-runtime-export'), -1,
+    'the internal helper remains legal when it is not re-exported');
+}());
+
+(function retiredInstanceExportsCannotReturnSilently() {
+  var source = [
+    "(function (root, factory) {",
+    "  if (typeof module === 'object' && module.exports) { module.exports = factory(); }",
+    "  else { root.PloffLibraryController = factory(); }",
+    "}(this, function () {",
+    "  function create() {",
+    "    function putCached() { return true; }",
+    "    function refresh() { return putCached(); }",
+    "    return { putCached: putCached, refresh: refresh };",
+    "  }",
+    "  return { create: create };",
+    "}));"
+  ].join('\n');
+  var result = Maintainability.analyzeSource(source, 'library-controller.js');
+  assert.ok(rules(result).indexOf('retired-instance-export') >= 0,
+    'retired controller instance export must stay private: library-controller.js#putCached');
+}());
+
+(function retiredRuntimeFilesCannotReturnSilently() {
+  var fs = require('fs');
+  var os = require('os');
+  var root = fs.mkdtempSync(path.join(os.tmpdir(), 'ploff-retired-runtime-'));
+  var app = path.join(root, 'app');
+  var coordinator = path.join(app, 'coordinator');
+  fs.mkdirSync(app);
+  fs.mkdirSync(coordinator);
+  fs.writeFileSync(path.join(app, 'episode-navigation.js'), "(function () { 'use strict'; }());\n");
+  assert.ok(rules({ issues: Maintainability.checkProject(root).issues }).indexOf('retired-runtime-file') >= 0,
+    'retired runtime file must stay removed: episode-navigation.js');
+  fs.rmSync(root, { recursive: true, force: true });
+}());
+
+(function concreteRoutingAndPureProjectionRemainSeparateLegalBoundaries() {
+  var projection = 'function selectSourceVariant(item, machine) { return item; }';
+  assert.strictEqual(rules(Maintainability.analyzeSource(projection, 'multi-server-media.js')).indexOf('media-source-resolution-owner'), -1);
+  assert.ok(rules(Maintainability.analyzeSource(projection, 'player-feature-controller.js')).indexOf('media-source-resolution-owner') >= 0);
+  assert.strictEqual(rules(Maintainability.analyzeSource('sourceRouter.routeFor(concreteItem, context); sourceResolver.resolve(item);', 'detail-feature-controller.js')).indexOf('media-source-resolution-owner'), -1);
+  assert.strictEqual(rules(Maintainability.analyzeSource('// MultiServerMedia.selectSourceVariant is documented, not consumed', 'detail-feature-controller.js')).indexOf('media-source-resolution-owner'), -1);
+}());
+
 (function currentProjectSatisfiesMaintainabilityBoundaries() {
   var root = path.join(__dirname, '..');
   var result = Maintainability.checkProject(root);

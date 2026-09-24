@@ -80,10 +80,22 @@ keeps ASS/SSA runtime/worker assets separate from the production core bundle, re
 reduction below 75%, and rejects an aggregate startup-gzip increase above 5%. On legacy TVs the
 separate worker may be initialized at runtime by `startup-metrics.js` only when global local ASS/SSA
 rendering is enabled; with ASS disabled startup worker/prewarm must be skipped. It is not folded into
-`core.js`. After the September 6 Player split, the production-bundle test reports
-105 -> 4 local startup scripts and 401,913 -> 331,782 aggregate initial gzip bytes.
+`core.js`. Production locale staging also keeps all eight locale assets available while removing them
+from `core.js`, requires `locale-bootstrap.js` between Core and `app.js`, and fails staging if any lazy
+locale asset is missing. On the September 16 checkpoint the static production shell reports
+113 -> 5 startup scripts and about 473 KB -> 335 KB aggregate gzip; adding the synchronously selected
+Italian locale produces about 345 KB effective startup gzip while removing roughly 232 KB of raw
+JavaScript from the initial parse path compared with the previous all-locales Core.
 `player.js` remains separate, unchanged, required, and absent from static startup.
 The deferred asset inherits the same content cache key as `app.js`.
+
+`tests/test-locale-bootstrap.js` covers persisted/device language resolution, including corrupt, missing,
+unsupported and newer-schema settings records, synchronous production bootstrap, runtime locale
+deduplication and failures. `tests/test-setup-feature-locale-refresh.js` and the Settings controller tests
+verify that lazy locale arrivals refresh only the still-current language, preserve onboarding stage/focus,
+retranslate global static UI, and load the locale selected by restored backup settings;
+`tests/test-i18n.js` verifies that supported languages and native names remain available before a
+dictionary is loaded.
 
 Focused Settings-backup lifecycle coverage is in
 `tests/test-settings-backup-interaction.js` and `tests/test-settings-backup-lifecycle.js`;
@@ -255,11 +267,13 @@ The initial JavaScript reduction is about 21%; it does not establish smoother TV
 navigation or improved playback latency.
 
 Physical LG acceptance remains pending: compare the same baseline and new package
-for `bootstrap -> first-focusable-ui`, navigation during the one-second Player warm,
-ASS warm/first-frame timing with local ASS both on and off, first Play before warm,
-playlist/collection/extras entry, resume and Back, and the existing complete Player
-matrix. Record code-ready and feature-ready separately. No physical release-signoff
-checkbox or retained TV evidence is changed by these automated results.
+for `bootstrap -> first-focusable-ui`, immediate Home navigation while visible/near SD artwork
+settles, off-screen Home SD preparation, first entry into prefetched adjacent libraries, and
+aggressive off-screen artwork resumption after the final heavy warm owner clears. Also verify
+ASS warm/first-frame timing with local ASS both on and off, first Play before Player warm,
+playlist/collection/extras entry, resume and Back, and the existing complete Player matrix.
+Record code-ready and feature-ready separately. No physical release-signoff checkbox or
+retained TV evidence is changed by these automated results.
 
 ## Persisted-state and lifecycle regression tests
 
@@ -296,7 +310,7 @@ The generated-artifact checks are also lifecycle guards: `npm run check:styles` 
 Theme regression coverage is registry-driven. `tests/test-theme-registry.js` freezes the
 registered IDs and Settings acceptance; `tests/test-theme-styles.js` validates every registered
 stylesheet, required semantic tokens, selector scoping, generated order, single-stylesheet runtime,
-and script ordering. The shipped set is `classic`, `immersive`, `premiere`, `nova`, and `atelier`;
+and script ordering. The shipped set is `immersive`, `premiere`, `aurora`, `mahogany`, `atelier`, `nova`, and `classic`;
 adding another theme must update the registry expectations and keep all theme contracts green.
 
 ## Full Library catalog benchmark
@@ -385,7 +399,9 @@ configuration, browser storage, or webOS application data:
    address entry.
 6. Complete offline setup and play from a trusted unauthenticated LAN server.
 7. Reset again, link at `plex.tv/link`, select a Plex Home profile, and verify a
-   LAN or account-provided remote/Relay server.
+   LAN or account-provided remote/Relay server. On that first sign-in, confirm any
+   enabled secondary/shared libraries become available without a restart and are not
+   falsely labelled Offline when another verified route to their PMS is reachable.
 8. Restart the TV and confirm the selected server and profile are restored.
 9. Temporarily remove internet while leaving the LAN server available; cached
    profiles and local playback must continue to work.
@@ -398,9 +414,11 @@ against another user's server or media state.
 
 Before a release, verify these cases on a target webOS TV:
 
-1. Complete startup and onboarding through discovery and manual setup; select a
-   server and profile, confirm the loading cue remains visible while refreshing,
-   unchanged profiles do not flash, and the selected server/profile survives restart.
+1. Complete startup and onboarding through discovery and manual setup; choose a
+   non-default interface language and confirm the very next setup step adopts it as
+   soon as its translations are available. Select a server and profile, confirm the
+   loading cue remains visible while refreshing, unchanged profiles do not flash, and
+   the selected server/profile survives restart.
 2. Exercise Home focus restoration, navbar navigation and long-press/reorder, Search
    T9, every library tab, Watchlist, collections, and playlists. A completed item that
    leaves Continue Watching must not focus a duplicate in another row.
@@ -556,6 +574,11 @@ Before a release, verify these cases on a target webOS TV:
     and 100%; backdrop quality at 50%, 85%, and 100%; overscan; requested artwork
     resolution; every supported interface language; player accessibility labels; empty/error states; and focus
     visibility with both remote and pointer input.
+15. With at least two linked Plex Media Servers, run the multi-server connectivity and aggregation
+    drill below. Confirm Local/Direct/Relay route priority, progressive Home and Search when a
+    secondary server is slow or unavailable, separate and merged library/Home modes, alternate
+    media copies in Detail/Player, correct server ownership for artwork and media actions, and
+    safe disable/re-enable behavior without losing saved presentation preferences.
 
 The `1920x1080` manifest resolution is the application UI canvas. On UHD TVs,
 webOS can still decode a 3840x2160 video surface; actual Direct Play and HDR
@@ -678,11 +701,13 @@ official-release gate.
 
 ## Update-check regression
 
-Verify that Home becomes usable before any release request starts. A successful
-Home render may trigger one lazy GitHub Releases check, while a cached attempt
-newer than 24 hours must suppress network work. Test current, available, offline,
-error, manual-refresh supersession, and stale callback rejection. On a physical
-legacy TV, confirm the request remains non-blocking and the QR code is readable.
+Verify that Home becomes usable without starting a GitHub release request. The
+first Settings entry in an application session may trigger one lazy GitHub
+Releases check, while later Settings entries in the same session must not repeat
+the automatic trigger and a cached attempt newer than 24 hours must suppress
+network work. Test current, available, offline, error, manual-refresh
+supersession, and stale callback rejection. On a physical legacy TV, confirm the
+request remains non-blocking and the QR code is readable.
 Scan it with a phone and verify that it opens a local mail draft whose report
 contains the application version, LAN/internet state, failed media's file,
 Direct Play/Direct Stream/transcoding mode, video details, selected
@@ -725,6 +750,30 @@ retained callbacks, late binding, setup/send/close failures, and concurrent requ
 The source and packaging checks in `test-discovery-service.js` remain enabled.
 `test-gdm-parser.js` checks integer port validity, bounds, default port, and address
 requirements. Physical-TV GDM discovery is still part of the release matrix.
+
+## Multi-server connectivity and aggregation drill
+
+This drill supplements the release matrix when multi-server routing or aggregation
+changes. Use at least two PMS instances when possible and record which endpoint class
+was actually selected.
+
+1. Expose local, direct, and Relay routes for one linked PMS with deliberately
+   different response delays. Selecting the server must probe them concurrently but
+   settle on local when local succeeds, direct when local fails, and Relay only when
+   both higher-quality classes fail. `/identity` probes must remain unauthenticated.
+2. Make one secondary PMS slow or unavailable while another remains healthy. Primary
+   Home must render first, secondary discovery must start as soon as primary navigation is available, healthy secondary Home rows must appear progressively, and Search must retain successful results without waiting for or being erased by the failing source. If Continue Watching is already visible, later secondary items must extend that row without moving focus back to it.
+3. With matching libraries on two servers, verify the default separate tabs, then
+   enable **Merge matching library tabs** and confirm one virtual tab contains the
+   union without losing alternate source/version selection in Detail and Player. Repeat with the primary library already open while the secondary PMS is still being discovered: its contents must join the active library without leaving and reopening the tab.
+4. Verify matching libraries keep separate Recently Added rows and `<library> · <server>`
+   Home badges by default. Then enable **Merge matching libraries on Home** and confirm
+   matching Recently Added rows combine while homonymous Continue Watching/Recommended
+   badges omit the server suffix. Continue Watching/Recommended remain cross-server in
+   both modes.
+5. Disable one server while Home, Detail, or the queue is already open. New global
+   content must stop using it, stale actions must fail or rebase safely, and re-enable
+   must restore its stored aliases/order and preferred media source where still valid.
 
 ## HLS player clock regression and device acceptance (2026-09-06)
 

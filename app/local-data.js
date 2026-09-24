@@ -26,5 +26,5 @@
     return removed;
   }
 
-  return { PREFIX: PREFIX, clear: clear };
+  return { clear: clear };
 }));

@@ -50,6 +50,28 @@ function mediaDocument() {
   };
 }
 
+function seasonDocument() {
+  var first = element('Video', { ratingKey: '101', type: 'episode', parentIndex: '1', index: '1', title: 'One' }, [
+    element('Media', { container: 'mkv', videoResolution: '1080' }, [
+      element('Part', { id: 'part-101', file: '/media/one.mkv', size: '1000' }, [])
+    ])
+  ]);
+  var second = element('Video', { ratingKey: '102', type: 'episode', parentIndex: '1', index: '2', title: 'Two' }, [
+    element('Media', { container: 'mp4', videoResolution: '720' }, [
+      element('Part', { id: 'part-102', file: '/media/two.mp4', size: '2000' }, [])
+    ])
+  ]);
+  var root = element('MediaContainer', {}, [first, second]);
+  return {
+    documentElement: root,
+    getElementsByTagName: function (name) {
+      if (name === 'parsererror') { return []; }
+      if (name === 'Video') { return [first, second]; }
+      return root.getElementsByTagName(name);
+    }
+  };
+}
+
 var previousDomParser = global.DOMParser;
 var previousXhr = global.XMLHttpRequest;
 var requests = [];
@@ -134,6 +156,24 @@ requests[4].responseText = '';
 requests[4].onreadystatechange();
 assert.ok(selectionError, 'stream-selection failure must fail loadPlayback instead of starting playback with stale Plex tracks');
 assert.strictEqual(selectionPlayback, null, 'failed stream selection must not publish a ready playback object');
+
+global.DOMParser = function () {
+  this.parseFromString = function () { return seasonDocument(); };
+};
+var seasonEpisodes = null;
+PlexClient.loadSeasonEpisodes({ apiBaseUrl: '/plex-api', token: '' }, 'season-1', '', function (error, value) {
+  assert.ifError(error);
+  seasonEpisodes = value;
+});
+requests[5].status = 200;
+requests[5].readyState = 4;
+requests[5].responseText = '<xml/>';
+requests[5].onreadystatechange();
+assert.strictEqual(seasonEpisodes.length, 2);
+assert.strictEqual(seasonEpisodes[0].mediaProfile.container, 'MKV',
+  'season children must retain the lightweight Media/Part profile already returned by Plex');
+assert.strictEqual(seasonEpisodes[1].mediaProfile.versions.length, 1,
+  'each episode in a batch season response must retain its own version list');
 
 global.DOMParser = previousDomParser;
 global.XMLHttpRequest = previousXhr;

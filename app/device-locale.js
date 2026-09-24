@@ -49,5 +49,5 @@
     } catch (error) { done(''); }
   }
 
-  return { detect: detect, primaryLanguage: primaryLanguage };
+  return { detect: detect };
 }));

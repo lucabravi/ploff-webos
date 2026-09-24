@@ -6,7 +6,7 @@ var SettingsSchema = require('../app/settings-schema');
 var settings = {
   highContrast: false, strongFocus: false, safeAreaTop: 0, safeAreaRight: 0, safeAreaBottom: 0, safeAreaLeft: 0, subtitleBackground: 'off', subtitlePosition: 7, subtitleEdge: 'shadow',
   uiLanguage: 'en', visualTheme: 'classic', wheelBehavior: 'items', cardScale: 100, uiTextScale: 115, artworkQuality: 80, backdropQuality: 60, artworkDataSaver: true, accentColor: 'cyan', searchT9Input: false,
-  showWatchlist: true, showPlaylists: false, homeRows: ['recent', 'continue'], backgroundMusic: false, backgroundVolume: 20, backgroundDelay: 500,
+  showWatchlist: true, showPlaylists: false, homeRows: ['recent', 'continue'], aggregateHomeLibraries: false, aggregateLibraries: false, backgroundMusic: false, backgroundVolume: 20, backgroundDelay: 500,
   lanVideoQuality: 'original', remoteVideoQuality: '8000', playbackMode: 'auto',
   videoVersionPriorities: ['resolution', 'hdr', 'quality', 'directPlay'], autoplayDelay: 5, upNextLayout: 'compact',
   skipPromptDuration: 5, audioLanguages: ['eng'], subtitleLanguages: ['ita'], subtitleSuppressedForAudio: [], subtitleMode: 'always', subtitleSourcePreference: 'external', subtitleRenderingSrt: false, subtitleRenderingAss: false
@@ -39,13 +39,14 @@ assert.strictEqual(catalogSnapshot.versionRow.key, 'appVersion', 'catalog snapsh
 assert.strictEqual(catalogSnapshot.categories, categories, 'catalog categories must be reused from the single snapshot');
 
 assert.deepStrictEqual(categories.map(function (category) { return category.id; }), [
-  'plex', 'navigation', 'appearance', 'accessibility', 'playback', 'languages', 'data'
-], 'settings root must expose the approved seven TV-first categories');
+  'plex', 'homeLibraries', 'navigation', 'appearance', 'accessibility', 'playback', 'languages', 'data'
+], 'settings root must expose Plex followed by the dedicated Home & libraries category');
 assert.deepStrictEqual(categories.map(function (category) {
   return category.rows.map(function (row) { return row.key; });
 }), [
-  ['plexServer', 'plexProfile', 'networkStatus', 'disconnectPlex'],
-  ['uiLanguage', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists', 'homeRows'],
+  ['plexServer', 'plexProfile', 'networkStatus', 'plexAccountAction'],
+  ['libraryDisplayMode', 'homeRows', 'libraryTabs', 'aggregateLibraries', 'aggregateHomeLibraries'],
+  ['uiLanguage', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists'],
   ['visualTheme', 'accentColor', 'cardScale', 'artworkDataSaver', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'backgroundMusic', 'backgroundVolume', 'backgroundDelay'],
   ['uiTextScale', 'highContrast', 'strongFocus', 'safeAreaCalibration'],
   ['lanVideoQuality', 'remoteVideoQuality', 'playbackMode', 'videoVersionPriorities', 'playbackCompatibility', 'autoplayDelay', 'upNextLayout', 'skipPromptDuration'],
@@ -72,14 +73,36 @@ rows.filter(function (row) { return row.key !== 'appVersion'; }).forEach(functio
 });
 assert.strictEqual(categoryKeyCount, rows.length - 1, 'categories must cover every non-version setting exactly once');
 
-assert.strictEqual(rows[0].key, 'plexServer', 'Plex server must remain the first setting');
-assert.strictEqual(rows[1].key, 'plexProfile', 'Plex profile must remain next to the server picker');
+assert.strictEqual(categories[0].id, 'plex', 'Plex must remain the first Settings category');
+assert.strictEqual(categories[1].id, 'homeLibraries', 'Home & libraries must sit immediately below Plex');
+assert.strictEqual(categories[1].rows[0].label, 'settings.libraryDisplayMode', 'Navigation bar must be the first Home & libraries setting');
+assert.strictEqual(categories[1].rows[1].label, 'settings.homeRowsAction', 'Home item ordering must use an explicit action label');
+assert.strictEqual(categories[1].rows[2].label, 'settings.libraryTabs.manage', 'Server and library management must use an explicit action label');
+assert.deepStrictEqual(categories[1].rows.map(function (row) { return row.key; }), ['libraryDisplayMode', 'homeRows', 'libraryTabs', 'aggregateLibraries', 'aggregateHomeLibraries'], 'Home & libraries must include the two Multi-Server merge controls after the regular Home and library settings');
+assert.strictEqual(categories.some(function (category) { return category.id === 'multiServer'; }), false, 'Multi-Server must be a subsection instead of a root Settings category');
+assert.strictEqual(categories[1].rows[3].subsectionTitle, 'settings.sectionMultiServer', 'the first cross-server setting must introduce the Multi-Server subsection');
+assert.strictEqual(categories[1].rows[3].subsectionSpacer, true, 'the Multi-Server subsection must be visually separated by one blank row');
+assert.strictEqual(categories[1].rows[3].description, 'settings.aggregateLibrariesDescription', 'library merge must explain its visible tab behavior');
+assert.strictEqual(categories[1].rows[4].description, 'settings.aggregateHomeLibrariesDescription', 'Home merge must explain its cross-server Home library behavior');
+assert.strictEqual(catalogSnapshot.byKey.libraryTabs.libraryTabsEditor, true, 'Libraries must open its dedicated editor');
+assert.strictEqual(catalogSnapshot.byKey.homeRecentLibraries, undefined, 'Recently Added must be absorbed by Home item ordering instead of remaining a root setting');
+assert.strictEqual(catalogSnapshot.byKey.aggregateLibraries.value, 'settings.disabled', 'library aggregation must default to disabled');
+assert.strictEqual(catalogSnapshot.byKey.aggregateHomeLibraries.value, 'settings.disabled', 'Home aggregation must default to disabled');
+assert.strictEqual(catalogSnapshot.byKey.libraryOrder, undefined, 'library ordering must live inside Libraries instead of remaining a root setting');
+assert.strictEqual(catalogSnapshot.byKey.homeRows.homeRowsEditor, true, 'Home item order must open the unified source-aware Home editor');
+assert.strictEqual(catalogSnapshot.byKey.homeRows.value, '', 'Home item ordering must not repeat a redundant Manage value on the right');
+assert.strictEqual(catalogSnapshot.byKey.libraryTabs.value, '', 'Server and library management must not repeat a redundant Manage value on the right');
+assert.strictEqual(catalogSnapshot.byKey.subtitleAppearance.value, '', 'editor-style Settings rows must not repeat a generic Manage value on the right');
+assert.strictEqual(catalogSnapshot.byKey.playbackCompatibility.value, '', 'editor-style Settings rows must not repeat a generic Manage value on the right');
+assert.strictEqual(catalogSnapshot.byKey.deleteLocalData.spacerBefore, true, 'local-data deletion must be separated from the preceding support controls by one blank row');
+assert.strictEqual(categories[0].rows.some(function (row) { return row.key === 'libraryTabs' || row.key === 'homeRows'; }), false, 'Plex must not contain Home or library navigation management');
+var networkStatusRow = rows.filter(function (row) { return row.key === 'networkStatus'; })[0];
 assert.deepStrictEqual(
-  { key: rows[2].key, value: rows[2].value, readOnly: rows[2].readOnly },
+  { key: networkStatusRow.key, value: networkStatusRow.value, readOnly: networkStatusRow.readOnly },
   { key: 'networkStatus', value: 'Local network only', readOnly: true },
   'Plex settings must expose the live network state as a read-only row'
 );
-assert.deepStrictEqual(rows.slice(-5).map(function (row) { return row.key; }), ['diagnostics', 'privacy', 'disconnectPlex', 'deleteLocalData', 'appVersion'], 'support actions must end with diagnostics, privacy, account controls, and application version');
+assert.deepStrictEqual(rows.slice(-5).map(function (row) { return row.key; }), ['diagnostics', 'privacy', 'plexAccountAction', 'deleteLocalData', 'appVersion'], 'support actions must end with diagnostics, privacy, account controls, and application version');
 assert.ok(rows.slice(-5).every(function (row) { return row.action; }), 'support controls must remain actions instead of mutable settings');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'updates'; }).length, 0, 'updates must not remain as a separate settings row');
 assert.deepStrictEqual(
@@ -87,8 +110,9 @@ assert.deepStrictEqual(
   { label: 'Ploff 1.0.6', value: 'updates.status.available', versionRow: true },
   'the final settings row must expose the installed version and update availability'
 );
-assert.strictEqual(rows.filter(function (row) { return row.key === 'disconnectPlex'; })[0].value, 'settings.connected', 'the account action must expose its current connection state');
-assert.strictEqual(rows.filter(function (row) { return row.section === 'plex'; }).length, 3, 'Plex settings must keep server, profile and network state grouped together');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'plexAccountAction'; })[0].label, 'setup.disconnectPlex', 'a connected account must expose only the disconnect command');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'plexAccountAction'; })[0].value, '', 'the account command must not mix action and connection state');
+assert.deepStrictEqual(categories[0].rows.map(function (row) { return row.key; }), ['plexServer', 'plexProfile', 'networkStatus', 'plexAccountAction'], 'Plex settings must contain only Plex account/server controls');
 assert.strictEqual(rows.filter(function (row) { return row.palette; })[0].key, 'accentColor', 'Accent color must retain its palette treatment');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'searchT9Input'; })[0].value, 'settings.disabled', 'T9 input must be exposed as an opt-in interface setting');
 assert.deepStrictEqual(rows.filter(function (row) { return row.key === 'visualTheme'; })[0].choices.map(function (choice) { return choice.value; }), ['immersive', 'premiere', 'aurora', 'mahogany', 'atelier', 'nova', 'classic'], 'visual themes must use the curated user-facing order');
@@ -101,12 +125,12 @@ assert.strictEqual(rows.filter(function (row) { return row.key === 'subtitleRend
 assert.strictEqual(rows.filter(function (row) { return row.key === 'subtitleRenderingAss'; })[0].value, 'settings.disabled', 'ASS rendering must remain opt-in by default');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'videoVersionPriorities'; })[0].priorityEditor, true, 'automatic video version criteria must use an orderable priority editor');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'homeRows'; })[0].orderedEditor, true, 'Home row visibility and order must use the shared ordered editor surface');
-assert.strictEqual(rows.filter(function (row) { return row.key === 'homeRows'; })[0].value, 'settings.homeRow.recent > settings.homeRow.continue', 'Home row summary must show only enabled groups in their saved order');
+assert.strictEqual(rows.filter(function (row) { return row.key === 'homeRows'; })[0].value, '', 'Home ordering must be a simple action entry without redundant right-side copy');
 
 var hiddenHomeRowsSettings = Object.assign({}, settings, { homeRows: [] });
 var hiddenHomeRows = catalog.rows(hiddenHomeRowsSettings);
-assert.strictEqual(hiddenHomeRows.filter(function (row) { return row.key === 'homeRows'; })[0].value, 'settings.homeRowsHidden',
-  'Home row summary must describe an intentionally all-hidden configuration instead of looking unconfigured');
+assert.strictEqual(hiddenHomeRows.filter(function (row) { return row.key === 'homeRows'; })[0].value, '',
+  'Home ordering must remain a stable action entry even when all rows are hidden');
 assert.strictEqual(catalog.sectionLabel('playback'), 'settings.sectionPlayback', 'section labels must remain localized through the catalog');
 assert.deepStrictEqual(rows.filter(function (row) { return row.key === 'uiLanguage'; })[0].choices, [{ value: 'en', label: 'native:en', languageCode: 'en' }, { value: 'it', label: 'native:it', languageCode: 'it' }], 'interface language choices must identify every language using its native name and flag code');
 assert.strictEqual(rows.filter(function (row) { return row.key === 'uiLanguage'; })[0].languageCode, 'en', 'the interface language setting must expose its current flag');
@@ -145,12 +169,12 @@ assert.deepStrictEqual(
     if (sections[sections.length - 1] !== row.section) { sections.push(row.section); }
     return sections;
   }, []),
-  ['plex', 'interface', 'accessibility', 'playback', 'languages', 'audioAppearance', 'support'],
+  ['plex', 'homeLibraries', 'interface', 'accessibility', 'playback', 'languages', 'audioAppearance', 'support'],
   'settings categories must follow the TV-first information hierarchy'
 );
 assert.deepStrictEqual(
   rows.filter(function (row) { return row.section === 'interface'; }).map(function (row) { return row.key; }),
-  ['uiLanguage', 'visualTheme', 'accentColor', 'cardScale', 'artworkDataSaver', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists', 'homeRows'],
+  ['uiLanguage', 'visualTheme', 'accentColor', 'cardScale', 'artworkDataSaver', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists'],
   'interface settings must keep visual controls before navigation and optional surfaces'
 );
 var lanVideoQuality = rows.filter(function (row) { return row.key === 'lanVideoQuality'; })[0];
@@ -198,6 +222,8 @@ assert.ok(rows.filter(function (row) { return !row.readOnly && !row.disabled && 
     appVersion: '1.0.6'
   });
   var schemaRows = schemaCatalog.rows(Object.assign({}, settings, { artworkDataSaver: false }));
+  assert.strictEqual(schemaRows.filter(function (row) { return row.key === 'plexAccountAction'; })[0].label, 'setup.connectPlex',
+    'a disconnected account must expose the existing Plex connection flow');
   var keys = [
     'visualTheme', 'cardScale', 'artworkQuality', 'backdropQuality', 'uiTextScale',
     'lanVideoQuality', 'remoteVideoQuality', 'playbackMode', 'autoplayDelay',

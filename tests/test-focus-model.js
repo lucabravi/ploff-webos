@@ -4,6 +4,12 @@ var assert = require('assert');
 var FocusModel = require('../app/focus-model');
 
 var layout = { navCount: 5, rowLengths: [6, 7] };
+assert.strictEqual(FocusModel.move({ area: 'nav', navIndex: 0, rowIndex: 0, column: 0 }, 'left', layout).navIndex, 4,
+  'left from Home must wrap to the final visible navigation target');
+assert.strictEqual(FocusModel.move({ area: 'nav', navIndex: 4, rowIndex: 0, column: 0 }, 'right', layout).navIndex, 0,
+  'right from the final navigation target must wrap to Home');
+assert.strictEqual(FocusModel.move({ area: 'nav', navIndex: 0, rowIndex: 0, column: 0 }, 'left', { navCount: 0, rowLengths: [] }).navIndex, 0,
+  'empty navigation must never produce a negative index');
 
 function media(row, column) {
   return { area: 'media', navIndex: 0, rowIndex: row, column: column };

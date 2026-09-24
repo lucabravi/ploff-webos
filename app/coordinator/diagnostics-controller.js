@@ -12,6 +12,7 @@
     var values = options || {};
     var modules = values.modules || {};
     var providers = values.providers || {};
+    var transport = values.transport || {};
     var lifecycle = values.lifecycle || {};
     var presentation = values.presentation || {};
     var platform = values.platform || {};
@@ -99,10 +100,10 @@
       });
     }
 
-    function supportSnapshot(identityState) {
+    function supportSnapshot(runtime, identityState) {
       var identityValues = identityState || {};
       var server = call(providers.server, identityValues) || {};
-      return modules.SupportSnapshot.create({
+      return runtime.SupportSnapshot.create({
         appVersion: call(providers.appVersion) || '',
         server: server,
         profile: call(providers.profile) || {},
@@ -127,8 +128,29 @@
       formatFileSize: presentation.formatFileSize,
       formatLongTime: presentation.formatLongTime,
       getSnapshot: snapshot,
-      getSupportReport: supportSnapshot,
-      SupportQr: modules.SupportQr,
+      preloadSupportRuntime: function () {
+        if (destroyed || typeof transport.loadSupportRuntime !== 'function') { return false; }
+        transport.loadSupportRuntime(function () {});
+        return true;
+      },
+      requestSupportReport: function (identityState, callback) {
+        if (destroyed || typeof callback !== 'function') { return; }
+        if (typeof transport.loadSupportRuntime !== 'function') {
+          callback(new Error('Diagnostics support runtime is unavailable'), null, null);
+          return;
+        }
+        transport.loadSupportRuntime(function (error, runtime) {
+          var report;
+          if (destroyed) { return; }
+          if (error || !runtime || !runtime.SupportSnapshot || !runtime.SupportQr) {
+            callback(error || new Error('Diagnostics support runtime is unavailable'), null, null);
+            return;
+          }
+          try { report = supportSnapshot(runtime, identityState); }
+          catch (_error) { callback(new Error('Support report could not be created'), null, null); return; }
+          callback(null, report, runtime.SupportQr);
+        });
+      },
       loadIdentity: providers.loadIdentity,
       sanitizeError: modules.DiagnosticsState.sanitizeText,
       isPointerSelectionActive: presentation.pointerActive || function () { return false; },
@@ -157,35 +179,6 @@
       if (destroyed || !view.isOpen()) { return { handled: false }; }
       view.handleKey(event, direction);
       return { handled: true };
-    }
-
-    function handlePointer(type, event) {
-      var target;
-      var action;
-      if (destroyed || !view.isOpen()) { return { handled: false }; }
-      target = event && event.target;
-      if (target && target.getAttribute && (target.getAttribute('data-diagnostics-qr-action') === 'close' || target.getAttribute('data-diagnostics-qr-action') === 'report')) {
-        action = target.getAttribute('data-diagnostics-qr-action');
-        if (type === 'focus') {
-          view.focusSupportQr(action === 'report' ? 'report' : 'close');
-          return { handled: true };
-        }
-        if (type === 'activate' && action === 'close') {
-          view.closeSupportQr();
-          return { handled: true };
-        }
-      }
-      action = target && target.getAttribute && target.getAttribute('data-diagnostics-action');
-      if (type === 'focus' && action) {
-        view.setFocus(action === 'refresh' ? 0 : (action === 'export' ? 1 : 2));
-        return { handled: true };
-      }
-      if (type === 'activate' && action) {
-        view.setFocus(action === 'refresh' ? 0 : (action === 'export' ? 1 : 2));
-        view.activate();
-        return { handled: true };
-      }
-      return { handled: false };
     }
 
     function render() {
@@ -230,7 +223,6 @@
       leave: leave,
       refresh: refresh,
       handleKey: handleKey,
-      handlePointer: handlePointer,
       snapshot: diagnosticsSnapshot,
       destroy: destroy,
       activate: function () { if (!destroyed) { view.activate(); } },
@@ -239,7 +231,6 @@
       setFocus: function (index) { if (!destroyed) { view.setFocus(index); } },
       scroll: function (direction) { if (!destroyed) { view.scroll(direction); } },
       capturePlayback: capturePlayback,
-      recordEvent: recordEvent,
       setError: setError,
       error: function () { return lastError; }
     };

@@ -23,7 +23,7 @@ Node test harnesses and the repository's existing verification tools.
 Files: `app/coordinator/playback-controller.js`, `app/playback-session.js`, generated
 `app/player.js`; new `tests/test-playback-controller-source-clock.js` and shared test-only
 `tests/helpers/playback-delivery-harness.js`; focused session tests and documentation.
-Consumes existing `beginStreamSwitch`, `armReopenStartupGuard`, `anchor`, `discontinuity`.
+Consumes the existing stream-switch/reopen guard, `anchor`, and discontinuity ownership.
 Produces no new public controller API. Delayed resume belongs to one playback/stream identity.
 
 - [x] Add failing public-flow traces for late playing before replacement readiness,

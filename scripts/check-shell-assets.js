@@ -34,4 +34,15 @@ while ((match = expression.exec(html))) {
 }
 
 if (!checked) { throw new Error('No local shell assets found'); }
+
+if (html.indexOf('locale-bootstrap.js') !== -1) {
+  var canonicalLocales = require(path.join(__dirname, '..', 'app', 'i18n')).supportedLanguages();
+  canonicalLocales.forEach(function (locale) {
+    var localePath = path.join(directory, 'locales', locale + '.js');
+    if (!fs.existsSync(localePath) || !fs.statSync(localePath).isFile() || !fs.statSync(localePath).size) {
+      throw new Error('Missing lazy locale asset required by locale-bootstrap: locales/' + locale + '.js');
+    }
+  });
+}
+
 console.log('Shell asset references passed (' + checked + ' files)');

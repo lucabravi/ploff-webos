@@ -26,7 +26,9 @@
     function text(value) { return value || ''; }
 
     function progressKey(item, snapshot) {
-      return String(item.ratingKey || item.key || item.imageSource || item.imageUrl || item.title || '') + '|' + String(snapshot.total || '');
+      var owner = String(item.serverMachineIdentifier || '');
+      var media = String(item.ratingKey || item.key || item.imageSource || item.imageUrl || item.title || '');
+      return (owner ? owner + '|' : '') + media + '|' + String(snapshot.total || '');
     }
 
     function forceLayout(node) {

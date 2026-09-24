@@ -61,6 +61,10 @@
    * @property {number} duration
    * @property {string} title
    * @property {string} subtitle
+   * @property {string=} subtitleKey
+   * @property {Object<string, *>=} subtitleParameters
+   * @property {string=} seasonTitleKey
+   * @property {Object<string, *>=} seasonTitleParameters
    * @property {string} facts
    * @property {string} summary
    * @property {string} image
@@ -116,8 +120,14 @@ function mediaPresentationFields(attributes, baseUrl, token) {
         fields.metaKey = 'media.season';
         fields.metaParameters = { number: Number(attributes.parentIndex || 0) };
       }
-      detail = 'E' + pad(attributes.index);
-      if (attributes.title) { detail += ' - ' + attributes.title; }
+      if (attributes.recentlyAdded === '1') {
+        detail = 'Episode ' + Number(attributes.index || 0);
+        fields.detailKey = 'media.episodeNumber';
+        fields.detailParameters = { number: Number(attributes.index || 0) };
+      } else {
+        detail = 'E' + pad(attributes.index);
+        if (attributes.title) { detail += ' - ' + attributes.title; }
+      }
       fields.seasonIndex = Number(attributes.parentIndex || 0);
       fields.episodeIndex = Number(attributes.index || 0);
     } else if (type === 'movie') {
@@ -132,7 +142,11 @@ function mediaPresentationFields(attributes, baseUrl, token) {
       meta = 'Season ' + Number(attributes.index || 0);
       fields.metaKey = 'media.season';
       fields.metaParameters = { number: Number(attributes.index || 0) };
-      if (attributes.leafCount) {
+      if (attributes.recentlyAddedCount) {
+        detail = attributes.recentlyAddedCount + (attributes.recentlyAddedCount === '1' ? ' new episode' : ' new episodes');
+        fields.detailKey = 'media.newEpisodeCount';
+        fields.detailParameters = { count: Number(attributes.recentlyAddedCount) };
+      } else if (attributes.leafCount) {
         detail = attributes.leafCount + (attributes.leafCount === '1' ? ' episode' : ' episodes');
         fields.detailKey = 'media.episodeCount';
         fields.detailParameters = { count: Number(attributes.leafCount) };
@@ -154,6 +168,7 @@ function mediaContextFields(attributes) {
     var fields = {};
     var type = attributes.type || '';
     if (attributes.librarySectionTitle) { fields.libraryTitle = attributes.librarySectionTitle; }
+    if (attributes.librarySectionID) { fields.librarySectionID = String(attributes.librarySectionID); }
     if (attributes.year) { fields.year = Number(attributes.year) || attributes.year; }
     if (attributes.genre) { fields.genre = attributes.genre; }
     if (attributes.summary) { fields.summary = attributes.summary; }
@@ -161,6 +176,9 @@ function mediaContextFields(attributes) {
     if (attributes.contentRating) { fields.contentRating = attributes.contentRating; }
     if (type === 'show') { fields.seasonCount = Math.max(0, Number(attributes.childCount || 0)); }
     if (attributes.guid) { fields.guid = attributes.guid; }
+    if (attributes.lastViewedAt) { fields.lastViewedAt = Math.max(0, Number(attributes.lastViewedAt) || 0); }
+    if (attributes.updatedAt) { fields.updatedAt = Math.max(0, Number(attributes.updatedAt) || 0); }
+    if (attributes.addedAt) { fields.addedAt = Math.max(0, Number(attributes.addedAt) || 0); }
     return fields;
   }
 
@@ -240,7 +258,8 @@ function mediaFromAttributes(attributes, baseUrl, token) {
 
     copySelectedFields(item, presentation, ['titleKey', 'metaKey', 'metaParameters']);
     copySelectedFields(item, context, [
-      'libraryTitle', 'year', 'genre', 'summary', 'tagline', 'contentRating', 'seasonCount', 'guid'
+      'libraryTitle', 'librarySectionID', 'year', 'genre', 'summary', 'tagline', 'contentRating', 'seasonCount', 'guid',
+      'lastViewedAt', 'updatedAt', 'addedAt'
     ]);
     copySelectedFields(item, identity, ['ratingKey', 'type', 'themeLookupKey']);
     copySelectedFields(item, presentation, ['detail', 'seasonIndex', 'episodeIndex', 'detailKey', 'detailParameters']);
@@ -266,45 +285,78 @@ function containerFromAttributes(attributes, baseUrl, token, view) {
     };
   }
 
-function groupRecentAttributes(items) {
-    var counts = Object.create(null);
-    var viewedCounts = Object.create(null);
-    var emitted = Object.create(null);
-    var grouped = [];
+function recentSeasonKey(item) {
+    if (!item || item.type !== 'episode') { return ''; }
+    return String(item.parentRatingKey || (item.grandparentTitle || '') + '|' + (item.parentIndex || ''));
+  }
 
+function recentEpisodeAttributes(item) {
+    var result = {};
+    Object.keys(item || {}).forEach(function (name) { result[name] = item[name]; });
+    result.recentlyAdded = '1';
+    return result;
+  }
+
+function recentSeasonGroupAttributes(items) {
+    var first = items[0] || {};
+    var viewedCount = 0;
     items.forEach(function (item) {
-      var key;
-      if (item.type === 'episode') {
-        key = item.parentRatingKey || item.grandparentTitle + '|' + item.parentIndex;
-        counts[key] = (counts[key] || 0) + 1;
-        if (Number(item.viewCount || 0) > 0) { viewedCounts[key] = (viewedCounts[key] || 0) + 1; }
-      }
+      if (Number(item.viewCount || 0) > 0) { viewedCount += 1; }
     });
+    return {
+      type: 'season',
+      ratingKey: first.parentRatingKey,
+      title: first.parentTitle || 'Season ' + first.parentIndex,
+      parentTitle: first.grandparentTitle,
+      parentRatingKey: first.grandparentRatingKey,
+      index: first.parentIndex,
+      leafCount: String(items.length),
+      viewedLeafCount: String(viewedCount),
+      thumb: first.parentThumb || first.grandparentThumb || first.thumb,
+      art: first.grandparentArt || first.art,
+      theme: first.grandparentTheme || first.theme,
+      librarySectionTitle: first.librarySectionTitle,
+      lastViewedAt: first.lastViewedAt,
+      updatedAt: first.updatedAt,
+      addedAt: first.addedAt,
+      recentlyAddedCount: String(items.length)
+    };
+  }
 
-    items.forEach(function (item) {
+function groupRecentAttributes(items) {
+    var grouped = [];
+    var run = [];
+    var runKey = '';
+
+    function flushRun() {
+      if (!run.length) { return; }
+      if (run.length >= 3) {
+        grouped.push(recentSeasonGroupAttributes(run));
+      } else {
+        run.forEach(function (item) { grouped.push(recentEpisodeAttributes(item)); });
+      }
+      run = [];
+      runKey = '';
+    }
+
+    (items || []).forEach(function (item) {
       var key;
-      if (item.type !== 'episode') {
+      if (!item || item.type !== 'episode') {
+        flushRun();
         grouped.push(item);
         return;
       }
-      key = item.parentRatingKey || item.grandparentTitle + '|' + item.parentIndex;
-      if (counts[key] < 2) {
-        grouped.push(item);
-      } else if (!emitted[key]) {
-        emitted[key] = true;
-        grouped.push({
-          type: 'season',
-          ratingKey: item.parentRatingKey,
-          title: item.parentTitle || 'Season ' + item.parentIndex,
-          parentTitle: item.grandparentTitle,
-          index: item.parentIndex,
-          leafCount: String(counts[key]),
-          viewedLeafCount: String(viewedCounts[key] || 0),
-          thumb: item.parentThumb || item.grandparentThumb || item.thumb,
-          art: item.grandparentArt || item.art
-        });
+      key = recentSeasonKey(item);
+      if (!key) {
+        flushRun();
+        grouped.push(recentEpisodeAttributes(item));
+        return;
       }
+      if (run.length && key !== runKey) { flushRun(); }
+      if (!run.length) { runKey = key; }
+      run.push(item);
     });
+    flushRun();
     return grouped;
   }
 
@@ -402,6 +454,14 @@ function detailFromAttributes(attributes, baseUrl, token) {
       image: assetUrl(baseUrl, attributes.grandparentThumb || attributes.parentThumb || attributes.thumb || attributes.art, token),
       art: assetUrl(baseUrl, attributes.grandparentArt || attributes.art || attributes.thumb, token)
     };
+    if (type === 'episode' && !attributes.parentTitle && Number(attributes.parentIndex || 0) > 0) {
+      result.seasonTitleKey = 'media.season';
+      result.seasonTitleParameters = { number: Number(attributes.parentIndex || 0) };
+    }
+    if (type === 'season' && !attributes.title && Number(attributes.index || 0) > 0) {
+      result.subtitleKey = 'media.season';
+      result.subtitleParameters = { number: Number(attributes.index || 0) };
+    }
     if (attributes.guid) { result.guid = attributes.guid; }
     if ((type === 'episode' || type === 'season') && (attributes.grandparentGuid || attributes.parentGuid)) {
       result.watchlistGuid = attributes.grandparentGuid || attributes.parentGuid;
@@ -414,15 +474,20 @@ function detailFromAttributes(attributes, baseUrl, token) {
   }
 
 function seasonFromAttributes(attributes, baseUrl, token, selectedKey) {
+    var index = Number(attributes.index || 0);
     var season = {
       ratingKey: attributes.ratingKey || '',
-      index: Number(attributes.index || 0),
-      title: attributes.title || 'Season ' + Number(attributes.index || 0),
+      index: index,
+      title: attributes.title || 'Season ' + index,
       image: assetUrl(baseUrl, attributes.thumb || attributes.art, token),
       leafCount: Number(attributes.leafCount || 0),
       viewedLeafCount: Number(attributes.viewedLeafCount || 0),
       selected: attributes.ratingKey === selectedKey
     };
+    if (!attributes.title && index > 0) {
+      season.titleKey = 'media.season';
+      season.titleParameters = { number: index };
+    }
     if (attributes.year) { season.year = Number(attributes.year) || attributes.year; }
     return season;
   }
@@ -458,7 +523,7 @@ function episodeFromAttributes(attributes, baseUrl, token, selectedKey, seasonYe
       seasonIndex: Number(attributes.parentIndex || 0),
       episodeIndex: Number(attributes.index || 0),
       index: Number(attributes.index || 0),
-      title: attributes.title || 'Episodio ' + Number(attributes.index || 0),
+      title: attributes.title || '',
       image: assetUrl(baseUrl, attributes.thumb || attributes.art, token),
       viewed: Number(attributes.viewCount || 0) > 0,
       viewOffset: viewOffset,
@@ -466,6 +531,10 @@ function episodeFromAttributes(attributes, baseUrl, token, selectedKey, seasonYe
       progress: duration > 0 && viewOffset > 0 ? Math.max(0, Math.min(100, Math.round(viewOffset / duration * 100))) : 0,
       selected: attributes.ratingKey === selectedKey
     };
+    if (!attributes.title) {
+      episode.titleKey = 'media.episodeNumber';
+      episode.titleParameters = { number: Number(attributes.index || 0) };
+    }
     if (attributes.year || seasonYear) { episode.year = Number(attributes.year || seasonYear) || attributes.year || seasonYear; }
     return episode;
   }

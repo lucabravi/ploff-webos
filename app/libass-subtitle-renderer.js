@@ -9,11 +9,11 @@
   'use strict';
 
   var VERSION = '4.1.0-os';
-  var LEGACY_WORKER_VERSION = '4.1.0-os-mem1&assTiming=1&assSync=12';
+  var LEGACY_WORKER_VERSION = '4.1.0-os-mem1&assTiming=1&assSync=12&assWarm=4';
   var scriptUrl = 'vendor/subtitles-octopus.js?v=' + VERSION;
-  var workerUrl = 'vendor/subtitles-octopus-worker.js?v=' + VERSION;
+  var workerUrl = 'vendor/subtitles-octopus-worker.js?v=' + VERSION + '&assSync=12&assWasm=1';
   var legacyWorkerUrl = 'vendor/subtitles-octopus-worker-legacy.js?v=' + LEGACY_WORKER_VERSION;
-  var fallbackFontUrl = 'default.woff2?v=' + VERSION;
+  var fallbackFontUrl = 'default.ttf?v=' + VERSION;
   var FALLBACK_SIZE_FACTOR = 0.75;
   var libraryConstructor = null;
   var libraryLoading = null;
@@ -131,7 +131,10 @@
       height = Number(video && video.offsetHeight || measured.height || video && video.videoHeight || 0);
     }
     if (!width || !height) { width = 1920; height = 1080; }
-    canvas = { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
+    canvas = {
+      width: Math.max(1, Math.round(width)),
+      height: Math.max(1, Math.round(height))
+    };
     return canvas;
   }
 

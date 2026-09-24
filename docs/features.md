@@ -8,7 +8,10 @@ roadmap.
 
 - Local Plex Media Server discovery through the bundled webOS service.
 - Manual server addresses and optional Plex account linking.
-- Local-first connection selection, remote direct routes, and relay fallback.
+- Linked accounts discover reachable libraries from additional owned or shared Plex Media Servers without changing the primary server. Secondary sources use their own server-specific token and verified local/direct/Relay route.
+- When a Plex server is selected, known local, direct, and Relay routes are verified in
+  parallel while preferring the highest-quality reachable class: local, then direct,
+  then Relay. Runtime failover remains bounded and source-aware.
 - Plex Home profile selection, including protected-profile PIN entry.
 - Safe offline behavior: local playback and browsing remain available without
   Plex cloud access when a reachable local server and profile are configured.
@@ -16,24 +19,40 @@ roadmap.
 
 ## Home and navigation
 
-- Configurable navigation bar with library ordering and long-press reordering.
-- Home rows for Continue Watching, Recommended, and library-specific Recently Added content.
-  Their groups can be hidden and reordered from one Home-row preference while repeated
-  Recently Added rows retain Plex/library order. Mixed-origin rows, Search, Watchlist, and
-  playlists identify the source library on each card; collections remain available through
-  their library surfaces.
+- Configurable navigation bar with one global text/icon/icon+text presentation for Home and libraries. Search and Settings remain compact icon-only actions.
+- Secondary-server libraries appear as ordinary tabs after discovery. Primary libraries keep their section name; secondary libraries use `section · server` labels, with per-library visibility/alias/icon choices and aliases for shared server names. Library order can be edited from Settings or by the existing navbar long-press shortcut.
+- Matching libraries from different Plex servers can optionally be shown as one
+  virtual tab when their displayed name and Plex library type match. The merged tab
+  retains the concrete source variants required by Detail and Player.
+- Merged Library tabs show the first useful page as soon as a member server responds;
+  slower servers enrich and re-sort the page as they arrive. Deduplication, source
+  variants, pagination, and focus follow stable aggregate identity. Recommendation rows
+  use the same progressive merge, while background tab prefetch retains only complete results.
+- Profile changes refresh secondary access; revoked or inaccessible sources are removed from active navigation while bounded presentation preferences remain available if they return.
+- Home renders the primary PMS first, then accepts progressive contributions from
+  enabled secondary servers. Continue Watching and Recommended are merged across
+  servers. Continue Watching and Recommended remain single cross-server rows in both
+  modes. Matching libraries can optionally be merged in Home: their Recently Added
+  rows combine and their Home source badges use the library name without the server
+  suffix; with merging disabled, secondary badges stay `<library> · <server>`. Home-row
+  groups can still be hidden and reordered. Search, Watchlist, and playlists keep their
+  own source-aware presentation; collections remain available through their library surfaces.
 - Home hero presentation is independent from remote focus. As soon as at least one Home media
   card exists, a valid card supplies title, summary, metadata, and backdrop even while the
   navbar has focus. Media focus updates that presentation; navbar focus preserves it. When a
   slow initial Home load first returns empty and media arrive later, the first card receives
   initial focus only if the user has not already interacted with Home.
 - Per-library tabs for Continue Watching, Recently Added, Recommended,
-  catalog, collections, and playlists where applicable.
+  catalog, collections, and playlists where applicable. Recently Added keeps one or
+  two adjacent TV episodes as spoiler-safe `Season / Episode` cards; a run of three
+  or more adjacent additions from the same season is compacted to `N new episodes`
+  without merging across intervening feed items.
 - Virtualized catalog grids with watched-state filtering, title, rating, and
   year sorting, advanced filters, progressive artwork, and pointer/wheel
   support for Magic Remote devices.
-- Local search with on-screen keyboard and optional T9 input; linked accounts
-  may use Plex-enhanced results while retaining server-local filtering.
+- Search with on-screen keyboard and optional T9 input; linked accounts fan search
+  out across enabled reachable PMS contexts and merge successful results while
+  retaining source-aware identity and Plex-enhanced matching.
 - Hierarchical Back navigation returns through visible filters, sub-navigation,
   the current navbar item, and Home one level at a time.
 
@@ -48,10 +67,14 @@ roadmap.
   entry, preserve Plex order, and never block focus while loading.
 - Detail keeps Version above Audio and Subtitles. Left/Right still cycles physical
   versions quickly; OK always opens the integrated version/technical-information
-  browser, including when Plex exposes only one file. The browser previews versions
-  without changing the active override, keeps the File/Video and Audio/Subtitles
-  technical columns, and requires explicit confirmation before applying a different
-  version.
+  browser, including when Plex exposes only one file. For aggregated TV libraries,
+  matching episode copies from other enabled PMSes are kept as source-owned versions,
+  with external copies labelled by server alias/name. Season-level batch recovery can
+  complete missing episode variants without issuing one metadata request per visible
+  episode. The browser previews versions without changing the active override, keeps
+  the File/Video and Audio/Subtitles technical columns, and requires explicit
+  confirmation before applying a different version; switching an episode PMS copy
+  preserves the current series/season Detail context.
 - Contextual media actions distinguish unwatched, partially watched, and completed movies/episodes.
   A long-pressed unwatched card offers **Mark watched**; a partial card offers **Mark watched**,
   **Mark unwatched**, clear-progress, and play-from-beginning actions; a completed card offers

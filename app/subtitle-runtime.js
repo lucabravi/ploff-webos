@@ -10,6 +10,7 @@
     var SubtitleSync = values.SubtitleSync;
     var SubtitleOffsetStore = values.SubtitleOffsetStore;
     var AssSubtitleRenderer = values.AssSubtitleRenderer;
+    var assLoadOperation = values.PlaybackOperation.create();
     var localState = null;
     var failedStreams = {};
     var assRenderer = null;
@@ -151,11 +152,13 @@
     }
 
     function disposeAss() {
-      if (assRenderer && typeof assRenderer.dispose === 'function') { assRenderer.dispose(); }
+      var renderer = assRenderer;
       assRenderer = null;
       assRendererStreamId = '';
       assRendererContent = '';
       assClockOffsetMs = null;
+      assLoadOperation.cancel();
+      if (renderer && typeof renderer.dispose === 'function') { renderer.dispose(); }
     }
 
     function syncAssOffset(offsetMs, assTime) {
@@ -169,13 +172,16 @@
 
     function loadAss(track, content, callback) {
       var renderer;
+      var operation = assLoadOperation.begin();
       var streamId = String(track && track.id || '');
       var source = String(content || '');
       try { renderer = ensureAss(); }
       catch (error) { call(callback, error); return; }
       if (!renderer || typeof renderer.load !== 'function') { call(callback, new Error('ASS subtitle renderer unavailable')); return; }
       if (assRendererStreamId === streamId && assRendererContent === source) { call(callback, null, renderer); return; }
-      renderer.load(source, function (error) {
+      assRendererStreamId = '';
+      assRendererContent = '';
+      operation.run(function (complete) { return renderer.load(source, complete); }, function (error) {
         if (!error) {
           assRendererStreamId = streamId;
           assRendererContent = source;

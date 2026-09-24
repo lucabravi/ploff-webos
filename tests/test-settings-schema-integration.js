@@ -17,7 +17,7 @@ assert.ok(/theme-registry\.js[\s\S]*settings-schema\.js[\s\S]*settings\.js/.test
 assert.deepStrictEqual(Settings.defaults(), Object.assign({ version: Settings.CURRENT_VERSION }, SettingsSchema.defaults()),
   'Settings defaults must be derived from the persisted schema registry');
 assert.deepStrictEqual(Settings.ACCENT_COLORS, SettingsSchema.allowed('accentColor'), 'exported accent choices must come from the schema');
-assert.deepStrictEqual(Settings.VIDEO_QUALITIES, SettingsSchema.allowed('lanVideoQuality'), 'exported video choices must come from the schema');
-assert.deepStrictEqual(Settings.ARTWORK_QUALITIES, SettingsSchema.allowed('artworkQuality'), 'exported artwork choices must come from the schema');
+assert.deepStrictEqual(SettingsSchema.allowed('lanVideoQuality'), ['4000', '8000', '12000', 'original'], 'video choices must remain owned by the persisted schema');
+assert.deepStrictEqual(SettingsSchema.allowed('artworkQuality'), [70, 80, 85, 90, 100], 'artwork choices must remain owned by the persisted schema');
 
 console.log('Settings schema integration tests passed');

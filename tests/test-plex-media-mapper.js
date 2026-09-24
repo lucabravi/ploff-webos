@@ -53,15 +53,94 @@ assert.strictEqual(PlexMediaMapper.preferredSeasonKeyFromAttributes, PlexMediaMa
   assert.ok(/X-Plex-Token=token/.test(item.image));
 }());
 
-(function groupsRecentEpisodesBySeason() {
-  var grouped = PlexMediaMapper.groupRecentAttributes([
-    { type: 'episode', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '1' },
-    { type: 'episode', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '2', viewCount: '1' }
+(function missingEpisodeTitleKeepsLocalizationMetadata() {
+  var episode = PlexMediaMapper.episodeFromAttributes({ ratingKey: 'episode-7', index: '7' }, '/plex-api', '', '', 0);
+  assert.strictEqual(episode.title, '', 'episode transport mapping must not bake an Italian fallback title into the model');
+  assert.strictEqual(episode.titleKey, 'media.episodeNumber', 'missing episode titles must retain a localizable presentation key');
+  assert.deepStrictEqual(episode.titleParameters, { number: 7 }, 'missing episode titles must retain the episode number for localization');
+}());
+
+(function missingSeasonNamesKeepLocalizationMetadata() {
+  var episodeDetail = PlexMediaMapper.detailFromAttributes({
+    type: 'episode', ratingKey: 'episode-3', grandparentTitle: 'Show', parentIndex: '2', index: '3', title: 'Episode'
+  }, '/plex-api', '');
+  var seasonDetail = PlexMediaMapper.detailFromAttributes({
+    type: 'season', ratingKey: 'season-2', parentTitle: 'Show', index: '2'
+  }, '/plex-api', '');
+  var season = PlexMediaMapper.seasonFromAttributes({ ratingKey: 'season-2', index: '2' }, '/plex-api', '', 'season-2');
+
+  assert.strictEqual(episodeDetail.seasonTitleKey, 'media.season',
+    'an episode with no Plex season title must retain a localizable season-prefix key');
+  assert.deepStrictEqual(episodeDetail.seasonTitleParameters, { number: 2 },
+    'an episode fallback season label must retain its season number');
+  assert.strictEqual(seasonDetail.subtitleKey, 'media.season',
+    'a season Detail with no Plex title must retain a localizable subtitle key');
+  assert.deepStrictEqual(seasonDetail.subtitleParameters, { number: 2 },
+    'a season Detail fallback subtitle must retain its season number');
+  assert.strictEqual(season.titleKey, 'media.season',
+    'a season tab with no Plex title must retain a localizable title key');
+  assert.deepStrictEqual(season.titleParameters, { number: 2 },
+    'a season tab fallback title must retain its season number');
+}());
+
+(function groupsOnlyAdjacentRecentRunsOfThreeOrMore() {
+  var pairSource = [
+    { type: 'episode', ratingKey: 'e1', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '1', title: 'Spoiler one', addedAt: '300' },
+    { type: 'episode', ratingKey: 'e2', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '2', title: 'Spoiler two', viewCount: '1' }
+  ];
+  var before = JSON.stringify(pairSource);
+  var pair = PlexMediaMapper.groupRecentAttributes(pairSource);
+  var grouped = PlexMediaMapper.groupRecentAttributes(pairSource.concat([
+    { type: 'episode', ratingKey: 'e3', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '7', title: 'Spoiler three' }
+  ]));
+  var interrupted = PlexMediaMapper.groupRecentAttributes([
+    pairSource[0], pairSource[1],
+    { type: 'movie', ratingKey: 'm1', title: 'Movie' },
+    { type: 'episode', ratingKey: 'e3', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '3' }
   ]);
-  assert.strictEqual(grouped.length, 1);
+  var twoRuns = PlexMediaMapper.groupRecentAttributes([
+    pairSource[0], pairSource[1],
+    { type: 'episode', ratingKey: 'e3', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '3' },
+    { type: 'movie', ratingKey: 'm1', title: 'Movie' },
+    { type: 'episode', ratingKey: 'e4', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '4' },
+    { type: 'episode', ratingKey: 'e5', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '5' },
+    { type: 'episode', ratingKey: 'e6', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '6' }
+  ]);
+
+  assert.strictEqual(pair.length, 2, 'two adjacent recent episodes must remain two cards');
+  assert.ok(pair.every(function (item) { return item.type === 'episode' && item.recentlyAdded === '1'; }),
+    'ungrouped recent episodes must be marked for spoiler-safe presentation');
+  assert.strictEqual(JSON.stringify(pairSource), before, 'recent grouping must not mutate Plex source attributes');
+  assert.strictEqual(grouped.length, 1, 'three adjacent episodes from one season must compact into one card');
   assert.strictEqual(grouped[0].type, 'season');
-  assert.strictEqual(grouped[0].leafCount, '2');
+  assert.strictEqual(grouped[0].leafCount, '3');
   assert.strictEqual(grouped[0].viewedLeafCount, '1');
+  assert.strictEqual(grouped[0].recentlyAddedCount, '3');
+  assert.strictEqual(grouped[0].addedAt, '300', 'a compact recent run must retain the newest feed timestamp for cross-server ordering');
+  assert.strictEqual(interrupted.length, 4, 'another feed item must break recent grouping even when the season repeats later');
+  assert.deepStrictEqual(twoRuns.map(function (item) { return item.type; }), ['season', 'movie', 'season'],
+    'separate adjacent runs of the same season must remain separate groups');
+}());
+
+(function recentCardsHideEpisodeTitlesAndLabelGroupedRunsAsNew() {
+  var pair = PlexMediaMapper.groupRecentAttributes([
+    { type: 'episode', ratingKey: 'e1', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '4', title: 'Major spoiler' },
+    { type: 'episode', ratingKey: 'e2', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '8', title: 'Another spoiler' }
+  ]);
+  var singleCard = PlexMediaMapper.mediaFromAttributes(pair[0], '/plex-api', '');
+  var groupedAttributes = PlexMediaMapper.groupRecentAttributes([
+    pair[0], pair[1],
+    { type: 'episode', ratingKey: 'e3', parentRatingKey: 'season-1', grandparentTitle: 'Show', parentTitle: 'Season 1', parentIndex: '1', index: '11', title: 'Final spoiler' }
+  ])[0];
+  var groupCard = PlexMediaMapper.mediaFromAttributes(groupedAttributes, '/plex-api', '');
+
+  assert.strictEqual(singleCard.detailKey, 'media.episodeNumber');
+  assert.deepStrictEqual(singleCard.detailParameters, { number: 4 });
+  assert.strictEqual(singleCard.detail, 'Episode 4');
+  assert.strictEqual(singleCard.detail.indexOf('Major spoiler'), -1, 'recent cards must not expose episode titles');
+  assert.strictEqual(groupCard.detailKey, 'media.newEpisodeCount');
+  assert.deepStrictEqual(groupCard.detailParameters, { count: 3 });
+  assert.strictEqual(groupCard.detail, '3 new episodes');
 }());
 
 (function choosesAnUnwatchedRegularSeasonWhenRequestedSeasonIsMissing() {
@@ -180,3 +259,14 @@ assert.strictEqual(PlexMediaMapper.preferredSeasonKeyFromAttributes, PlexMediaMa
 
 
 console.log('Plex media mapper checks passed');
+
+(function preservesMultiServerRoutingAndActivityMetadata() {
+  var item = PlexMediaMapper.mediaFromAttributes({
+    type: 'episode', ratingKey: 'ep-source', title: 'Episode', librarySectionID: '77',
+    lastViewedAt: '1234', updatedAt: '1200', addedAt: '1100'
+  }, '/plex-api', '');
+  assert.strictEqual(item.librarySectionID, '77');
+  assert.strictEqual(item.lastViewedAt, 1234);
+  assert.strictEqual(item.updatedAt, 1200);
+  assert.strictEqual(item.addedAt, 1100);
+}());

@@ -151,16 +151,17 @@ function createHarness(overrides) {
     currentView: function () { return values.view || 'player'; },
     currentSettings: function () { return { uiLanguage: values.language || 'it' }; },
     pointerActive: function () { return values.pointerActive === true; },
-    translate: function (key) { return key; },
+    translate: values.translate || function (key) { return key === 'player.queue' ? 'Coda' : key; },
     element: function (tag, className, text) { return createNode(tag, className, text); },
     posterLoader: function () {
       return {
         load: function (image, options) { posterCalls.push([image, options]); }
       };
     },
-    loadRenderedPoster: function (image, source, priority, scope, width, height) {
-      renderedPosterCalls.push([image, source, priority, scope, width, height, isDescendant(image, body)]);
+    loadRenderedPoster: function (image, source, priority, scope, width, height, sourceContext) {
+      renderedPosterCalls.push([image, source, priority, scope, width, height, isDescendant(image, body), sourceContext]);
     },
+    resolvePresentationItem: values.resolvePresentationItem,
     cancelImages: function (scope) { calls.push(['cancel-images', scope]); },
     showMessage: function (text) { calls.push(['message', text]); },
     closeChapterDrawer: function (restoreFocus) { calls.push(['close-chapters', restoreFocus]); },
@@ -192,6 +193,7 @@ function createHarness(overrides) {
   var button = h.document.getElementById('player-playlist-queue-button');
   var drawer = h.document.getElementById('player-playlist-queue');
   assert.ok(button && drawer, 'the presentation owner must create the queue command and drawer exactly once');
+  assert.strictEqual(h.document.getElementById('player-playlist-queue-close'), null, 'the queue drawer must not expose a redundant Close control');
   assert.strictEqual(h.controller.label(), 'Coda');
   h.controller.updateButton({ drawer: { open: true } }, true);
   assert.strictEqual(hasClass(button, 'is-unavailable'), false);
@@ -200,6 +202,85 @@ function createHarness(overrides) {
   h.controller.ensureUi();
   assert.strictEqual(h.document.querySelectorAll('#player-playlist-queue-button').length, 1,
     'ensureUi must be idempotent');
+}());
+
+(function queueLabelUsesLocaleTranslationInsteadOfLanguageSpecialCases() {
+  var h = createHarness({
+    language: 'fr',
+    translate: function (key) { return key === 'player.queue' ? 'File d\u2019attente' : key; }
+  });
+  h.controller.ensureUi();
+  h.controller.updateButton({ drawer: { open: false } }, true);
+  assert.strictEqual(h.controller.label(), 'File d\u2019attente', 'queue label must come from the active locale');
+  assert.strictEqual(h.document.getElementById('player-playlist-queue-button').getAttribute('aria-label'), 'File d\u2019attente');
+}());
+
+(function queueCardTypeBadgeUsesLocaleTranslation() {
+  var episode = { ratingKey: 'fr-e1', type: 'episode', title: 'Episode', image: '/fr-e1.jpg' };
+  var queue = { kind: 'container', title: 'File d\u2019attente', items: [episode] };
+  var h = createHarness({
+    language: 'fr',
+    translate: function (key) {
+      if (key === 'player.queue') { return 'File d\u2019attente'; }
+      if (key === 'player.queueSeries') { return 'S\u00c9RIE'; }
+      if (key === 'player.queueMovie') { return 'FILM'; }
+      if (key === 'library.watched') { return 'Vu'; }
+      return key;
+    },
+    queue: queue,
+    currentIndex: 0,
+    queueState: { sequence: { identity: 'queue-fr' }, drawer: { open: true, index: 0, focusReady: false, queue: queue, currentIndex: 0 } },
+    windowResult: {
+      total: 1,
+      bounds: { total: 1, visibleStart: 0, visibleEnd: 1, retainedStart: 0, retainedEnd: 1, sdStart: 0, sdEnd: 1, finalStart: 0, finalEnd: 1 },
+      items: [{ occurrenceId: 'queue:0:fr-e1', absoluteIndex: 0, item: episode }],
+      prefetchItems: []
+    }
+  });
+  h.controller.renderDrawerState({ open: true, index: 0, focusReady: false, queue: queue, currentIndex: 0 });
+  assert.strictEqual(h.document.querySelector('.playlist-queue-card-badge').textContent, 'S\u00c9RIE',
+    'queue card type badges must use the active locale rather than the Italian/English shortcut');
+}());
+
+(function queueArtworkUsesTheRouteableVariantPresentationContext() {
+  var stale = {
+    ratingKey: 'b-next',
+    type: 'episode',
+    title: 'Episode',
+    detail: 'E02 - Next',
+    image: '/b-next.jpg',
+    serverMachineIdentifier: 'server-b',
+    sourceVariants: [
+      { ratingKey: 'b-next', image: '/b-next.jpg', serverMachineIdentifier: 'server-b' },
+      { ratingKey: 'a-next', image: '/a-next.jpg', serverMachineIdentifier: 'server-a' }
+    ]
+  };
+  var active = Object.assign({}, stale, {
+    ratingKey: 'a-next',
+    image: '/a-next.jpg',
+    serverMachineIdentifier: 'server-a'
+  });
+  var queue = { kind: 'container', title: 'Queue', items: [stale] };
+  var sourceContext = { serverMachineIdentifier: 'server-a', apiBaseUrl: 'http://server-a' };
+  var h = createHarness({
+    queue: queue,
+    currentIndex: 0,
+    queueState: { sequence: { identity: 'queue-routeable' }, drawer: { open: true, index: 0, focusReady: false, queue: queue, currentIndex: 0 } },
+    resolvePresentationItem: function (item) {
+      assert.strictEqual(item, stale, 'queue presentation must resolve the original queued item');
+      return { item: active, sourceContext: sourceContext };
+    },
+    windowResult: {
+      total: 1,
+      bounds: { total: 1, visibleStart: 0, visibleEnd: 1, retainedStart: 0, retainedEnd: 1, sdStart: 0, sdEnd: 1, finalStart: 0, finalEnd: 1 },
+      items: [{ occurrenceId: 'queue:0:b-next', absoluteIndex: 0, item: stale }],
+      prefetchItems: []
+    }
+  });
+  h.controller.renderDrawerState({ open: true, index: 0, focusReady: false, queue: queue, currentIndex: 0 });
+  assert.strictEqual(h.renderedPosterCalls.length, 1, 'queue artwork should still render after rebasing the item');
+  assert.strictEqual(h.renderedPosterCalls[0][1], '/a-next.jpg', 'queue artwork must use the active source variant path');
+  assert.strictEqual(h.renderedPosterCalls[0][7], sourceContext, 'queue artwork must use the active source context instead of the current session blindly');
 }());
 
 (function closedDrawerPrefetchesOnlyTheFiveVisibleItemsAsSd() {
@@ -293,11 +374,17 @@ function createHarness(overrides) {
     'directional prefetch artwork must be isolated in its own scope');
   var firstCard = cards[0];
   var secondCard = cards[1];
+  var queueTitle = h.document.querySelector('.player-playlist-queue-title');
+  var queueTitleText = queueTitle.childNodes[0];
+  queueTitle.clientWidth = 100;
+  queueTitleText.scrollWidth = 260;
   h.controller.renderDrawerState({ open: true, index: 5, focusReady: true, queue: queue, currentIndex: 1 });
   cards = list.querySelectorAll('.playlist-queue-card');
   assert.strictEqual(cards[0], firstCard);
   assert.strictEqual(cards[1], secondCard);
-  assert.strictEqual(h.document.querySelector('.player-playlist-queue-title').textContent, 'Duplicates');
+  assert.strictEqual(queueTitleText.textContent, 'Duplicates');
+  assert.ok(hasClass(queueTitleText, 'is-overflowing'), 'long queue titles must enable the marquee only when they exceed the available header width');
+  assert.strictEqual(queueTitleText.style['--text-marquee-distance'], '-160px', 'the title marquee must travel exactly the measured overflow distance');
   assert.strictEqual(h.document.querySelector('.player-playlist-queue-position').textContent, '2 / 8');
   assert.strictEqual(cards[0].querySelector('.playlist-queue-card-duration').textContent, '03:07', 'queue sub-hour duration must zero-pad minutes and seconds');
   assert.strictEqual(cards[1].querySelector('.playlist-queue-card-duration').textContent, '1:03:07', 'queue episode duration must use unpadded hours with padded minutes/seconds');

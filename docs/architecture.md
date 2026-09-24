@@ -24,6 +24,25 @@ coordinator bundle (`app.js`), and one deferred Player bundle (`player.js`). Fea
 mutable state. Cross-feature communication goes through explicit ports supplied by the
 composition root rather than through shared controller internals.
 
+## Multi-server media boundary
+
+A logical item may retain several `sourceVariants`, but the copy used for an
+action is resolved dynamically. `MediaSourceResolver` is the single selector:
+it returns `{item, route, fallback}` and is shared by Application, Content, Detail
+and Player. The concrete `PlexSourceRouter`, live `LibrarySourcesController`, pure
+`MultiServerMedia` projection and Detail's quality/preference policies remain
+separate. There is no new catalog model, shared mutable source context or network
+work in resolution. See [the audit and contract](multi-server-source-resolution.md).
+
+## Playback lifetime boundary
+
+The Player separates feature lifetime, playback/source lifetime and queue-cache
+lifetime. Replaceable async work uses the small `PlaybackOperation` capability;
+Plex transport is bound per playback; closing invalidates ownership before resource
+release. Queue exit cancels activation without discarding the bounded sequence.
+Clock/reposition/recovery remain separate domain policies. See
+[Playback lifetime and operation ownership](player-lifecycle-ownership.md).
+
 ## Components
 
 - `app/` contains the TV interface, player, Plex API client, authentication,
@@ -39,8 +58,13 @@ composition root rather than through shared controller internals.
 - `app/app.js` contains the Core loader and coordinator modules. `app/player.js`
   contains Player-only support modules, controllers, and `PlayerComposition`. Both
   are generated, checked in for packaging, and never edited manually.
-- `app/i18n.js` is the small locale registry; `app/locales/` contains one
-  complete offline locale file per supported interface language.
+- `app/i18n.js` is the small canonical locale registry; `app/locales/` contains one
+  complete offline locale file per supported interface language. Development loads
+  all locale files statically for simple iteration. Production keeps them outside
+  `core.js`: `app/locale-bootstrap.js` synchronously installs only the persisted or
+  detected active locale before `app.js`, then loads additional dictionaries only
+  when the user changes interface language. The registry keeps the supported-language
+  list and native language names available even before those dictionaries are loaded.
 - `webos-service/` provides UDP-based Plex GDM discovery because browser code
   cannot send multicast packets.
 - `webos-shell-app/` contains the webOS manifest and application icons.
@@ -108,20 +132,35 @@ app/coordinator/
   application-bootstrap.js
 app/application-session.js
 app/player-runtime-loader.js
+app/diagnostics-support-runtime-loader.js
 app/queue-gap-view.js
 ```
 
 Every coordinator file is an independent UMD module and is included directly in
 the syntax, lint, and `checkJs` validation scope. `scripts/build-app.js` concatenates these files
 with explicit Core and Player manifests, with `application-bootstrap.js` last in
-Core and `player-composition.js` last in Player. The Core prelude contains the small
-`player-runtime-loader.js`; there is no static `player.js` script in `index.html`.
+Core and `player-composition.js` last in Player. The Core prelude contains the small `player-runtime-loader.js` and
+`diagnostics-support-runtime-loader.js`; neither deferred `player.js` nor production `support.js` has a
+static script tag in `index.html`. Development still loads the support serializer/QR modules statically,
+while production resolves them through the diagnostics loader only after an opened Diagnostics view finishes its identity refresh, before a possible export request.
 
 `application-controller.js` creates one `ApplicationSession`, constructs feature
 controllers with explicit callbacks, binds every global application event
 through `ApplicationEvents`, invokes startup, and owns application teardown. It
-performs no Plex transport, feature DOM mutation, or feature timer work. Its one
-Player warm timer belongs to application readiness, not playback scheduling. Owners
+performs no Plex transport or feature DOM mutation. Its bounded post-Home background
+chain belongs to application readiness, not playback scheduling: after the first Home
+presentation, ASS glyph warming remains independent, while the main background chain waits
+for the visible/near Home SD preview batch to settle, with a five-second Home-ready watchdog as a
+one-shot fallback if that settlement signal never arrives. The first chain step then promotes the
+remaining off-screen Home cards to SD preview priority without starting their HD work. After those
+previews settle, adjacent-Library prefetch loads recommendation data, builds a bounded detached
+recommendation DOM, and warms its SD posters before the chain advances through Player runtime
+warm-up and Watchlist warm-up. Entering Detail or requesting playback can promote Player loading
+immediately; the single-flight readiness path then lets the later chain step join the same load
+instead of duplicating it. The Shell's progressive artwork loader independently uses reason-based
+Home startup pressure: visible artwork stays foreground work while any active warm owner
+(ASS, adjacent-Library prefetch, Player, or Watchlist) holds back non-promoted HD/background work;
+clearing the final reason restores normal aggressive artwork loading immediately. Owners
 are registered in construction order and destroyed in exact reverse order;
 initial constructor, event-binding, and startup failures clean all earlier owners before
 the original error is rethrown. Deferred Player failure is deliberately different:
@@ -247,7 +286,11 @@ from `localStorage` into DB8 and the plaintext record is removed. DB8 writes are
 serialized so disconnect and profile changes cannot complete out of order. If
 private DB8 is unavailable, the adapter fails closed to session memory; local
 browser development retains the normal storage adapter because DB8 is a webOS
-platform API.
+platform API. The `preview-local.sh` test server can stage an extra,
+development-only credential adapter for browser profiles that block Web Storage;
+it stores the auth payload in a JS-readable cookie for reload persistence. The
+staged helper is not part of `app/index.html`, the generated bundles, or the TV
+package.
 
 ## Configuration
 
@@ -255,26 +298,43 @@ platform API.
 excludes local overrides, so distributable IPKs cannot contain a fixed server
 or token. The application discovers Plex servers and stores its selected
 server, viewing profile, and interface preferences in webOS local storage.
-When GDM finds no server, the same setup surface can query the signed-in Plex
-account for owned or shared servers. Candidate LAN, direct-remote, and Relay
-connections are tried in that order; only a verified endpoint is cached.
+The setup surface can query the signed-in Plex account for owned or shared servers. After the primary Home is usable, a bounded background account refresh also discovers libraries on reachable secondary PMS resources. Known LAN, direct-remote, and Relay connections retain their route-quality metadata, and only an endpoint whose `/identity` matches the expected machine identifier is accepted. Secondary library contexts remain in memory and never replace the persisted primary server.
 GDM and unauthenticated `/identity` responses are discovery hints, not proof of
 ownership. A discovered URL cannot merge into an account server merely by
 claiming the same machine identifier. For signed-in profiles, usable routes
 must come from Plex account resources and an unauthenticated identity response
 must match the expected server before the route is selected.
-The same ordered probing is used after a primary navigation request fails. A
-successful failover promotes the endpoint in both server and active-profile
-state, while an exhausted failover leaves the local UI and manual server editor
-available.
+Interactive server selection starts all known route probes together, but settlement
+is quality-aware rather than first-response-wins: local outranks direct remote, which
+outranks Relay. A valid lower class waits only while a higher class is still pending;
+once no better route can win, Ploff commits one verified endpoint and aborts the rest.
+The normal runtime failover path deliberately remains separate and uses the existing
+bounded ordered recovery policy after an active route fails. A successful failover
+promotes the endpoint in both server and active-profile state, while an exhausted
+failover leaves the local UI and manual server editor available.
 
-Search first queries the active server's ranked `/hubs/search` endpoint and
-filters out unrelated recommendations. When an account token is available, a
-bounded Plex Discover search supplies alternate-language titles. Text matches
-and the provider's first high-confidence alias are considered; each cloud GUID
-must still resolve through `/library/all` on the active server before it can be
-merged into the visible results. Cloud failure never replaces or blocks local
-results.
+Libraries from enabled secondary PMS contexts can remain separate navigation sources
+or be grouped into a virtual library when `aggregateLibraries` is enabled and their
+displayed name/type match. Virtual-library requests fan out only to member sources;
+merged media retain source variants for later concrete routing.
+
+Home presents the primary PMS first and enriches it progressively from secondary
+contexts instead of waiting for a global discovery barrier. Continue Watching and
+Recommended are always merged cross-server. `aggregateHomeLibraries` controls the
+Home presentation of matching libraries: matching Recently Added rows are combined and
+source badges for homonymous libraries omit the server suffix; when disabled, those
+badges remain `<library> · <server>`. If the primary PMS fails, Ploff gives the already-
+started secondary Home requests the short discovery grace window; usable secondary
+content can be shown with a degraded-primary warning without changing the persisted
+primary server. Search fans out across enabled reachable PMS
+contexts and merges successful results. Each server still runs the existing ranked
+Plex search behavior; source-aware identity prevents same-key records from different
+PMS instances from being conflated. A failing secondary server does not discard
+successful Home/Search results from the others.
+
+See [`multi-server.md`](multi-server.md) for the current product/runtime contract and
+[`multi-server-source-resolution.md`](multi-server-source-resolution.md) for concrete
+media-source ownership.
 
 ## Playback
 
@@ -305,8 +365,8 @@ failure state, runtime editor eligibility, offsets, and rendering. `PlaybackCont
 cross-owner use-case facade for stream namespace/rebuild, recovery, tracks/versions, Plex subtitle
 requests/writes, subtitle preview timers, and reposition orchestration. Its public API is
 regression-frozen to `open`, `close`,
-`toggle`, `seekAbsolute`, `changeTrack`, `changeVersion`, `startAdjacent`,
-`startItem`, subtitle-editor operations, `snapshot`, `diagnostics`, and
+`toggle`, `seekAbsolute`, `changeTrack`, `changeVersion`, `startItem`,
+subtitle-editor operations, `snapshot`, `diagnostics`, and
 `destroy`. Moving presentation or wiring does not authorize changing play/pause,
 resume, seek, offset, rebuild, recovery, reporting, keepalive, buffering, track,
 version, or subtitle-timing semantics.
@@ -373,7 +433,7 @@ artwork as one update. The global poster-size setting changes layout measurement
 and virtualization windows. Independent artwork and backdrop quality settings use
 separate ranges (70–100% for posters and thumbnails, 50–100% for backdrops) and
 scale only the dimensions requested from Plex, leaving the rendered geometry
-unchanged; backdrop requests remain bounded by the 1920x1080 UI canvas. Chapter
+unchanged; backdrop requests remain bounded by the 1920x1080 UI canvas. The shared loader never starts an empty URL when a PMS artwork route is temporarily unavailable: it retains a retryable specification, preserves any still-usable image from the same source, and retries through the current route when the card becomes relevant again. Reused preview/full URLs are optimistic cache hints rather than terminal state; a browser image error invalidates the hint so route rotation or cache eviction cannot leave a card falsely marked complete. Retained Library DOM also includes the effective artwork-quality signature in its poster cache, so restoring a cached library after a quality change schedules the correct replacement artwork. Chapter
 thumbnails use the shared artwork-quality path. Loading, empty, and recoverable
 error states share one
 remote-friendly surface; search keeps its state inline so the keyboard remains

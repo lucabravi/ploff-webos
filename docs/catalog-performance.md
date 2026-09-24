@@ -30,9 +30,9 @@ validation.
 - `benchmarks/catalog-performance-baseline-3604d71.txt` — original pre-optimization
   baseline retained for historical comparison.
 - `benchmarks/catalog-performance-static-cache.txt` — current default 5,000-item
-  result, refreshed on Node v26.0.0.
+  result, refreshed on Node v22.16.0.
 - `benchmarks/catalog-performance-stress-10000.txt` — current 10,000-item stress
-  result, refreshed on Node v26.0.0.
+  result, refreshed on Node v22.16.0.
 
 Intermediate implementation-tranche logs are intentionally not kept in the current
 working tree. Git history remains the source for those historical checkpoints.
@@ -57,8 +57,10 @@ The optimized catalog must preserve these hot-path properties:
 ## Executable operation ceilings
 
 `tests/test-library-grid-hot-paths.js` consumes the same `OPERATION_BUDGETS` exported by
-`scripts/benchmark-library-catalog.js`. Focus movement is capped at two local queries, four
-layout reads and zero DOM/poster/media rebuild work. A one-row boundary transition is capped
+`scripts/benchmark-library-catalog.js`. Focus movement is capped at zero descendant queries,
+four layout reads and zero DOM/poster/media rebuild work. The four geometry reads are retained
+deliberately: they keep the real 12 px visibility gutter correct across grid padding and runtime
+viewport changes rather than relying on stale virtual geometry. A one-row boundary transition is capped
 at 5.2 node moves, 5.1 removals/cancellations, 10.2 artwork jobs and 5.2 full/preview jobs.
 The fractional headroom also covers the benchmark's averaged warm-state transitions without
 turning wall-clock timings into CI gates. `npm run benchmark:library-catalog` exits non-zero
@@ -66,26 +68,26 @@ when either guarded scenario exceeds these deterministic ceilings.
 
 ## Current reference measurements
 
-Node v26.0.0, 5,000 items, seven measured rounds:
+Node v22.16.0, 5,000 items, seven measured rounds:
 
 | Scenario | Current median | Key operation budget |
 |---|---:|---|
-| Focus movement | 10.633 ms / 5,000 | 0 DOM mutation, 0 poster work, 2 local queries |
-| Same-window scroll | 0.819 ms / 3,000 | 0 DOM/query/poster work |
-| Row-boundary scroll | 44.003 ms / 1,500 | ~5 node moves, ~10 artwork jobs |
-| Append pages | 0.995 ms / 100 | 0 DOM/poster work while window is stable |
+| Focus movement | 8.902 ms / 5,000 | 0 DOM mutation, 0 poster work, 0 queries, 4 geometry reads |
+| Same-window scroll | 2.111 ms / 3,000 | 0 DOM/query/poster work |
+| Row-boundary scroll | 42.115 ms / 1,500 | ~5 node moves, ~10 artwork jobs |
+| Append pages | 0.860 ms / 100 | 0 DOM/poster work while window is stable |
 
-Node v26.0.0, 10,000 items, seven measured rounds:
+Node v22.16.0, 10,000 items, seven measured rounds:
 
 | Scenario | Stress median | Key operation budget |
 |---|---:|---|
-| Focus movement | 10.087 ms / 5,000 | same bounded operations as 5,000 items |
-| Same-window scroll | 1.204 ms / 3,000 | same bounded operations as 5,000 items |
-| Row-boundary scroll | 43.067 ms / 1,500 | same bounded row reconciliation |
-| Append pages | 0.666 ms / 100 | same stable-window behavior |
+| Focus movement | 9.310 ms / 5,000 | same bounded operations as 5,000 items |
+| Same-window scroll | 2.437 ms / 3,000 | same bounded operations as 5,000 items |
+| Row-boundary scroll | 44.776 ms / 1,500 | same bounded row reconciliation |
+| Append pages | 1.241 ms / 100 | same stable-window behavior |
 
-The similar deterministic counts at 5,000 and 10,000 items are more important than
-small timing differences between runs.
+The identical deterministic hot-path counts at 5,000 and 10,000 items are more important than
+wall-clock differences between runs, which can vary with host load.
 
 ## Historical baseline
 
@@ -107,14 +109,30 @@ progress visible to the user. The policy stays inside the feature that owns each
 surface rather than introducing a global background scheduler:
 
 - Watchlist keeps the complete resolved model in memory but mounts only a bounded,
-  focus-centred row window. Its background warm-up begins after the first Home is
-  usable, while navigation intent can still bring it forward sooner.
-- Adjacent Library prefetch caches recommendation data only. Detached presentation
-  DOM and artwork are deferred until the existing navigation-entry path actually
-  prepares that library.
-- Home still renders its rows as a complete surface. The first rows request full
-  artwork immediately; deeper rows begin with previews and are promoted as focus
-  approaches, avoiding visible progressive row hydration.
+  focus-centred row window. Overlapping scroll windows retain their card and image nodes;
+  only departing cards cancel artwork, and same-window renders do not rebuild the DOM.
+  Its startup warm is the final step of the completion-driven
+  post-Home chain; entering Watchlist sooner still loads it immediately through the normal path.
+- Adjacent Library prefetch is bounded to the nearest two uncached libraries. In the startup
+  chain it loads recommendation data, builds up to 60 recommendation cards in detached DOM,
+  and warms only their SD poster previews. The detached DOM is retained in the existing
+  five-entry Library DOM LRU, so the first navigation can attach/reconcile prepared cards
+  instead of constructing the whole recommendation surface from an empty container. Foreground
+  entry still owns HD artwork and normal focus/presentation updates. Inactive Library data
+  snapshots additionally use an eight-library / 6,000-card shared LRU budget; a single most-recent
+  deep catalog remains restorable even when it alone exceeds that budget.
+- Home still renders its rows as a complete logical surface. During heavyweight post-Home
+  startup work, artwork uses reason-based pressure rather than a fixed quiet timer: viewport
+  previews/full images and nearby SD previews are the readiness boundary, while distant cards
+  stay queued. The first background-chain step explicitly promotes those remaining distant Home
+  cards through SD only; after they settle the chain advances to Library prefetch, Player warm,
+  and Watchlist warm. ASS glyph warming remains parallel. Clearing the final pressure reason
+  restores normal aggressive preview/full loading. Focus promotion never aborts image requests
+  already running. Detached Library-tab SD previews are explicitly preemptible: when visible
+  artwork is blocked by preview capacity, only a lower-priority speculative request may be
+  cancelled and requeued; its warmup resumes one preview at a time after foreground preview and HD work settles. The
+  bounded cached tabs retain their unfinished SD previews across tab changes, while the tab
+  being left releases any warm requests that were never promoted to foreground ownership.
 - Scheduled Home refresh transport remains active in the background, but changed
   rows wait for a short input quiet period before replacing visible Home DOM.
 - Detail season and episode previews keep only the latest in-flight preview intent;

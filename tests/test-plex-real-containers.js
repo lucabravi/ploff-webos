@@ -38,10 +38,10 @@ function parse(relativePath) {
   });
   assert.strictEqual(seasonRecords.length, 3, 'the Plex season response must retain all three records');
   assert.deepStrictEqual(seasonRecords.map(function (attributes) { return attributes.title; }), [
-    'Sample Media 1',
+    'All episodes',
     'Season 1',
     'Season 2'
-  ], 'the special sample-media record and regular seasons must remain in Plex order');
+  ], 'the special all-episodes record and regular seasons must remain in Plex order');
   assert.deepStrictEqual(mappedSeasons.map(function (season) { return season.ratingKey; }), [
     'fixture-id-142',
     'fixture-id-143'
@@ -86,7 +86,7 @@ function parse(relativePath) {
 }());
 
 (function preservesRealPlaylistOrderTypesAndOccurrenceIdentity() {
-  var records = parse('playlists/quintessential-quintuplets.xml');
+  var records = parse('playlists/playlist-order.xml');
   var items = records.map(function (attributes) {
     return PlexMediaMapper.mediaFromAttributes(attributes, '/plex-api', '');
   });
@@ -127,7 +127,7 @@ function parse(relativePath) {
     'movie', 'movie', 'movie'
   ], 'mixed playlist media types must remain mixed in their original positions');
 
-  provider.open({ kind: 'playlist', id: 'fixture-id-257', title: 'Quintessential Quintuplets', total: 27 });
+  provider.open({ kind: 'playlist', id: 'fixture-id-257', title: 'Sample Playlist', total: 27 });
   provider.window(0, 27, function (error, result) {
     assert.ifError(error);
     windowResult = result;

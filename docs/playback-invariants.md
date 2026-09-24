@@ -3,6 +3,30 @@
 These rules are based on tests performed on the target LG webOS TV. Do not
 change the playback clock model without reproducing every case below.
 
+## Asynchronous ownership and teardown
+
+- Each replaceable metadata, source, selection and subtitle operation has one
+  owner. Superseded or duplicate completions cannot install a source or renderer.
+  Invalidation happens before an external abort, including synchronous/reentrant
+  completion. A late-returned handle is cancelled rather than leaked.
+- A native `play()` rejection may clear only its own pending issuance. A later
+  playback/source retains its single-flight native start.
+- Selection changes share a latest-wins local transaction. They commit at current
+  playback time or the pending seek target, never at a stale request-time position.
+- Active playback, final reports, keepalive and editor compensating writes retain
+  their originating Plex transport; a candidate for the next PMS is not that binding.
+- Playback teardown first detaches state, then attempts all owned releases. A failed
+  report, abort, renderer disposal or native pause cannot skip the remaining close
+  sequence. Native callbacks and reentrant open cannot restart playback during the
+  synchronous closing barrier. Destroy is terminal before external release.
+- Retired timeline timer callbacks cannot report or stop a newer session's timers.
+- Screen exit retires pending queue activation, metadata, adjacent resolution,
+  autoplay and direct start, but preserves queue origin and bounded cache. Returning
+  or issuing a new explicit request remains possible. A late report from an older
+  playback cannot reset the current playback's end-pause UI.
+
+The concrete owner/API contract is in [playback lifecycle ownership](player-lifecycle-ownership.md).
+
 ## Plex HLS clock
 
 - Use `fastSeek=1`. With `fastSeek=0`, Plex may expose a shortened timeline

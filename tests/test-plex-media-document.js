@@ -7,6 +7,8 @@ assert.strictEqual(typeof PlexMediaDocument.attributesFromDocument, 'function',
   'generic top-level Plex item mapping must be owned by PlexMediaDocument');
 assert.strictEqual(typeof PlexMediaDocument.parseAttributes, 'function',
   'generic Plex XML attribute parsing must be owned by PlexMediaDocument');
+assert.strictEqual(typeof PlexMediaDocument.fromVideoNode, 'function',
+  'batch containers must be able to parse each Video without reparsing the XML document');
 
 function element(name, attributes, children) {
   var source = attributes || {};
@@ -61,6 +63,8 @@ function element(name, attributes, children) {
   assert.strictEqual(parsed.groups[0].parts.length, 1);
   assert.deepStrictEqual(parsed.groups[0].parts[0].streams.map(function (stream) { return stream.id; }), ['audio-1', 'subtitle-1']);
   assert.strictEqual(parsed.mediaEntries[0].parts[0].node, part, 'parser must retain DOM nodes required by playback URL selection');
+  assert.strictEqual(PlexMediaDocument.fromVideoNode(video, parsed.documentNode).groups[0].media.id, 'media-1',
+    'a Video embedded in a season response must expose its Media/Part tree directly');
 
   global.DOMParser = previousDomParser;
 }());

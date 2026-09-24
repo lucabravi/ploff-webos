@@ -10,6 +10,8 @@ var ProgressiveImages = require('../../app/progressive-images');
 var SubtitleSync = require('../../app/subtitle-sync');
 var SubtitleSeriesOffset = require('../../app/subtitle-series-offset');
 var AssSubtitlePrefetchPolicy = require('../../app/ass-subtitle-prefetch-policy');
+var PlexSourceRouter = require('../../app/coordinator/plex-source-router');
+var MediaSourceResolver = require('../../app/coordinator/media-source-resolver');
 
 function fakeNode(id) {
   var attributes = {};
@@ -104,15 +106,20 @@ function createHarness(overrides) {
     },
     handleKey: function (event, direction) { calls.push(['queue-key', event.keyCode, direction]); return 'queue'; },
     observePlayback: function (position, duration) { calls.push(['observe-playback', position, duration]); },
-    resolveAdjacent: function (direction, callback) {
-      if (values.resolveAdjacent) { values.resolveAdjacent(direction, callback); }
-      else { callback(null); }
-    },
     resolveAdjacentState: function (direction, callback) {
       calls.push(['resolve-adjacent-state', direction]);
       if (values.resolveAdjacentState) { return values.resolveAdjacentState(direction, callback); }
       callback(null, { state: 'unavailable' });
       return { state: 'resolving' };
+    },
+    waitForDetail: function (itemOrRatingKey, callback) {
+      calls.push(['wait-for-detail', itemOrRatingKey]);
+      if (values.waitForDetail) { return values.waitForDetail(itemOrRatingKey, callback); }
+      if (captured.queueOptions && typeof captured.queueOptions.loadMetadata === 'function') {
+        return captured.queueOptions.loadMetadata(itemOrRatingKey, callback);
+      }
+      callback(new Error('metadata unavailable'));
+      return null;
     },
     claimBackdropPrefetch: function (key) {
       calls.push(['claim-backdrop-prefetch', key]);
@@ -124,6 +131,7 @@ function createHarness(overrides) {
     invalidateBackdropLoad: function () {},
     cancelUpNext: function (dismiss) { calls.push(['cancel-up-next', dismiss]); },
     resetPlaybackSession: function () {},
+    cancelPendingPlayback: function () { calls.push(['cancel-pending-playback']); },
     completeDirect: function () {},
     clear: function () { calls.push(['clear-queue']); },
     startContainer: function (container, callback) {
@@ -226,7 +234,6 @@ function createHarness(overrides) {
     },
     open: function (request, callback) { calls.push(['open-playback', request]); if (callback) { callback(null); } return true; },
     close: function (callback) { calls.push(['close']); if (callback) { callback(12, true, '42'); } return true; },
-    startAdjacent: function (direction, callback) { calls.push(['legacy-start-adjacent', direction]); if (callback) { callback(null); } return true; },
     startItem: function (item, options, callback) { calls.push(['start-item', item, options]); if (callback) { callback(null); } return true; },
     destroy: function () { destroyed.push('playback'); }
   };
@@ -246,6 +253,7 @@ function createHarness(overrides) {
     updateSkip: function () {},
     resetSkip: function () {},
     resetChapters: function () {},
+    closeChapters: function (restoreFocus) { calls.push(['controls-close-chapters', restoreFocus]); },
     chapterHintVisible: function () { return false; },
     reset: function () {},
     setSettingsSignature: function () {},
@@ -254,6 +262,14 @@ function createHarness(overrides) {
   };
   var timerRoot = values.root || { setTimeout: function (fn) { fn(); return 1; }, clearTimeout: function () {} };
   timerRoot.PloffAssSubtitlePrefetchPolicy = values.AssSubtitlePrefetchPolicy || AssSubtitlePrefetchPolicy;
+  var routerConfig = values.data && values.data.config || {};
+  var sourceRouter = values.data && values.data.sourceRouter || PlexSourceRouter.create({
+    config: routerConfig,
+    sources: {
+      primaryContext: function () { return { apiBaseUrl: routerConfig.apiBaseUrl || '', token: routerConfig.token || '', requestTimeout: routerConfig.requestTimeout }; },
+      contextForMachine: function () { return null; }
+    }
+  });
   var featureOptions = {
     platform: { root: timerRoot, document: documentRef, storage: values.storage || {} },
     modules: {
@@ -264,6 +280,7 @@ function createHarness(overrides) {
       NativeVideoDriver: values.NativeVideoDriver || { create: function () {} },
       PlaybackReposition: values.PlaybackReposition || { create: function () {} },
       PlaybackSession: values.PlaybackSession || { create: function () {} },
+      PlaybackOperation: require('../../app/playback-operation'),
       PlaybackTimeline: values.PlaybackTimeline || { create: function () {} },
       SubtitleRuntime: values.SubtitleRuntime || { create: function () {} },
       PlayerControlsController: { create: function (options) { creates.controls += 1; captured.controlsOptions = options; return controls; } },
@@ -277,7 +294,6 @@ function createHarness(overrides) {
         owner.destroy = function () { destroyed.push('subtitle-editor'); originalDestroy(); };
         return owner;
       } },
-      EpisodeNavigation: { createResolver: function () { return { cancel: function () { calls.push(['resolver-cancel']); } }; }, isRegularSeason: function () { return true; } },
       QueueGapController: values.QueueGapController || QueueGapController,
       ResumeChoice: ResumeChoice,
       QueueGapView: { create: function (options) { creates.gapView += 1; captured.gapViewOptions = options; return { render: function (snapshot, labels) { calls.push(['gap-render', snapshot, labels]); } }; } },
@@ -306,7 +322,7 @@ function createHarness(overrides) {
       VersionSelection: values.VersionSelection,
       ProgressiveImages: ProgressiveImages
     },
-    data: extend({ config: {}, PlexClient: {}, playbackCapabilities: function () { return {}; }, activeServer: function () { return null; } }, values.data),
+    data: extend({ config: {}, sourceRouter: sourceRouter, sourceResolver: MediaSourceResolver.create({ sourceRouter: sourceRouter }), PlexClient: {}, playbackCapabilities: function () { return {}; }, activeServer: function () { return null; } }, values.data),
     shell: extend({ t: function (key) { return key; }, setText: function () {}, element: function () { return fakeNode(); }, cancelImages: function () {}, stopTheme: function () {}, posterLoader: function () { return null; } }, values.shell),
     detail: extend({ snapshot: function () { return {}; }, queueSnapshot: function () { return {}; }, preferenceSnapshot: function () { return {}; }, resumeAfterPlayer: function () {}, leave: function () {} }, values.detail),
     library: extend({ restoreContainerOrigin: function () { return false; } }, values.library),

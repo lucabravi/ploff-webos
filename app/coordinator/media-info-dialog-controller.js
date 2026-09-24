@@ -197,7 +197,6 @@
       handleKey: handleKey,
       scroll: scroll,
       preview: preview,
-      focusVersion: focusVersion,
       snapshot: snapshot,
       destroy: destroy
     };

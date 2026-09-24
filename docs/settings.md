@@ -75,6 +75,53 @@ Three persisted preferences provide explicit escape hatches for viewing distance
 
 `uiTextScale` and `artworkDataSaver` are included in device Settings backup alongside other TV presentation preferences. Older stored records remain valid because validation supplies their defaults when the keys are absent.
 
+## Home and library navigation preferences
+
+Dynamic library sources are persisted separately from the static Settings schema under
+`ploff.libraryTabs.v1`. The store is keyed by the stable composite
+`serverMachineIdentifier + sectionKey`, so equal Plex section keys on different PMS instances
+never collide. It contains presentation metadata only: visibility, library alias, icon, order,
+the single global Home/library navigation display mode, Home icon, and shared-server aliases.
+Plex access tokens, server URLs, and resolved direct/Relay routes are never written to this store.
+
+The **Home & libraries** Settings category is intentionally compact and exposes three entry points:
+
+- **Navigation bar** selects one global `Text`, `Icons`, or `Icons + text` mode for Home and every library. Search and Settings remain icon-only.
+- **Libraries** manages visibility, displayed library names and icons. Shared PMS headers can edit the displayed server name, while the primary PMS is not presented as a fake editable row. **Order libraries** lives at the bottom of this same surface and opens the existing Left/Right ordering mode; navbar long-press writes to the same source-aware order.
+- **Home** opens the existing ordered-subset editor for Home rows.
+
+The UI deliberately says **Name** rather than exposing the internal `alias` terminology. Empty custom names continue to mean “use the current Plex name”.
+
+Newly discovered library sources are visible by default. Libraries from any non-primary PMS use
+`<library> · <server>` labels by default, whether that secondary server is shared or also owned by
+the account. Missing-source preferences are retained for up to 90 days (bounded to 128 source
+records) so temporary server outages do not discard aliases, visibility or order. Home itself
+remains fixed, named Home, and always visible in navigation; its content may include enabled
+secondary PMS sources.
+
+Two independent schema-backed settings control optional cross-server presentation:
+
+- `aggregateLibraries=false` by default. **Merge matching library tabs** combines
+  libraries with the same displayed name and Plex library type into one virtual tab.
+- `aggregateHomeLibraries=false` by default. **Merge matching libraries on Home**
+  combines matching library-specific Recently Added rows and simplifies Home badges
+  for homonymous libraries by omitting the server suffix. Continue Watching and
+  Recommended remain single cross-server rows whether this setting is on or off.
+
+These settings do not enable multi-server discovery. Search and other source-aware
+global flows may use enabled secondary PMS contexts regardless of whether the optional
+merge presentation is enabled.
+
+Each library may additionally store an optional `mergeGroup` (up to 80 characters)
+in `ploff.libraryTabs.v1`. Matching groups and library types take precedence over
+display names for navigation and Home aggregation. Missing/empty groups preserve
+the existing name-based behavior. The sanitized library preference backup retains
+this additive presentation field; it contains no route or credential data.
+
+Saved-settings backup may carry the sanitized `libraryTabs` preference block and reloads it live
+after restore; the legacy primary-only `ploff.libraryOrder.v1` projection is retained only for
+backward compatibility.
+
 ## Home row visibility and order
 
 `homeRows` is one ordered-subset preference rather than separate visibility switches and an

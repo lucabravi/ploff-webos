@@ -303,7 +303,69 @@
     var candidates = orderedConnections(connections || []);
     var index = 0;
     var currentRequest = null;
+    var parallelRequests = [];
     var cancelled = false;
+    if (options && options.raceConnections === true) {
+      var routes = orderedConnectionRoutes(connections || []);
+      var remaining = routes.length;
+      var settled = false;
+      var lastParallelError = null;
+      var bestValid = null;
+      var routeStates = routes.map(function (route) {
+        return {
+          route: route,
+          rank: route.local === true ? 0 : (route.relay === true ? 2 : 1),
+          pending: true
+        };
+      });
+      function abortParallel() {
+        parallelRequests.forEach(function (request) { if (request && request.abort) { request.abort(); } });
+        parallelRequests = [];
+      }
+      function betterPendingThan(rank) {
+        var pendingIndex;
+        for (pendingIndex = 0; pendingIndex < routeStates.length; pendingIndex += 1) {
+          if (routeStates[pendingIndex].pending && routeStates[pendingIndex].rank < rank) { return true; }
+        }
+        return false;
+      }
+      function finishIfReady() {
+        if (settled || cancelled) { return; }
+        if (bestValid && !betterPendingThan(bestValid.rank)) {
+          settled = true;
+          abortParallel();
+          callback(null, bestValid.route.uri);
+          return;
+        }
+        if (!remaining) {
+          settled = true;
+          callback(lastParallelError || new Error('No reachable Plex server connection'));
+        }
+      }
+      function launch(state) {
+        var request = requestXml(rootObject, 'GET', state.route.uri + '/identity', options, '', function (error, body) {
+          var identity;
+          if (cancelled || settled) { return; }
+          state.pending = false;
+          remaining -= 1;
+          identity = error ? '' : serverIdentityFromXml(body);
+          if (!error && identity && identity === String(machineIdentifier || '')) {
+            if (!bestValid || state.rank < bestValid.rank) { bestValid = state; }
+          } else {
+            lastParallelError = error || new Error('Plex server identity mismatch');
+          }
+          finishIfReady();
+        });
+        if (settled || cancelled) {
+          if (request && request.abort) { request.abort(); }
+        } else {
+          parallelRequests.push(request);
+        }
+      }
+      if (!remaining) { callback(new Error('No reachable Plex server connection')); }
+      else { routeStates.forEach(launch); }
+      return { abort: function () { cancelled = true; abortParallel(); } };
+    }
     function tryNext(lastError) {
       var uri;
       if (cancelled) { return; }
@@ -342,7 +404,6 @@
   }
 
   return {
-    CLIENT_ID_KEY: CLIENT_ID_KEY,
     accountServersFromJson: accountServersFromJson,
     clientIdentifier: clientIdentifier,
     createPin: createPin,
@@ -354,7 +415,6 @@
     pinFromXml: pinFromXml,
     pollPin: pollPin,
     profileTokenFromXml: profileTokenFromXml,
-    serverIdentityFromXml: serverIdentityFromXml,
     serverAccessFromJson: serverAccessFromJson,
     switchHomeUser: switchHomeUser
   };

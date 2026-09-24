@@ -5,5 +5,10 @@ node_modules/
 *.ipk
 .DS_Store
 .superpowers/
+/artifacts/playwright/
 /app/config.local.js
 .venv/
+
+# Local agent context (never ship in release/public snapshots)
+/AGENTS.md
+/CHATGPT-HANDOFF.md

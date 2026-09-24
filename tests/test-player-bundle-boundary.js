@@ -8,8 +8,8 @@ var root = path.join(__dirname, '..');
 var playerFiles = [
   'skip-marker-state.js', 'player-controls-state.js', 'player-controls-view.js', 'player-buffering-indicator.js',
   'chapter-state.js', 'player-chapters-view.js', 'playback-recovery.js', 'playback-clock.js', 'native-video-driver.js',
-  'player-seek-controller.js', 'playback-reposition.js', 'playback-session.js', 'playback-timeline.js',
-  'episode-navigation.js', 'resume-choice.js', 'subtitle-sync.js', 'subtitle-runtime.js', 'subtitle-editor-session.js',
+  'player-seek-controller.js', 'playback-reposition.js', 'playback-session.js', 'playback-operation.js', 'playback-timeline.js',
+  'resume-choice.js', 'subtitle-sync.js', 'subtitle-runtime.js', 'subtitle-editor-session.js',
   'subtitle-editor-view.js', 'subtitle-offset-store.js', 'up-next-state.js', 'up-next-timing.js', 'up-next-view.js', 'queue-gap-view.js',
   'coordinator/queue-sequence-contract.js', 'coordinator/bounded-queue-cache.js', 'coordinator/plex-container-queue-provider.js',
   'coordinator/series-queue-provider.js', 'coordinator/queue-gap-controller.js', 'coordinator/playback-queue-controller.js',

@@ -23,9 +23,7 @@ var queue;
 var series;
 var duplicates;
 var mixedDirectories;
-var upcoming;
 var seriesItems;
-var adjacent;
 
 
 function extractFunction(sourceText, functionName, nextFunctionName) {
@@ -101,21 +99,29 @@ assert.strictEqual(PlaybackQueueModel.itemDisplayTitle(items[2]), 'Movie 01', 'm
 assert.strictEqual(PlaybackQueueModel.firstUnfinishedIndex(items), 1, 'playlist playback must begin from the first item not marked viewed');
 assert.strictEqual(PlaybackQueueModel.firstUnfinishedIndex([{ viewed: true }, { viewed: true }]), 0, 'fully viewed playlists must restart from the first item');
 
-upcoming = PlaybackQueueModel.upcomingItems(items, 2);
-assert.strictEqual(upcoming.map(function (item) { return item.ratingKey; }).join(','), 'movie-1,s2e1', 'the upcoming helper must retain the current and future queue slice');
-assert.strictEqual(PlaybackQueueModel.focusedIndex(0, items.length), 0, 'queue focus must reach earlier visible items');
-assert.strictEqual(PlaybackQueueModel.focusedIndex(99, items.length), 3, 'queue focus must stay inside the queue');
-
-queue = PlaybackQueueModel.createQueue(items, 's1e1', 'Viewing order', 0);
-adjacent = PlaybackQueueModel.adjacentItem(queue, queue.index, 1);
-assert.strictEqual(adjacent.item.ratingKey, 's1e2', 'Up Next must resolve the following item from a generic playback queue');
-assert.strictEqual(PlaybackQueueModel.adjacentItem(queue, queue.items.length - 1, 1), null, 'the final queue item must not expose an Up Next target');
 
 assert.ok(playerQueueSource.indexOf("row.insertBefore(button, settings)") !== -1, 'the queue command must be placed immediately before settings');
+assert.strictEqual(playerQueueSource.indexOf('player-playlist-queue-close'), -1, 'the queue drawer must not create a redundant Close control');
+assert.strictEqual(source.indexOf("button.id === 'player-playlist-queue-close'"), -1, 'queue pointer routing must not retain the removed Close control');
+assert.strictEqual(styles.indexOf('.player-playlist-queue-close'), -1, 'the removed Queue Close control must not retain dedicated CSS');
 assert.ok(/if \(code === 38\) \{ return 'drawer-up'; \}/.test(inputCommandRouterSource) && /command === 'drawer-up' \|\| command === 'drawer-down'[\s\S]*playerQueueController\.move/.test(source) && /function move\(direction\)[\s\S]*queueController\.moveDrawer/.test(playerQueueSource), 'remote Up must route through the command router and queue presentation owner into the queue domain controller');
 assert.ok(/if \(code === 40\) \{ return 'drawer-down'; \}/.test(inputCommandRouterSource) && /command === 'drawer-up' \|\| command === 'drawer-down'/.test(source), 'remote Down must route through the command router before navigating the queue');
 assert.ok(/if \(code === 13\) \{ return 'drawer-activate'; \}/.test(inputCommandRouterSource) && /command === 'drawer-activate'[\s\S]*switchPlayerQueueItem\(queueState\.drawer\.index\)/.test(source), 'remote OK must route through the command router before playing the controller-focused queue item');
 assert.ok(styles.indexOf('.player-playlist-queue { box-sizing:border-box; position:absolute; z-index:32; top:0; right:0;') !== -1, 'the queue drawer must open on the right above the player');
+assert.ok(styles.indexOf('.player-playlist-queue-header { position:relative; z-index:1; height:40px;') !== -1 &&
+  styles.indexOf('.player-playlist-queue-title { position:absolute; top:0; right:84px;') !== -1 &&
+  styles.indexOf('.player-playlist-queue-position { position:absolute; top:0; right:0;') !== -1,
+  'the queue title and item counter must share one compact header row');
+assert.ok(styles.indexOf('.player-playlist-queue-title-text.is-overflowing') !== -1 &&
+  styles.indexOf('.episode-card.is-focused .episode-label-text.is-overflowing.is-pan-active') !== -1 &&
+  styles.indexOf('@keyframes text-overflow-bounce') !== -1 &&
+  /function updateQueueTitleOverflow\([\s\S]*scrollWidth[\s\S]*text-marquee-distance/.test(playerQueueSource),
+  'overflowing queue and focused episode titles must share the same smooth, measured back-and-forth animation');
+assert.ok(styles.indexOf('.playlist-queue-card { position:relative; width:100%; height:196px;') !== -1 &&
+  styles.indexOf('.playlist-queue-card-image-frame { position:relative; display:block; width:100%; height:154px;') !== -1 &&
+  /function viewportItems\(list\)[\s\S]*height \/ 214/.test(playerQueueSource) &&
+  /height = count \* 214 \+ 'px'/.test(playerQueueSource),
+  'the taller queue previews must preserve virtualized card spacing');
 assert.ok(/function openDrawer\([\s\S]*playlistQueueDrawerFocusReady = false[\s\S]*setTimer\('drawer'/.test(controllerSource) && /queueController\.openDrawer\(detailSnapshot\(\), call\(options\.animationDuration, 220\)\)/.test(playerQueueSource), 'DOM focus must wait until the controller reports the overlaid queue as visible');
 assert.ok(styles.indexOf('.player-playlist-queue:before') !== -1 && styles.indexOf('linear-gradient(to right, rgba(5,6,8,0), rgba(14,16,20,.97))') !== -1, 'the overlay drawer must retain a soft background edge');
 assert.ok(styles.indexOf('.player-view.has-playlist-queue-open .player-video { width:') === -1, 'opening the queue must not resize the native TV video plane');
@@ -226,9 +232,6 @@ assert.ok(/function startContainer\([\s\S]*provider\.window\(start, start \+ 40[
 assert.ok(/function startContainer\([\s\S]*loadCurrentMetadata[\s\S]*requestPlayback/.test(controllerSource) &&
   /function applyPlaybackQueueRequest\([\s\S]*openPlayer\(\)/.test(source),
   'direct playlist playback must enter the player through one injected playback callback');
-assert.ok(/function resolveAdjacent\([\s\S]*resolveAdjacentState/.test(controllerSource) &&
-  /function resolvePlaybackQueueAdjacent\([\s\S]*playbackQueueController\.resolveAdjacent/.test(source),
-  'Up Next and background prefetch must consume the generic provider resolver');
 assert.ok(/function confirmUpNext\([\s\S]*requestPlayback/.test(controllerSource), 'Up Next confirmation must activate the resolved queue target through the controller');
 
 

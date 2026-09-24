@@ -63,5 +63,5 @@
 - [x] Run `npm run test:memory`.
 - [x] Run `git diff --check`, performance budget and `git fsck --no-dangling`.
 - [x] Record before/after Detail and bundle metrics and retained state rationale.
-- [x] Update `CHANGELOG.md` and `CHATGPT-HANDOFF.md`.
+- [x] Update `CHANGELOG.md` and the Phase 3 records.
 - [x] Commit Phase 3 checkpoint documentation.

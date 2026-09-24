@@ -39,14 +39,15 @@ var PlaybackSession = require('../app/playback-session');
   session.beginStreamSwitch('starting');
   session.markSourceReady();
   session.markPlaying();
-  session.resetForClose(true);
-  assert.strictEqual(session.reopenStartupGuard(), true);
+  session.beginClose(true);
+  session.finishClose();
+  assert.strictEqual(session.snapshot().reopenStartupGuard, true);
   assert.strictEqual(session.nativeSourceReady(), false);
   session.prepare();
   session.beginStreamSwitch('starting');
   assert.strictEqual(session.shouldRejectPlaying(), true, 'late playing must stay blocked before the reopened source can play');
   session.markSourceReady();
-  assert.strictEqual(session.reopenStartupGuard(), false);
+  assert.strictEqual(session.snapshot().reopenStartupGuard, false);
   assert.strictEqual(session.shouldRejectPlaying(), false, 'current source may play after its own canplay');
 }());
 
@@ -66,8 +67,10 @@ var PlaybackSession = require('../app/playback-session');
   session.beginStreamSwitch('starting');
   session.markSourceReady();
   session.markPlaying();
-  session.resetForClose(true);
-  session.resetForClose(false);
+  session.beginClose(true);
+  session.finishClose();
+  session.beginClose(false);
+  session.finishClose();
   session.prepare();
   session.beginStreamSwitch('starting');
   assert.strictEqual(session.shouldRejectPlaying(), true,
@@ -102,7 +105,7 @@ var PlaybackSession = require('../app/playback-session');
   assert.strictEqual(session.lifecycle(), 'playing');
 }());
 
-(function runtimeResetClearsTransientFlagsWithoutDestroyingTheOwner() {
+(function closeResetClearsTransientFlagsWithoutDestroyingTheOwner() {
   var session = PlaybackSession.create();
   session.prepare();
   session.beginStreamSwitch('recovering');
@@ -111,7 +114,8 @@ var PlaybackSession = require('../app/playback-session');
   session.setPendingTerminalPause(true);
   session.setDecoderReportPending(true);
   session.markTerminalPlayback(true);
-  session.resetRuntime();
+  session.beginClose(false);
+  session.finishClose();
   assert.deepStrictEqual(session.snapshot(), {
     lifecycle: 'idle',
     streamSwitching: false,
@@ -166,10 +170,30 @@ var PlaybackSession = require('../app/playback-session');
   session.beginClockDiscontinuity();
   assert.strictEqual(session.clockRepairAvailable(), true, 'an explicit seek/discontinuity must re-arm one clock repair');
 
-  session.resetRuntime();
-  assert.strictEqual(session.bufferCheckpoint(), null, 'runtime reset must clear active buffering diagnostics');
-  assert.strictEqual(session.bufferRecovery(), null, 'runtime reset must clear previous buffering diagnostics');
-  assert.strictEqual(session.clockRepairAvailable(), true, 'runtime reset must restore the initial bounded repair allowance');
+  session.beginClose(false);
+  session.finishClose();
+  assert.strictEqual(session.bufferCheckpoint(), null, 'close reset must clear active buffering diagnostics');
+  assert.strictEqual(session.bufferRecovery(), null, 'close reset must clear previous buffering diagnostics');
+  assert.strictEqual(session.clockRepairAvailable(), true, 'close reset must restore the initial bounded repair allowance');
+}());
+
+
+(function nativePlayCompletionBelongsToItsIssuingRequest() {
+  var session = PlaybackSession.create();
+  var old = session.beginNativePlay();
+  session.finishNativePlay();
+  var current = session.beginNativePlay();
+  session.finishNativePlay(old);
+  assert.strictEqual(session.nativePlayPending(), true, 'old play rejection must not finish a newer native start');
+  session.finishNativePlay(current);
+  assert.strictEqual(session.nativePlayPending(), false);
+  old = session.beginNativePlay();
+  session.beginClose(true);
+  session.finishClose();
+  current = session.beginNativePlay();
+  session.finishNativePlay(old);
+  assert.strictEqual(session.nativePlayPending(), true, 'issuance identity must survive runtime resets');
+  session.finishNativePlay(current);
 }());
 
 console.log('Playback session checks passed');

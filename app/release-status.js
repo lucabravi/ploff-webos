@@ -247,9 +247,6 @@
 
   return {
     CACHE_KEY: CACHE_KEY,
-    CHECK_INTERVAL: CHECK_INTERVAL,
-    ENDPOINT: ENDPOINT,
-    RELEASE_URL: RELEASE_URL,
     compareVersions: compareVersions,
     create: create
   };

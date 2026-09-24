@@ -61,7 +61,7 @@ var ranges = Fixture.ranges;
   var h = harness();
   assert.deepStrictEqual(Object.keys(h.controller).sort(), [
     'applySubtitleEditor', 'cancelSubtitleEditor', 'changeTrack', 'changeVersion', 'close', 'destroy',
-    'diagnostics', 'open', 'openSubtitleEditor', 'seekAbsolute', 'snapshot', 'startAdjacent', 'startItem',
+    'diagnostics', 'open', 'openSubtitleEditor', 'seekAbsolute', 'snapshot', 'startItem',
     'subtitleEditorAvailability', 'toggle'
   ].sort(), 'the playback controller must expose only the planned public API');
   h.controller.destroy();
@@ -188,6 +188,55 @@ var ranges = Fixture.ranges;
     'size must become available as soon as the local text renderer owns a usable payload');
   assert.strictEqual(h.controller.snapshot().subtitleEditor.capabilities.background, true);
   assert.strictEqual(h.controller.snapshot().subtitleEditor.capabilities.edge, true);
+}());
+
+(function disablingAssWhileForegroundFetchIsPendingDoesNotFallBackOrLoadLibass() {
+  var playback = playbackFixture();
+  var assTrack = { id: 'ass-disable-race', format: 'ass', codec: 'ass', external: true, key: '/subtitles/disable-race.ass' };
+  var enabled = true;
+  var ownerCallback = null;
+  var directLoads = 0;
+  var rendererLoads = 0;
+  playback.options.subtitleStreamID = assTrack.id;
+  playback.subtitleTracks = [assTrack];
+  playback.mediaVersions[0].subtitleTracks = playback.subtitleTracks;
+  var h = harness({
+    playback: playback,
+    subtitleRendering: function () { return { srt: true, ass: enabled }; },
+    AssSubtitlePrefetch: {
+      claim: function (_identity, callback) { callback(null, null); return null; },
+      request: function (_target, _options, callback) { ownerCallback = callback; return { abort: function () {} }; }
+    },
+    assSubtitlePrefetchIdentity: function (current, track) { return current.ratingKey + '|' + track.id; },
+    loadSubtitleText: function (_config, _current, _track, callback) {
+      directLoads += 1;
+      callback(null, '[Script Info]\n[Events]');
+      return { abort: function () {} };
+    },
+    AssSubtitleRenderer: {
+      create: function () {
+        return {
+          load: function (_content, callback) { rendererLoads += 1; callback(null); },
+          setTime: function () {}, show: function () {}, hide: function () {}, dispose: function () {}
+        };
+      }
+    }
+  });
+  h.controller.open({ detail: { ratingKey: 'episode-1' } });
+  assert.ok(ownerCallback, 'foreground ASS load must be pending in the shared owner');
+  enabled = false;
+  var cancelled = new Error('global ASS rendering disabled');
+  cancelled.cancelled = true;
+  ownerCallback(cancelled, null);
+  assert.strictEqual(directLoads, 0,
+    'disabling local ASS must not convert owner cancellation into a direct Plex subtitle download');
+  assert.strictEqual(rendererLoads, 0,
+    'disabling local ASS while the foreground fetch is pending must not install the track in libass');
+  assert.strictEqual(h.controller.snapshot().localSubtitle, null,
+    'disabled local ASS must leave no local subtitle overlay state behind');
+  enabled = true;
+  assert.deepStrictEqual(h.controller.subtitleEditorAvailability(assTrack.id), { enabled: true, reason: '' },
+    'a deliberate global disable must not mark the ASS stream as failed for the session');
 }());
 
 (function foregroundAssPlaybackClaimsPrefetchedTextBeforePlexLoad() {

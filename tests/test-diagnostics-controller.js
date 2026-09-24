@@ -9,6 +9,13 @@ var renderedSnapshots = [];
 var aborted = false;
 var identityCallback = null;
 var playbackReads = 0;
+var supportRuntimeLoads = 0;
+var supportRuntime = {
+  SupportSnapshot: {
+    create: function (values) { return { playback: values.playback, failurePlayback: values.failurePlayback, error: values.error, jsErrors: values.jsErrors, settings: values.settings, compatibility: values.compatibility }; }
+  },
+  SupportQr: { create: function () {}, render: function () {} }
+};
 
 var fakeView = {
   open: function () { active = true; calls.push('viewOpen'); if (fakeView.options.onOpen) { fakeView.options.onOpen(); } },
@@ -22,7 +29,6 @@ var fakeView = {
     if (event.keyCode === 461) { this.close(); }
   },
   activate: function () { calls.push('activate:' + focus); },
-  closeSupportQr: function () { calls.push('closeSupportQr'); },
   setFocus: function (index) { focus = index; calls.push('focus:' + index); },
   scroll: function (direction) { calls.push('scroll:' + direction); }
 };
@@ -50,10 +56,6 @@ var controller = DiagnosticsController.create({
         return result;
       }
     },
-    SupportSnapshot: {
-      create: function (values) { return { playback: values.playback, failurePlayback: values.failurePlayback, error: values.error, jsErrors: values.jsErrors, settings: values.settings, compatibility: values.compatibility }; }
-    },
-    SupportQr: {},
     DiagnosticsView: {
       create: function (options) {
         fakeView.options = options;
@@ -68,6 +70,9 @@ var controller = DiagnosticsController.create({
     formatFileSize: function () {},
     formatLongTime: function () {},
     pointerActive: function () { return false; }
+  },
+  transport: {
+    loadSupportRuntime: function (callback) { supportRuntimeLoads += 1; callback(null, supportRuntime); }
   },
   providers: {
     appVersion: function () { return '1.0.4'; },
@@ -111,21 +116,25 @@ controller.capturePlayback();
 controller.setError('failure token=secret');
 snapshot = controller.snapshot();
 assert.strictEqual(snapshot.error, 'failure token=[redacted]', 'diagnostic errors are redacted before export');
-var supportReport = fakeView.options.getSupportReport();
+var supportReport = null;
+var supportQr = null;
+assert.ok(typeof fakeView.options.preloadSupportRuntime === 'function', 'the view must receive a support-runtime preload port for post-identity warming');
+fakeView.options.preloadSupportRuntime();
+assert.strictEqual(supportRuntimeLoads, 1, 'post-identity preload must begin loading the support runtime before QR export');
+assert.ok(typeof fakeView.options.requestSupportReport === 'function', 'the view must receive an async support report provider');
+fakeView.options.requestSupportReport({}, function (error, report, qr) {
+  assert.strictEqual(error, null);
+  supportReport = report;
+  supportQr = qr;
+});
+assert.strictEqual(supportRuntimeLoads, 2, 'report creation must reuse the same support-runtime loader port after the post-identity preload');
+assert.strictEqual(supportQr, supportRuntime.SupportQr, 'QR rendering must use the lazily loaded support runtime');
 assert.deepStrictEqual(supportReport.jsErrors, [{ type: 'error', message: 'runtime failure' }], 'support reports must receive collected JavaScript errors');
 assert.strictEqual(supportReport.settings.visualTheme, 'immersive', 'support reports must receive current settings');
 assert.strictEqual(supportReport.compatibility.schemaVersion, 3, 'support reports must receive compatibility summary');
 
 assert.deepStrictEqual(controller.handleKey({ keyCode: 40, preventDefault: function () {} }, 'down'), { handled: true }, 'open diagnostics consume remote input');
 assert.ok(calls.indexOf('key:down:40') >= 0, 'remote scrolling routes through the diagnostics view');
-assert.deepStrictEqual(controller.handlePointer('focus', { target: { getAttribute: function () { return 'back'; } } }), { handled: true }, 'pointer focus is synchronized');
-assert.strictEqual(focus, 2, 'the Back action owns the third diagnostics focus slot');
-controller.handlePointer('activate', { target: { getAttribute: function () { return 'refresh'; } } });
-assert.ok(calls.indexOf('activate:0') >= 0, 'pointer activation uses the same action path');
-controller.handlePointer('activate', { target: { getAttribute: function (name) {
-  return name === 'data-diagnostics-qr-action' ? 'close' : null;
-} } });
-assert.ok(calls.indexOf('closeSupportQr') >= 0, 'pointer activation closes the support QR dialog');
 
 controller.leave();
 assert.strictEqual(controller.isOpen(), false, 'leave closes diagnostics');

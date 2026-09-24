@@ -35,48 +35,63 @@
 
 ## Why Ploff
 
-- **Lightweight and polished.** Ploff is designed to run smoothly on both newer and
-  older LG webOS TVs, with a dependency-free TV runtime and an interface built for
-  the big screen rather than adapted from a desktop app.
-- **Customizable by design.** Choose from seven visual themes and tune supported
-  accent colors, card scale, artwork and backdrop quality, interface text size,
-  animations, and subtitle presentation to fit the TV and the room.
-- **Keep original video quality when possible.** Direct Play and Direct Stream are
-  preferred whenever the TV supports the media. Experimental local ASS/SSA subtitle
-  rendering can draw subtitle formats directly in Ploff when webOS cannot render them
-  natively, avoiding subtitle-driven video transcoding when possible, reducing Plex
-  Media Server load, and helping preserve original video quality.
-- **Works locally without the cloud.** Local server discovery and LAN playback require
-  no Plex account. Optional Plex linking adds Home profiles, Watchlist, remote servers,
-  Relay failover, and improved multilingual search, while previously linked profiles
-  remain available if Plex cloud services are temporarily unreachable.
-- **Designed around a remote, not a mouse.** Navigation, playback, and search,
-  including optional classic T9 input, support directional remotes and the LG Magic
-  Remote pointer from day one.
+- **Local-first, even when Plex sign-in is unavailable.** Ploff can discover, browse,
+  and play from a Plex server on the same network without depending on cloud services.
+  A Plex login outage therefore does not lock you out while your local server is still
+  online and reachable.
+- **Fast on the TV you already own.** Ploff is built specifically for LG webOS and
+  remains compatible with the older Chrome 53-based TVs that many modern web apps
+  leave behind. Pages and artwork are prepared progressively so you can start
+  browsing without waiting for every server to finish.
+- **One place for all your Plex libraries.** Browse owned and shared servers from the
+  same navigation bar, or optionally combine matching libraries into a single view.
+  Ploff still remembers which server owns every playable copy.
+- **Original quality whenever possible.** Ploff prefers Direct Play and Direct Stream
+  when the TV supports the media. Optional on-device text subtitle rendering can also
+  avoid subtitle-driven video transcoding in compatible cases.
+- **Link an account only if you want the extras.** Account linking is optional and
+  adds Home profiles, Watchlist, remote and shared servers, Relay fallback, and
+  broader multilingual search.
+- **Made for a remote.** Directional controls, media keys, Back navigation, optional
+  T9 search, and the LG Magic Remote pointer are treated as primary input methods.
+- **Comfortably customizable.** Seven visual themes, accent colors, card size,
+  artwork quality, text size, animations, and subtitle presentation can all be tuned
+  for the TV and the room.
 
 ## Features
 
 ### Library and discovery
 
-- Home, search, libraries, collections, playlists, and Watchlist, all built TV-first
-- Optional classic T9 numeric search input, for remotes without a pointer
-- Progressive artwork, adjustable card sizes, independent artwork/backdrop download
-  quality, and seven selectable visual themes: Immersive, Premiere, Aurora, Mahogany,
-  Atelier, Nova, and Simple
+- Home, search, libraries, collections, playlists, and Watchlist in a TV-first
+  interface
+- Sorting, watched filters, advanced catalog filters, and optional classic T9 search
+- Progressive artwork that prioritizes what is visible and prepares nearby pages in
+  the background
+- Multi-server results shown separately or combined according to your preferences,
+  appearing as reachable servers respond without letting a slow or offline secondary
+  server block the rest of the interface
+
+### Media details
+
+- Seasons, episodes, alternate media versions, audio and subtitle tracks, watched
+  state, Watchlist actions, and resume choices in one screen
+- A dedicated **More details** view for genres, directors, cast, trailers, and extras
+- Episode rows, cast, and extras with consistent remote and pointer navigation
+- Confirmed actions for marking individual media, earlier episodes, or a whole season
+  watched or unwatched
 
 ### Playback
 
-- Direct Play, Direct Stream, transcoding fallback, and playback diagnostics
-- Optional local subtitle rendering for SRT/WebVTT and experimental ASS/SSA rendering;
-  local ASS/SSA can avoid subtitle-driven video transcoding when possible, reducing
-  server load while preserving original video quality when the remaining media is
-  Direct Play compatible
-- Quality, version, audio, subtitle, synchronization, chapter, and resume controls; Detail keeps Version first and opens an integrated technical browser even when only one file exists
-- Contextual Detail media options for season watched/unwatched bulk actions with confirmation and metadata refresh
-- Remote-friendly choice dialogs for tracks, playback, and application settings
-- Adaptive playback compatibility memory learns from confirmed direct-play failures
-  in Automatic mode, helping Ploff reach a compatible fallback faster.
-- Playback progress, watched state, next-episode autoplay, and metadata refresh
+- Direct Play, Direct Stream, and Plex transcoding fallback with selectable quality
+  and media versions
+- Resume, audio, subtitles, subtitle synchronization, chapter previews, Skip Intro,
+  Skip Credits, and playback diagnostics
+- Playback queues for series, collections, and playlists, with configurable Up Next
+  presentation and automatic episode progression
+- Optional on-device rendering for SRT/WebVTT and experimental ASS/SSA subtitles
+- Automatic compatibility memory that avoids retrying playback modes already known
+  not to work for a format or file
+- Progress and watched-state synchronization with Plex
 
 ### Remote and navigation
 
@@ -84,15 +99,22 @@
 
 ### Account and connectivity
 
-- Local server discovery, Plex Home profiles, and automatic LAN/direct/Relay failover
-- Fully usable without a Plex account
-- Optional per-device configuration backup and restore through a clearly named Plex
-  playlist, with manual or automatic synchronization between Ploff installations
+- Local server discovery, Plex Home profiles, and automatic preference for local,
+  direct, and Relay connections in that order
+- Home and Search across enabled servers, retaining useful results when another server
+  is slow or unavailable
+- Configurable library visibility, aliases, icons, server names, ordering, and optional
+  merging of matching libraries
+- Full local use without linking a Plex account
+- Optional per-device settings backup and restore through a dedicated Plex playlist
 
 ### Interface
 
-- English, Italian, Spanish, French, German, Brazilian Portuguese, Japanese, and Korean
-- Automatic update checks, with a manual Settings check and QR link to the latest GitHub release
+- Seven themes: Immersive (the default), Premiere, Aurora, Mahogany, Atelier, Nova,
+  and Simple
+- English, Italian, Spanish, French, German, Brazilian Portuguese, Japanese, and
+  Korean
+- Automatic update notifications, plus a manual check and release QR code in Settings
 
 ## Screenshots
 
@@ -109,7 +131,13 @@
     <td width="25%" align="center"><a href="docs/screenshots/movie-detail.jpg"><img src="docs/screenshots/movie-detail.jpg" width="100%" alt="Movie detail and playback choices"></a><br><sub><strong>Movie detail</strong></sub></td>
     <td width="25%" align="center"><a href="docs/screenshots/settings.jpg"><img src="docs/screenshots/settings.jpg" width="100%" alt="Application settings"></a><br><sub><strong>Application settings</strong></sub></td>
   </tr>
+  <tr>
+    <td colspan="2" width="50%" align="center"><a href="docs/screenshots/more-details.jpg"><img src="docs/screenshots/more-details.jpg" width="100%" alt="More details with cast and extras"></a><br><sub><strong>Cast and extras</strong></sub></td>
+    <td colspan="2" width="50%" align="center"><a href="docs/screenshots/servers-libraries.jpg"><img src="docs/screenshots/servers-libraries.jpg" width="100%" alt="Servers and libraries settings for two fictional servers"></a><br><sub><strong>Servers and libraries</strong></sub></td>
+  </tr>
 </table>
+
+<p align="center"><a href="docs/screenshots/player-chapters.jpg"><img src="docs/screenshots/player-chapters.jpg" width="80%" alt="Player chapter navigation with preview frames"></a><br><sub><strong>Chapter navigation</strong></sub></p>
 
 <p align="center"><em>Click any preview to open the full-size screenshot.</em></p>
 
@@ -225,16 +253,18 @@ addresses in issues, logs, or repository files.
 
 ## First Launch
 
-No Plex address or token is embedded in Ploff. On first launch, the app finds
-local servers and can work without a Plex account. Linking at `plex.tv/link`
-adds Plex Home profiles, remote servers, Watchlist, remote/Relay failover, and
-improved multilingual search through localized titles and aliases. Search
-results are still limited to media available on the active server. Servers can
-always be entered or changed manually in Settings.
+Ploff contains no preconfigured Plex address or account token. On first launch,
+it looks for Plex servers on the local network and can be used without linking a
+Plex account. A server can also be entered manually in Settings.
 
-Previously linked profiles and local playback remain available if Plex cloud
-services are offline. Search also remains local; online title aliases are shown
-only after matching media is confirmed on the active server.
+Linking through `plex.tv/link` is optional. It adds Plex Home profiles, Watchlist,
+remote and shared servers, Relay fallback, and search through localized Plex titles
+and aliases. You can then choose which libraries appear in navigation and whether
+matching libraries from different servers should be shown together.
+
+Once linked, cached profiles and local playback remain available during a Plex cloud
+outage. Search and browsing also keep results returned by reachable servers when
+another server is slow or offline.
 
 ## Compatibility Notes
 
@@ -244,14 +274,18 @@ subject to the Developer Mode session and package expiration rules. Linking a
 Plex account requires internet initially, while previously cached profiles and
 local playback remain available offline.
 
+Ploff currently focuses on films and TV libraries. Live TV/DVR, music libraries,
+photo libraries, casting, and Watch Together are not supported.
+
 ## Security
 
-- Plex account tokens and cached Plex Home profiles are stored in a private,
-  app-owned webOS DB8 kind. They are never written to browser `localStorage`
-  by the packaged TV app.
-- If private DB8 storage is unavailable, credentials remain in memory for the
-  current session only.
-- Generated IPK files never contain a Plex address or credentials.
+- Plex tokens and cached Home profiles are stored in private app-owned webOS
+  storage, not in browser `localStorage`.
+- If that private storage is unavailable, credentials remain in memory only for
+  the current session.
+- Browser-preview sign-in support is development-only and is excluded from the TV
+  package.
+- Release packages are generic and never contain a Plex address or credentials.
 - Local HTTP connections remain supported for older TVs, but an untrusted LAN
   could observe metadata and authenticated media URLs. Prefer Plex HTTPS
   endpoints on shared networks, and treat the TV and home LAN as trusted
@@ -283,16 +317,19 @@ app/index.html + app/styles.css + generated app/app.js
 `app/coordinator/application-controller.js` is the composition root: it wires focused
 feature controllers together but does not own their Plex requests, DOM, timers, or
 private state. It also owns the single deferred-Player readiness transition and
-post-Home warm timer. Browser runtime code remains dependency-free ES5. `app/app.js`,
+completion-driven post-Home warm chain. Browser runtime code remains dependency-free ES5. `app/app.js`,
 `app/player.js`, and `app/styles.css` are checked-in generated artifacts and must never
-be edited directly. Player code loads after Home is focusable or on the first playback
-request; enabled local ASS prewarm remains in Core and independent of that load.
+be edited directly. Player code is warmed by the post-Home background chain, or loaded
+immediately when Detail or playback needs it; enabled local ASS prewarm remains in Core and
+independent of that load.
 
 Local Plex discovery and LAN playback do not require Plex cloud services. Plex linking
 is optional and adds Home profiles, Watchlist, remote servers, Relay failover, and
-cloud-assisted title aliases. See [docs/architecture.md](docs/architecture.md) for the
-full ownership/data-flow model and [docs/README.md](docs/README.md) for the current
-documentation map.
+cloud-assisted title aliases. Linked accounts also enable multi-server Home/Search
+and optional merging of matching libraries while preserving concrete source ownership.
+See [docs/architecture.md](docs/architecture.md) for the full ownership/data-flow model,
+[docs/multi-server.md](docs/multi-server.md) for current multi-server behavior, and
+[docs/README.md](docs/README.md) for the current documentation map.
 
 ## Development
 

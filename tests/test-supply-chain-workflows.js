@@ -33,6 +33,11 @@ var usesLines = (ci + '\n' + release).split('\n').filter(function (line) {
     'the private build workflows must not silently fall back to GitHub-hosted runners');
 }());
 
+(function releaseVerificationRunsThePreReleaseMemoryGate() {
+  assert.ok(/^ {8}run: npm run test:pre-release$/m.test(release),
+    'tagged releases must run the full verification suite and the pre-release memory gate');
+}());
+
 (function ipkReleasePublishesAndAttestsAnSbomOfPackagedContents() {
   assert.ok(/package-ipk:[\s\S]*permissions:[\s\S]*attestations:\s*write[\s\S]*id-token:\s*write/.test(release),
     'the IPK release job must have the permissions required for GitHub artifact attestations');

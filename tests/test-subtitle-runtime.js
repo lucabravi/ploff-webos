@@ -11,6 +11,7 @@ function createRuntime(overrides) {
   var renderer = values.renderer || null;
   var runtime = SubtitleRuntime.create({
     SubtitleSync: SubtitleSync,
+    PlaybackOperation: require('../app/playback-operation'),
     SubtitleOffsetStore: values.SubtitleOffsetStore,
     AssSubtitleRenderer: values.AssSubtitleRenderer || (renderer ? { create: function () { return renderer; } } : null),
     root: values.root || {},
@@ -202,6 +203,25 @@ function createRuntime(overrides) {
   assert.strictEqual(h.runtime.seekPresentationTarget(), 0, 'seek presentation ownership must preserve an absolute target at zero');
   h.runtime.resetSeekPresentation();
   assert.strictEqual(h.runtime.seekPresentationPending(), false);
+}());
+
+
+
+(function staleAssLoadCannotRepopulateTheDisposedRendererCache() {
+  var completions = [];
+  var publications = [];
+  var h = createRuntime({ renderer: {
+    load: function (content, callback) { completions.push(callback); },
+    dispose: function () {}
+  } });
+  h.runtime.loadAss({ id: 'a' }, 'A', function () { publications.push('a'); });
+  h.runtime.disposeAss();
+  h.runtime.loadAss({ id: 'b' }, 'B', function () { publications.push('b'); });
+  completions[1](null);
+  completions[0](null);
+  h.runtime.loadAss({ id: 'b' }, 'B', function () { publications.push('cached-b'); });
+  assert.strictEqual(completions.length, 2, 'stale completion must not invalidate the current renderer cache');
+  assert.deepStrictEqual(publications, ['b', 'cached-b']);
 }());
 
 console.log('Subtitle runtime checks passed');

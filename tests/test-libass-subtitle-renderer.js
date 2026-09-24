@@ -42,17 +42,17 @@ renderer.load('[Script Info]\nTitle: test', function (error) { loadError = error
 assert.strictEqual(loadError, null, 'ASS renderer must report readiness after the worker-backed instance is ready');
 assert.strictEqual(created.renderMode, 'js-blend', 'renderer must use the Chrome 53-compatible JS blend path');
 assert.strictEqual(created.debug, false, 'ASS renderer debug logging must stay disabled by default on production TVs');
-assert.strictEqual(created.workerUrl, 'vendor/subtitles-octopus-worker.js?v=4.1.0-os', 'renderer must use the vendored worker');
-assert.strictEqual(created.legacyWorkerUrl, 'vendor/subtitles-octopus-worker-legacy.js?v=4.1.0-os-mem1&assTiming=1&assSync=12', 'renderer must provide the diagnostic legacy worker fallback');
+assert.strictEqual(created.workerUrl, 'vendor/subtitles-octopus-worker.js?v=4.1.0-os&assSync=12&assWasm=1', 'renderer must use the protocol-compatible vendored WASM worker');
+assert.strictEqual(created.legacyWorkerUrl, 'vendor/subtitles-octopus-worker-legacy.js?v=4.1.0-os-mem1&assTiming=1&assSync=12&assWarm=4', 'renderer must provide the diagnostic legacy worker fallback');
 assert.strictEqual(preloadedWorkerUrl, created.legacyWorkerUrl, 'renderer must claim only the matching vendored legacy worker');
 assert.strictEqual(created.worker, preloadedWorker, 'renderer must hand the already parsing legacy worker to SubtitlesOctopus');
 assert.strictEqual(created.workerInitialized, true, 'renderer must preserve the preloader worker-init state');
 assert.strictEqual(created.workerSubContent, '[Script Info]\nTitle: warm worker', 'renderer must describe the track already resident in the warm worker');
-assert.strictEqual(created.fallbackFont, 'default.woff2?v=4.1.0-os',
+assert.strictEqual(created.fallbackFont, 'default.ttf?v=4.1.0-os',
   'renderer must resolve the packaged fallback font relative to its vendored worker');
 assert.strictEqual(created.subContent, '[Script Info]\nTitle: test', 'renderer must pass subtitle content without a network fetch');
 assert.strictEqual(created.video, undefined, 'renderer must not attach native video event listeners');
-assert.deepStrictEqual([canvas.width, canvas.height], [1280, 720], 'renderer must size the canvas to the rendered UI viewport instead of the decoded media dimensions');
+assert.deepStrictEqual([canvas.width, canvas.height], [1280, 720], 'renderer must rasterize at the UI viewport size');
 
 renderer.setTime(42.5, true);
 assert.strictEqual(instance.currentTime, 42.5, 'renderer must receive the absolute playback clock');

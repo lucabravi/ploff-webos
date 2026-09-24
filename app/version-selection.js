@@ -174,8 +174,6 @@
   }
 
   return {
-    DEFAULT_PRIORITIES: DEFAULT_PRIORITIES.slice(),
-    affinityScore: affinityScore,
     effectivePriorities: effectivePriorities,
     findAffine: findAffine,
     isPrioritySupported: isPrioritySupported,

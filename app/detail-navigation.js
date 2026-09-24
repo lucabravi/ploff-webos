@@ -23,12 +23,15 @@
       var choiceIndex;
       var effect = '';
       if (state.zone === 'nav') {
-        if (direction === 'down') { state.zone = options.hasSeries ? 'seasons' : 'play'; }
+        if (direction === 'down') { state.zone = options.hasSeries ? 'seasons' : 'back'; }
         else if (direction === 'left' || direction === 'right') { effect = 'nav-' + direction; }
       } else if (state.zone === 'seasons') {
         if (direction === 'left') { state.seasonIndex = clamp(state.seasonIndex - 1, 0, Math.max(0, Number(options.seasonCount || 0) - 1)); effect = 'season-preview'; }
         else if (direction === 'right') { state.seasonIndex = clamp(state.seasonIndex + 1, 0, Math.max(0, Number(options.seasonCount || 0) - 1)); effect = 'season-preview'; }
-        else if (direction === 'down') { state.zone = 'play'; }
+        else if (direction === 'down') { state.zone = 'back'; }
+      } else if (state.zone === 'back') {
+        if (direction === 'up') { state.zone = options.hasSeries ? 'seasons' : 'nav'; }
+        else if (direction === 'down') { state.zone = options.summaryOverflowing ? 'summary' : 'play'; }
       } else if (state.zone === 'episodes') {
         if (direction === 'left') { state.episodeIndex = clamp(state.episodeIndex - 1, 0, Math.max(0, Number(options.episodeCount || 0) - 1)); effect = 'episode-preview'; }
         else if (direction === 'right') { state.episodeIndex = clamp(state.episodeIndex + 1, 0, Math.max(0, Number(options.episodeCount || 0) - 1)); effect = 'episode-preview'; }
@@ -38,8 +41,7 @@
         if (direction === 'left') { state.actionIndex = clamp(state.actionIndex - 1, 0, Math.max(0, Number(options.actionCount || 4) - 1)); }
         else if (direction === 'right') { state.actionIndex = clamp(state.actionIndex + 1, 0, Math.max(0, Number(options.actionCount || 4) - 1)); }
         else if (direction === 'up' && options.summaryOverflowing) { state.zone = 'summary'; }
-        else if (direction === 'up' && options.hasSeries) { state.zone = 'seasons'; }
-        else if (direction === 'up') { state.zone = 'play'; }
+        else if (direction === 'up') { state.zone = 'back'; }
         else if (direction === 'down') {
           if (choices.length) { state.zone = choices[0]; }
           else if (options.hasSeries) { state.zone = 'episodes'; }
@@ -48,7 +50,7 @@
         }
       } else if (state.zone === 'summary') {
         if (direction === 'down') { state.zone = 'play'; state.actionIndex = 0; }
-        else if (direction === 'up' && options.hasSeries) { state.zone = 'seasons'; }
+        else if (direction === 'up') { state.zone = 'back'; }
       } else if (state.zone === 'audio' || state.zone === 'subtitles' || state.zone === 'version') {
         choiceIndex = choices.indexOf(state.zone);
         if (choiceIndex === -1) { state.zone = 'play'; }

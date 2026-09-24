@@ -757,11 +757,7 @@
   }
 
   return {
-    MAX_EVENTS: MAX_EVENTS,
-    MAX_JS_ERRORS: MAX_JS_ERRORS,
     MAX_SERIALIZED: MAX_SERIALIZED,
-    MAX_QR_INPUT: MAX_QR_INPUT,
-    create: create,
-    serialize: serialize
+    create: create
   };
 }));

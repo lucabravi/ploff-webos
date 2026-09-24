@@ -4,9 +4,9 @@ var assert = require('assert');
 var BackgroundAudio = require('../app/background-audio');
 var pending = [];
 var audio = {
-  src: '', volume: 0, currentTime: 99, paused: true, plays: 0,
+  src: '', volume: 0, currentTime: 99, paused: true, plays: 0, pauses: 0,
   play: function () { this.paused = false; this.plays += 1; },
-  pause: function () { this.paused = true; }
+  pause: function () { this.paused = true; this.pauses += 1; }
 };
 var clock = {
   setTimeout: function (callback, delay) { pending.push({ callback: callback, delay: delay, active: true }); return pending.length - 1; },
@@ -56,5 +56,37 @@ assert.doesNotThrow(function () { throwingPending[0](); }, 'optional theme audio
 controller.stop();
 assert.strictEqual(audio.paused, true, 'stop must pause the single audio element');
 assert.strictEqual(audio.currentTime, 0, 'stop must reset themes so player return restarts them');
+var pauseCallsAfterFirstStop = audio.pauses;
+for (var repeatedStop = 0; repeatedStop < 200; repeatedStop += 1) { controller.stop(); }
+assert.strictEqual(audio.pauses, pauseCallsAfterFirstStop, 'repeated theme stops during rapid focus movement must not call pause again once audio is already stopped');
+
+(function failedStopSeekIsRetriedBeforeNextThemePlayback() {
+  var pendingRetry = [];
+  var storedTime = 37;
+  var seekAttempts = 0;
+  var retryAudio = {
+    src: '/old-theme.mp3', volume: 0, paused: false,
+    play: function () { this.paused = false; },
+    pause: function () { this.paused = true; }
+  };
+  Object.defineProperty(retryAudio, 'currentTime', {
+    configurable: true,
+    get: function () { return storedTime; },
+    set: function (value) {
+      seekAttempts += 1;
+      if (seekAttempts === 1) { throw new Error('metadata not ready'); }
+      storedTime = value;
+    }
+  });
+  var retryController = BackgroundAudio.create(retryAudio, {
+    setTimeout: function (callback) { pendingRetry.push(callback); return pendingRetry.length - 1; },
+    clearTimeout: function () {}
+  });
+  assert.doesNotThrow(function () { retryController.stop(); }, 'old webOS seek failures during stop must remain non-fatal');
+  assert.strictEqual(storedTime, 37, 'fixture must retain the old media time when the first seek is rejected');
+  retryController.schedule({ themeKey: 'show:retry', themeUrl: '/retry.mp3' }, { delay: 0, volume: 10 });
+  pendingRetry[0]();
+  assert.strictEqual(storedTime, 0, 'the next accepted theme playback must retry the reset even when an earlier stop seek was rejected');
+}());
 
 console.log('Background audio checks passed');

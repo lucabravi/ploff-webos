@@ -20,7 +20,7 @@
 
 ## Task 1: Documentation and executable handoff
 
-**Files:** `docs/README.md`, `CHATGPT-HANDOFF.md`, `docs/architecture.md`, `docs/application-source-architecture.md`, and the active startup design/plan.
+**Files:** `docs/README.md`, `docs/architecture.md`, `docs/application-source-architecture.md`, and the active startup design/plan.
 
 - [x] Correct Task 3's existing Player test commands to presentation/queue/settings.
 - [x] Distinguish active plans from implemented architecture and historical phase records.

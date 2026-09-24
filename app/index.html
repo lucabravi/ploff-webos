@@ -136,7 +136,10 @@
     <div id="search-results" class="search-results"></div>
   </section>
   <section id="app-settings-view" class="app-settings-view is-hidden" aria-live="polite">
-    <h1 id="app-settings-title" class="app-settings-title">Settings</h1>
+    <div class="app-settings-heading">
+      <button id="app-settings-back" class="app-settings-back detail-arrow-button is-hidden" type="button"></button>
+      <h1 id="app-settings-title" class="app-settings-title">Settings</h1>
+    </div>
     <p id="app-settings-notice" class="app-settings-notice"></p>
     <div id="app-settings-list" class="app-settings-list"></div>
     <div id="language-editor" class="language-editor is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="language-editor-title" aria-describedby="language-editor-hint">
@@ -144,6 +147,14 @@
       <p id="language-editor-hint"></p>
       <div id="language-editor-list" class="language-editor-list"></div>
       <div class="language-editor-actions"><button id="language-editor-back" type="button"></button></div>
+    </div>
+    <div id="library-tabs-editor" class="library-tabs-editor is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="library-tabs-editor-title" aria-describedby="library-tabs-editor-hint">
+      <div class="library-tabs-editor-panel">
+        <h2 id="library-tabs-editor-title"></h2>
+        <p id="library-tabs-editor-hint"></p>
+        <div id="library-tabs-editor-list" class="library-tabs-editor-list"></div>
+        <div class="library-tabs-editor-actions"><button id="library-tabs-editor-back" type="button"></button></div>
+      </div>
     </div>
     <div id="playback-compatibility-dialog" class="playback-compatibility-dialog is-hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="playback-compatibility-title" aria-describedby="playback-compatibility-notice">
       <div class="playback-compatibility-panel">
@@ -165,6 +176,10 @@
       <h2 id="text-input-dialog-title"></h2>
       <p id="text-input-dialog-hint"></p>
       <input id="text-input-dialog-field" type="text" autocomplete="off" spellcheck="false">
+      <div class="text-input-dialog-keyboard-layout">
+        <div id="text-input-dialog-t9-legend" class="search-t9-legend text-input-dialog-t9-legend is-hidden" aria-hidden="true"></div>
+        <div id="text-input-dialog-keyboard" class="search-keyboard text-input-dialog-keyboard is-hidden" aria-hidden="true"></div>
+      </div>
       <div class="text-input-dialog-actions">
         <button id="text-input-dialog-cancel" data-text-input-index="1" type="button"></button>
         <button id="text-input-dialog-apply" class="is-primary" data-text-input-index="2" type="button"></button>
@@ -240,9 +255,18 @@
     <div id="detail-snap-track" class="detail-snap-track">
       <div id="detail-primary-pane" class="detail-primary-pane">
         <div id="detail-metadata-status" class="detail-metadata-status is-hidden" role="status"></div>
-        <div id="season-tabs" class="season-tabs"></div>
+        <div id="season-tabs" class="season-tabs">
+          <div id="season-tabs-track" class="season-tabs-track"></div>
+          <span id="season-tabs-overflow-left" class="season-tabs-overflow season-tabs-overflow-left" aria-hidden="true">‹</span>
+          <span id="season-tabs-overflow-right" class="season-tabs-overflow season-tabs-overflow-right" aria-hidden="true">›</span>
+        </div>
         <div class="detail-copy">
-          <h1 id="detail-title" class="detail-title"></h1>
+          <div class="detail-heading">
+            <button id="detail-back" class="detail-back detail-arrow-button" type="button">
+              <svg class="nav-icon-svg nav-icon-back" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 4 8 12l8 8"></path></svg>
+            </button>
+            <h1 id="detail-title" class="detail-title"></h1>
+          </div>
           <div id="detail-subtitle" class="detail-subtitle"></div>
           <div id="detail-facts" class="detail-facts"></div>
           <button id="detail-summary-button" class="detail-summary-button" type="button" disabled>
@@ -264,7 +288,11 @@
           </div>
         </div>
         <img id="detail-poster" class="detail-poster" alt="">
-        <div id="episode-strip" class="episode-strip"></div>
+        <div class="episode-viewport">
+          <div id="episode-strip" class="episode-strip"></div>
+          <button id="episode-overflow-left" class="detail-row-overflow-button detail-arrow-button episode-overflow-left" type="button" tabindex="-1" aria-hidden="true" disabled><svg class="detail-row-overflow-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 4 8 12l8 8"></path></svg></button>
+          <button id="episode-overflow-right" class="detail-row-overflow-button detail-arrow-button episode-overflow-right" type="button" tabindex="-1" aria-hidden="true" disabled><svg class="detail-row-overflow-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 4 16 12 8 20"></path></svg></button>
+        </div>
         <div id="detail-more-indicator" class="detail-more-indicator" aria-hidden="true"><span id="detail-more-indicator-label"></span><span class="detail-more-indicator-arrow"></span></div>
       </div>
       <div id="detail-extended-pane" class="detail-extended-pane">
@@ -272,15 +300,23 @@
         <h2 id="detail-extended-title" class="detail-extended-title"></h2>
         <div class="detail-extended-metadata">
           <div class="detail-extended-metadata-row"><span id="detail-extended-genres-label" class="detail-extended-metadata-label"></span><strong id="detail-extended-genres-value" class="detail-extended-metadata-value"></strong></div>
-          <div class="detail-extended-metadata-row"><span id="detail-extended-directors-label" class="detail-extended-metadata-label"></span><strong id="detail-extended-directors-value" class="detail-extended-metadata-value"></strong></div>
+          <div id="detail-extended-directors-row" class="detail-extended-metadata-row"><span id="detail-extended-directors-label" class="detail-extended-metadata-label"></span><strong id="detail-extended-directors-value" class="detail-extended-metadata-value"></strong></div>
         </div>
         <section id="detail-cast-section" class="detail-extended-section detail-cast-section">
           <h3 id="detail-cast-title"></h3>
-          <div id="detail-cast-strip" class="detail-cast-strip"></div>
+          <div class="detail-cast-viewport">
+            <div id="detail-cast-strip" class="detail-cast-strip"></div>
+            <button id="detail-cast-overflow-left" class="detail-row-overflow-button detail-arrow-button detail-cast-overflow-left" type="button" tabindex="-1" aria-hidden="true" disabled><svg class="detail-row-overflow-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 4 8 12l8 8"></path></svg></button>
+            <button id="detail-cast-overflow-right" class="detail-row-overflow-button detail-arrow-button detail-cast-overflow-right" type="button" tabindex="-1" aria-hidden="true" disabled><svg class="detail-row-overflow-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 4 16 12 8 20"></path></svg></button>
+          </div>
         </section>
         <section id="detail-extras-section" class="detail-extended-section detail-extras-section">
           <div class="detail-extended-section-heading"><h3 id="detail-extras-title"></h3><span id="detail-extras-status" class="detail-extras-status" role="status"></span></div>
-          <div id="detail-extras-strip" class="detail-extras-strip"></div>
+          <div class="detail-extras-viewport">
+            <div id="detail-extras-strip" class="detail-extras-strip"></div>
+            <button id="detail-extras-overflow-left" class="detail-row-overflow-button detail-arrow-button detail-extras-overflow-left" type="button" tabindex="-1" aria-hidden="true" disabled><svg class="detail-row-overflow-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 4 8 12l8 8"></path></svg></button>
+            <button id="detail-extras-overflow-right" class="detail-row-overflow-button detail-arrow-button detail-extras-overflow-right" type="button" tabindex="-1" aria-hidden="true" disabled><svg class="detail-row-overflow-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 4 16 12 8 20"></path></svg></button>
+          </div>
         </section>
       </div>
     </div>
@@ -496,6 +532,11 @@
   <script src="network-transition.js?v=dev"></script>
   <script src="focus-model.js?v=dev"></script>
   <script src="navigation-model.js?v=dev"></script>
+  <script src="navigation-icon.js?v=dev"></script>
+  <script src="library-source.js?v=dev"></script>
+  <script src="library-tab-store.js?v=dev"></script>
+  <script src="library-source-catalog.js?v=dev"></script>
+  <script src="library-tabs-editor.js?v=dev"></script>
   <script src="search-model.js?v=dev"></script>
   <script src="search-session.js?v=dev"></script>
   <script src="home-state.js?v=dev"></script>
@@ -537,27 +578,20 @@
   <script src="config.js?v=dev"></script>
   <script src="i18n.js?v=dev"></script>
   <script src="language-flag.js?v=dev"></script>
-  <script src="locales/en.js?v=dev"></script>
-  <script src="locales/it.js?v=dev"></script>
-  <script src="locales/es.js?v=dev"></script>
-  <script src="locales/fr.js?v=dev"></script>
-  <script src="locales/de.js?v=dev"></script>
-  <script src="locales/pt.js?v=dev"></script>
-  <script src="locales/ja.js?v=dev"></script>
-  <script src="locales/ko.js?v=dev"></script>
+  <script src="locale-bootstrap.js?v=dev"></script>
   <script src="release-status.js?v=dev"></script>
   <script src="theme-registry.js?v=dev"></script>
   <script src="settings-schema.js?v=dev"></script>
   <script src="settings.js?v=dev"></script>
   <script src="settings-backup-format.js?v=dev"></script>
   <script src="plex-settings-backup-store.js?v=dev"></script>
+  <script src="t9-input.js?v=dev"></script>
   <script src="text-input-dialog.js?v=dev"></script>
   <script src="local-data.js?v=dev"></script>
   <script src="settings-catalog.js?v=dev"></script>
   <script src="settings-view.js?v=dev"></script>
   <script src="safe-area-dialog.js?v=dev"></script>
   <script src="subtitle-style-dialog.js?v=dev"></script>
-  <script src="t9-input.js?v=dev"></script>
   <script src="search-text.js?v=dev"></script>
   <script src="search-view.js?v=dev"></script>
   <script src="server-editor-view.js?v=dev"></script>
@@ -568,13 +602,13 @@
   <script src="server-store.js?v=dev"></script>
   <script src="setup-controller.js?v=dev"></script>
   <script src="library-filter-view.js?v=dev"></script>
-  <script src="library-grid-view.js?v=dev"></script>
   <script src="library-lifecycle.js?v=dev"></script>
   <script src="detail-episode-view.js?v=dev"></script>
   <script src="detail-extended-view.js?v=dev"></script>
   <script src="detail-navigation.js?v=dev"></script>
   <script src="detail-presentation-view.js?v=dev"></script>
   <script src="detail-preference-state.js?v=dev"></script>
+  <script src="media-source-preference.js?v=dev"></script>
   <script src="choice-dialog-view.js?v=dev"></script>
   <script src="up-next-layout-dialog.js?v=dev"></script>
   <script src="credential-vault.js?v=dev"></script>
@@ -592,6 +626,7 @@
   <script src="plex-search-parser.js?v=dev"></script>
   <script src="plex-playback-urls.js?v=dev"></script>
   <script src="plex-client.js?v=dev"></script>
+  <script src="multi-server-media.js?v=dev"></script>
   <script src="progressive-images.js?v=dev"></script>
   <!-- Deterministic bundle of independent UMD coordinators; the minimal bootstrap is last. -->
   <script src="app.js?v=dev"></script>

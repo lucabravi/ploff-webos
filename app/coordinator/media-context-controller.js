@@ -14,6 +14,7 @@
     var holdTriggered = false;
     var activeRequest = null;
     var mutationGeneration = 0;
+    var dialogGeneration = 0;
     var destroyed = false;
 
     function call(callback, arg1, arg2, arg3) {
@@ -83,27 +84,28 @@
     function mutate(target, action, callback) {
       var item = target && target.item;
       var transport = values.transport || {};
+      var requestConfig = target && target.config || values.config || {};
       var generation;
       if (!supported(item)) { return false; }
       abortRequest();
       generation = mutationGeneration;
       if (action === 'mark-watched' || action === 'mark-unwatched') {
         if (typeof transport.setWatchedAndReset !== 'function') { return false; }
-        activeRequest = transport.setWatchedAndReset(values.config || {}, item.ratingKey, action === 'mark-watched', function (error, outcome) {
+        activeRequest = transport.setWatchedAndReset(requestConfig, item.ratingKey, action === 'mark-watched', function (error, outcome) {
           finishMutation(generation, error, target, callback, outcome);
         });
         return true;
       }
       if (action === 'clear-progress') {
         if (typeof transport.resetProgress !== 'function') { return false; }
-        activeRequest = transport.resetProgress(values.config || {}, item.ratingKey, function (error) {
+        activeRequest = transport.resetProgress(requestConfig, item.ratingKey, function (error) {
           finishMutation(generation, error, target, callback);
         });
         return true;
       }
       if (action === 'remove-continue') {
         if (typeof transport.removeFromContinueWatching !== 'function') { return false; }
-        activeRequest = transport.removeFromContinueWatching(values.config || {}, item.ratingKey, function (error) {
+        activeRequest = transport.removeFromContinueWatching(requestConfig, item.ratingKey, function (error) {
           finishMutation(generation, error, target, callback);
         });
         return true;
@@ -115,7 +117,7 @@
       var action = String(choice && choice.value || '');
       if (destroyed || !target || !action) { return false; }
       if (action === 'play-beginning') {
-        call(values.playFromBeginning, target.item);
+        call(values.playFromBeginning, target.item, target.sourceContext || null);
         return true;
       }
       return mutate(target, action);
@@ -129,18 +131,27 @@
     function open(target) {
       var item;
       var choices;
+      var ownerGeneration;
       if (destroyed) { return false; }
       target = target || currentTarget();
       item = target && target.item;
       choices = choicesFor(target);
       if (!item || !choices.length) { return false; }
+      dialogGeneration += 1;
+      ownerGeneration = dialogGeneration;
       return call(values.openChoice, {
         title: call(values.t, 'mediaActions.title', { title: call(values.mediaTitle, item) }),
         choices: choices,
         selectedValue: '',
         variant: 'media-context',
-        apply: function (choice) { applyChoice(choice, target); },
-        returnFocus: function () { call(values.restoreFocus, target); }
+        apply: function (choice) {
+          if (destroyed || ownerGeneration !== dialogGeneration) { return; }
+          applyChoice(choice, target);
+        },
+        returnFocus: function () {
+          if (destroyed || ownerGeneration !== dialogGeneration) { return; }
+          call(values.restoreFocus, target);
+        }
       }) !== false;
     }
 
@@ -182,11 +193,18 @@
       return holdTimer !== null || !!holdTarget;
     }
 
-    function destroy() {
-      if (destroyed) { return; }
-      destroyed = true;
+    function reset() {
+      if (destroyed) { return false; }
+      dialogGeneration += 1;
       cancelHold();
       abortRequest();
+      return true;
+    }
+
+    function destroy() {
+      if (destroyed) { return; }
+      reset();
+      destroyed = true;
     }
 
     return {
@@ -197,6 +215,7 @@
       open: open,
       removeFromContinueWatching: removeFromContinueWatching,
       releaseHold: releaseHold,
+      reset: reset,
       startHold: startHold
     };
   }

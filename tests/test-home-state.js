@@ -19,15 +19,35 @@ var rows = [{
 }];
 
 var normalized = HomeState.normalizeRows(rows);
+assert.strictEqual(typeof HomeState.rowsEqual, 'function', 'Home state must expose exact normalized-row structural comparison');
+assert.strictEqual(HomeState.rowsEqual(normalized, HomeState.normalizeRows(rows)), true,
+  'structurally identical normalized Home rows must compare equal without fingerprint allocation');
+assert.strictEqual(HomeState.rowsEqual(
+  [{ title: 'Nested', shape: 'poster', kind: '', showLibraryBadge: false, items: [{ ratingKey: 'nested', extra: { b: 2, a: 1 } }] }],
+  [{ title: 'Nested', shape: 'poster', kind: '', showLibraryBadge: false, items: [{ extra: { a: 1, b: 2 }, ratingKey: 'nested' }] }]
+), true, 'Home structural comparison must ignore object key insertion order like the previous stable fingerprint');
 assert.strictEqual(normalized.length, 1, 'empty Home rows must not enter render state');
 assert.strictEqual(normalized[0].kind, 'continue', 'Home normalization must retain the row kind used by contextual actions');
 assert.strictEqual(normalized[0].showLibraryBadge, true, 'Home normalization must retain mixed-library badge semantics');
 assert.strictEqual(HomeState.mediaKey(normalized[0].items[0]), 'rating:10', 'Plex rating keys must provide stable card identity');
-assert.strictEqual(HomeState.fingerprintRows(normalized), HomeState.fingerprintRows(HomeState.normalizeRows(rows)), 'equivalent Home data must have a stable fingerprint');
+assert.notStrictEqual(
+  HomeState.mediaKey({ ratingKey: '10', serverMachineIdentifier: 'server-a' }),
+  HomeState.mediaKey({ ratingKey: '10', serverMachineIdentifier: 'server-b' }),
+  'Home media identity must remain server-scoped when different PMSes reuse the same ratingKey'
+);
+var sameTitleRecent = HomeState.normalizeRows([
+  { title: 'Recently Added', shape: 'poster', kind: 'recent', sourceId: 'server-a|1', serverMachineIdentifier: 'server-a', sectionKey: '1', sectionTitle: 'Movies', items: [{ ratingKey: '1' }] },
+  { title: 'Recently Added', shape: 'poster', kind: 'recent', sourceId: 'server-b|9', serverMachineIdentifier: 'server-b', sectionKey: '9', sectionTitle: 'Movies', items: [{ ratingKey: '1' }] }
+]);
+assert.strictEqual(sameTitleRecent[0].sourceId, 'server-a|1', 'Home normalization must retain the source identity of per-library Recent rows');
+assert.strictEqual(sameTitleRecent[1].sectionKey, '9', 'Home normalization must retain the owning Plex section key');
+assert.notStrictEqual(HomeState.rowKey(sameTitleRecent[0]), HomeState.rowKey(sameTitleRecent[1]),
+  'same-title Recent rows from different PMS libraries must keep distinct row identity');
 
 var changedRows = HomeState.normalizeRows(rows);
 changedRows[0].items[0].progress = 30;
-assert.notStrictEqual(HomeState.fingerprintRows(normalized), HomeState.fingerprintRows(changedRows), 'visible playback progress changes must invalidate Home data');
+assert.strictEqual(HomeState.rowsEqual(normalized, changedRows), false,
+  'visible playback progress changes must invalidate Home data');
 
 var selection = HomeState.selectionKey(normalized, { area: 'media', rowIndex: 0, column: 1 });
 var reordered = [{ title: 'Continue Watching', shape: 'poster', items: [normalized[0].items[1], normalized[0].items[0]] }];
@@ -50,6 +70,17 @@ assert.deepStrictEqual(
     { area: 'media', navIndex: 0, rowIndex: 3, column: 4 }, selection),
   { area: 'media', navIndex: 0, rowIndex: 0, column: 0 },
   'a missing Home selection must fall back to the first available media item'
+);
+
+var completedContinueSelection = HomeState.selectionKey(normalized, { area: 'media', rowIndex: 0, column: 0 });
+var afterCompletedPlayback = HomeState.normalizeRows([
+  { title: 'Continue Watching', shape: 'poster', kind: 'continue', items: [] },
+  { title: 'Recently Added', shape: 'poster', kind: 'recent', items: [{ ratingKey: '40', title: 'Delta' }] }
+]);
+assert.deepStrictEqual(
+  HomeState.restoreFocus(afterCompletedPlayback, { area: 'media', navIndex: 0, rowIndex: 0, column: 0 }, completedContinueSelection),
+  { area: 'media', navIndex: 0, rowIndex: 0, column: 0 },
+  'Back after a completed Continue Watching item disappears must focus the first surviving Home card'
 );
 
 
@@ -168,5 +199,22 @@ pollEligible = true;
 poller.schedule();
 poller.stop();
 assert.strictEqual(clock.activeTimers().length, 0, 'stopping Home polling must cancel its pending timer');
+
+
+var explicitlyOrderedRows = [
+  { kind: 'continue', title: 'Continue' },
+  { kind: 'recommended', title: 'Recommended' },
+  { kind: 'recent', sourceId: 'server-a|1', title: 'Recent A' },
+  { kind: 'recent', sourceId: 'server-b|2', title: 'Recent B' }
+];
+assert.deepStrictEqual(HomeState.applyRowOrder(explicitlyOrderedRows, [
+  'source:server-b|2', 'kind:recommended', 'source:server-a|1', 'kind:continue'
+]).map(function (row) { return row.title; }), ['Recent B', 'Recommended', 'Recent A', 'Continue'],
+  'explicit Home order must interleave generic rows and source-specific Recently Added rows');
+assert.deepStrictEqual(HomeState.applyRowOrder([
+  { kind: 'recent', memberSourceIds: ['server-a|1', 'server-b|2'], title: 'Merged recent' },
+  { kind: 'recommended', title: 'Recommended' }
+], ['kind:recommended', 'source:server-b|2', 'source:server-a|1']).map(function (row) { return row.title; }), ['Recommended', 'Merged recent'],
+  'merged Recently Added rows must inherit the earliest rank of their concrete source members');
 
 console.log('Home state checks passed');

@@ -28,6 +28,10 @@
         title: String(row.title || ''),
         shape: String(row.shape || 'poster'),
         kind: String(row.kind || ''),
+        sourceId: String(row.sourceId || ''),
+        serverMachineIdentifier: String(row.serverMachineIdentifier || ''),
+        sectionKey: String(row.sectionKey || ''),
+        sectionTitle: String(row.sectionTitle || ''),
         showLibraryBadge: row.showLibraryBadge === true,
         items: items.map(cloneObject)
       });
@@ -56,38 +60,111 @@
     return result.concat(unknown);
   }
 
+  function applyRowOrder(rows, orderTokens) {
+    var source = Object.prototype.toString.call(rows) === '[object Array]' ? rows : [];
+    var order = Object.prototype.toString.call(orderTokens) === '[object Array]' ? orderTokens : [];
+    var ranks = {};
+    var decorated = [];
+    order.forEach(function (token, index) {
+      token = String(token || '');
+      if (token && !Object.prototype.hasOwnProperty.call(ranks, token)) { ranks[token] = index; }
+    });
+    source.forEach(function (row, index) {
+      var tokens = [];
+      var rank = order.length + index;
+      var memberIds = row && Object.prototype.toString.call(row.memberSourceIds) === '[object Array]' ? row.memberSourceIds : [];
+      if (row && row.kind === 'recent') {
+        if (row.sourceId) { tokens.push('source:' + String(row.sourceId)); }
+        memberIds.forEach(function (sourceId) { tokens.push('source:' + String(sourceId || '')); });
+      } else if (row && row.kind) {
+        tokens.push('kind:' + String(row.kind));
+      }
+      tokens.forEach(function (token) {
+        if (Object.prototype.hasOwnProperty.call(ranks, token)) { rank = Math.min(rank, ranks[token]); }
+      });
+      decorated.push({ row: row, index: index, rank: rank });
+    });
+    decorated.sort(function (left, right) {
+      if (left.rank !== right.rank) { return left.rank - right.rank; }
+      return left.index - right.index;
+    });
+    return decorated.map(function (entry) { return entry.row; });
+  }
+
   function mediaKey(item) {
+    var machine;
     item = item || {};
-    if (item.ratingKey) { return 'rating:' + String(item.ratingKey); }
-    if (item.key) { return 'key:' + String(item.key); }
+    if (item.homeDisplayKey) { return item.homeDisplayKey; }
+    machine = String(item.serverMachineIdentifier || '');
+    if (item.ratingKey) { return (machine ? 'server:' + machine + '|' : '') + 'rating:' + String(item.ratingKey); }
+    if (item.key) { return (machine ? 'server:' + machine + '|' : '') + 'key:' + String(item.key); }
     if (item.image) { return 'image:' + String(item.image); }
     return 'title:' + String(item.title || '') + '|' + String(item.meta || '') + '|' + String(item.detail || '');
   }
 
   function rowKey(row) {
     row = row || {};
+    if (row.sourceId) { return 'source:' + String(row.sourceId) + '|' + String(row.shape || 'poster'); }
+    if (row.serverMachineIdentifier && row.sectionKey) {
+      return 'section:' + String(row.serverMachineIdentifier) + '|' + String(row.sectionKey) + '|' + String(row.shape || 'poster');
+    }
     return String(row.title || '') + '|' + String(row.shape || 'poster');
   }
 
-  function stableValue(value) {
-    var keys;
-    if (Object.prototype.toString.call(value) === '[object Array]') {
-      return value.map(stableValue);
+
+  function nullLike(value) {
+    return value === null || typeof value === 'undefined' ||
+      (typeof value === 'number' && !isFinite(value)) || typeof value === 'function' || typeof value === 'symbol';
+  }
+
+  function valueEqual(left, right) {
+    var leftArray;
+    var rightArray;
+    var leftKeys;
+    var rightKeys;
+    var index;
+    var key;
+    if (left === right) { return true; }
+    if (nullLike(left) || nullLike(right)) { return nullLike(left) && nullLike(right); }
+    leftArray = Object.prototype.toString.call(left) === '[object Array]';
+    rightArray = Object.prototype.toString.call(right) === '[object Array]';
+    if (leftArray || rightArray) {
+      if (!leftArray || !rightArray || left.length !== right.length) { return false; }
+      for (index = 0; index < left.length; index += 1) {
+        if (!valueEqual(left[index], right[index])) { return false; }
+      }
+      return true;
     }
+    if (typeof left === 'object' || typeof right === 'object') {
+      if (!left || !right || typeof left !== 'object' || typeof right !== 'object') { return false; }
+      leftKeys = Object.keys(left);
+      rightKeys = Object.keys(right);
+      if (leftKeys.length !== rightKeys.length) { return false; }
+      for (index = 0; index < leftKeys.length; index += 1) {
+        key = leftKeys[index];
+        if (!Object.prototype.hasOwnProperty.call(right, key) || !valueEqual(left[key], right[key])) { return false; }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function rowsEqual(left, right) {
+    return valueEqual(left, right);
+  }
+
+  function cloneValue(value) {
+    var copy;
+    var key;
+    if (Object.prototype.toString.call(value) === '[object Array]') { return value.map(cloneValue); }
     if (value && typeof value === 'object') {
-      keys = Object.keys(value).sort();
-      return keys.map(function (key) { return [key, stableValue(value[key])]; });
+      copy = {};
+      for (key in value) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) { copy[key] = cloneValue(value[key]); }
+      }
+      return copy;
     }
-    if (typeof value === 'undefined') { return null; }
     return value;
-  }
-
-  function fingerprintNormalizedRows(rows) {
-    return JSON.stringify(stableValue(rows));
-  }
-
-  function fingerprintRows(rows) {
-    return fingerprintNormalizedRows(normalizeRows(rows));
   }
 
   function selectionKey(rows, state) {
@@ -137,7 +214,7 @@
     var loading = false;
     var pending = false;
     var hasData = false;
-    var fingerprint = '';
+    var previousRows = [];
     var activeRequest = null;
 
     function refresh() {
@@ -149,7 +226,6 @@
       try {
         requestHandle = loader(function (error, rows) {
           var normalized;
-          var nextFingerprint;
           var changed;
           var initial;
           if (requestGeneration !== generation) { return; }
@@ -160,9 +236,8 @@
             onResult(error, [], false, initial);
           } else {
             normalized = normalizeRows(rows);
-            nextFingerprint = fingerprintNormalizedRows(normalized);
-            changed = !hasData || nextFingerprint !== fingerprint;
-            fingerprint = nextFingerprint;
+            changed = !hasData || !rowsEqual(normalized, previousRows);
+            if (changed) { previousRows = cloneValue(normalized); }
             hasData = true;
             onResult(null, normalized, changed, initial);
           }
@@ -187,7 +262,7 @@
       loading = false;
       pending = false;
       hasData = false;
-      fingerprint = '';
+      previousRows = [];
       if (request && request.abort) { request.abort(); }
     }
 
@@ -233,12 +308,13 @@
   }
 
   return {
+    applyRowOrder: applyRowOrder,
     applyRowPreferences: applyRowPreferences,
     createPoller: createPoller,
     createRefreshCoordinator: createRefreshCoordinator,
-    fingerprintRows: fingerprintRows,
     mediaKey: mediaKey,
     normalizeRows: normalizeRows,
+    rowsEqual: rowsEqual,
     restoreFocus: restoreFocus,
     rowKey: rowKey,
     selectionKey: selectionKey

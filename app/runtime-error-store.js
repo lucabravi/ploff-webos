@@ -120,5 +120,5 @@
     return { record: record, snapshot: snapshot, destroy: destroy };
   }
 
-  return { MAX_ERRORS: MAX_ERRORS, create: create };
+  return { create: create };
 }));

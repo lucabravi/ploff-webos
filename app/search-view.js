@@ -57,10 +57,12 @@
       cardRenderToken: 0,
       measurementCache: null,
       resultCards: {},
-      focusTarget: null
+      focusTarget: null,
+      lastDirection: 'right'
     };
     var session;
     var t9Input;
+    var keyboardNodesByPosition = {};
 
     function text(key) {
       return values.t ? values.t(key) : key;
@@ -154,8 +156,10 @@
       var row;
       var button;
       var key;
+      keyboardNodesByPosition = {};
       if (!container) { return; }
       container.innerHTML = '';
+      keyboardNodesByPosition = {};
       for (rowIndex = 0; rowIndex < source.length; rowIndex += 1) {
         row = createElement('div', 'search-keyboard-row');
         for (column = 0; column < source[rowIndex].length; column += 1) {
@@ -165,6 +169,7 @@
           button.setAttribute('data-search-key', key);
           button.setAttribute('data-search-row', rowIndex);
           button.setAttribute('data-search-column', column);
+          keyboardNodesByPosition[rowIndex + ':' + column] = button;
           row.appendChild(button);
         }
         container.appendChild(row);
@@ -172,7 +177,9 @@
     }
 
     function mediaKey(item) {
-      return String(item && (item.ratingKey || item.key || item.image || item.title) || '');
+      var machine = String(item && item.serverMachineIdentifier || '');
+      var local = String(item && (item.ratingKey || item.key || item.image || item.title) || '');
+      return machine && local ? machine + '|' + local : local;
     }
 
     function mediaTitle(item) {
@@ -187,11 +194,27 @@
       return values.mediaCardDetail ? values.mediaCardDetail(item) : String(item && item.detail || '');
     }
 
+    function sourceContextForItem(item) {
+      return values.sourceContextForItem ? values.sourceContextForItem(item) : null;
+    }
+
+    function sourceContextIdentity(context) {
+      if (typeof values.sourceContextIdentity === 'function') { return String(values.sourceContextIdentity(context) || ''); }
+      context = context || {};
+      return String(context.serverMachineIdentifier || context.sourceId || '');
+    }
+    function sourceIdentityForItem(item, context) {
+      if (typeof values.sourceIdentityForItem === 'function') { return String(values.sourceIdentityForItem(item, context) || ''); }
+      return sourceContextIdentity(context);
+    }
+
     function createCard() {
       var card = createElement('button', 'search-card');
+      var image = createElement('img', 'search-card-image');
       var caption = createElement('span', 'search-card-caption');
       card.type = 'button';
-      card.appendChild(createElement('img', 'search-card-image'));
+      card.__searchImage = image;
+      card.appendChild(image);
       card.appendChild(createElement('span', 'search-library-badge media-library-badge'));
       caption.appendChild(createElement('span', 'search-card-title'));
       caption.appendChild(createElement('span', 'search-card-meta'));
@@ -201,7 +224,7 @@
     }
 
     function syncCard(card, item, index) {
-      var image = card.getElementsByTagName('img')[0];
+      var image = card.__searchImage || (card.getElementsByTagName ? card.getElementsByTagName('img')[0] : null);
       var source = String(item && item.image || '');
       var title = mediaTitle(item);
       var library = String(item && (item.libraryTitle || item.library || '') || '');
@@ -210,6 +233,7 @@
       var viewed = !!(item && item.viewed);
       var key = mediaKey(item);
       var presentation = card.__searchPresentation;
+      if (image && !card.__searchImage) { card.__searchImage = image; }
       if (presentation && presentation.index === index && presentation.key === key && presentation.source === source &&
           presentation.title === title && presentation.library === library && presentation.meta === meta &&
           presentation.detail === detail && presentation.viewed === viewed) {
@@ -236,7 +260,7 @@
     function updateCard(card, item, index, priority) {
       var image = syncCard(card, item, index);
       var source = String(item && item.image || '');
-      return { target: image, specification: posterSpecification(image, source, priority) };
+      return queuePoster(image, source, priority, item);
     }
 
     function cardProfile() {
@@ -247,16 +271,16 @@
       return { metrics: metrics, poster: { width: Number(values.cardWidth || metrics.width || 154), height: Number(values.imageHeight || values.cardHeight || metrics.imageHeight || 224) } };
     }
 
-    function posterSpecification(image, source, priority) {
+    function posterSpecification(image, source, priority, currentProfile, sourceContext, item) {
       var specification;
-      var profile = cardProfile();
+      var profile = currentProfile || cardProfile();
       var poster = profile.poster || {};
       var fallbackWidth = Number(values.cardWidth || poster.width || 154);
       var fallbackHeight = Number(values.imageHeight || values.cardHeight || poster.height || 224);
       if (values.fixedPosterSpecification && profile.poster) {
-        specification = values.fixedPosterSpecification(source, profile.poster, priority, 'search');
+        specification = values.fixedPosterSpecification(source, profile.poster, priority, 'search', sourceContext, item);
       } else if (values.renderedPosterSpecification) {
-        specification = values.renderedPosterSpecification(image, source, priority, 'search', fallbackWidth, fallbackHeight);
+        specification = values.renderedPosterSpecification(image, source, priority, 'search', fallbackWidth, fallbackHeight, sourceContext, item);
       } else {
         specification = {
           source: source, width: fallbackWidth, height: fallbackHeight,
@@ -264,6 +288,34 @@
         };
       }
       return specification;
+    }
+
+    function queuePoster(image, source, priority, item) {
+      var profile = cardProfile();
+      var poster = profile.poster || {};
+      var fallbackWidth = Number(values.cardWidth || poster.width || 154);
+      var fallbackHeight = Number(values.imageHeight || values.cardHeight || poster.height || 224);
+      var previous = image && image.__ploffSearchPoster;
+      var sourceContext = sourceContextForItem(item);
+      var next = {
+        source: source,
+        width: Math.max(1, Number(poster.width || fallbackWidth) || 1),
+        height: Math.max(1, Number(poster.height || fallbackHeight) || 1),
+        priority: priority,
+        sourceContext: sourceContext,
+        sourceContextIdentity: sourceIdentityForItem(item, sourceContext)
+      };
+      var loader = values.posterLoader;
+      var changed = !previous || previous.source !== next.source || previous.width !== next.width || previous.height !== next.height ||
+        previous.sourceContextIdentity !== next.sourceContextIdentity;
+      var canCheck = loader && typeof loader.needsLoad === 'function';
+      var shouldQueue = changed || !canCheck || loader.needsLoad(image, false);
+      if (image) { image.__ploffSearchPoster = next; }
+      if (!shouldQueue) {
+        if (previous && next.priority < previous.priority && loader && loader.prioritize) { loader.prioritize(image, next.priority); }
+        return null;
+      }
+      return { target: image, specification: posterSpecification(image, source, priority, profile, sourceContext, item) };
     }
 
     function measureResults(container) {
@@ -312,6 +364,7 @@
       var posterJobs = [];
       var resultCards = {};
       var token;
+      var posterJob;
       if (!container) { return; }
       for (index = 0; index < container.children.length; index += 1) {
         card = container.children[index];
@@ -352,7 +405,8 @@
         if (!card || card.__searchRenderToken === token) { card = recyclable.shift() || createCard(); }
         card.__searchRenderToken = token;
         priority = state.focus.zone === 'results' && index === state.focus.index ? 0 : (index >= visibleStart && index < visibleEnd ? 1 : 2);
-        posterJobs.push(updateCard(card, item, index, priority));
+        posterJob = updateCard(card, item, index, priority);
+        if (posterJob) { posterJobs.push(posterJob); }
         resultCards[index] = card;
         container.appendChild(card);
       }
@@ -390,12 +444,55 @@
     }
 
     function targetForFocus() {
-      var selector;
       if (state.focus.zone === 'nav') { return values.navTarget ? values.navTarget(state.focus.navIndex) : null; }
       if (state.focus.zone === 'keyboard') {
-        selector = '[data-search-row="' + state.focus.row + '"][data-search-column="' + state.focus.column + '"]';
+        return keyboardNodesByPosition[state.focus.row + ':' + state.focus.column] || null;
       } else { return state.resultCards[state.focus.index] || null; }
-      return documentRef && documentRef.querySelector ? documentRef.querySelector(selector) : null;
+    }
+
+    function adjacentResultItems(direction) {
+      var items = [];
+      var seen = {};
+      var index = Number(state.focus.index || 0);
+      var columns = Math.max(1, Number(state.layout.columns || 1));
+      var row = Math.floor(index / columns);
+      var column = index % columns;
+      var candidates = [];
+
+      function add(candidate) {
+        var item;
+        var key;
+        if (candidate < 0 || candidate >= state.results.length || candidate === index) { return; }
+        item = state.results[candidate];
+        key = mediaKey(item);
+        if (!item || !key || seen[key]) { return; }
+        seen[key] = true;
+        items.push(item);
+      }
+
+      if (direction === 'left') {
+        if (column > 0) { candidates.push(index - 1); }
+        if (column < columns - 1 && index + 1 < state.results.length) { candidates.push(index + 1); }
+        if (index + columns < state.results.length) { candidates.push(index + columns); }
+        if (row > 0) { candidates.push(index - columns); }
+      } else if (direction === 'down') {
+        if (index + columns < state.results.length) { candidates.push(index + columns); }
+        if (row > 0) { candidates.push(index - columns); }
+        if (column < columns - 1 && index + 1 < state.results.length) { candidates.push(index + 1); }
+        if (column > 0) { candidates.push(index - 1); }
+      } else if (direction === 'up') {
+        if (row > 0) { candidates.push(index - columns); }
+        if (index + columns < state.results.length) { candidates.push(index + columns); }
+        if (column < columns - 1 && index + 1 < state.results.length) { candidates.push(index + 1); }
+        if (column > 0) { candidates.push(index - 1); }
+      } else {
+        if (column < columns - 1 && index + 1 < state.results.length) { candidates.push(index + 1); }
+        if (column > 0) { candidates.push(index - 1); }
+        if (index + columns < state.results.length) { candidates.push(index + columns); }
+        if (row > 0) { candidates.push(index - columns); }
+      }
+      candidates.forEach(add);
+      return items;
     }
 
     function clearTrackedFocus() {
@@ -440,6 +537,9 @@
       if (state.focus.zone === 'results' && state.results[state.focus.index] && values.onBackdrop) {
         values.onBackdrop(state.results[state.focus.index]);
       }
+      if (values.onAdjacentBackdropPrefetch) {
+        values.onAdjacentBackdropPrefetch(state.focus.zone === 'results' ? adjacentResultItems(state.lastDirection) : []);
+      }
       return target;
     }
 
@@ -456,15 +556,25 @@
     }
 
     function applyResults(error, items) {
+      var focusedKey = state.focus.zone === 'results' ? mediaKey(state.results[state.focus.index]) : '';
+      var focusedMatch = -1;
+      var index;
       if (values.posterLoader && values.posterLoader.cancelScope) { values.posterLoader.cancelScope('search'); }
       state.results = error ? [] : array(items).slice();
       state.visibleStartRow = 0;
       if (state.focus.zone === 'results' && !state.results.length) {
         state.focus = { zone: 'keyboard', row: rows().length - 1, column: 0, index: 0, navIndex: state.focus.navIndex };
       } else if (state.focus.zone === 'results') {
-        state.focus.index = clamp(state.focus.index, 0, state.results.length - 1);
+        for (index = 0; focusedKey && index < state.results.length; index += 1) {
+          if (mediaKey(state.results[index]) === focusedKey) { focusedMatch = index; break; }
+        }
+        state.focus.index = focusedMatch >= 0 ? focusedMatch : clamp(state.focus.index, 0, state.results.length - 1);
       }
       renderResults();
+      if (state.focus.zone === 'results' && state.results.length) {
+        state.focus.row = Math.floor(state.focus.index / Math.max(1, Number(state.layout.columns || 1)));
+        state.focus.column = state.focus.index % Math.max(1, Number(state.layout.columns || 1));
+      }
       setStatus(error ? 'search.error' : (state.results.length ? '' : 'search.noResults'));
       updateFocus();
     }
@@ -500,6 +610,7 @@
         state.focus = model.move(state.focus, direction, searchLayout());
         state.focus.navIndex = navigationIndex;
       }
+      state.lastDirection = direction;
       updateFocus();
       return snapshot();
     }
@@ -678,7 +789,6 @@
       backspaceT9: function () { return t9Input ? t9Input.backspace() : false; },
       cancel: function () { session.cancel(); if (t9Input) { t9Input.cancel(); } },
       close: function () { return close(false); },
-      ensureWindow: ensureWindow,
       focusKeyboard: focusKeyboard,
       focusNavigation: focusNavigation,
       focusResult: focusResult,

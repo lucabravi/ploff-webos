@@ -188,5 +188,5 @@
     });
   }
 
-  return { DEFAULT_BASE: DEFAULT_BASE, discover: discover, itemsFromJson: itemsFromJson, load: load, providerFromJson: providerFromJson, search: search, searchItemsFromJson: searchItemsFromJson, set: set };
+  return { discover: discover, load: load, providerFromJson: providerFromJson, search: search, set: set };
 }));

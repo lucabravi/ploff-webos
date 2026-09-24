@@ -426,4 +426,29 @@ assert.strictEqual(readyCounters.discovered, 1, 'ready bootstrap must still refr
 assert.strictEqual(readyCounters.setup, 0, 'ready bootstrap must not reopen onboarding');
 readyFeature.destroy();
 
+var corruptedLocalState = storage();
+var corruptedCredentials = storage();
+var corruptedConfig = { apiBaseUrl: serverB.uri, token: '' };
+corruptedLocalState.setItem(ServerStore.STORAGE_KEY, JSON.stringify({ activeUri: serverB.uri, servers: [serverA, serverB] }));
+corruptedCredentials.setItem(AuthStore.STORAGE_KEY, JSON.stringify({
+  setupComplete: true,
+  mode: 'plex',
+  ownerToken: 'owner-token',
+  activeProfileId: 'owner',
+  profiles: [{
+    id: 'owner', title: 'Owner', token: 'server-token-a', accountToken: 'owner-token',
+    serverMachineIdentifier: 'machine-a', serverConnectionUri: serverA.uri
+  }]
+}));
+var corruptedCounters = { applied: 0, resumed: 0, started: 0, discovered: 0, destroyed: 0, navigation: 0, accountProfile: 0, persisted: 0, home: 0, setup: 0 };
+var corruptedFeature = bootstrapFeature(corruptedLocalState, corruptedCredentials, corruptedConfig, corruptedCounters);
+assert.strictEqual(corruptedFeature.bootstrap(), true, 'bootstrap must recover a stale secondary activeUri without reopening onboarding');
+assert.strictEqual(corruptedConfig.apiBaseUrl, serverA.uri,
+  'Plex bootstrap must prefer the server bound to the active profile over a stale secondary activeUri');
+assert.strictEqual(corruptedConfig.token, 'server-token-a',
+  'bootstrap recovery must restore the token bound to the repaired primary PMS');
+assert.strictEqual(JSON.parse(corruptedLocalState.getItem(ServerStore.STORAGE_KEY)).activeUri, serverA.uri,
+  'bootstrap recovery must repair the persisted primary server selection');
+corruptedFeature.destroy();
+
 console.log('Server feature runtime ownership checks passed');

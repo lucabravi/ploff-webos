@@ -19,19 +19,17 @@ function detail(h, key, generation) {
   assert.strictEqual(h.capturedOptions.pointer.capture.focus({}, {}), false);
   app.destroy();
 }());
-(function onlyOneBoundedWarmupAfterHomeFocus() {
+(function onlyOneBoundedWarmupAfterHomeSdAndPrefetchSettlement() {
   var h = createHarness({ deferPlayer: true });
   var marks = [];
   var app = Application.create(h.root, h.document, {}, { mark: function (name) { marks.push(name); } });
   assert.strictEqual(h.timers.filter(function (t) { return t.active && t.delay > 0; }).length, 0);
   h.capturedOptions.shell.transitions.onHomeReady();
   h.capturedOptions.shell.transitions.onHomeReady();
-  var warm = h.timers.filter(function (t) { return t.active && t.delay > 0; });
-  assert.strictEqual(warm.length, 1);
-  assert.ok(warm[0].delay > 0 && warm[0].delay <= 2000);
-  assert.strictEqual(h.injectedScripts.length, 0);
-  h.runTimers(warm[0].delay);
-  assert.strictEqual(h.injectedScripts.length, 1);
+  assert.strictEqual(h.injectedScripts.length, 0, 'Home readiness alone must not warm Player before the SD artwork batch settles');
+  h.capturedOptions.shell.transitions.onHomeArtworkPreviewReady();
+  h.capturedOptions.shell.transitions.onHomeArtworkPreviewReady();
+  assert.strictEqual(h.injectedScripts.length, 1, 'SD artwork readiness must enter the completion-driven chain and warm Player once adjacent prefetch settles');
   h.loadPlayerCode();
   assert.strictEqual(h.createOrder.filter(function (name) { return name === 'player'; }).length, 1);
   assert.ok(marks.indexOf('first-focusable-ui') < marks.indexOf('player-load-start'));
@@ -49,7 +47,11 @@ function detail(h, key, generation) {
   assert.strictEqual(play(), true);
   assert.strictEqual(play(), true);
   assert.strictEqual(h.injectedScripts.length, 1);
-  assert.strictEqual(h.timers.filter(function (t) { return t.active && t.delay > 0; }).length, 0);
+  assert.strictEqual(h.timers.filter(function (t) { return t.active && t.delay === 5000; }).length, 1,
+    'early Play must leave the SD settlement watchdog armed so the remaining background chain can still recover');
+  assert.strictEqual(h.timers.some(function (t) {
+    return t.active && (t.delay === 600 || t.delay === 1000 || t.delay === 2500 || t.delay === 4000);
+  }), false, 'early Play must not restore legacy timer-driven warmups');
   h.loadPlayerCode();
   assert.strictEqual(calls(h, 'open').length, 1);
   h.runTimers();
@@ -89,6 +91,27 @@ function detail(h, key, generation) {
   if (reason === 'destroy') { assert.strictEqual(h.created.player, undefined); }
   app.destroy();
 });
+(function changingPlexOwnerCancelsPendingPlayEvenWhenPrimaryIdentityIsStable() {
+  var identity = { server: 'primary-server', profile: 'profile-1' };
+  var state = {
+    selectedItem: { ratingKey: 'same-key', serverMachineIdentifier: 'server-b' },
+    currentDetail: { ratingKey: 'same-key', serverMachineIdentifier: 'server-b' },
+    generation: 1
+  };
+  var h = createHarness({ deferPlayer: true, methodHandlers: { 'server.mediaIdentity': function () { return identity; } } });
+  var app = Application.create(h.root, h.document, {});
+  h.created.session.update({ view: 'detail' });
+  h.created.detail.snapshot = function () { return state; };
+  h.capturedOptions.detail.transitions.requestPlayback();
+  state = {
+    selectedItem: { ratingKey: 'same-key', serverMachineIdentifier: 'server-c' },
+    currentDetail: { ratingKey: 'same-key', serverMachineIdentifier: 'server-c' },
+    generation: 1
+  };
+  h.loadPlayerCode();
+  assert.strictEqual(calls(h, 'open').length, 0, 'changing only the owning PMS must invalidate deferred Play');
+  app.destroy();
+}());
 ['load', 'construction'].forEach(function (failure) {
   var h = createHarness({ deferPlayer: true, failCreate: failure === 'construction' ? 'player' : '' });
   var app = Application.create(h.root, h.document, {});
@@ -99,9 +122,13 @@ function detail(h, key, generation) {
   assert.deepStrictEqual(h.destroyOrder, [], failure + ' must not roll back Core');
   assert.strictEqual(h.created.session.view(), 'detail');
   assert.ok(h.calls.indexOf('showMessage:shell') !== -1);
-  h.capturedOptions.detail.transitions.requestPlayback();
-  assert.strictEqual(h.injectedScripts.length, 1, 'failures must not trigger an automatic retry loop');
+  assert.strictEqual(h.injectedScripts.length, 1, 'a Player failure must remain bounded until another explicit Play intent');
   assert.strictEqual(h.createOrder.filter(function (name) { return name === 'player'; }).length, failure === 'construction' ? 1 : 0);
+  h.capturedOptions.detail.transitions.requestPlayback();
+  assert.strictEqual(h.injectedScripts.length, failure === 'load' ? 2 : 1,
+    'an explicit Play must retry a failed runtime load without creating an automatic retry loop');
+  assert.strictEqual(h.createOrder.filter(function (name) { return name === 'player'; }).length, failure === 'construction' ? 2 : 0,
+    'an explicit Play must retry deferred Player construction exactly once per user intent');
   app.destroy();
 });
 (function warmFailureIsSilentAndCoreRemainsUsable() {

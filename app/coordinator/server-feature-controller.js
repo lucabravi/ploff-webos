@@ -51,6 +51,7 @@
     var manualProbeRequest = null;
     var applicationRequests = [];
     var accountRequests = [];
+    var connectionSelectionRequest = null;
 
     function call(callback, arg1, arg2, arg3, arg4, arg5) {
       if (typeof callback === 'function') { return callback(arg1, arg2, arg3, arg4, arg5); }
@@ -181,6 +182,38 @@
       return ServerStore.connectionUris({ uri: value.uri, connections: connections });
     }
 
+    function connectionProbeRoutes(server, candidates, routes) {
+      var metadata = {};
+      var result = [];
+      var seen = {};
+      var knownUris = connectionUris(server).concat(candidates || []);
+      var routeList = Object.prototype.toString.call(routes) === '[object Array]' ? routes : [];
+      var index;
+      var route;
+      var uri;
+      for (index = 0; index < routeList.length; index += 1) {
+        route = routeList[index] || {};
+        uri = ServerStore.normalizeUri(route.uri);
+        if (!uri || metadata[uri]) { continue; }
+        metadata[uri] = { uri: uri, local: route.local === true, relay: route.relay === true };
+      }
+      function append(candidate) {
+        var value = ServerStore.normalizeUri(candidate && candidate.uri ? candidate.uri : candidate);
+        var known;
+        if (!value || seen[value]) { return; }
+        seen[value] = true;
+        known = metadata[value];
+        result.push(known || {
+          uri: value,
+          local: !!(ServerDiscovery && typeof ServerDiscovery.isLocalCandidate === 'function' && ServerDiscovery.isLocalCandidate(value)),
+          relay: false
+        });
+      }
+      knownUris.forEach(append);
+      routeList.forEach(append);
+      return result;
+    }
+
     function preferredLocalUri(server, uris) {
       var selected = activeServer();
       var profile = activeProfile();
@@ -199,6 +232,14 @@
         }
       }
       return '';
+    }
+
+    function primaryRouteLabel(server) {
+      var uri = ServerStore.normalizeUri(server && server.uri);
+      var host = String(uri || '').match(/^https?:\/\/([^/:]+)/i);
+      if (uri && ServerDiscovery.isLocalCandidate(uri)) { return call(presentation.t, 'settings.localAddress'); }
+      if (host && /\.plex\.direct$/i.test(host[1])) { return call(presentation.t, 'settings.remoteDirect'); }
+      return call(presentation.t, 'settings.remoteAddress');
     }
 
     function addressesFor(server, compactDirect) {
@@ -290,7 +331,9 @@
           activeUri: activeServer() && activeServer().uri || '',
           addressesFor: function (server) { return addressesFor(server, true); },
           index: viewState.index,
+          loadingLabel: presentation.t('state.loading') + '...',
           open: viewState.open,
+          resolving: !!connectionSelectionRequest,
           servers: servers()
         });
       }
@@ -307,6 +350,10 @@
 
     function closeEditor() {
       if (destroyed || !editor) { return false; }
+      if (connectionSelectionRequest && typeof connectionSelectionRequest.abort === 'function') {
+        connectionSelectionRequest.abort();
+      }
+      connectionSelectionRequest = null;
       if (typeof editor.close === 'function') { editor.close(); }
       renderEditor();
       call(presentation.renderSettings);
@@ -315,6 +362,7 @@
 
     function focusEditor(index) {
       if (destroyed || !editor) { return false; }
+      if (connectionSelectionRequest) { return editorSnapshot(); }
       if (typeof editor.focus === 'function') { editor.focus(index, servers().length + 2); }
       if (typeof editor.updateFocus === 'function') { editor.updateFocus(); }
       else { renderEditor(); }
@@ -432,19 +480,84 @@
       return controller.applyServer(server);
     }
 
+    function resolveServerConnection(server, callback) {
+      var profile = activeProfile();
+      var accountToken = profile && (profile.accountToken || ownerToken());
+      var resolveOptions;
+      var completed = false;
+      var currentRequest = null;
+      var cancelled = false;
+      var composite;
+      function finish(error, resolved) {
+        completed = true;
+        if (!cancelled && !destroyed) { call(callback, error || null, resolved || null); }
+      }
+      function probe(token, candidates, routes) {
+        var probeCandidates = connectionProbeRoutes(server, candidates, routes);
+        currentRequest = PlexAuth.findReachableConnection(platformRoot, token, probeCandidates,
+          server.machineIdentifier, resolveOptions, function (error, uri) {
+            var enriched;
+            var resolved;
+            if (cancelled || destroyed) { return; }
+            if (error || !uri) { finish(error || new Error('No reachable Plex connection')); return; }
+            enriched = routes ? ServerStore.withRemoteConnections(server, candidates, 'linked', new Date().getTime(), routes) : server;
+            resolved = ServerStore.preferConnection(enriched || server, uri);
+            if (profile && accountToken && token && profile.serverMachineIdentifier !== server.machineIdentifier) {
+              completeProfile(profile, token, accountToken, server.machineIdentifier, uri, profiles(), function (profileError) {
+                finish(profileError, profileError ? null : resolved);
+              });
+              return;
+            }
+            finish(null, resolved || server);
+          });
+      }
+      if (destroyed || !server) { call(callback, new Error('Plex server unavailable')); return null; }
+      if (!server.machineIdentifier || !PlexAuth || typeof PlexAuth.findReachableConnection !== 'function') {
+        call(callback, null, server);
+        return null;
+      }
+      resolveOptions = copyObject(authOptions);
+      resolveOptions.timeout = Math.min(1800, Number(resolveOptions.timeout || 1800));
+      resolveOptions.raceConnections = true;
+      composite = { abort: function () {
+        cancelled = true;
+        if (currentRequest && currentRequest.abort) { currentRequest.abort(); }
+        currentRequest = null;
+      } };
+      if (authMode() === 'plex' && profile && profile.serverMachineIdentifier !== server.machineIdentifier && accountToken &&
+          typeof PlexAuth.loadServerAccess === 'function') {
+        currentRequest = PlexAuth.loadServerAccess(platformRoot, accountToken, server.machineIdentifier, resolveOptions, function (error, access) {
+          if (cancelled || destroyed) { return; }
+          if (error || !access || !access.token) { finish(error || new Error('Plex server access unavailable')); return; }
+          probe(access.token, access.connections || connectionUris(server), access.connectionRoutes || []);
+        });
+      } else {
+        probe(activeToken(server.machineIdentifier, server), connectionUris(server), server.connectionRoutes || []);
+      }
+      return completed ? null : composite;
+    }
+
     function switchServer(server) {
       var current;
-      var applied;
       if (destroyed || !server) { return false; }
+      if (connectionSelectionRequest) { return false; }
       current = activeServer();
-      if (ServerStore.same(current, server)) {
+      if (ServerStore.same(current, server) &&
+          ServerStore.normalizeUri(current && current.uri) === ServerStore.normalizeUri(server.uri)) {
         closeEditor();
         return false;
       }
-      applied = applyServer(server);
-      if (applied === false) { return false; }
-      closeEditor();
-      call(transitions.serverSwitched, server, snapshot());
+      connectionSelectionRequest = { abort: function () {} };
+      renderEditor();
+      connectionSelectionRequest = resolveServerConnection(server, function (error, resolved) {
+        var sameRoute;
+        connectionSelectionRequest = null;
+        if (destroyed || error || !resolved) { renderEditor(); return; }
+        sameRoute = ServerStore.same(current, resolved) &&
+          ServerStore.normalizeUri(current && current.uri) === ServerStore.normalizeUri(resolved.uri);
+        if (!sameRoute && applyServer(resolved) !== false) { call(transitions.serverSwitched, resolved, snapshot()); }
+        closeEditor();
+      });
       return true;
     }
 
@@ -626,6 +739,128 @@
       return request || null;
     }
 
+    function queryAccountServers(callback) {
+      var requestGeneration = generation;
+      var request = null;
+      var completed = false;
+      var token = watchlistAccountToken();
+      if (destroyed || !PlexAuth || typeof PlexAuth.loadAccountServers !== 'function') {
+        call(callback, new Error('account unavailable'), []);
+        return null;
+      }
+      if (!allowsCloud() || !token) {
+        call(callback, new Error('Plex account unavailable'), []);
+        return null;
+      }
+      request = PlexAuth.loadAccountServers(platformRoot, token, authOptions, function (error, incoming) {
+        var accountServers;
+        completed = true;
+        untrack(accountRequests, request);
+        if (destroyed || requestGeneration !== generation) { return; }
+        if (!error) {
+          mergeServers(incoming || []);
+          accountServers = (incoming || []).map(function (entry) { return serverForIdentity(entry) || entry; });
+        }
+        call(callback, error || null, error ? [] : accountServers);
+      });
+      if (!completed) { track(accountRequests, request); }
+      return request || null;
+    }
+
+    function serverByMachineIdentifier(machineIdentifier) {
+      var target = String(machineIdentifier || '');
+      var list = servers();
+      var index;
+      for (index = 0; index < list.length; index += 1) {
+        if (String(list[index] && list[index].machineIdentifier || '') === target) { return list[index]; }
+      }
+      return null;
+    }
+
+    function contentSourceContext(server, apiBaseUrl, token) {
+      return {
+        serverMachineIdentifier: String(server && server.machineIdentifier || ''),
+        serverName: String(server && server.name || ''),
+        owned: server && server.owned === false ? false : true,
+        apiBaseUrl: String(apiBaseUrl || ''),
+        token: String(token || ''),
+        requestTimeout: applicationConfig.requestTimeout
+      };
+    }
+
+    function resolveContentSource(machineIdentifier, callback) {
+      var target = String(machineIdentifier || '');
+      var selected = serverByMachineIdentifier(target);
+      var primary = activeServer();
+      var accountToken = watchlistAccountToken();
+      var requestGeneration = generation;
+      var resolveOptions = copyObject(authOptions);
+      var currentRequest = null;
+      var composite = null;
+      var completed = false;
+      var cancelled = false;
+
+      function active() { return !destroyed && !cancelled && requestGeneration === generation; }
+      function setRequest(request) {
+        currentRequest = request || null;
+        if (cancelled && currentRequest && currentRequest.abort) { currentRequest.abort(); }
+      }
+      function finish(error, result) {
+        completed = true;
+        untrack(accountRequests, composite);
+        currentRequest = null;
+        if (active()) { call(callback, error || null, result || null); }
+      }
+      function abort() {
+        cancelled = true;
+        if (currentRequest && currentRequest.abort) { currentRequest.abort(); }
+        currentRequest = null;
+        untrack(accountRequests, composite);
+      }
+
+      if (destroyed || !target || !selected) {
+        call(callback, new Error('Plex server unavailable'));
+        return null;
+      }
+      resolveOptions.raceConnections = true;
+      if (ServerStore.same(selected, primary) && applicationConfig.apiBaseUrl && applicationConfig.token) {
+        call(callback, null, contentSourceContext(selected, applicationConfig.apiBaseUrl, applicationConfig.token));
+        return null;
+      }
+      if (!allowsCloud() || !accountToken || !PlexAuth || typeof PlexAuth.loadServerAccess !== 'function' ||
+          typeof PlexAuth.findReachableConnection !== 'function') {
+        call(callback, new Error('Plex server access unavailable'));
+        return null;
+      }
+
+      composite = { abort: abort };
+      track(accountRequests, composite);
+      setRequest(PlexAuth.loadServerAccess(platformRoot, accountToken, target, authOptions, function (error, access) {
+        var candidates;
+        var probeCandidates;
+        var preferredUri;
+        var preferredIndex;
+        if (!active()) { return; }
+        if (error || !access || !access.token) { finish(error || new Error('Plex server access unavailable')); return; }
+        candidates = (access.connections || []).slice();
+        preferredUri = String(selected.uri || '');
+        if (preferredUri) {
+          preferredIndex = candidates.indexOf(preferredUri);
+          if (preferredIndex !== -1) { candidates.splice(preferredIndex, 1); }
+          candidates.unshift(preferredUri);
+        }
+        probeCandidates = connectionProbeRoutes(selected, candidates, access.connectionRoutes || []);
+        setRequest(PlexAuth.findReachableConnection(platformRoot, access.token, probeCandidates, target, resolveOptions, function (connectionError, connectionUri) {
+          if (!active()) { return; }
+          if (connectionError || !connectionUri) { finish(connectionError || new Error('No reachable Plex connection')); return; }
+          verifyRemoteConnections(selected, access.token, access.connections || [], access.connectionRoutes || []);
+          finish(null, contentSourceContext(selected, connectionUri, access.token));
+        }));
+      }));
+      if (completed) { untrack(accountRequests, composite); }
+      return composite;
+    }
+
     function loadProfiles(token, callback) {
       var requestGeneration = generation;
       var previous = activeProfile();
@@ -796,6 +1031,9 @@
       loadGeneration = applicationGeneration;
       abortRequests(applicationRequests);
       start();
+      /* Home owns its own asynchronous/error state. Do not serialize the shell or
+       * its first request behind navigation discovery on an unreachable server. */
+      loadHome();
       navigationRequest = PlexClient.loadNavigation(applicationConfig, function (error, items) {
         navigationCompleted = true;
         untrack(applicationRequests, navigationRequest);
@@ -804,13 +1042,11 @@
           attemptFailover(error, function (switched) {
             if (destroyed || loadGeneration !== applicationGeneration) { return; }
             if (switched) { loadApplication(); return; }
-            loadHome();
           });
           return;
         }
         clearFailedRoutes();
-        if (items && items.length) { applyNavigation(items); }
-        loadHome();
+        applyNavigation(items || []);
         call(application.loaded, snapshot());
       });
       if (!navigationCompleted) { track(applicationRequests, navigationRequest); }
@@ -834,7 +1070,11 @@
 
     function bootstrap() {
       var current = serverState();
-      var selected = serverForUri(current.activeUri);
+      var profile = activeProfile();
+      var profileServer = authMode() === 'plex' && profile && profile.serverMachineIdentifier
+        ? serverByMachineIdentifier(profile.serverMachineIdentifier)
+        : null;
+      var selected = profileServer || serverForUri(current.activeUri);
       if (destroyed) { return false; }
       call(application.persistSettings);
       call(presentation.renderProfile);
@@ -843,6 +1083,8 @@
         return 'setup';
       }
       completeOfflineSetup();
+      /* A configured server is content, not an application-startup dependency. */
+      call(application.ready, snapshot());
       if (!selected && configuredServer) { selected = serverForUri(configuredServer.uri) || configuredServer; }
       if (!selected && servers().length) { selected = servers()[0]; }
       if (selected) {
@@ -883,6 +1125,8 @@
       applicationGeneration += 1;
       if (manualProbeRequest && typeof manualProbeRequest.abort === 'function') { manualProbeRequest.abort(); }
       manualProbeRequest = null;
+      if (connectionSelectionRequest && typeof connectionSelectionRequest.abort === 'function') { connectionSelectionRequest.abort(); }
+      connectionSelectionRequest = null;
       abortRequests(applicationRequests);
       abortRequests(accountRequests);
       if (typeof networkUnsubscribe === 'function') { networkUnsubscribe(); }
@@ -916,6 +1160,7 @@
       t: presentation.t,
       element: presentation.element,
       appendAddresses: appendAddresses,
+      serverRouteLabel: primaryRouteLabel,
       keepFocusVisible: presentation.keepFocusVisible,
       isPointerSelectionActive: function () { return call(presentation.pointerActive) === true; }
     });
@@ -967,6 +1212,7 @@
       allowsCloud: allowsCloud,
       allowsLocal: allowsLocal,
       applyServer: applyServer,
+      attemptFailover: attemptFailover,
       authMode: authMode,
       authSnapshot: authSnapshot,
       bootstrap: bootstrap,
@@ -980,6 +1226,8 @@
       editorSnapshot: editorSnapshot,
       focusEditor: focusEditor,
       loadAccountServers: loadAccountServers,
+      queryAccountServers: queryAccountServers,
+      resolveServerConnection: resolveServerConnection,
       loadApplication: loadApplication,
       loadProfiles: loadProfiles,
       loadServerIdentity: loadServerIdentity,
@@ -991,6 +1239,7 @@
       pollPin: pollPin,
       probeManualAddress: probeManualAddress,
       profiles: profiles,
+      resolveContentSource: resolveContentSource,
       renderEditor: renderEditor,
       servers: servers,
       setupComplete: setupComplete,

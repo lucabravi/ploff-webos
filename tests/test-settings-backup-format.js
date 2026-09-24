@@ -5,6 +5,8 @@ var fs = require('fs');
 var path = require('path');
 var Settings = require('../app/settings');
 var Backup = require('../app/settings-backup-format');
+var LibraryTabStore = require('../app/library-tab-store');
+var MediaSourcePreference = require('../app/media-source-preference');
 
 function storage(initial) {
   var values = Object.assign({}, initial || {});
@@ -20,9 +22,24 @@ function storage(initial) {
 
 var source = storage({
   'ploff.libraryOrder.v1': JSON.stringify(['4', '2']),
+  'ploff.libraryTabs.v1': JSON.stringify({
+    version: 1, legacyMigrated: true, displayMode: 'icon-text',
+    home: { icon: 'home', token: 'home-secret' },
+    serverAliases: [{ serverMachineIdentifier: 'server-b', alias: 'Marco' }],
+    serverStates: [{ serverMachineIdentifier: 'server-b', enabled: false }],
+    homeOrder: ['kind:recommended', 'source:server-b|2', 'kind:continue', 'source:server-a|4'],
+    items: [
+      { sourceId: 'server-a|4', serverMachineIdentifier: 'server-a', sectionKey: '4', enabled: true, alias: 'Cinema', displayMode: 'icon-text', icon: 'movie', order: 0, lastSeenAt: 123, token: 'server-secret', apiBaseUrl: 'https://private.example' },
+      { sourceId: 'server-b|2', serverMachineIdentifier: 'server-b', sectionKey: '2', enabled: false, homeRecentEnabled: false, alias: 'Anime Marco', displayMode: 'icon', icon: 'anime', order: 1, lastSeenAt: 456, route: { uri: 'https://relay.private' } }
+    ]
+  }),
   'ploff.subtitle-offsets.v1': JSON.stringify({ 'server|part|stream': 300 }),
   'ploff.mediaPreference.v1.sample': JSON.stringify({ audioTrack: { language: 'ja' }, subtitlesOff: false }),
   'ploff.mediaPreference.v2.server%7Cprofile%7Cseason%7Cseason-a': JSON.stringify({ versionSignature: { videoCodec: 'h264', container: 'mp4', width: 1920, height: 1080, bitrate: 5000, hdr: 0 } }),
+  'ploff.mediaSourcePreference.v1': JSON.stringify({
+    'plex://movie/same': 'server-b',
+    'plex://movie/unsafe': { serverMachineIdentifier: 'server-c', token: 'source-secret-token', apiBaseUrl: 'https://source.private', route: { uri: 'https://relay.source.private' } }
+  }),
   'ploff.subtitle-presentation.v2': JSON.stringify({
     'server%7Cprofile|media|movie-1': { profiles: { 'it~srt~1': { subtitleSize: 125, track: { language: 'it', format: 'srt', external: true, title: 'Dialoghi' } } } }
   }),
@@ -58,9 +75,24 @@ assert.strictEqual(parsed.settings.subtitleRenderingSrt, true, 'global SRT/WebVT
 assert.strictEqual(parsed.settings.subtitleRenderingAss, true, 'global ASS/SSA renderer setting must survive settings save');
 assert.deepStrictEqual(parsed.settings.homeRows, ['recent', 'continue'], 'device settings save must retain Home row visibility and order');
 assert.deepStrictEqual(parsed.libraryOrder, ['4', '2']);
+assert.strictEqual(parsed.hasLibraryTabs, true, 'current saves must expose libraryTabs presence');
+assert.strictEqual(parsed.libraryTabs.displayMode, 'icon-text', 'global navigation appearance must survive settings save');
+assert.deepStrictEqual(parsed.libraryTabs.home, { icon: 'home' }, 'Home icon preference must survive settings save');
+assert.deepStrictEqual(parsed.libraryTabs.serverAliases, [{ serverMachineIdentifier: 'server-b', alias: 'Marco' }], 'server aliases must survive settings save');
+assert.deepStrictEqual(parsed.libraryTabs.serverStates, [{ serverMachineIdentifier: 'server-b', enabled: false }], 'disabled-server state must survive settings save');
+assert.deepStrictEqual(parsed.libraryTabs.homeOrder, ['kind:recommended', 'source:server-b|2', 'kind:continue', 'source:server-a|4'], 'unified Home ordering must survive settings save');
+assert.strictEqual(parsed.libraryTabs.items.length, 2, 'library tab preferences must survive settings save');
+assert.strictEqual(parsed.libraryTabs.items[0].alias, 'Cinema');
+assert.strictEqual(parsed.libraryTabs.items[1].enabled, false);
+assert.strictEqual(parsed.libraryTabs.items[1].homeRecentEnabled, false, 'per-library Recently Added visibility must survive settings save');
+assert.strictEqual(Object.prototype.hasOwnProperty.call(parsed.libraryTabs.items[0], 'token'), false, 'library tab backups must discard tokens');
+assert.strictEqual(Object.prototype.hasOwnProperty.call(parsed.libraryTabs.items[0], 'apiBaseUrl'), false, 'library tab backups must discard server URLs');
+assert.strictEqual(Object.prototype.hasOwnProperty.call(parsed.libraryTabs.items[1], 'route'), false, 'library tab backups must discard route metadata');
 assert.strictEqual(parsed.mediaPreferences.length, 2);
 assert.strictEqual(parsed.mediaPreferences[1].storage, 'v2');
 assert.strictEqual(parsed.mediaPreferences[1].value.versionSignature.width, 1920);
+assert.strictEqual(parsed.hasMediaSourcePreferences, true, 'current saves must expose source preference presence');
+assert.deepStrictEqual(parsed.mediaSourcePreferences, [{ guid: 'plex://movie/same', serverMachineIdentifier: 'server-b' }], 'source preference backup must contain only sanitized GUID/PMS identity pairs');
 assert.strictEqual(parsed.subtitleOffsets['server|part|stream'], 300);
 assert.strictEqual(Object.keys(parsed.subtitlePresentation).length, 1);
 assert.strictEqual(parsed.subtitlePresentation['server%7Cprofile|media|movie-1'].profiles['it~srt~1'].subtitleSize, 125);
@@ -71,8 +103,10 @@ assert.strictEqual(parsed.compatibility.formats[0].source, 'derived');
 assert.strictEqual(parsed.compatibility.files[0].source, 'observation');
 assert.strictEqual(built.summary.indexOf('secret'), -1, 'auth tokens must never enter the settings save');
 assert.strictEqual(built.summary.indexOf('private'), -1, 'server addresses must never enter the settings save');
-assert.strictEqual(Backup.isTechnicalPlaylist({ title: Backup.devicePlaylistTitle('Living room'), summary: built.summary }), true);
-assert.strictEqual(Backup.isTechnicalPlaylist({ title: Backup.devicePlaylistTitle('Living room'), summary: 'normal user text' }), false);
+assert.strictEqual(built.summary.indexOf('server-secret'), -1, 'library source tokens must never enter the settings save');
+assert.strictEqual(built.summary.indexOf('relay.private'), -1, 'library source routes must never enter the settings save');
+assert.strictEqual(built.summary.indexOf('source-secret-token'), -1, 'media source preference tokens must never enter the settings save');
+assert.strictEqual(built.summary.indexOf('source.private'), -1, 'media source preference URLs/routes must never enter the settings save');
 
 var originalCompatibility = JSON.stringify({
   version: 2,
@@ -82,8 +116,10 @@ var originalCompatibility = JSON.stringify({
 var target = storage({
   'ploff.settings.v2': JSON.stringify(Settings.validate({ uiLanguage: 'en', cardScale: 70, settingsBackupMode: 'off' })),
   'ploff.libraryOrder.v1': JSON.stringify(['old']),
+  'ploff.libraryTabs.v1': JSON.stringify({ version: 1, legacyMigrated: true, home: { displayMode: 'text', icon: 'home' }, items: [{ sourceId: 'old|1', serverMachineIdentifier: 'old', sectionKey: '1', enabled: true, alias: 'Old', displayMode: 'text', icon: 'folder', order: 0, lastSeenAt: 1 }] }),
   'ploff.mediaPreference.v1.old': '{}',
   'ploff.mediaPreference.v2.old': '{}',
+  'ploff.mediaSourcePreference.v1': JSON.stringify({ 'plex://movie/old': 'server-old' }),
   'ploff.subtitle-offsets.v1': JSON.stringify({ old: 1 }),
   'ploff.subtitle-presentation.v1': JSON.stringify({ old: { subtitleSize: 90 } }),
   'ploff.playbackCompatibility.v2': originalCompatibility,
@@ -99,10 +135,13 @@ assert.strictEqual(Settings.load(target).subtitleRenderingSrt, true, 'global SRT
 assert.strictEqual(Settings.load(target).subtitleRenderingAss, true, 'global ASS/SSA renderer setting must restore from settings save');
 assert.deepStrictEqual(Settings.load(target).homeRows, ['recent', 'continue']);
 assert.deepStrictEqual(JSON.parse(target.getItem('ploff.libraryOrder.v1')), ['4', '2']);
+assert.deepStrictEqual(LibraryTabStore.load(target), parsed.libraryTabs, 'restoring a current backup must replace library tab preferences with the sanitized saved state');
 assert.strictEqual(target.getItem('ploff.mediaPreference.v1.old'), null);
 assert.strictEqual(JSON.parse(target.getItem('ploff.mediaPreference.v1.sample')).audioTrack.language, 'ja');
 assert.strictEqual(target.getItem('ploff.mediaPreference.v2.old'), null);
 assert.ok(target.getItem('ploff.mediaPreference.v2.server%7Cprofile%7Cseason%7Cseason-a'));
+assert.strictEqual(MediaSourcePreference.create({ storage: target }).get('plex://movie/old'), '', 'restoring source preferences must replace stale local entries');
+assert.strictEqual(MediaSourcePreference.create({ storage: target }).get('plex://movie/same'), 'server-b', 'restoring source preferences must reload the saved PMS identity');
 assert.strictEqual(target.getItem('ploff.subtitle-presentation.v1'), null);
 assert.ok(target.getItem('ploff.subtitle-presentation.v2'));
 assert.strictEqual(JSON.parse(target.getItem('ploff.subtitle-offsets.v1'))['server|part|stream'], 300);
@@ -134,11 +173,47 @@ var index;
 for (index = 0; index < 300; index += 1) {
   oversizedValues['ploff.mediaPreference.v1.' + index] = JSON.stringify({ audioTrack: { language: 'ja', name: new Array(101).join('x') }, subtitlesOff: false });
 }
+oversizedValues['ploff.mediaSourcePreference.v1'] = JSON.stringify({ 'plex://show/priority': 'server-priority' });
 var bounded = Backup.build(storage(oversizedValues), settings, '1.0.6', function () { return 123456789; }, {
   device: { id: 'living-room', name: 'Living room', model: 'OLED55' }
 });
 assert(bounded.encodedBytes <= Backup.MAX_ENCODED_BYTES, 'lower-priority data must be trimmed to the budget');
 assert(bounded.omitted.length > 0);
+assert.deepStrictEqual(Backup.parse(bounded.summary).mediaSourcePreferences, [{ guid: 'plex://show/priority', serverMachineIdentifier: 'server-priority' }], 'source identity preferences must survive backup budget trimming ahead of bulky media preference history');
+
+
+(function currentBackupWithoutLibraryTabsPreservesExistingState() {
+  var existing = { version: 1, legacyMigrated: true, home: { displayMode: 'icon', icon: 'home' }, items: [{ sourceId: 'keep|7', serverMachineIdentifier: 'keep', sectionKey: '7', enabled: true, alias: 'Keep', displayMode: 'icon', icon: 'star', order: 0, lastSeenAt: 9 }] };
+  var noTabsSummary = Backup.MARKER + JSON.stringify({ format: Backup.FORMAT, version: Backup.VERSION, appVersion: '1.0.7', createdAt: 1, device: { id: 'd', name: 'D' }, settings: { uiLanguage: 'en' } });
+  var noTabsParsed = Backup.parse(noTabsSummary);
+  var destination = storage({ 'ploff.libraryTabs.v1': JSON.stringify(existing) });
+  assert.strictEqual(noTabsParsed.hasLibraryTabs, false, 'older v3 saves without libraryTabs must remain distinguishable');
+  Backup.apply(destination, noTabsParsed, {});
+  assert.deepStrictEqual(LibraryTabStore.load(destination), LibraryTabStore.validate(existing), 'a backup without libraryTabs must not erase current tab preferences');
+}());
+
+
+(function currentBackupWithoutMediaSourcePreferencesPreservesExistingState() {
+  var noSourcesSummary = Backup.MARKER + JSON.stringify({ format: Backup.FORMAT, version: Backup.VERSION, appVersion: '1.0.7', createdAt: 1, device: { id: 'd', name: 'D' }, settings: { uiLanguage: 'en' } });
+  var noSourcesParsed = Backup.parse(noSourcesSummary);
+  var destination = storage({ 'ploff.mediaSourcePreference.v1': JSON.stringify({ 'plex://movie/keep': 'server-keep' }) });
+  assert.strictEqual(noSourcesParsed.hasMediaSourcePreferences, false, 'older v3 saves without source preferences must remain distinguishable');
+  Backup.apply(destination, noSourcesParsed, {});
+  assert.strictEqual(MediaSourcePreference.create({ storage: destination }).get('plex://movie/keep'), 'server-keep', 'a backup without source preferences must not erase current source choices');
+}());
+
+(function importedMediaSourcePreferencesDiscardUnexpectedFields() {
+  var summary = Backup.MARKER + JSON.stringify({
+    format: Backup.FORMAT, version: Backup.VERSION, appVersion: '1.0.7', createdAt: 1,
+    device: { id: 'd', name: 'D' }, settings: { uiLanguage: 'en' },
+    mediaSourcePreferences: [
+      { guid: 'plex://movie/safe', serverMachineIdentifier: 'server-safe', token: 'do-not-keep', apiBaseUrl: 'https://private.invalid' },
+      { guid: 'plex://movie/bad', serverMachineIdentifier: { id: 'server-bad', token: 'bad-token' } }
+    ]
+  });
+  var parsedSave = Backup.parse(summary);
+  assert.deepStrictEqual(parsedSave.mediaSourcePreferences, [{ guid: 'plex://movie/safe', serverMachineIdentifier: 'server-safe' }], 'import must accept only string GUID/PMS identity pairs and discard all route/auth fields');
+}());
 
 assert.throws(function () { Backup.parse('not-a-save'); }, /marker/i);
 assert.throws(function () { Backup.parse(Backup.MARKER + '{"format":"ploff-settings","version":99,"settings":{}}'); }, /version/i);

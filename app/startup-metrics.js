@@ -5,19 +5,58 @@
   else {
     api = factory();
     root.PloffStartupMetrics = api;
-    root.PloffAssSubtitleColdStartMetrics = api.createAssColdStartMetrics({ root: root });
-    root.PloffAssSubtitleWorkerPreloader = api.createAssWorkerPreloader({ root: root, metrics: root.PloffAssSubtitleColdStartMetrics });
+    var warmTest = false;
+    try { warmTest = root.localStorage.getItem('ploff.assWarmTest') === '1'; } catch (ignore) {}
+    var refresh = warmTest ? function () { api.refreshWarmTestPanel(root); } : null;
+    root.PloffAssSubtitleColdStartMetrics = api.createAssColdStartMetrics({ root: root, warmTest: warmTest, onChange: refresh });
+    root.PloffAssSubtitleWorkerPreloader = api.createAssWorkerPreloader({ root: root, metrics: root.PloffAssSubtitleColdStartMetrics, onChange: refresh });
     if (api.assRenderingEnabledAtStartup(root)) { root.PloffAssSubtitleWorkerPreloader.start(); }
+    if (refresh && root.document && root.document.addEventListener) { root.document.addEventListener('DOMContentLoaded', refresh); }
   }
 }(this, function () {
   'use strict';
 
-  var ASS_LEGACY_WORKER_URL = 'vendor/subtitles-octopus-worker-legacy.js?v=4.1.0-os-mem1&assTiming=1&assSync=12';
-  var ASS_FALLBACK_FONT_URL = 'default.woff2?v=4.1.0-os';
+  var ASS_LEGACY_WORKER_URL = 'vendor/subtitles-octopus-worker-legacy.js?v=4.1.0-os-mem1&assTiming=1&assSync=12&assWarm=4';
+  var ASS_FALLBACK_FONT_URL = 'default.ttf?v=4.1.0-os';
   var ASS_WARMUP_WIDTH = 1920;
   var ASS_WARMUP_HEIGHT = 1080;
-  var ASS_WARMUP_CONTENT = '[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,0,2,20,20,30,1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.10,Default,,0,0,0,,Ploff\n';
+  var ASS_WARMUP_CONTENT = '[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,0,2,20,20,30,1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
+  var ASS_WARMUP_TEXT = ["abcdefghijklmnopqrstuvwxyz àèéìòù çñü","ABCDEFGHIJKLMNOPQRSTUVWXYZ ÀÈÉÌÒÙ ÇÑÜ","0123456789 .,;:!? \"'()[] -–—… €£¥° ©®","{\\b1}Ploff ABC abc 0123 àèéìòù","{\\i1}Ploff ABC abc 0123 àèéìòù","{\\fs36}Ploff ABC abc 0123 àèéìòù","{\\fs36\\bord3\\shad1}abcdefghijklmnopqrstuvwxyz\\NABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789"];
+  ASS_WARMUP_CONTENT += ASS_WARMUP_TEXT.map(function (text, index) {
+    return 'Dialogue: 0,0:00:0' + index + '.00,0:00:0' + (index + 1) + '.00,Default,,0,0,0,,' + text + '\n';
+  }).join('');
   var ASS_SETTINGS_KEYS = ['ploff.settings.v3', 'ploff.settings.v2', 'ploff.settings.v1'];
+
+  function refreshWarmTestPanel(root) {
+    var doc = root.document;
+    var metrics = root.PloffAssSubtitleColdStartMetrics;
+    var preloader = root.PloffAssSubtitleWorkerPreloader;
+    var panel;
+    var m;
+    var p;
+    var first;
+    function seconds(value) { return typeof value === 'number' && isFinite(value) ? (value / 1000).toFixed(2) + 's' : '--'; }
+    function delta(end, start) { return m[end] !== null && m[start] !== null ? seconds(m[end] - m[start]) : '--'; }
+    if (!doc || !doc.body || !metrics || !preloader) { return; }
+    p = preloader.snapshot();
+    if (!p.started) { return; }
+    m = metrics.snapshot(); first = metrics.firstRenderProfile();
+    panel = doc.getElementById('ass-warm-test');
+    if (!panel) {
+      panel = doc.createElement('pre'); panel.id = 'ass-warm-test';
+      panel.style.cssText = 'position:fixed;left:24px;top:24px;z-index:2147483647;pointer-events:none;background:rgba(0,0,0,.85);color:#fff;font:20px/1.35 monospace;padding:12px;margin:0;white-space:pre;';
+      doc.body.appendChild(panel);
+    }
+    panel.textContent = 'ASS TEST 100% | tempi da avvio app\n' +
+      'Font pronto @' + seconds(m.fontReady) + ' | libass pronto @' + seconds(m.libassRuntimeReady) + '\n' +
+      'Warm iniziato @' + seconds(p.warmStartedAt) + ' | completo: ' + (p.warmComplete ? 'SI' : 'NO') + '\n' +
+      'Step libass / RGBA / canvas\n' + p.warmSteps.map(function (step) {
+        return step.index + ': ' + seconds(step.libassMs) + ' / ' + seconds(step.blendMs) + ' / ' + seconds(step.drawMs);
+      }).join('\n') + '\n' +
+      'ASS download ' + delta('realAssFetchEnd', 'realAssFetchStart') + ' | setTrack ' + delta('realAssSetTrackReady', 'realAssSetTrackStart') + '\n' +
+      'Primo frame reale: libass ' + seconds(first.libassMs) + ' | RGBA ' + seconds(first.blendMs) + '\n' +
+      'Primo disegno @' + seconds(first.presentedAt) + ' | attesa presentazione ' + seconds(first.rafMs);
+  }
 
   function assRenderingEnabledAtStartup(root) {
     var storage = root && root.localStorage;
@@ -72,6 +111,7 @@
     var origin = Number(now()) || 0;
     var lastElapsed = 0;
     var marks = {};
+    var firstRender = {};
     var debugCapture = values.debugCapture || null;
     var syncCaptureGeneration = 0;
     var syncSummary = {
@@ -114,7 +154,7 @@
     function mark(name) {
       name = String(name || '');
       if (ASS_METRIC_NAMES.indexOf(name) === -1) { return null; }
-      if (!has(name)) { marks[name] = elapsed(); }
+      if (!has(name)) { marks[name] = elapsed(); if (values.onChange) { values.onChange(); } }
       return marks[name];
     }
     function begin(start, end) {
@@ -162,7 +202,18 @@
       var value;
       var lagMs;
       var driftMs;
-      if (!fields || !captureActive()) { return false; }
+      if (values.warmTest && sample && sample.bitmapCount > 0 && (stage === 'worker-frame' || stage === 'raf-presented')) {
+        if (stage === 'worker-frame' && firstRender.libassMs === undefined) {
+          firstRender.libassMs = sample.libassMs; firstRender.blendMs = sample.blendMs;
+          if (values.onChange) { values.onChange(); }
+        }
+        if (stage === 'raf-presented' && firstRender.presentedAt === undefined) {
+          firstRender.presentedAt = elapsed(); firstRender.rafMs = sample.rafMs;
+          if (values.onChange) { values.onChange(); }
+        }
+      }
+      if (!fields) { return false; }
+      if (!captureActive()) { return values.warmTest === true && firstRender.presentedAt === undefined; }
       capture = captureRef();
       if (!capture || typeof capture.record !== 'function') { return false; }
       status = typeof capture.status === 'function' ? capture.status() : null;
@@ -224,7 +275,6 @@
         return copy;
       });
     }
-    function assSyncComplete() { return false; }
     function snapshot() {
       var result = {};
       var index;
@@ -252,7 +302,9 @@
       beginRealAssFetch: beginRealAssFetch, endRealAssFetch: endRealAssFetch,
       beginRealAssSetTrack: beginRealAssSetTrack, endRealAssSetTrack: endRealAssSetTrack,
       mark: mark, recordWorkerTiming: recordWorkerTiming, recordAssSync: recordAssSync,
-      syncTrace: syncTraceSnapshot, assSyncComplete: assSyncComplete, snapshot: snapshot
+      firstRenderProfile: function () { return { libassMs: firstRender.libassMs, blendMs: firstRender.blendMs, presentedAt: firstRender.presentedAt, rafMs: firstRender.rafMs }; },
+      elapsed: elapsed,
+      syncTrace: syncTraceSnapshot, snapshot: snapshot
     };
   }
 
@@ -295,6 +347,76 @@
     var warmMaxMs = 0;
     var warmComplete = false;
     var warmStarted = false;
+    var warmStartedAt = null;
+    var warmTimer = null;
+    var warmIndex = 0;
+    var warmSteps = [];
+    var warmCanvas = null;
+    var warmBuffer = null;
+    var warmDrawFailed = false;
+    var warmCancelled = false;
+    var changeListeners = [];
+    function notifyChange() {
+      var listeners = changeListeners.slice();
+      var index;
+      if (values.onChange) { values.onChange(); }
+      for (index = 0; index < listeners.length; index += 1) {
+        try { listeners[index](); } catch (ignore) {}
+      }
+    }
+    function subscribe(callback) {
+      if (typeof callback !== 'function') { return function () {}; }
+      if (changeListeners.indexOf(callback) === -1) { changeListeners.push(callback); }
+      return function () {
+        var index = changeListeners.indexOf(callback);
+        if (index !== -1) { changeListeners.splice(index, 1); }
+      };
+    }
+    function cancelWarmup() {
+      warmCancelled = true;
+      clearWarmResources();
+      if (worker) { try { worker.postMessage({ target: 'ploff-warm-cancel' }); } catch (ignore) {} }
+      notifyChange();
+    }
+    function clearWarmResources() {
+      if (warmTimer !== null && root.clearTimeout) { root.clearTimeout(warmTimer); }
+      warmTimer = null;
+      if (warmCanvas) { warmCanvas.width = warmCanvas.height = 1; }
+      if (warmBuffer) { warmBuffer.width = warmBuffer.height = 1; }
+      warmCanvas = warmBuffer = null;
+    }
+    function drawWarmFrame(data) {
+      var start;
+      var items = data.canvases || [];
+      var index;
+      var item;
+      var ctx;
+      var image;
+      try {
+        if (!items.length || !root.document) { return null; }
+        start = Number(now());
+        warmCanvas = warmCanvas || root.document.createElement('canvas');
+        warmBuffer = warmBuffer || root.document.createElement('canvas');
+        for (index = 0; index < items.length; index += 1) {
+          item = items[index];
+          warmBuffer.width = warmCanvas.width = item.w;
+          warmBuffer.height = warmCanvas.height = item.h;
+          ctx = warmBuffer.getContext('2d');
+          image = ctx.createImageData(item.w, item.h);
+          image.data.set(new Uint8ClampedArray(item.buffer));
+          ctx.putImageData(image, 0, 0);
+          warmCanvas.getContext('2d').drawImage(warmBuffer, 0, 0);
+        }
+        return Math.max(0, Number(now()) - start);
+      } catch (ignore) { warmDrawFailed = true; return null; }
+    }
+    function sendWarmStep() {
+      warmTimer = null;
+      if (!worker || failed || warmCancelled || takenAt !== null || warmIndex >= ASS_WARMUP_TEXT.length) { return; }
+      warmIndex += 1;
+      try { worker.postMessage({ target: 'ploff-warm-step', index: warmIndex, time: warmIndex - 1 + 0.05, last: warmIndex === ASS_WARMUP_TEXT.length }); }
+      catch (ignore) { warmDrawFailed = true; clearWarmResources(); }
+    }
     function logTiming(name) {
       var consoleRef = root && root.console;
       if (consoleRef && typeof consoleRef.info === 'function') {
@@ -320,6 +442,7 @@
 
     function releaseOwnedWorker() {
       var target = worker;
+      clearWarmResources();
       worker = null;
       if (!target) { return; }
       detachPreloadListeners(target);
@@ -332,23 +455,35 @@
       logTiming('preloader.worker-error');
       failed = true;
       releaseOwnedWorker();
+      notifyChange();
     }
 
     function onWorkerMessage(event) {
       var data = event && event.data || {};
+      var drawMs;
+      if (!worker || failed || takenAt !== null) { return; }
       recordWorkerTiming(data);
       if (data.target === 'ready' && workerReadyAt === null) {
         workerReadyAt = Number(now());
         logTiming('preloader.worker-ready');
       } else if (data.target === 'ploff-ass-warm-step') {
-        if (firstFrameAt === null) {
+        if (warmCancelled || data.cancelled || data.index !== warmIndex || warmSteps.length >= warmIndex) { return; }
+        drawMs = drawWarmFrame(data);
+        if (firstFrameAt === null && data.pixelCount > 0) {
           firstFrameAt = Number(now());
           metric('warmFirstFrame');
         }
         warmStepCount = Math.max(warmStepCount, Math.max(0, Number(data.warmStepCount) || 0));
         warmTotalMs = Math.max(0, Number(data.warmTotalMs) || 0);
         warmMaxMs = Math.max(0, Number(data.warmMaxMs) || 0);
-        warmComplete = data.warmComplete === true;
+        warmSteps.push({ index: warmIndex, libassMs: Number(data.libassMs) || 0,
+          blendMs: Number(data.blendMs) || 0, drawMs: drawMs, pixelCount: Number(data.pixelCount) || 0 });
+        warmComplete = data.warmComplete === true && warmSteps.length === ASS_WARMUP_TEXT.length &&
+          !warmDrawFailed && warmSteps.every(function (step) { return step.pixelCount > 0 && step.drawMs !== null; });
+        if (warmIndex < ASS_WARMUP_TEXT.length && typeof root.setTimeout === 'function') {
+          warmTimer = root.setTimeout(sendWarmStep, 25);
+        } else { clearWarmResources(); }
+        notifyChange();
       }
     }
 
@@ -403,10 +538,12 @@
     }
 
     function warm() {
-      if (warmStarted || !worker || failed || takenAt !== null || typeof worker.postMessage !== 'function') { return false; }
+      if (warmStarted || warmCancelled || !worker || failed || takenAt !== null || typeof worker.postMessage !== 'function') { return false; }
       warmStarted = true;
-      worker.postMessage({ target: 'ploff-warm-step', index: 1, time: 0.05, last: true });
+      warmStartedAt = metrics && metrics.elapsed ? metrics.elapsed() : null;
+      sendWarmStep();
       logTiming('preloader.warm-started');
+      notifyChange();
       return true;
     }
 
@@ -416,13 +553,15 @@
       if (!worker || failed || takenAt !== null) { return null; }
       target = worker;
       worker = null;
+      clearWarmResources();
       try { target.postMessage({ target: 'ploff-warm-cancel' }); } catch (ignore) {}
       detachPreloadListeners(target);
       takenAt = Number(now());
+      notifyChange();
       return { worker: target, initialized: initSentAt !== null, subContent: warmupContent };
     }
 
-    function destroy() { releaseOwnedWorker(); }
+    function destroy() { releaseOwnedWorker(); notifyChange(); changeListeners = []; }
 
     function snapshot() {
       return {
@@ -439,11 +578,15 @@
         warmChunkCount: 0,
         warmTotalMs: warmTotalMs,
         warmMaxMs: warmMaxMs,
-        warmComplete: warmComplete
+        warmComplete: warmComplete,
+        warmStartedAt: warmStartedAt,
+        warmSteps: warmSteps.map(function (step) {
+          return { index: step.index, libassMs: step.libassMs, blendMs: step.blendMs, drawMs: step.drawMs, pixelCount: step.pixelCount };
+        })
       };
     }
 
-    return { start: start, warm: warm, take: take, destroy: destroy, snapshot: snapshot };
+    return { start: start, warm: warm, cancelWarmup: cancelWarmup, take: take, destroy: destroy, snapshot: snapshot, subscribe: subscribe };
   }
 
   function create(options) {
@@ -492,6 +635,6 @@
     assRenderingEnabledAtStartup: assRenderingEnabledAtStartup,
     createAssColdStartMetrics: createAssColdStartMetrics,
     createAssWorkerPreloader: createAssWorkerPreloader,
-    supportsWebAssembly: supportsWebAssembly
+    refreshWarmTestPanel: refreshWarmTestPanel
   };
 }));

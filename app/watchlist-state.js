@@ -76,7 +76,15 @@
 
   function optimistic(items, item, enabled) {
     var previous = (items || []).slice();
-    var next = previous.filter(function (entry) { return String(entry.ratingKey || '') !== String(item.ratingKey || ''); });
+    var targetOwner = String(item && item.serverMachineIdentifier || '');
+    var targetKey = String(item && item.ratingKey || '');
+    var next = previous.filter(function (entry) {
+      var entryOwner = String(entry && entry.serverMachineIdentifier || '');
+      var entryKey = String(entry && entry.ratingKey || '');
+      if (entryKey !== targetKey) { return true; }
+      if (!targetOwner) { return !!entryOwner; }
+      return entryOwner !== targetOwner;
+    });
     if (enabled) { next.push(item); }
     return { items: next, rollback: function () { return previous; } };
   }

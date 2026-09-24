@@ -29,8 +29,13 @@ then removed from `localStorage`.
 
 If private DB8 cannot be initialized, Ploff fails closed: credentials remain
 available only in memory for the current session and are not persisted in
-browser storage. Local browser development uses `localStorage` because DB8 is a
-webOS platform API and must not be treated as a production credential store.
+browser storage. Local browser development normally uses `localStorage` because
+DB8 is a webOS platform API. When the local preview runs in a browser profile
+that blocks Web Storage, `scripts/preview-local.sh` stages a development-only
+helper that keeps the authentication record in a JavaScript-readable cookie.
+That helper is loaded only from the temporary preview copy, is not referenced by
+the shipped HTML, and is removed from the TV package path entirely. It must not
+be used for production credentials.
 
 Local HTTP is retained for compatibility with legacy TVs. On an untrusted or
 shared LAN, metadata, token-bearing image/media URLs, and traffic to an HTTP

@@ -10,7 +10,7 @@ var ROUNDS = Number(process.env.PLOFF_CATALOG_ROUNDS || 7);
 var OPERATION_BUDGETS = {
   'focus-move-integrated': {
     appendChild: 0, createdNodes: 0, mediaDetail: 0, mediaMeta: 0, mediaTitle: 0,
-    posterJobs: 0, querySelector: 2, removeChild: 0, cardMetrics: 0, cardProfile: 0,
+    posterJobs: 0, querySelector: 0, removeChild: 0, cardMetrics: 0, cardProfile: 0,
     layoutReads: 4, focus: 2
   },
   'scroll-row-boundary': {

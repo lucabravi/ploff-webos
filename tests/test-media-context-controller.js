@@ -76,7 +76,7 @@ function timerRoot() {
     },
     config: { apiBaseUrl: '/plex' },
     openChoice: function (options) { dialog = options; return true; },
-    playFromBeginning: function (item) { calls.push(['play', item.ratingKey]); },
+    playFromBeginning: function (item, sourceContext) { calls.push(['play', item.ratingKey, sourceContext && sourceContext.sourceId || '']); },
     refresh: function () { calls.push(['refresh']); },
     restoreFocus: function () { calls.push(['focus']); },
     showMessage: function (message) { calls.push(['message', message]); },
@@ -120,9 +120,11 @@ function timerRoot() {
   assert.ok(calls.some(function (entry) { return entry[0] === 'refresh'; }));
 
   calls.length = 0;
+  target.sourceContext = { sourceId: 'server-b|4', serverMachineIdentifier: 'server-b' };
   controller.open();
   dialog.apply({ value: 'play-beginning' });
-  assert.deepStrictEqual(calls, [['play', '20']], 'Play from beginning must not clear stored progress before playback starts');
+  assert.deepStrictEqual(calls, [['play', '20', 'server-b|4']],
+    'Play from beginning must preserve the originating Plex source without clearing progress first');
 }());
 
 (function testSupersededMutationCannotPublishLateCompletion() {
@@ -159,6 +161,97 @@ function timerRoot() {
   assert.deepStrictEqual(refreshes, ['32'], 'only the latest mutation may refresh application state');
   assert.deepStrictEqual(messages, ['mediaActions.updated']);
   assert.deepStrictEqual(completions, ['second']);
+}());
+
+(function testIdentityResetCancelsPendingMutation() {
+  var callback = null;
+  var aborts = 0;
+  var refreshes = 0;
+  var messages = 0;
+  var completions = 0;
+  var target = { item: { ratingKey: 'identity-41', type: 'movie', title: 'Old profile' }, inContinueWatching: true };
+  var controller = MediaContextController.create({
+    root: timerRoot(),
+    transport: {
+      removeFromContinueWatching: function (_config, _key, done) {
+        callback = done;
+        return { abort: function () { aborts += 1; } };
+      }
+    },
+    refresh: function () { refreshes += 1; },
+    showMessage: function () { messages += 1; },
+    t: function (key) { return key; }
+  });
+
+  assert.strictEqual(controller.removeFromContinueWatching(target, function () { completions += 1; }), true);
+  assert.strictEqual(typeof controller.reset, 'function', 'media-context ownership must expose a reset boundary for Plex identity changes');
+  controller.reset();
+  assert.strictEqual(aborts, 1, 'identity reset must abort the old profile mutation');
+  callback(null);
+  assert.strictEqual(refreshes, 0, 'a mutation completed after identity reset must not reconcile the new profile UI');
+  assert.strictEqual(messages, 0, 'a mutation completed after identity reset must not publish stale success UI');
+  assert.strictEqual(completions, 0, 'a mutation completed after identity reset must not complete the old caller');
+}());
+
+(function testTargetTransportOverridesPrimaryConfig() {
+  var usedConfig = null;
+  var target = {
+    item: { ratingKey: 'shared-20', type: 'movie', title: 'Shared' },
+    inContinueWatching: true,
+    config: { apiBaseUrl: 'https://relay-b.example', token: 'shared-token-b' }
+  };
+  var controller = MediaContextController.create({
+    root: timerRoot(),
+    config: { apiBaseUrl: 'https://primary.example', token: 'primary-token' },
+    transport: {
+      removeFromContinueWatching: function (config, _key, callback) { usedConfig = config; callback(null); return null; }
+    },
+    refresh: function () {}, showMessage: function () {}, t: function (key) { return key; }
+  });
+  assert.strictEqual(controller.removeFromContinueWatching(target, function () {}), true);
+  assert.strictEqual(usedConfig.apiBaseUrl, 'https://relay-b.example', 'media-context mutations must honor a source-scoped target config');
+  assert.strictEqual(usedConfig.token, 'shared-token-b');
+}());
+
+
+(function testIdentityResetRetiresOpenContextDialogCallbacks() {
+  var dialog = null;
+  var plays = [];
+  var mutations = [];
+  var focusRestores = 0;
+  var target = {
+    item: { ratingKey: 'old-profile-51', type: 'movie', title: 'Old profile movie', viewed: false, viewOffset: 12000 },
+    sourceContext: { sourceId: 'old-server|1', serverMachineIdentifier: 'old-server' },
+    config: { apiBaseUrl: 'https://old.example', token: 'old-token' }
+  };
+  var controller = MediaContextController.create({
+    root: timerRoot(),
+    resolveTarget: function () { return target; },
+    openChoice: function (options) { dialog = options; return true; },
+    playFromBeginning: function (item, sourceContext) { plays.push([item.ratingKey, sourceContext && sourceContext.sourceId]); },
+    restoreFocus: function () { focusRestores += 1; },
+    transport: {
+      setWatchedAndReset: function (config, key, watched, callback) {
+        mutations.push([config.apiBaseUrl, key, watched]);
+        callback(null);
+        return null;
+      }
+    },
+    refresh: function () {},
+    showMessage: function () {},
+    mediaTitle: function (item) { return item.title; },
+    t: function (key) { return key; }
+  });
+
+  assert.strictEqual(controller.open(target), true);
+  assert.ok(dialog && typeof dialog.apply === 'function' && typeof dialog.returnFocus === 'function');
+  controller.reset();
+  dialog.apply({ value: 'play-beginning' });
+  dialog.apply({ value: 'mark-watched' });
+  dialog.returnFocus();
+  assert.deepStrictEqual(plays, [], 'identity reset must retire Play from beginning captured by an old media-context dialog');
+  assert.deepStrictEqual(mutations, [], 'identity reset must retire mutations captured by an old media-context dialog');
+  assert.strictEqual(focusRestores, 0, 'identity reset must not restore focus through a dialog owned by the old identity');
 }());
 
 console.log('Media context controller checks passed');

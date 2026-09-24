@@ -40,6 +40,136 @@ var PLAYER_QUEUE_PRESENTATION_STATE = {
   playlistQueuePlaybackPaused: true
 };
 
+var REMOVED_MEDIA_SOURCE_PICKERS = {
+  routeableSourceVariant: true,
+  routeableMediaTarget: true,
+  routeableQueueItem: true,
+  itemForSourceVariant: true,
+  preferredSourceItem: true,
+  preferredSourceUnavailable: true,
+  availableSourceItems: true,
+  sourceFallbackRequired: true,
+  sourceVariantItem: true
+};
+
+var RETIRED_RUNTIME_FILES = {
+  'episode-navigation.js': true
+};
+
+var RETIRED_RUNTIME_APIS = {
+  'ass-subtitle-prefetch.js': { peek: true },
+  'card-layout.js': { SCALES: true },
+  'detail-controller.js': { setReturnView: true },
+  'detail-preference-state.js': { hasExplicitVersion: true },
+  'diagnostics-controller.js': { handlePointer: true },
+  'library-controller.js': { onGridScroll: true, setSort: true, setSortDirection: true },
+  'library-tabs-editor.js': { openOrder: true },
+  'library-source-catalog.js': { primaryId: true },
+  'library-sources-controller.js': { displayServerName: true, sourceIdForMedia: true },
+  'home-state.js': { fingerprintRows: true, fingerprintNormalizedRows: true, stableValue: true },
+  'language-flag.js': { trackCode: true },
+  'library-tab-store.js': { serialize: true },
+  'media-preferences.js': { saveSelection: true },
+  'navigation-model.js': { applyLibraryOrder: true },
+  'playback-controller.js': { startAdjacent: true },
+  'playback-queue-model.js': { adjacentItem: true, originFocusIndex: true, upcomingItems: true },
+  'playback-recovery.js': { canRetry: true },
+  'playback-queue-controller.js': { firstUnfinished: true, playable: true, resolveAdjacent: true },
+  'playback-session.js': { armReopenStartupGuard: true, resetRuntime: true },
+  'player-controls-controller.js': { pointerReveal: true, seekPointer: true },
+  'player-feature-controller.js': { resolvePlaybackQueueAdjacent: true },
+  'plex-source-router.js': { matchesOwner: true },
+  'progressive-images.js': { ARTWORK_QUALITY_STEPS: true, BACKDROP_QUALITY_STEPS: true, deferNavigationLoads: true },
+  'queue-sequence-contract.js': { sameOccurrence: true },
+  'settings-backup-format.js': { isTechnicalPlaylist: true },
+  'settings-controller.js': { closePrivacy: true, moveUpNextHorizontal: true, moveUpNextVertical: true, openPrivacy: true, toggleLanguage: true },
+  'setup-scan-indicator.js': { dots: true },
+  'shell-controller.js': { clearSelectionKey: true, navigationWindow: true, requestTheme: true, setNavigationStart: true },
+  'startup-metrics.js': { assSyncComplete: true },
+  'version-selection.js': { DEFAULT_PRIORITIES: true },
+  'subtitle-series-offset.js': { matchTracks: true, resolveSelectedTrack: true, sourceFor: true, updateLayers: true }
+};
+
+var RETIRED_RUNTIME_EXPORTS = {
+  'device-locale.js': { primaryLanguage: true },
+  'library-tab-store.js': { displayServerName: true, ICONS: true },
+  'media-info.js': { durationLabel: true },
+  'playback-strategy.js': { selectedVersion: true },
+  'plex-auth.js': { CLIENT_ID_KEY: true, serverIdentityFromXml: true },
+  'plex-url.js': { replaceQueryParameter: true },
+  'server-discovery.js': { SERVICE_URI: true },
+  'settings-backup-format.js': { SETTINGS_KEYS: true },
+  'settings.js': { languageList: true, primaryLanguage: true },
+  'support-snapshot.js': { serialize: true }
+};
+
+var RETIRED_INSTANCE_EXPORTS = {
+  'detail-episode-view.js': { currentEpisode: true, renderEpisodes: true, renderSeasons: true },
+  'diagnostics-view.js': { closeSupportQr: true },
+  'library-controller.js': { putCached: true },
+  'library-source-catalog.js': { displayServerName: true },
+  'media-info-dialog-controller.js': { focusVersion: true },
+  'playback-queue-controller.js': { activateUpNext: true, moveUpNext: true },
+  'player-controls-controller.js': { activateSkip: true, hideSkipWithControls: true, showSkipForControls: true, showTimeline: true },
+  'pointer-controller.js': { seekTimelineFromPointer: true },
+  'shell-controller.js': { activeProfileShortcutVisible: true, availableNavigationItems: true, beginBackdrop: true, beginTheme: true, createCard: true, loadBackdropItem: true, navigationButton: true }
+};
+
+function createExportProperties(ast) {
+  var exports = [];
+  function collect(node) {
+    var body;
+    var index;
+    var statement;
+    if (!node) { return; }
+    if (node.type === 'FunctionDeclaration' && functionName(node) === 'create') { body = node.body && node.body.body; }
+    else if (node.type === 'VariableDeclarator' && node.id && node.id.type === 'Identifier' &&
+        node.id.name === 'create' && node.init && node.init.type === 'FunctionExpression') {
+      body = node.init.body && node.init.body.body;
+    }
+    if (!body) { return; }
+    for (index = 0; index < body.length; index += 1) {
+      statement = body[index];
+      if (statement && statement.type === 'ReturnStatement' && statement.argument &&
+          statement.argument.type === 'ObjectExpression') {
+        exports = exports.concat(statement.argument.properties || []);
+        return;
+      }
+    }
+  }
+  walk(ast, null, collect);
+  return exports;
+}
+
+function moduleExportProperties(ast) {
+  var factory = null;
+  var exports = [];
+  var index;
+  var statement;
+  var args;
+  if (!ast || !ast.body) { return exports; }
+  for (index = 0; index < ast.body.length && !factory; index += 1) {
+    statement = ast.body[index];
+    if (!statement || statement.type !== 'ExpressionStatement' ||
+        !statement.expression || statement.expression.type !== 'CallExpression') { continue; }
+    args = statement.expression.arguments || [];
+    while (args.length) {
+      statement = args[args.length - 1];
+      if (statement && statement.type === 'FunctionExpression') { factory = statement; break; }
+      args = args.slice(0, -1);
+    }
+  }
+  if (!factory || !factory.body || !factory.body.body) { return exports; }
+  for (index = 0; index < factory.body.body.length; index += 1) {
+    statement = factory.body.body[index];
+    if (statement && statement.type === 'ReturnStatement' && statement.argument &&
+        statement.argument.type === 'ObjectExpression') {
+      return statement.argument.properties || exports;
+    }
+  }
+  return exports;
+}
+
 function literalValue(node) {
   return node && node.type === 'Literal' ? node.value : undefined;
 }
@@ -117,10 +247,15 @@ function analyzeSource(source, fileName) {
   var isPlaybackTimeline = name === 'playback-timeline.js';
   var isPlayerQueuePresentationOwner = name === 'player-queue-controller.js';
   var budget = HOTSPOT_BUDGETS[name];
+  var retiredApis = RETIRED_RUNTIME_APIS[name] || {};
+  var retiredExports = RETIRED_RUNTIME_EXPORTS[name] || {};
+  var retiredInstanceExports = RETIRED_INSTANCE_EXPORTS[name] || {};
   var issues = [];
   var ast = parse(source, name);
   var videoAliases = collectNativeVideoAliases(ast);
   var metrics = budget ? hotspotMetrics(ast, budget) : null;
+  var exportProperties = moduleExportProperties(ast);
+  var instanceExportProperties = createExportProperties(ast);
 
   function add(rule, node, message) {
     issues.push({
@@ -136,6 +271,29 @@ function analyzeSource(source, fileName) {
     var objectName;
     var property;
     var called;
+    var declaredName = functionName(node);
+    var propertyName = '';
+    if (node.type === 'VariableDeclarator' && node.id && node.id.type === 'Identifier' &&
+        node.init && node.init.type === 'FunctionExpression') { declaredName = node.id.name; }
+    if (node.type === 'Property' && node.key) {
+      if (!node.computed && node.key.type === 'Identifier') { propertyName = node.key.name; }
+      else if (node.key.type === 'Literal') { propertyName = String(node.key.value); }
+    }
+    if (retiredApis[declaredName] || retiredApis[propertyName]) {
+      add('retired-runtime-api', node, 'retired unreachable runtime API must not be reintroduced');
+    }
+    if (node.type === 'Property' && exportProperties.indexOf(node) !== -1 && retiredExports[propertyName]) {
+      add('retired-runtime-export', node, 'retired unused module export must not be reintroduced');
+    }
+    if (node.type === 'Property' && instanceExportProperties.indexOf(node) !== -1 && retiredInstanceExports[propertyName]) {
+      add('retired-instance-export', node, 'retired unused instance export must not be reintroduced');
+    }
+    if (REMOVED_MEDIA_SOURCE_PICKERS[declaredName] ||
+        declaredName === 'selectSourceVariant' && name !== 'multi-server-media.js' ||
+        name !== 'media-source-resolver.js' && node.type === 'MemberExpression' && memberProperty(node) === 'selectSourceVariant') {
+      add('media-source-resolution-owner', node,
+        'choose a concrete media copy through MediaSourceResolver; only it consumes the pure MultiServerMedia projection');
+    }
     if (!isSubtitleRuntime) {
       if (node.type === 'FunctionDeclaration' && (functionName(node) === 'subtitleEditorTrackAllowed' ||
           functionName(node) === 'editorTrackAllowed' || functionName(node) === 'editorAvailability')) {
@@ -225,6 +383,10 @@ function checkProject(projectRoot) {
   var result;
   for (index = 0; index < files.length; index += 1) {
     entry = files[index];
+    if (RETIRED_RUNTIME_FILES[entry.name]) {
+      issues.push({ file: entry.name, line: 0, rule: 'retired-runtime-file', message: 'retired unreachable runtime file must not be reintroduced' });
+      continue;
+    }
     result = analyzeSource(fs.readFileSync(entry.filePath, 'utf8'), entry.name);
     issues = issues.concat(result.issues);
     if (result.hotspot) { hotspots.push({ file: entry.name, metrics: result.hotspot, budget: HOTSPOT_BUDGETS[entry.name] }); }
@@ -263,5 +425,9 @@ module.exports = {
   analyzeSource: analyzeSource,
   checkProject: checkProject,
   run: run,
-  HOTSPOT_BUDGETS: HOTSPOT_BUDGETS
+  HOTSPOT_BUDGETS: HOTSPOT_BUDGETS,
+  RETIRED_RUNTIME_APIS: RETIRED_RUNTIME_APIS,
+  RETIRED_RUNTIME_EXPORTS: RETIRED_RUNTIME_EXPORTS,
+  RETIRED_INSTANCE_EXPORTS: RETIRED_INSTANCE_EXPORTS,
+  RETIRED_RUNTIME_FILES: RETIRED_RUNTIME_FILES
 };

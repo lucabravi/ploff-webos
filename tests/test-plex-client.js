@@ -15,7 +15,7 @@ var testSearchParser = PlexSearchParser.create({ mediaFromAttributes: PlexMediaM
 var reviewedPublicSurface = [
   'createSettingsBackupPlaylist', 'deleteSettingsBackupPlaylist', 'findByGuid', 'loadAccountProfile',
   'loadActivities', 'loadExtras', 'loadHome', 'loadLibraryContainerPage',
-  'loadLibraryFilterOptions', 'loadLibraryPage', 'loadLibraryRecommendations', 'loadMediaProfile',
+  'loadLibraryFilterOptions', 'loadLibraryPage', 'loadLibraryRecommendations', 'loadLibrarySections', 'loadMediaProfile',
   'loadMetadata', 'loadNavigation', 'loadPlayback', 'loadRecommendedItems',
   'loadSeasonEpisodes', 'loadSeriesContext', 'loadServerIdentity', 'loadSettingsBackupPlaylists',
   'loadSubtitleText',
@@ -90,9 +90,9 @@ assert.deepStrictEqual(
   'Plex XML parsing must retain the primary genre and show card facts'
 );
 assert.deepStrictEqual(testSearchParser.searchItemsFromAttributes([
-  { type: 'show', ratingKey: '40', title: 'Blue Box', originalTitle: 'Ao no Hako', librarySectionTitle: 'Anime' },
-  { type: 'show', ratingKey: '41', title: 'Pokémon', titleSort: 'Pokemon', librarySectionTitle: 'Anime' }
-], '/plex-api', 'token', 'pok').map(function (item) { return item.ratingKey; }), ['41'], 'ranked local search must discard related titles that do not contain the typed query');
+  { type: 'show', ratingKey: '40', title: 'Synthetic Series A', originalTitle: 'Synthetic Original A', librarySectionTitle: 'Anime' },
+  { type: 'show', ratingKey: '41', title: 'Sample Series', titleSort: 'Sample Series', librarySectionTitle: 'Anime' }
+], '/plex-api', 'token', 'sample').map(function (item) { return item.ratingKey; }), ['41'], 'ranked local search must discard related titles that do not contain the typed query');
 
 var previousXhr = global.XMLHttpRequest;
 var fakeXhrs = [];
@@ -262,9 +262,9 @@ assert.deepStrictEqual(
     { key: '4', title: 'Anime', type: 'show' }
   ], {}),
   [
-    { title: 'Continua a guardare', path: '/hubs/continueWatching/items', kind: 'continue', showLibraryBadge: true },
-    { title: 'Recentemente aggiunto in Film', path: '/library/sections/2/recentlyAdded', kind: 'recent', groupRecent: true },
-    { title: 'Recentemente aggiunto in Anime', path: '/library/sections/4/recentlyAdded', kind: 'recent', groupRecent: true }
+    { title: 'library.continue', titleKey: 'library.continue', path: '/hubs/continueWatching/items', kind: 'continue', showLibraryBadge: true },
+    { title: 'home.recentInLibrary', titleKey: 'home.recentInLibrary', titleParameters: { library: 'Film' }, path: '/library/sections/2/recentlyAdded', kind: 'recent', sectionKey: '2', sectionTitle: 'Film', groupRecent: true },
+    { title: 'home.recentInLibrary', titleKey: 'home.recentInLibrary', titleParameters: { library: 'Anime' }, path: '/library/sections/4/recentlyAdded', kind: 'recent', sectionKey: '4', sectionTitle: 'Anime', groupRecent: true }
   ],
   'Home must use the all-library Continue Watching hub exposed by Plex Media Server'
 );
@@ -440,7 +440,7 @@ global.XMLHttpRequest = previousRecommendationXhr;
 global.DOMParser = function () {
   this.parseFromString = function () {
     return {
-      documentElement: { childNodes: [fakeXmlNode('Playlist', { ratingKey: '23829', key: '/playlists/23829/items', title: 'Quintessential Quintuplets', playlistType: 'video' })] },
+      documentElement: { childNodes: [fakeXmlNode('Playlist', { ratingKey: '23829', key: '/playlists/23829/items', title: 'Sample Playlist', playlistType: 'video' })] },
       getElementsByTagName: function () { return []; }
     };
   };
@@ -545,14 +545,14 @@ assert.strictEqual(
 assert.deepStrictEqual(
   PlexMediaMapper.mediaFromAttributes({
     title: 'Stagione 3',
-    parentTitle: 'Mushoku Tensei',
+    parentTitle: 'Sample Series',
     index: '3',
     leafCount: '12',
     type: 'season',
     thumb: '/library/metadata/9/thumb/1'
   }, '/plex-api', ''),
   {
-    title: 'Mushoku Tensei',
+    title: 'Sample Series',
     meta: 'Season 3',
     metaKey: 'media.season',
     metaParameters: { number: 3 },
@@ -566,19 +566,16 @@ assert.deepStrictEqual(
 );
 
 var grouped = PlexMediaMapper.groupRecentAttributes([
-  { type: 'episode', title: 'Uno', grandparentTitle: 'Serie A', parentTitle: 'Season 1', parentIndex: '1', index: '1', parentRatingKey: '10', parentThumb: '/season-a', grandparentArt: '/art-a' },
-  { type: 'episode', title: 'Due', grandparentTitle: 'Serie A', parentTitle: 'Season 1', parentIndex: '1', index: '2', parentRatingKey: '10', parentThumb: '/season-a', grandparentArt: '/art-a' },
-  { type: 'episode', title: 'Tornare a casa', grandparentTitle: 'Grand Blue', parentTitle: 'Stagione 3', parentIndex: '3', index: '2', parentRatingKey: '20', thumb: '/episode-b', art: '/art-b' }
+  { type: 'episode', title: 'Uno', grandparentTitle: 'Serie A', parentTitle: 'Stagione 1', parentIndex: '1', index: '1', parentRatingKey: '10', parentThumb: '/season-a', grandparentArt: '/art-a' },
+  { type: 'episode', title: 'Due', grandparentTitle: 'Serie A', parentTitle: 'Stagione 1', parentIndex: '1', index: '2', parentRatingKey: '10', parentThumb: '/season-a', grandparentArt: '/art-a' },
+  { type: 'episode', title: 'Episode Two', grandparentTitle: 'Sample Series', parentTitle: 'Stagione 3', parentIndex: '3', index: '2', parentRatingKey: '20', thumb: '/episode-b', art: '/art-b' }
 ]);
 
-assert.deepStrictEqual(
-  grouped,
-  [
-    { type: 'season', ratingKey: '10', title: 'Season 1', parentTitle: 'Serie A', index: '1', leafCount: '2', viewedLeafCount: '0', thumb: '/season-a', art: '/art-a' },
-    { type: 'episode', title: 'Tornare a casa', grandparentTitle: 'Grand Blue', parentTitle: 'Stagione 3', parentIndex: '3', index: '2', parentRatingKey: '20', thumb: '/episode-b', art: '/art-b' }
-  ],
-  'recent episodes must group only when multiple items belong to the same season'
-);
+assert.deepStrictEqual(grouped.map(function (item) { return item.type; }), ['episode', 'episode', 'episode'],
+  'recent runs shorter than three items must preserve individual episode cards');
+assert.ok(grouped.every(function (item) { return item.recentlyAdded === '1'; }),
+  'individual recent episodes must carry spoiler-safe presentation metadata');
+
 
 assert.deepStrictEqual(
   PlexHomeModel.sectionDefinitions([
@@ -587,12 +584,58 @@ assert.deepStrictEqual(
     { key: '1', title: 'Programmi TV', type: 'show' }
   ]),
   [
-    { title: 'Recentemente aggiunto in Film', path: '/library/sections/2/recentlyAdded', kind: 'recent', groupRecent: true },
-    { title: 'Recentemente aggiunto in Anime', path: '/library/sections/4/recentlyAdded', kind: 'recent', groupRecent: true },
-    { title: 'Recentemente aggiunto in Programmi TV', path: '/library/sections/1/recentlyAdded', kind: 'recent', groupRecent: true }
+    { title: 'home.recentInLibrary', titleKey: 'home.recentInLibrary', titleParameters: { library: 'Film' }, path: '/library/sections/2/recentlyAdded', kind: 'recent', sectionKey: '2', sectionTitle: 'Film', groupRecent: true },
+    { title: 'home.recentInLibrary', titleKey: 'home.recentInLibrary', titleParameters: { library: 'Anime' }, path: '/library/sections/4/recentlyAdded', kind: 'recent', sectionKey: '4', sectionTitle: 'Anime', groupRecent: true },
+    { title: 'home.recentInLibrary', titleKey: 'home.recentInLibrary', titleParameters: { library: 'Programmi TV' }, path: '/library/sections/1/recentlyAdded', kind: 'recent', sectionKey: '1', sectionTitle: 'Programmi TV', groupRecent: true }
   ],
   'library sections must produce one recently-added row each'
 );
+
+(function librarySectionsExposeOnlySupportedPlexSections() {
+  var previousXhr = global.XMLHttpRequest;
+  var previousParser = global.DOMParser;
+  var sectionsXhr;
+  var sectionsResult = null;
+  function node(attributes) {
+    return {
+      nodeType: 1, nodeName: 'Directory',
+      attributes: Object.keys(attributes).map(function (key) { return { name: key, value: String(attributes[key]) }; }),
+      childNodes: []
+    };
+  }
+  global.XMLHttpRequest = function () {
+    sectionsXhr = this;
+    this.open = function (method, url) { this.method = method; this.url = url; };
+    this.send = function () {};
+  };
+  global.DOMParser = function () {
+    this.parseFromString = function () {
+      return {
+        documentElement: { childNodes: [
+          node({ key: '2', title: 'Film', type: 'movie' }),
+          node({ key: '4', title: 'Anime', type: 'show' }),
+          node({ key: '9', title: 'Musica', type: 'artist' })
+        ] },
+        getElementsByTagName: function () { return []; }
+      };
+    };
+  };
+  PlexClient.loadLibrarySections({ apiBaseUrl: '/shared', token: 'shared-token' }, function (error, sections) {
+    assert.ifError(error);
+    sectionsResult = sections;
+  });
+  sectionsXhr.status = 200;
+  sectionsXhr.readyState = 4;
+  sectionsXhr.responseText = '<xml/>';
+  sectionsXhr.onreadystatechange();
+  assert.deepStrictEqual(sectionsResult, [
+    { key: '2', title: 'Film', type: 'movie' },
+    { key: '4', title: 'Anime', type: 'show' }
+  ], 'library section loading must expose only supported movie/show sections without global navigation entries');
+  assert.ok(/\/library\/sections/.test(sectionsXhr.url), 'library section loading must use the standard PMS sections endpoint');
+  global.XMLHttpRequest = previousXhr;
+  global.DOMParser = previousParser;
+}());
 
 (function navigationLoadingKeepsLibraryFilteringAndStaticEntries() {
   var previousXhr = global.XMLHttpRequest;
@@ -652,15 +695,15 @@ assert.deepStrictEqual(
     grandparentRatingKey: '100',
     parentRatingKey: '200',
     parentIndex: '3',
-    title: 'Tornare a casa',
-    grandparentTitle: 'Grand Blue',
+    title: 'Episode Two',
+    grandparentTitle: 'Sample Series',
     parentTitle: 'Stagione 3',
     index: '2',
     year: '2026',
     duration: '1440000',
     viewOffset: '360000',
     contentRating: 'TV-14',
-    summary: 'Una giornata al mare.',
+    summary: 'Synthetic fixture description.',
     thumb: '/episode-thumb',
     grandparentThumb: '/show-thumb',
     art: '/episode-art'
@@ -675,10 +718,10 @@ assert.deepStrictEqual(
     viewed: false,
     viewOffset: 360000,
     duration: 1440000,
-    title: 'Grand Blue',
-    subtitle: 'Stagione 3 - E02 - Tornare a casa',
+    title: 'Sample Series',
+    subtitle: 'Stagione 3 - E02 - Episode Two',
     facts: '2026  |  24 min  |  TV-14',
-    summary: 'Una giornata al mare.',
+    summary: 'Synthetic fixture description.',
     image: '/plex-api/show-thumb',
     art: '/plex-api/episode-art'
   },
@@ -689,14 +732,14 @@ assert.deepStrictEqual(
   PlexMediaMapper.mediaFromAttributes({
     ratingKey: 'playlist-s2e1',
     type: 'episode',
-    grandparentTitle: 'Episode 42',
+    grandparentTitle: 'Sample Series',
     parentTitle: 'Season 2',
     parentIndex: '2',
     index: '1',
     title: 'Episode One'
   }, '/plex-api', ''),
   {
-    title: 'Episode 42',
+    title: 'Sample Series',
     meta: 'Season 2',
     image: '',
     art: '',

@@ -6,6 +6,10 @@ var ApplicationSession = require('../../app/application-session');
 var PlexFeaturePorts = require('../../app/coordinator/plex-feature-ports');
 var PresentationServices = require('../../app/coordinator/presentation-services');
 var PlayerRuntimeLoader = require('../../app/player-runtime-loader');
+var DiagnosticsSupportRuntimeLoader = require('../../app/diagnostics-support-runtime-loader');
+var MultiServerMedia = require('../../app/multi-server-media');
+var PlexSourceRouter = require('../../app/coordinator/plex-source-router');
+var MediaSourceResolver = require('../../app/coordinator/media-source-resolver');
 
 function eventTarget(name) {
   return {
@@ -42,6 +46,7 @@ function createHarness(options) {
   root.PloffNativeVideoDriver = values.NativeVideoDriver || { create: function () {} };
   root.PloffPlaybackReposition = values.PlaybackReposition || { create: function () {} };
   root.PloffPlaybackSession = values.PlaybackSession || { create: function () {} };
+  root.PloffPlaybackOperation = require('../../app/playback-operation');
   root.PloffPlaybackTimeline = values.PlaybackTimeline || { create: function () {} };
   root.PloffSubtitleRuntime = values.SubtitleRuntime || { create: function () {} };
   root.PloffAssHtml5SubtitleRenderer = values.AssHtml5SubtitleRenderer || null;
@@ -65,13 +70,28 @@ function createHarness(options) {
   };
   root.PloffPlayerQueueController = values.PlayerQueueController || { create: function () {} };
   root.PloffPlexFeaturePorts = PlexFeaturePorts;
+  root.PloffMultiServerMedia = MultiServerMedia;
+  root.PloffPlexSourceRouter = {
+    create: function (factoryOptions) {
+      capturedOptions.plexSourceRouter = factoryOptions;
+      created.plexSourceRouter = values.sourceRouter || PlexSourceRouter.create(factoryOptions);
+      return created.plexSourceRouter;
+    }
+  };
+  root.PloffMediaSourceResolver = {
+    create: function (factoryOptions) {
+      capturedOptions.mediaSourceResolver = factoryOptions;
+      created.mediaSourceResolver = MediaSourceResolver.create(factoryOptions);
+      return created.mediaSourceResolver;
+    }
+  };
   root.PloffBuildInfo = values.BuildInfo || { version: 'test' };
   if (values.PlaybackCompatibilityMemory) { root.PloffPlaybackCompatibilityMemory = values.PlaybackCompatibilityMemory; }
   root.PloffPresentationServices = PresentationServices;
   root.PloffClient = {};
   [
     'findByGuid', 'loadAccountProfile', 'loadActivities', 'loadHome',
-    'loadLibraryContainerPage', 'loadLibraryFilterOptions', 'loadLibraryPage',
+    'loadLibraryContainerPage', 'loadLibraryFilterOptions', 'loadLibraryPage', 'loadLibrarySections',
     'loadLibraryRecommendations', 'loadMediaProfile', 'loadMetadata', 'loadExtras',
     'loadNavigation', 'loadPlayback', 'loadSeasonEpisodes', 'loadSeriesContext',
     'loadServerIdentity', 'loadSubtitleText', 'pingTranscode', 'posterUrl',
@@ -110,6 +130,18 @@ function createHarness(options) {
             }
             if (values.methodReturns && Object.prototype.hasOwnProperty.call(values.methodReturns, methodKey)) {
               return values.methodReturns[methodKey];
+            }
+            if (name === 'library' && property === 'scheduleAdjacentPrefetch') {
+              if (args[2] && typeof args[2].onSettled === 'function') { args[2].onSettled(); }
+              return true;
+            }
+            if (name === 'library' && property === 'warmWatchlist') {
+              if (typeof args[0] === 'function') { args[0](); }
+              return true;
+            }
+            if (name === 'shell' && property === 'warmHomeArtworkPreviews') {
+              if (typeof args[0] === 'function') { args[0](); }
+              return true;
             }
             if (property === 'navigationItems') { return []; }
             if (property === 'focusState') { return { area: 'media', navIndex: 0, rowIndex: 0, column: 0 }; }
@@ -150,8 +182,7 @@ function createHarness(options) {
     formatLongTime: function () { return ''; }
   };
   root.PloffNavigationModel = {
-    load: function () { return []; },
-    applyLibraryOrder: function (items) { return items || []; }
+    load: function () { return []; }
   };
   root.PloffDeviceLocale = { detect: function (_root, _supported, callback) { callback('en'); } };
   root.PloffApplicationSession = {
@@ -187,6 +218,8 @@ function createHarness(options) {
 
   [
     ['PloffServerFeatureController', 'server'],
+    ['PloffLibrarySourcesController', 'librarySources'],
+    ['PloffMultiServerContentController', 'multiServerContent'],
     ['PloffPlexSettingsBackupStore', 'settingsBackup'],
     ['PloffChoiceDialogController', 'choice'],
     ['PloffMediaInfoDialogController', 'mediaInfo'],
@@ -213,6 +246,19 @@ function createHarness(options) {
       var originalDestroy = loader.destroy;
       loader.destroy = function () { recordCall('destroy:playerLoader'); destroyOrder.push('playerLoader'); originalDestroy(); };
       created.playerLoader = loader;
+      return loader;
+    }
+  };
+
+  root.PloffDiagnosticsSupportRuntimeLoader = {
+    create: function (options) {
+      recordCall('create:diagnosticsSupportLoader');
+      createOrder.push('diagnosticsSupportLoader');
+      capturedOptions.diagnosticsSupportLoader = options;
+      var loader = DiagnosticsSupportRuntimeLoader.create(options);
+      var originalDestroy = loader.destroy;
+      loader.destroy = function () { recordCall('destroy:diagnosticsSupportLoader'); destroyOrder.push('diagnosticsSupportLoader'); originalDestroy(); };
+      created.diagnosticsSupportLoader = loader;
       return loader;
     }
   };
@@ -274,6 +320,7 @@ function createHarness(options) {
     },
     warmPlayer: function () {
       capturedOptions.shell.transitions.onHomeReady();
+      if (capturedOptions.shell.transitions.onHomeArtworkPreviewReady) { capturedOptions.shell.transitions.onHomeArtworkPreviewReady(); }
       timers.slice().forEach(function (entry) {
         if (entry.active && entry.delay > 0) { entry.active = false; entry.callback(); }
       });

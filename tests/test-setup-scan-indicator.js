@@ -18,6 +18,8 @@ interval.callback();
 assert.deepStrictEqual(messages, [1, 2, 3, 4], 'server discovery progress must cycle through four dots');
 indicator.stop();
 assert.strictEqual(interval.cleared, true, 'stopping discovery must clear the timer');
-assert.strictEqual(indicator.dots(), 0, 'stopping discovery must reset the indicator');
+indicator.start();
+assert.strictEqual(messages[messages.length - 1], 1, 'restarting discovery after stop must begin again from one dot');
+indicator.stop();
 
 console.log('Setup scan indicator checks passed');

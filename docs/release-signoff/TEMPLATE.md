@@ -5,7 +5,7 @@
 - webOS version: <version>
 - Tester: <name>
 - Result: <PASS or FAIL>
-- Matrix SHA-256: b46900c77227125cf325a4d716aa3a50bb01e0ac49249c03edab1131a6085dea
+- Matrix SHA-256: f518dcf08293e862096559680c8301a4e66a4c1510b6a19218a848e52d840ad0
 ## Regression matrix
 
 Copy this file to `docs/release-signoff/v<major>.<minor>.<patch>.md`, replace
@@ -28,3 +28,4 @@ physical run. The repository test keeps this template digest synchronized.
 - [ ] 12. LAN/internet loss, short/long playback interruption, and recovery across every active application view
 - [ ] 13. User diagnostics, buffering-clock evidence, redaction, state accuracy, and polling teardown
 - [ ] 14. Poster sizes, artwork/backdrop quality, overscan, languages, accessibility, and focus visibility
+- [ ] 15. Multi-server route priority, partial-results recovery, library/Home aggregation, alternate copies, server ownership, and disable/re-enable behavior

@@ -134,6 +134,23 @@
       call(transitions.onState, snapshot);
     }
 
+    function refreshAfterLocale(language) {
+      var bootstrap = modules.LocaleBootstrap;
+      if (!bootstrap || typeof bootstrap.ensure !== 'function') { return false; }
+      bootstrap.ensure(root, document, language, function (loaded) {
+        if (!loaded || destroyed || !controller) { return; }
+        if (String(currentSettings().uiLanguage || '') !== String(language || '')) { return; }
+        call(transitions.localeReady, language);
+        render(controller.snapshot());
+      });
+      return true;
+    }
+
+    function selectSetupLanguage(code, snapshot) {
+      call(language.select, code, snapshot);
+      refreshAfterLocale(code);
+    }
+
     function scan(snapshot, callback) {
       var request;
       discoveryActive = true;
@@ -169,9 +186,10 @@
       authSession: authSession,
       render: render,
       scan: scan,
-      selectLanguage: language.select,
+      selectLanguage: selectSetupLanguage,
       normalizeManualAddress: server.normalizeManualAddress,
       probeManualAddress: server.probeManualAddress,
+      resolveServerConnection: server.resolveConnection,
       shouldOfferConnection: server.shouldOfferConnection,
       selectServerConnection: server.selectConnection,
       loadAccountServers: account.loadAccountServers,
@@ -233,6 +251,7 @@
           focusIndex: languageIndex(current.uiLanguage || selected),
           returnView: ''
         });
+        refreshAfterLocale(current.uiLanguage || selected);
         call(transitions.completeStartup);
         return controller.snapshot();
       }
@@ -308,7 +327,8 @@
       if (button.hasAttribute('data-setup-action')) {
         activate(String(button.getAttribute('data-setup-action') || ''),
           button.getAttribute('data-setup-action') === 'connect-manual' ? { address: document.getElementById('setup-address').value } :
-            ((button.getAttribute('data-setup-action') === 'account-servers' || button.getAttribute('data-setup-action') === 'load-profiles') ? { token: call(account.ownerToken) } : null));
+            (button.getAttribute('data-setup-action') === 'use-server-connection' ? String(button.getAttribute('data-setup-uri') || '') :
+            ((button.getAttribute('data-setup-action') === 'account-servers' || button.getAttribute('data-setup-action') === 'load-profiles') ? { token: call(account.ownerToken) } : null)));
         return true;
       }
       snapshot = controller.snapshot();

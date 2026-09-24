@@ -5,6 +5,8 @@
 }(this, function () {
   'use strict';
 
+  var BACK_COOLDOWN_MS = 300;
+
   function create(options) {
     var values = options || {};
     var platformRoot = values.root || {};
@@ -24,13 +26,19 @@
     var refreshLibraryKey = '';
     var backLockedUntil = 0;
     var cache = {};
+    var cacheSourceDefinitions = {};
+    var cacheOrder = [];
     var domCacheOrder = [];
+    var maxCachedLibraries = Math.max(1, Number(values.maxCachedLibraries || 8));
+    var maxCachedCards = Math.max(1, Number(values.maxCachedCards || 6000));
     var prefetchTimer = null;
     var prefetchQueue = [];
     var prefetchActive = false;
     var prefetchAnchor = -1;
     var prefetchRequest = null;
     var prefetchGeneration = 0;
+    var prefetchWorkActive = false;
+    var prefetchSettledCallbacks = [];
     var wheelScrollTimer = null;
     var wheelNavigationActive = false;
     var grid = null;
@@ -44,7 +52,14 @@
       return undefined;
     }
 
-    function keyFor(library) { return String(library && (library.key || library.title) || ''); }
+    function keyFor(library) { return String(library && (library.sourceId || library.key || library.title) || ''); }
+    function sourceDefinitionFor(library) {
+      var members = library && Object.prototype.toString.call(library.memberSourceIds) === '[object Array]' ? library.memberSourceIds : [];
+      return (library && library.virtualLibrary === true ? 'virtual' : 'single') + '|' + keyFor(library) + '|' + members.map(function (sourceId) {
+        return String(sourceId || '');
+      }).join(',');
+    }
+    function actionsAvailable() { return !activeLibrary || call(values.actionsAvailable, activeLibrary) !== false; }
 
     function currentViewKey() {
       return activeLibrary && activeLibrary.globalPlaylists ? 'playlists' : containers.views()[tabIndex];
@@ -88,25 +103,70 @@
       }
     }
 
-    function putCached(library, saved) {
-      var key = keyFor(library);
-      if (!key || !saved) { return; }
-      cache[key] = saved;
-      if (saved.dom) { touchDomCache(key); }
+    function cacheCardCount(saved) {
+      var savedGrid = saved && saved.grid || {};
+      var count = (savedGrid.items || []).length;
+      (savedGrid.recommendations || []).forEach(function (row) { count += (row && row.items || []).length; });
+      return count;
     }
 
-    function cached(library) { return cache[keyFor(library)] || null; }
+    function retainedCardCount() {
+      return Object.keys(cache).reduce(function (count, key) { return count + cacheCardCount(cache[key]); }, 0);
+    }
+
+    function removeCachedKey(key) {
+      var index = cacheOrder.indexOf(key);
+      var domIndex = domCacheOrder.indexOf(key);
+      if (index !== -1) { cacheOrder.splice(index, 1); }
+      if (domIndex !== -1) { domCacheOrder.splice(domIndex, 1); }
+      delete cache[key];
+      delete cacheSourceDefinitions[key];
+    }
+
+    function touchCached(key) {
+      var index = cacheOrder.indexOf(key);
+      if (index !== -1) { cacheOrder.splice(index, 1); }
+      cacheOrder.push(key);
+    }
+
+    function putCached(library, saved) {
+      var key = keyFor(library);
+      var domIndex;
+      if (!key || !saved) { return; }
+      cache[key] = saved;
+      cacheSourceDefinitions[key] = sourceDefinitionFor(library);
+      touchCached(key);
+      if (saved.dom) { touchDomCache(key); }
+      else {
+        domIndex = domCacheOrder.indexOf(key);
+        if (domIndex !== -1) { domCacheOrder.splice(domIndex, 1); }
+      }
+      while (cacheOrder.length > maxCachedLibraries ||
+          (cacheOrder.length > 1 && retainedCardCount() > maxCachedCards)) {
+        removeCachedKey(cacheOrder[0]);
+      }
+    }
+
+    function cached(library) {
+      var key = keyFor(library);
+      if (!cache[key]) { return null; }
+      if (cacheSourceDefinitions[key] !== sourceDefinitionFor(library)) {
+        clearCached(library);
+        return null;
+      }
+      touchCached(key);
+      return cache[key];
+    }
 
     function clearCached(library) {
-      var key = keyFor(library);
-      var index = domCacheOrder.indexOf(key);
-      if (index !== -1) { domCacheOrder.splice(index, 1); }
-      delete cache[key];
+      removeCachedKey(keyFor(library));
     }
 
     function clearAllCached() {
       cancelPrefetch();
       cache = {};
+      cacheSourceDefinitions = {};
+      cacheOrder = [];
       domCacheOrder = [];
       return true;
     }
@@ -129,17 +189,35 @@
       return wheelNavigationActive;
     }
 
-    function cancelPrefetch() {
+    function setPrefetchWorkActive(active) {
+      var next = active === true;
+      if (prefetchWorkActive === next) { return; }
+      prefetchWorkActive = next;
+      call(values.onPrefetchWorkChange, next);
+    }
+
+    function flushPrefetchSettled() {
+      var callbacks = prefetchSettledCallbacks.slice();
+      var index;
+      prefetchSettledCallbacks = [];
+      for (index = 0; index < callbacks.length; index += 1) { call(callbacks[index]); }
+    }
+
+    function cancelPrefetch(options) {
+      var preserveSettled = options && options.preserveSettled === true;
       prefetchGeneration += 1;
       if (prefetchTimer !== null) {
         if (platformRoot.cancelIdleCallback) { platformRoot.cancelIdleCallback(prefetchTimer); }
         if (platformRoot.clearTimeout) { platformRoot.clearTimeout(prefetchTimer); }
       }
       if (prefetchRequest && prefetchRequest.abort) { prefetchRequest.abort(); }
+      call(values.cancelPrefetchWarm);
       prefetchTimer = null;
       prefetchRequest = null;
       prefetchQueue = [];
       prefetchActive = false;
+      setPrefetchWorkActive(false);
+      if (!preserveSettled) { flushPrefetchSettled(); }
     }
 
     function runPrefetch() {
@@ -154,39 +232,82 @@
       }
       library = prefetchQueue.shift();
       key = keyFor(library);
-      if (!key || cache[key] || (activeLibrary && keyFor(activeLibrary) === key)) {
+      if (!key || cached(library) || (activeLibrary && keyFor(activeLibrary) === key)) {
         schedulePrefetch(call(values.navigationIndex), call(values.navigationItems));
         return;
       }
       prefetchActive = true;
+      setPrefetchWorkActive(true);
       requestGeneration = prefetchGeneration;
       prefetchRequest = call(values.loadRecommendations, library, function (error, rows) {
         var saved;
+        var warmReturned = false;
+        var warmSettled = false;
+        var warmStarted;
+        function finishItem() {
+          if (destroyed || requestGeneration !== prefetchGeneration || !prefetchActive) { return; }
+          if (saved && saved.dom && cached(library) === saved) { touchDomCache(key); }
+          prefetchActive = false;
+          schedulePrefetch(call(values.navigationIndex), call(values.navigationItems));
+          if (!prefetchActive && !prefetchQueue.length && prefetchTimer === null) {
+            setPrefetchWorkActive(false);
+            flushPrefetchSettled();
+          }
+        }
+        function finishWarm() {
+          if (warmSettled) { return; }
+          warmSettled = true;
+          if (warmReturned) { finishItem(); }
+        }
         if (destroyed || requestGeneration !== prefetchGeneration) { return; }
         prefetchRequest = null;
-        prefetchActive = false;
-        if (!error && !cache[key] && (!activeLibrary || keyFor(activeLibrary) !== key)) {
+        if (!error && !cached(library) && (!activeLibrary || keyFor(activeLibrary) !== key)) {
           saved = call(values.buildPrefetchedState, library, rows || []);
-          if (saved) { putCached(library, saved); }
+          if (saved) {
+            putCached(library, saved);
+            if (typeof values.warmPrefetch === 'function') {
+              warmStarted = call(values.warmPrefetch, library, rows || [], saved, finishWarm);
+              warmReturned = true;
+              if (warmStarted !== false && !warmSettled) { return; }
+              finishItem();
+              return;
+            }
+          }
         }
-        schedulePrefetch(call(values.navigationIndex), call(values.navigationItems));
+        finishItem();
       });
       call(values.trackPrefetchRequest, prefetchRequest);
     }
 
-    function schedulePrefetch(navIndex, navigationItems) {
+    function schedulePrefetch(navIndex, navigationItems, options) {
       var candidates = [];
+      var scheduleDelay;
+      var immediate;
       var distance;
       var indexes;
       var item;
       var key;
       var schedule;
-      if (destroyed) { return; }
+      options = options || {};
+      if (typeof options.onSettled === 'function') { prefetchSettledCallbacks.push(options.onSettled); }
+      if (destroyed) { flushPrefetchSettled(); return; }
+      immediate = options.immediate === true;
+      scheduleDelay = Math.max(0, Number(options.delay || 0));
       navIndex = Number(navIndex || 0);
       navigationItems = navigationItems || [];
       if (prefetchAnchor !== navIndex) {
         prefetchAnchor = navIndex;
         prefetchQueue = [];
+      }
+      if (immediate && prefetchTimer !== null && !prefetchActive) {
+        if (platformRoot.cancelIdleCallback) { platformRoot.cancelIdleCallback(prefetchTimer); }
+        if (platformRoot.clearTimeout) { platformRoot.clearTimeout(prefetchTimer); }
+        prefetchTimer = null;
+        prefetchQueue = [];
+      }
+      if (immediate && prefetchActive) {
+        prefetchQueue = [];
+        return;
       }
       if (prefetchTimer !== null || prefetchActive) { return; }
       if (!prefetchQueue.length) {
@@ -196,16 +317,22 @@
             item = navigationItems[index];
             key = keyFor(item);
             if (candidates.length < 2 && item && item.kind === 'library' && key &&
-                !cache[key] && (!activeLibrary || keyFor(activeLibrary) !== key) && candidates.indexOf(item) === -1) {
+                !cached(item) && (!activeLibrary || keyFor(activeLibrary) !== key) && candidates.indexOf(item) === -1) {
               candidates.push(item);
             }
           });
         }
         prefetchQueue = candidates;
       }
-      if (!prefetchQueue.length) { return; }
+      if (!prefetchQueue.length) {
+        setPrefetchWorkActive(false);
+        flushPrefetchSettled();
+        return;
+      }
       schedule = function () { prefetchTimer = null; runPrefetch(); };
-      if (platformRoot.requestIdleCallback) { prefetchTimer = platformRoot.requestIdleCallback(schedule, { timeout: 400 }); }
+      if (immediate && platformRoot.setTimeout) { prefetchTimer = platformRoot.setTimeout(schedule, 0); }
+      else if (scheduleDelay > 0 && platformRoot.setTimeout) { prefetchTimer = platformRoot.setTimeout(schedule, scheduleDelay); }
+      else if (platformRoot.requestIdleCallback) { prefetchTimer = platformRoot.requestIdleCallback(schedule, { timeout: 400 }); }
       else if (platformRoot.setTimeout) { prefetchTimer = platformRoot.setTimeout(schedule, 100); }
     }
 
@@ -286,8 +413,6 @@
     function setControlIndex(next) { controlIndex = Math.max(0, Number(next) || 0); return controlIndex; }
     function setActionIndex(next) { actionIndex = Math.max(0, Number(next) || 0); return actionIndex; }
     function setWatchedFilter(next) { watchedFilter = String(next || 'all'); return watchedFilter; }
-    function setSort(next) { sort = String(next || 'titleSort'); return sort; }
-    function setSortDirection(next) { sortDirection = next === 'desc' ? 'desc' : 'asc'; return sortDirection; }
     function setRefreshPending(next) { refreshPending = next === true; call(values.onRefreshPending, refreshPending); return refreshPending; }
 
     function activateSort(key) {
@@ -334,7 +459,7 @@
       var library;
       var ownerKey;
       var requestGeneration;
-      if (destroyed || !activeLibrary || refreshPending) { return false; }
+      if (destroyed || !activeLibrary || refreshPending || !actionsAvailable()) { return false; }
       loader = kind === 'metadata' ? values.refreshMetadata : values.refreshLibrary;
       if (typeof loader !== 'function') { return false; }
       library = activeLibrary;
@@ -361,19 +486,23 @@
     function handleBack() {
       var currentTime = call(values.now) || new Date().getTime();
       var nextZone;
+      var resetCatalogFocus;
       if (lifecycle && lifecycle.closeContainer && lifecycle.closeContainer()) {
-        backLockedUntil = currentTime + 600;
+        backLockedUntil = currentTime + BACK_COOLDOWN_MS;
         call(values.updateFocus);
         return true;
       }
       if (currentTime < backLockedUntil) { return true; }
+      if (zone === 'tabs') { call(values.cancelTabPreview, true); }
       if (zone === 'nav') { call(values.closeLibrary); return true; }
       nextZone = parentZone();
       if (!nextZone) { call(values.closeLibrary); return true; }
+      resetCatalogFocus = zone === 'grid' && currentViewKey() === 'catalog';
       zone = nextZone;
       if (zone === 'filter') { controlIndex = Math.max(0, ['all', 'unwatched', 'watched'].indexOf(watchedFilter)); }
-      backLockedUntil = currentTime + 600;
+      backLockedUntil = currentTime + BACK_COOLDOWN_MS;
       call(values.scrollTop, 0);
+      if (resetCatalogFocus && grid && grid.focusCatalog) { grid.focusCatalog(0); }
       call(values.updateFocus);
       return true;
     }
@@ -393,34 +522,42 @@
 
     function handleTabsKey(keyCode, direction) {
       var next;
+      var previous;
       if (direction === 'up') {
+        call(values.cancelTabPreview, true);
         zone = 'nav';
         call(values.updateFocus);
       } else if (direction === 'left' || direction === 'right') {
         if (direction === 'right' && tabIndex === containers.views().length - 1) {
-          zone = 'actions';
-          actionIndex = 0;
+          if (actionsAvailable()) { call(values.cancelTabPreview, true); zone = 'actions'; actionIndex = 0; }
           call(values.updateFocus);
         } else {
           next = typeof values.nextTab === 'function'
             ? call(values.nextTab, direction === 'left' ? -1 : 1)
             : Math.max(0, Math.min(containers.views().length - 1, tabIndex + (direction === 'left' ? -1 : 1)));
           if (direction === 'right' && next === tabIndex) {
-            zone = 'actions';
-            actionIndex = 0;
+            if (actionsAvailable()) { call(values.cancelTabPreview, true); zone = 'actions'; actionIndex = 0; }
             call(values.updateFocus);
           } else if (next !== undefined && next !== tabIndex) {
+            previous = tabIndex;
             tabIndex = next;
-            call(values.selectTab, next);
+            if (typeof values.scheduleTabPreview === 'function') {
+              call(values.onTabFocus, next, previous);
+              call(values.scheduleTabPreview, next, previous);
+            } else {
+              call(values.selectTab, next);
+            }
           }
         }
       } else if (direction === 'down') {
+        call(values.commitTabPreview);
         call(values.focusTabContent);
       } else if (keyCode === 13) {
         if (pointerTabIndex !== null) {
           setTabIndex(pointerTabIndex);
           pointerTabIndex = null;
         }
+        call(values.cancelTabPreview, false);
         call(values.selectTab, tabIndex);
       }
       return { handled: true };
@@ -476,7 +613,7 @@
         controlIndex = next.index;
         call(values.updateFocus);
       } else if (direction === 'up') {
-        zone = 'actions';
+        zone = actionsAvailable() ? 'actions' : 'tabs';
         actionIndex = 0;
         call(values.updateFocus);
       } else if (direction === 'down') {
@@ -560,10 +697,11 @@
 
     function pointerFocus(target, index, element) {
       if (destroyed) { return snapshot(); }
-      if (target !== 'tabs') { pointerTabIndex = null; }
+      if (target !== 'tabs') { pointerTabIndex = null; call(values.cancelTabPreview, true); }
+      else { call(values.cancelTabPreview, true); }
       if (target === 'nav') { zone = 'nav'; call(values.setNavigationIndex, index); }
       else if (target === 'tabs') { zone = 'tabs'; pointerTabIndex = Number(index); if (element) { call(values.pointerVisualFocus, element); } }
-      else if (target === 'actions') { zone = 'actions'; setActionIndex(index); }
+      else if (target === 'actions' && actionsAvailable()) { zone = 'actions'; setActionIndex(index); }
       else if (target === 'sort' || target === 'filter') { zone = target; setControlIndex(index); }
       else if (target === 'grid') {
         zone = 'grid';
@@ -571,10 +709,6 @@
       }
       if (!(target === 'tabs' && element)) { call(values.updateFocus); }
       return snapshot();
-    }
-
-    function onGridScroll() {
-      if (!destroyed && usesGridScroll() && grid && grid.onScroll) { grid.onScroll(); }
     }
 
     function snapshot() {
@@ -606,6 +740,8 @@
       cancelPrefetch();
       cancelWheelNavigation();
       cache = {};
+      cacheSourceDefinitions = {};
+      cacheOrder = [];
       domCacheOrder = [];
       mode = 'library';
       activeLibrary = null;
@@ -639,8 +775,6 @@
     }
 
     return {
-      activateFilter: activateFilter,
-      activateSort: activateSort,
       activeLibrary: function () { return activeLibrary; },
       beginWheelNavigation: beginWheelNavigation,
       bindViews: bindViews,
@@ -661,18 +795,12 @@
       isWheelNavigationActive: function () { return wheelNavigationActive; },
       leave: leave,
       lifecycle: function () { return lifecycle; },
-      onGridScroll: onGridScroll,
       pointerFocus: pointerFocus,
-      putCached: putCached,
       refresh: refresh,
       resetContent: resetContent,
       scheduleAdjacentPrefetch: schedulePrefetch,
-      setActionIndex: setActionIndex,
       setActiveLibrary: function (library) { activeLibrary = library || null; },
       setControlIndex: setControlIndex,
-      setRefreshPending: setRefreshPending,
-      setSort: setSort,
-      setSortDirection: setSortDirection,
       setTabIndex: setTabIndex,
       setWatchedFilter: setWatchedFilter,
       setZone: setZone,

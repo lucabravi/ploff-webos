@@ -91,7 +91,6 @@
 - Modify: `docs/maintenance.md`
 - Modify: `docs/playback-invariants.md`
 - Modify: `docs/testing.md`
-- Modify: `CHATGPT-HANDOFF.md`
 - Modify: `CHANGELOG.md`
 - Modify/archive cleanup docs only when they duplicate current authority
 

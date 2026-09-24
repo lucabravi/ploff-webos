@@ -151,6 +151,49 @@ function createView(overrides) {
   };
 }
 
+
+(function unresolvedSearchArtworkKeepsDeclaredOwner() {
+  var batches = [];
+  var capturedItem = null;
+  var item = { ratingKey: 'offline-search', title: 'Offline search', image: '/offline-search.jpg', serverMachineIdentifier: 'server-offline' };
+  var unresolved = createView({
+    sourceContextForItem: function () { return null; },
+    sourceIdentityForItem: function (candidate) { return 'server:' + String(candidate && candidate.serverMachineIdentifier || ''); },
+    fixedPosterSpecification: function (source, size, priority, scope, sourceContext, sourceItem) {
+      capturedItem = sourceItem;
+      return { source: source, width: size.width, height: size.height, priority: priority, scope: scope, sourceContext: sourceContext };
+    },
+    posterLoader: {
+      loadBatch: function (jobs) { batches.push(jobs.slice()); },
+      cancelScope: function () {},
+      needsLoad: function () { return false; }
+    }
+  });
+  unresolved.view.setResults(null, [item]);
+  assert.strictEqual(batches[batches.length - 1].length, 1, 'unresolved external Search artwork must still be represented by one poster job');
+  assert.strictEqual(capturedItem, item, 'Search poster specifications must retain the declaring media item when its owner route is unavailable');
+}());
+
+(function searchArtworkIdentityIgnoresTransportRotation() {
+  var context = { serverMachineIdentifier: 'server-a', apiBaseUrl: 'https://relay-one.example', token: 'one' };
+  var batches = [];
+  var item = { ratingKey: 'stable-search', title: 'Stable search', image: '/same-search.jpg', serverMachineIdentifier: 'server-a' };
+  var stable = createView({
+    sourceContextForItem: function () { return context; },
+    sourceContextIdentity: function (value) { return 'server:' + String(value && value.serverMachineIdentifier || ''); },
+    posterLoader: {
+      loadBatch: function (jobs) { batches.push(jobs.slice()); },
+      cancelScope: function () {},
+      needsLoad: function () { return false; }
+    }
+  });
+  stable.view.setResults(null, [item]);
+  assert.strictEqual(batches[batches.length - 1].length, 1, 'initial Search artwork must queue one job');
+  context = { serverMachineIdentifier: 'server-a', apiBaseUrl: 'https://relay-two.example', token: 'two' };
+  stable.view.setResults(null, [item]);
+  assert.strictEqual(batches[batches.length - 1].length, 0, 'rotating route/token for the same PMS must not change Search artwork identity');
+}());
+
 var fixture = createView();
 var view = fixture.view;
 var first = { ratingKey: 'one', title: 'One', image: 'one.jpg', libraryTitle: 'Anime' };
@@ -161,12 +204,23 @@ view.open(false, 2);
 assert.strictEqual(view.snapshot().open, true, 'open must activate the view');
 assert.strictEqual(view.snapshot().focus.navIndex, 2, 'open must retain the coordinator navigation index for Up from the keyboard');
 assert.ok(fixture.document.getElementById('search-view').className.indexOf('is-hidden') === -1, 'open must reveal the view');
+assert.strictEqual(fixture.document.getElementById('search-keyboard').children[3].children[0].textContent, 'search.symbols', 'Search must keep its case-insensitive symbols control instead of a shift control');
 
 view.setResults(null, [first, second]);
 view.focusResult(0);
 var firstCard = fixture.document.getElementById('search-results').children[0];
 var secondCard = fixture.document.getElementById('search-results').children[1];
 assert.strictEqual(firstCard.getAttribute('data-media-key'), 'one', 'result cards must expose their stable media key');
+var crossServerSearch = createView();
+crossServerSearch.view.setResults(null, [
+  { ratingKey: 'same', serverMachineIdentifier: 'server-a', title: 'Server A', image: 'a.jpg' },
+  { ratingKey: 'same', serverMachineIdentifier: 'server-b', title: 'Server B', image: 'b.jpg' }
+]);
+assert.notStrictEqual(
+  crossServerSearch.document.getElementById('search-results').children[0].getAttribute('data-media-key'),
+  crossServerSearch.document.getElementById('search-results').children[1].getAttribute('data-media-key'),
+  'Search card identity must distinguish identical ratingKeys returned by different PMSes'
+);
 assert.strictEqual(firstCard.querySelector('.search-card-title').textContent, 'One', 'a card must render its title');
 assert.strictEqual(firstCard.querySelector('.search-card-image').getAttribute('data-search-image'), 'one.jpg', 'a card image must be associated with its item');
 
@@ -187,6 +241,58 @@ assert.strictEqual(reused, secondCard, 'the keyed renderer must reuse a card whe
 assert.strictEqual(reused.getAttribute('data-media-key'), 'two', 'reused cards must be rebound to the new item key');
 assert.strictEqual(reused.querySelector('.search-card-title').textContent, 'Two', 'reused cards must update their title');
 assert.strictEqual(reused.querySelector('.search-card-image').getAttribute('data-search-image'), 'two.jpg', 'reused cards must update their image association');
+
+(function testSearchRefreshPreservesFocusedResultIdentityWhenIndicesShift() {
+  var edge = createView();
+  edge.view.open(false);
+  edge.view.setResults(null, [
+    { ratingKey: 'a', title: 'A', image: 'a.jpg' },
+    { ratingKey: 'b', title: 'B', image: 'b.jpg' },
+    { ratingKey: 'c', title: 'C', image: 'c.jpg' }
+  ]);
+  edge.view.focusResult(1);
+  assert.strictEqual(edge.view.snapshot().focus.index, 1, 'fixture must focus the middle Search result before refresh');
+  edge.view.setResults(null, [
+    { ratingKey: 'b', title: 'B updated', image: 'b2.jpg' },
+    { ratingKey: 'c', title: 'C', image: 'c.jpg' }
+  ]);
+  assert.strictEqual(edge.view.snapshot().focus.index, 0, 'Search refreshes must follow the same focused media when earlier results disappear');
+  assert.strictEqual(edge.view.snapshot().focus.row, 0, 'Search refreshes must recompute the focused row after identity-based index restoration');
+  assert.strictEqual(edge.view.snapshot().focus.column, 0, 'Search refreshes must recompute the focused column after identity-based index restoration');
+  assert.strictEqual(edge.document.getElementById('search-results').children[0].getAttribute('data-media-key'), 'b', 'the preserved Search focus must point at the surviving media card, not the old numeric slot');
+  edge.view.handleDirection('right');
+  assert.strictEqual(edge.view.snapshot().focus.index, 1, 'the first navigation input after a Search reorder must move from the restored logical coordinates');
+  edge.view.focusResult(0);
+  edge.view.setResults(null, [{ ratingKey: 'c', title: 'C', image: 'c.jpg' }]);
+  assert.strictEqual(edge.view.snapshot().focus.index, 0, 'if the focused Search result disappears, focus must clamp to a surviving result');
+  edge.view.setResults(null, []);
+  assert.strictEqual(edge.view.snapshot().focus.zone, 'keyboard', 'if every Search result disappears, focus must return to a valid keyboard key');
+}());
+
+(function testSearchPublishesDirectionalAdjacentBackdropCandidates() {
+  var adjacent = [];
+  var edge = createView({
+    measureLayout: function () { return { columns: 3, visibleRows: 2, totalRows: 3 }; },
+    onAdjacentBackdropPrefetch: function (items) { adjacent.push((items || []).map(function (item) { return item.ratingKey; })); }
+  });
+  edge.view.open(false);
+  edge.view.setResults(null, [
+    { ratingKey: 'a', title: 'A', image: 'a.jpg' },
+    { ratingKey: 'b', title: 'B', image: 'b.jpg' },
+    { ratingKey: 'c', title: 'C', image: 'c.jpg' },
+    { ratingKey: 'd', title: 'D', image: 'd.jpg' },
+    { ratingKey: 'e', title: 'E', image: 'e.jpg' },
+    { ratingKey: 'f', title: 'F', image: 'f.jpg' },
+    { ratingKey: 'g', title: 'G', image: 'g.jpg' },
+    { ratingKey: 'h', title: 'H', image: 'h.jpg' },
+    { ratingKey: 'i', title: 'I', image: 'i.jpg' }
+  ]);
+  edge.view.focusResult(3);
+  adjacent.length = 0;
+  edge.view.handleDirection('right');
+  assert.deepStrictEqual(adjacent[adjacent.length - 1], ['f', 'd', 'h', 'b'],
+    'Search focus must publish right, left, down and up adjacent backdrop candidates after movement');
+}());
 
 view.focusKeyboard(4, 0);
 view.handleDirection('down');
@@ -309,6 +415,7 @@ assert.ok(fixture.statuses.length > 0, 'search lifecycle must publish status cha
   var originalQuerySelector = documentRef.querySelector;
   var originalCreateTextNode = documentRef.createTextNode;
   var querySelectorCalls = 0;
+  var imageLookupCalls = 0;
   var layoutReads = 0;
   var textNodeCreates = 0;
   var originalContainerRect;
@@ -335,9 +442,14 @@ assert.ok(fixture.statuses.length > 0, 'search lifecycle must publish status cha
   };
   container.children.forEach(function (card) {
     var original = card.getBoundingClientRect;
+    var originalGetElementsByTagName = card.getElementsByTagName;
     card.getBoundingClientRect = function () {
       layoutReads += 1;
       return original.call(card);
+    };
+    card.getElementsByTagName = function (tag) {
+      imageLookupCalls += 1;
+      return originalGetElementsByTagName.call(card, tag);
     };
   });
   hot.view.handleDirection('right');
@@ -346,6 +458,89 @@ assert.ok(fixture.statuses.length > 0, 'search lifecycle must publish status cha
   assert.strictEqual(layoutReads, 0, 'moving Search focus inside the mounted result window must not force layout reads');
   assert.strictEqual(textNodeCreates, 0, 'moving Search focus onto an unchanged card must not rewrite its text presentation');
   assert.strictEqual(posterSpecificationCalls, 0, 'moving Search focus onto an unchanged card must not rebuild its poster specification');
+  assert.strictEqual(imageLookupCalls, 0, 'moving Search focus onto an unchanged card must use the image reference owned by the card');
+}());
+
+(function testSearchWindowBoundaryOnlyBuildsPosterSpecsForNewCards() {
+  var posterSpecificationCalls = 0;
+  var prioritized = [];
+  var boundary = createView({
+    resultOverscanRows: 1,
+    measureLayout: function (container, count, cardWidth, cardHeight) {
+      return { columns: 2, visibleRows: 2, totalRows: Math.ceil(count / 2), cardWidth: cardWidth, cardHeight: cardHeight };
+    },
+    fixedPosterSpecification: function (source, size, priority, scope) {
+      posterSpecificationCalls += 1;
+      return { source: source, width: size.width, height: size.height, priority: priority, scope: scope };
+    },
+    prioritizePoster: function (target, priority) { prioritized.push({ target: target, priority: priority }); },
+    posterLoader: {
+      loadBatch: function () {},
+      cancelScope: function () {},
+      needsLoad: function () { return false; },
+      prioritize: function (target, priority) { prioritized.push({ target: target, priority: priority }); }
+    }
+  });
+  var items = [];
+  var index;
+  for (index = 0; index < 12; index += 1) {
+    items.push({ ratingKey: 'boundary-' + index, title: 'Boundary ' + index, image: 'boundary-' + index + '.jpg' });
+  }
+  boundary.view.open(false);
+  boundary.view.setResults(null, items);
+  boundary.view.focusResult(0);
+  posterSpecificationCalls = 0;
+  prioritized = [];
+  boundary.view.focusResult(4);
+  assert.strictEqual(posterSpecificationCalls, 2, 'advancing the Search virtual window by one row must build poster specifications only for newly mounted cards');
+  assert.ok(prioritized.length >= 2, 'retained Search cards whose priority improves must be reprioritized without rebuilding their poster specification');
+}());
+
+(function testSearchKeyboardFocusUsesMountedKeyMap() {
+  var hot = createView();
+  var documentRef = hot.document;
+  var originalQuerySelector = documentRef.querySelector;
+  var querySelectorCalls = 0;
+  hot.view.open(false);
+  documentRef.querySelector = function (selector) {
+    querySelectorCalls += 1;
+    return originalQuerySelector.call(documentRef, selector);
+  };
+  hot.view.handleDirection('right');
+  assert.strictEqual(querySelectorCalls, 0, 'moving Search keyboard focus must use mounted key references instead of a document-wide selector');
+}());
+
+(function testSearchKeyboardMapRefreshesAfterLayoutRemount() {
+  var hot = createView();
+  var keyboard = hot.document.getElementById('search-keyboard');
+  var oldKey;
+  var newKey;
+  hot.view.open(false);
+  hot.view.focusKeyboard(3, 0);
+  oldKey = keyboard.children[3].children[0];
+  hot.view.activate();
+  newKey = keyboard.children[2].children[0];
+  assert.ok(newKey, 'symbol keyboard remount must expose the new focused key');
+  assert.notStrictEqual(newKey, oldKey, 'keyboard remount must replace the mounted key node');
+  assert.ok(/(^|\s)is-focused(\s|$)/.test(newKey.className), 'focus must follow the newly mounted keyboard key');
+  assert.ok(!/(^|\s)is-focused(\s|$)/.test(oldKey.className), 'detached keyboard keys must not retain tracked focus');
+}());
+
+(function testSearchKeyboardMapDropsStaleNodesWhenContainerDisappears() {
+  var hot = createView();
+  var documentRef = hot.document;
+  var originalGetElementById = documentRef.getElementById;
+  var keyboard;
+  var oldKey;
+  hot.view.open(false);
+  keyboard = originalGetElementById.call(documentRef, 'search-keyboard');
+  oldKey = keyboard.children[2].children[0];
+  documentRef.getElementById = function (id) {
+    if (id === 'search-keyboard') { return null; }
+    return originalGetElementById.call(documentRef, id);
+  };
+  hot.view.applyKey('shift');
+  assert.ok(!/(^|\s)is-focused(\s|$)/.test(oldKey.className), 'a missing keyboard container must invalidate cached key references instead of refocusing stale DOM');
 }());
 
 (function testSearchUsesVirtualGeometryWhenOnlyVisibleRowChanges() {

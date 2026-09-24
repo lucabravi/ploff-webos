@@ -29,22 +29,6 @@ assert.notStrictEqual(
   QueueSequenceContract.occurrenceIdentity('playlist-7', 19, 'episode-9'),
   'repeated media in one queue must remain distinct occurrences'
 );
-assert.strictEqual(
-  QueueSequenceContract.sameOccurrence(
-    { occurrenceId: 'playlist-7:3:episode-9' },
-    { occurrenceId: 'playlist-7:3:episode-9' }
-  ),
-  true,
-  'the stable occurrence identity must drive stale-response checks'
-);
-assert.strictEqual(
-  QueueSequenceContract.sameOccurrence(
-    { occurrenceId: 'playlist-7:3:episode-9' },
-    { occurrenceId: 'playlist-7:19:episode-9' }
-  ),
-  false,
-  'two occurrences of the same media must not share DOM or artwork identity'
-);
 
 assert.deepStrictEqual(
   QueueSequenceContract.adjacentState('available', {

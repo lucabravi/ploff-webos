@@ -34,6 +34,7 @@ function createFixture() {
       calls.push('leave');
       return state;
     },
+    suspend: function () { calls.push('controller-suspend'); return state; },
     handleKey: function (event, direction) { if (event && event.keyCode === 13) { controller.openSettingChoice(state.index); } calls.push('key:' + direction); return { handled: true }; },
     handlePrivacyKey: function () { calls.push('privacy-key'); return { handled: true }; },
     handleUpNextKey: function () { calls.push('up-next-key'); return { handled: true }; },
@@ -43,6 +44,7 @@ function createFixture() {
     focusNavigation: function () { state.zone = 'nav'; calls.push('focus-nav'); },
     focusList: function (index) { state.zone = 'list'; state.index = index; calls.push('focus-setting:' + index); },
     focusLanguage: function (index, count, updateOnly) { state.languageIndex = index; calls.push('focus-language:' + index + ':' + count + ':' + (updateOnly === true)); },
+    focusLibraryTabs: function (index) { calls.push('focus-library-tabs:' + index); return true; },
     render: function () { calls.push('render'); },
     focus: function () { calls.push('focus'); },
     renderLanguages: function () { calls.push('render-languages'); },
@@ -54,9 +56,15 @@ function createFixture() {
     closeUpNext: function (apply) { state.upNext.open = false; calls.push('close-up-next:' + apply); },
     renderUpNext: function () { calls.push('render-up-next'); },
     refresh: function () { calls.push('refresh'); return state; },
-    save: function () {
+    persist: function () {
       captured.shell.setSettings(settings);
-      calls.push('save');
+      calls.push('persist');
+      return settings;
+    },
+    seedAccount: function (account) {
+      settings = Object.assign({}, settings, { uiLanguage: account.locale || settings.uiLanguage });
+      captured.shell.setSettings(settings);
+      calls.push('seed-account:' + settings.uiLanguage);
       return settings;
     },
     promptSettingsLoad: function (status, options, callback) { calls.push('prompt-settings-load:' + status.profiles.length + ':' + (options.confirmFirst === true)); if (callback) { callback(null, null, true); } return true; },
@@ -94,7 +102,7 @@ function createFixture() {
         create: function (received) { captured = received; return controller; }
       },
       Settings: {}, SettingsCatalog: {}, SettingsView: {}, I18n: {}, CardLayout: {},
-      VersionSelection: {}, ServerStore: {}, ServerDiscovery: {}, UpNextLayoutDialog: {}
+      VersionSelection: {}, ServerStore: {}, ServerDiscovery: {}, UpNextLayoutDialog: {}, LibraryTabsEditor: {}, LibraryTabStore: {}
     },
     state: {
       getSettings: function () { return settings; },
@@ -107,7 +115,7 @@ function createFixture() {
     shell: {
       renderNavigation: function () { calls.push('navigation'); }
     },
-    server: {}, account: {}, dialogs: {}, environment: {},
+    server: {}, account: {}, dialogs: {}, environment: {}, librarySources: { sources: function () { return []; } },
     transitions: {
       enter: function () { calls.push('surface-enter'); },
       leave: function () { calls.push('surface-leave'); }
@@ -134,12 +142,16 @@ function createFixture() {
   captured.shell.setSettings(next);
   assert.strictEqual(fixture.settings(), next, 'saved settings must update the root settings holder');
   assert.ok(fixture.calls.indexOf('session-settings:it') !== -1, 'saved settings must publish to ApplicationSession');
+  assert.strictEqual(typeof feature.persist, 'function', 'SettingsFeature must expose pure Settings persistence');
+  feature.persist();
+  assert.ok(fixture.calls.indexOf('persist') !== -1, 'SettingsFeature persist must delegate to the Settings owner');
 
   feature.enter({ keepNavigationFocus: true });
   assert.strictEqual(fixture.node.className, 'app-settings-view', 'enter must reveal the Settings-owned surface');
   assert.ok(fixture.calls.indexOf('surface-enter') !== -1, 'enter must use the explicit root transition port');
 
   feature.suspend();
+  assert.ok(fixture.calls.indexOf('controller-suspend') !== -1, 'suspend must let Settings invalidate transient asynchronous work before hiding the surface');
   assert.strictEqual(fixture.node.className, 'app-settings-view is-hidden', 'suspend must hide Settings without resetting controller state');
   assert.strictEqual(fixture.state.open, true, 'suspend must preserve Settings state');
 
@@ -168,6 +180,7 @@ function createFixture() {
   var rendersAfterSettingFocus = fixture.calls.filter(function (entry) { return entry === 'render'; }).length;
   var focusesAfterSettingFocus = fixture.calls.filter(function (entry) { return entry === 'focus'; }).length;
   feature.focusLanguage(2);
+  feature.focusLibraryTabs(2);
   feature.focusPrivacy(button);
   feature.selectAccentColor('white');
   feature.handleUpNextLayoutClick({ target: { getAttribute: function (name) { return name === 'data-up-next-layout' ? 'bottom-panel' : ''; }, parentNode: null } });
@@ -181,6 +194,7 @@ function createFixture() {
   assert.ok(fixture.calls.indexOf('focus-setting:1') !== -1 && focusesAfterSettingFocus === focusesBeforeSettingFocus + 1, 'setting pointer focus must update the existing row in place');
   assert.strictEqual(rendersAfterSettingFocus, rendersBeforeSettingFocus, 'setting pointer focus must preserve the DOM node until the browser dispatches click');
   assert.ok(fixture.calls.indexOf('focus-language:2:4:true') !== -1, 'language pointer focus must use the feature-owned catalog length and preserve existing DOM rows');
+  assert.ok(fixture.calls.indexOf('focus-library-tabs:2') !== -1, 'library tabs pointer focus must remain Settings-owned');
   assert.strictEqual(fixture.calls.indexOf('render-languages'), -1, 'language pointer focus must not rebuild the row before click dispatch');
   assert.strictEqual(button.className, 'privacy-dialog-close is-focused', 'privacy pointer focus must remain Settings-owned');
   assert.ok(fixture.calls.indexOf('activate-setting:1') !== -1, 'setting pointer activation must preserve the clicked row index');
@@ -202,6 +216,10 @@ function createFixture() {
   assert.ok(fixture.calls.indexOf('setup-language:it:true') !== -1, 'setup language changes must use the Settings-owned save path');
   assert.strictEqual(fixture.settings().uiLanguage, 'it');
   assert.strictEqual(fixture.settings().uiLanguageExplicit, true);
+  assert.strictEqual(typeof feature.seedAccount, 'function', 'SettingsFeature must expose Settings-owned Plex account seeding');
+  feature.seedAccount({ locale: 'fr' });
+  assert.ok(fixture.calls.indexOf('seed-account:fr') !== -1, 'Plex account settings must be seeded through SettingsController');
+  assert.strictEqual(fixture.settings().uiLanguage, 'fr');
 }());
 
 (function destroyIsIdempotentAndInert() {

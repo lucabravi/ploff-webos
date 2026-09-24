@@ -53,6 +53,11 @@ assert.strictEqual(nodes.title.children.length, 1, 'setText must replace prior c
 assert.strictEqual(nodes.title.children[0].nodeValue, 'New');
 
 assert.strictEqual(service.mediaKey({ ratingKey: '42', title: 'Fallback' }), '42');
+assert.notStrictEqual(
+  service.mediaKey({ ratingKey: '42', serverMachineIdentifier: 'server-a' }),
+  service.mediaKey({ ratingKey: '42', serverMachineIdentifier: 'server-b' }),
+  'shared media presentation identity must distinguish identical ratingKeys from different PMSes'
+);
 assert.strictEqual(service.mediaTitle({ count: 4 }), 'en:title:4');
 assert.strictEqual(service.mediaMeta({}), 'meta');
 assert.strictEqual(service.mediaDetail({}), 'detail');

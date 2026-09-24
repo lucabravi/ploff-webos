@@ -24,7 +24,7 @@ At `3389735`:
 - generated `app/app.js`: 899,972 / 900,000 raw bytes and 177,769 / 190,000 gzip bytes;
 - startup JavaScript assets: 128 / 130 local scripts and 2,206,635 / 2,210,000 bytes;
 - `npm run check:maintainability` passes;
-- current ownership rules in `AGENTS.md`, `docs/maintenance.md`, `docs/application-source-architecture.md`, `docs/runtime-architecture-redesign.md`, and `docs/playback-invariants.md` are authoritative constraints rather than cleanup targets.
+- current ownership rules in `docs/maintenance.md`, `docs/application-source-architecture.md`, `docs/runtime-architecture-redesign.md`, and `docs/playback-invariants.md` are authoritative constraints rather than cleanup targets.
 
 The generated bundle was effectively saturated at the cleanup baseline. Runtime size remains an important engineering signal, but architectural cleanup is allowed to increase bundle/startup budgets when a cohesive ownership boundary, reduced coupling, or clearer responsibility justifies the cost. Budget changes must be explicit and measured rather than used to hide accidental growth.
 

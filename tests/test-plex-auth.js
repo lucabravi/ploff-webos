@@ -192,6 +192,77 @@ requests[1].onreadystatechange();
 assert.strictEqual(reachableConnection, 'https://plex.example.com', 'the first reachable account connection must be returned for caching');
 
 requests = [];
+var racedConnection = '';
+var racedCallbacks = 0;
+PlexAuth.findReachableConnection(root, 'server-token', [
+  'https://slow.example',
+  'https://fast.example'
+], 'server-id', { clientIdentifier: 'client-id', timeout: 1800, raceConnections: true }, function (error, uri) {
+  assert.ifError(error);
+  racedCallbacks += 1;
+  racedConnection = uri;
+});
+assert.strictEqual(requests.length, 2, 'parallel connection resolution must launch every route immediately');
+requests[1].status = 200;
+requests[1].responseText = '<MediaContainer machineIdentifier="server-id" />';
+requests[1].readyState = 4;
+requests[1].onreadystatechange();
+assert.strictEqual(racedConnection, 'https://fast.example', 'parallel connection resolution must use the first valid route');
+assert.strictEqual(requests[0].aborted, true, 'parallel connection resolution must abort losing routes');
+assert.strictEqual(racedCallbacks, 1, 'a late losing route must not publish a second result');
+
+requests = [];
+var priorityConnection = '';
+var priorityCallbacks = 0;
+PlexAuth.findReachableConnection(root, 'server-token', [
+  { uri: 'https://relay-priority.example', local: false, relay: true },
+  { uri: 'https://direct-priority.example', local: false, relay: false },
+  { uri: 'http://192.168.1.50:32400', local: true, relay: false }
+], 'server-id', { clientIdentifier: 'client-id', timeout: 1800, raceConnections: true }, function (error, uri) {
+  assert.ifError(error);
+  priorityCallbacks += 1;
+  priorityConnection = uri;
+});
+assert.strictEqual(requests.length, 3, 'priority-aware resolution must still probe local, direct, and Relay routes in parallel');
+assert.strictEqual(requests[0].url, 'http://192.168.1.50:32400/identity', 'local routes must remain the highest-quality class');
+assert.strictEqual(requests[1].url, 'https://direct-priority.example/identity', 'direct routes must remain the middle-quality class');
+assert.strictEqual(requests[2].url, 'https://relay-priority.example/identity', 'Relay routes must remain the fallback class');
+requests[2].status = 200;
+requests[2].responseText = '<MediaContainer machineIdentifier="server-id" />';
+requests[2].readyState = 4;
+requests[2].onreadystatechange();
+assert.strictEqual(priorityConnection, '', 'a valid Relay route must wait while higher-quality routes are still pending');
+requests[1].status = 200;
+requests[1].responseText = '<MediaContainer machineIdentifier="server-id" />';
+requests[1].readyState = 4;
+requests[1].onreadystatechange();
+assert.strictEqual(priorityConnection, '', 'a valid direct route must wait while a local route is still pending');
+requests[0].status = 503;
+requests[0].responseText = '';
+requests[0].readyState = 4;
+requests[0].onreadystatechange();
+assert.strictEqual(priorityConnection, 'https://direct-priority.example', 'the best valid route must win after every higher-quality route has failed');
+assert.strictEqual(priorityCallbacks, 1, 'priority-aware resolution must publish exactly one winning route');
+
+requests = [];
+var localPriorityConnection = '';
+PlexAuth.findReachableConnection(root, 'server-token', [
+  { uri: 'https://relay-fast.example', local: false, relay: true },
+  { uri: 'https://direct-slow.example', local: false, relay: false },
+  { uri: 'http://192.168.1.60:32400', local: true, relay: false }
+], 'server-id', { clientIdentifier: 'client-id', timeout: 1800, raceConnections: true }, function (error, uri) {
+  assert.ifError(error);
+  localPriorityConnection = uri;
+});
+requests[0].status = 200;
+requests[0].responseText = '<MediaContainer machineIdentifier="server-id" />';
+requests[0].readyState = 4;
+requests[0].onreadystatechange();
+assert.strictEqual(localPriorityConnection, 'http://192.168.1.60:32400', 'a valid local route must commit immediately because no better class exists');
+assert.strictEqual(requests[1].aborted, true, 'local success must abort the pending direct route');
+assert.strictEqual(requests[2].aborted, true, 'local success must abort the pending Relay route');
+
+requests = [];
 var spoofingError = null;
 PlexAuth.findReachableConnection(root, 'server-token', ['http://192.0.2.44:32400'], 'trusted-server', { clientIdentifier: 'client-id' }, function (error) {
   spoofingError = error;

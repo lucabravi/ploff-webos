@@ -24,7 +24,10 @@
     var diagnosticsPorts = values.diagnostics || {};
     var statePorts = values.state || {};
     var PlexClient = dataPorts.PlexClient;
-    var config = dataPorts.config || {};
+    var sourceRouter = dataPorts.sourceRouter;
+    var sourceResolver = dataPorts.sourceResolver;
+    var sessionConfig = {};
+    var sessionSourceContext = null;
     var PlaybackQueueController = modules.PlaybackQueueController;
     var QueueSequenceContract = modules.QueueSequenceContract;
     var BoundedQueueCache = modules.BoundedQueueCache;
@@ -36,6 +39,7 @@
     var NativeVideoDriver = modules.NativeVideoDriver;
     var PlaybackReposition = modules.PlaybackReposition;
     var PlaybackSession = modules.PlaybackSession;
+    var PlaybackOperation = modules.PlaybackOperation;
     var PlaybackTimeline = modules.PlaybackTimeline;
     var SubtitleRuntime = modules.SubtitleRuntime;
     var PlayerControlsController = modules.PlayerControlsController;
@@ -112,8 +116,12 @@
     var nextAssPrefetchKey = '';
     var standaloneDetailState = null;
 
-    function call(callback, arg1, arg2, arg3, arg4, arg5, arg6) {
-      if (typeof callback === 'function') { return callback(arg1, arg2, arg3, arg4, arg5, arg6); }
+    function call(callback, arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+      if (typeof callback === 'function') {
+        return arguments.length > 7
+          ? callback(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+          : callback(arg1, arg2, arg3, arg4, arg5, arg6);
+      }
       return undefined;
     }
 
@@ -128,16 +136,16 @@
     function element(tagName, className, text) { return call(shellPorts.element, tagName, className, text); }
     function showMessage(text) { return call(shellPorts.showMessage, text); }
     function loadRenderedPoster(image, source, priority, scope, width, height) {
-      return call(shellPorts.loadRenderedPoster, image, source, priority, scope, width, height);
+      return call(shellPorts.loadRenderedPoster, image, source, priority, scope, width, height, sessionSourceContext);
     }
     function artworkUrl(item) { return call(shellPorts.artworkUrl, item) || ''; }
     function currentSettings() { return call(settingsPorts.settings) || {}; }
-    function imageRequestUrl(source, width, height, scope) {
+    function imageRequestUrl(source, width, height, scope, requestConfig) {
       var size = { width: width, height: height };
       if (ProgressiveImages && ProgressiveImages.qualitySize && ProgressiveImages.qualityForScope) {
         size = ProgressiveImages.qualitySize(width, height, ProgressiveImages.qualityForScope(currentSettings(), scope));
       }
-      return PlexClient.posterUrl(config, source, size.width, size.height);
+      return PlexClient.posterUrl(requestConfig || sessionConfig, source, size.width, size.height);
     }
     function currentView() { return String(call(statePorts.currentView) || 'home'); }
     function setAppView(view) { return call(statePorts.setView, view); }
@@ -149,13 +157,14 @@
     function pointerSelectionActive() { return call(statePorts.pointerSelectionActive) === true; }
     function navigationHasFocus() { return call(statePorts.navigationHasFocus) === true; }
     function activeServerIdentity() {
+      if (sessionSourceContext && sessionSourceContext.serverMachineIdentifier) { return String(sessionSourceContext.serverMachineIdentifier); }
       var server = call(dataPorts.activeServer) || null;
-      return server && (server.machineIdentifier || server.uri) || config.apiBaseUrl || 'local';
+      return server && (server.machineIdentifier || server.uri) || sessionConfig.apiBaseUrl || 'local';
     }
     function subtitlePresentationIdentity() {
       var identity = call(dataPorts.mediaIdentity);
       if (identity && typeof identity === 'object') {
-        return [identity.server || identity.uri || activeServerIdentity(), identity.profile || 'local'].join('|');
+        return [sessionSourceContext && sessionSourceContext.serverMachineIdentifier ? activeServerIdentity() : identity.server || identity.uri || activeServerIdentity(), identity.profile || 'local'].join('|');
       }
       return activeServerIdentity();
     }
@@ -231,7 +240,17 @@
       return result;
     }
     function detailPlaybackPreferencesFor(detail, versionAffinity) {
-      return call(detailPorts.playbackPreferencesFor, detail, versionAffinity) || detailPlaybackPreferences(versionAffinity);
+      var result = call(detailPorts.playbackPreferencesFor, detail, versionAffinity);
+      var presentation;
+      if (!result) { return detailPlaybackPreferences(versionAffinity); }
+      if (SubtitleSeriesOffset && detail && typeof SubtitleSeriesOffset.effective === 'function') {
+        presentation = SubtitleSeriesOffset.effective(storage, subtitlePresentationIdentity(), detail,
+          globalSubtitlePresentation(), result.subtitleTrackPreference || null);
+      } else {
+        presentation = effectiveSubtitlePresentation(null, result.subtitleTrackPreference || null);
+      }
+      if (presentation && presentation.subtitleSize) { result.subtitleSize = presentation.subtitleSize; }
+      return result;
     }
     function saveDetailMediaOverride() { return call(detailPorts.saveMediaOverride); }
     function applyLocalPlaybackProgress(ratingKey, seconds) { return call(detailPorts.applyLocalPlaybackProgress, ratingKey, seconds); }
@@ -251,6 +270,128 @@
     function copyRecords(source) {
       return (source || []).map(function (item) { return copyRecord(item); });
     }
+
+    function machineIdentifier(value) {
+      return String(value && (value.serverMachineIdentifier || value.machineIdentifier) || '');
+    }
+
+    function decorateWithContext(item, context) {
+      var result = copyRecord(item) || {};
+      context = context || {};
+      if (!result.serverMachineIdentifier && context.serverMachineIdentifier) { result.serverMachineIdentifier = String(context.serverMachineIdentifier); }
+      if (!result.sourceId && context.sourceId) { result.sourceId = String(context.sourceId); }
+      if (!result.serverName && context.serverName) { result.serverName = String(context.serverName); }
+      return result;
+    }
+
+    function boundSessionRoute(item) {
+      var sessionOwner;
+      var itemOwner;
+      if (currentView() !== 'player' || !sessionSourceContext || !String(sessionConfig.apiBaseUrl || '')) { return null; }
+      sessionOwner = machineIdentifier(sessionSourceContext);
+      itemOwner = machineIdentifier(item);
+      if (!sessionOwner || (itemOwner && itemOwner !== sessionOwner)) { return null; }
+      return {
+        context: copyRecord(sessionSourceContext),
+        config: copyRecord(sessionConfig),
+        identity: 'server:' + sessionOwner
+      };
+    }
+
+    function sessionRouteFor(item) {
+      return boundSessionRoute(item) || sourceRouter.routeFor(item || null, sessionSourceContext);
+    }
+
+    function resolvePlayerItem(item) {
+      var route = boundSessionRoute(item);
+      if (route) {
+        return { item: item, route: route, fallback: false };
+      }
+      return sourceResolver.resolve(item, { candidateContext: sessionSourceContext });
+    }
+
+    function decorateSessionItem(item) {
+      var route = boundSessionRoute(item);
+      return route ? decorateWithContext(item, route.context) : sourceRouter.decorateItem(item, sessionSourceContext);
+    }
+
+    function decorateSessionItems(items) {
+      return (items || []).map(function (item) { return decorateSessionItem(item); });
+    }
+
+    function decorateSessionPage(page) {
+      var result = copyRecord(page) || {};
+      result.items = decorateSessionItems(page && page.items);
+      return result;
+    }
+
+    function loadOwnedMetadata(itemOrRatingKey, callback) {
+      var item = itemOrRatingKey && typeof itemOrRatingKey === 'object' ? itemOrRatingKey : null;
+      var resolved = item ? resolvePlayerItem(item) : null;
+      var ratingKey = String(resolved ? resolved.item.ratingKey || '' : (item ? item.ratingKey || '' : itemOrRatingKey || ''));
+      var route = resolved ? resolved.route : (!item ? sessionRouteFor(null) : null);
+      if (!ratingKey || !route) {
+        call(callback, new Error('metadata unavailable'), null);
+        return null;
+      }
+      return PlexClient.loadMetadata(route.config, ratingKey, function (error, detail) {
+        call(callback, error, error || !detail ? detail : decorateWithContext(detail, route.context));
+      });
+    }
+
+    function applySessionSourceContext(context, item) {
+      var route = sourceRouter.routeFor(item || null, context || null);
+      var key;
+      if (!route) { return false; }
+      sessionSourceContext = context || String(item && item.serverMachineIdentifier || '') ? copyRecord(route.context) : null;
+      for (key in sessionConfig) {
+        if (Object.prototype.hasOwnProperty.call(sessionConfig, key)) { delete sessionConfig[key]; }
+      }
+      for (key in route.config) {
+        if (Object.prototype.hasOwnProperty.call(route.config, key)) { sessionConfig[key] = route.config[key]; }
+      }
+      return true;
+    }
+
+    function recoverStartupRoute(error, request, callback) {
+      var requestGeneration = generation;
+      var expectedContext = copyRecord(sessionSourceContext);
+      var expectedOwner = machineIdentifier(expectedContext);
+      var expectedUri = String(sessionConfig.apiBaseUrl || '');
+      var activeServer = call(dataPorts.activeServer) || null;
+      var activeOwner = machineIdentifier(activeServer);
+      var item = request && (request.detail || request.item) || null;
+      if (!error || error.transportFailure !== true || !expectedOwner || !activeOwner || expectedOwner !== activeOwner ||
+          (expectedContext && expectedContext.primary === false) || typeof dataPorts.recoverPrimary !== 'function') {
+        call(callback, error || new Error('playback route unavailable'), null);
+        return null;
+      }
+      return dataPorts.recoverPrimary(error, function (recoveryError, recoveredContext) {
+        if (destroyed || generation !== requestGeneration || currentView() !== 'player' ||
+            machineIdentifier(sessionSourceContext) !== expectedOwner || String(sessionConfig.apiBaseUrl || '') !== expectedUri) { return; }
+        var routedContext;
+        var key;
+        if (recoveryError || !recoveredContext || machineIdentifier(recoveredContext) !== expectedOwner ||
+            !applySessionSourceContext(recoveredContext, item)) {
+          call(callback, recoveryError || error || new Error('playback route unavailable'), null);
+          return;
+        }
+        routedContext = copyRecord(sessionSourceContext) || {};
+        sessionSourceContext = copyRecord(expectedContext) || {};
+        for (key in routedContext) {
+          if (Object.prototype.hasOwnProperty.call(routedContext, key)) { sessionSourceContext[key] = routedContext[key]; }
+        }
+        call(callback, null, copyRecord(sessionConfig));
+      });
+    }
+
+    if (!sourceRouter || typeof sourceRouter.routeFor !== 'function') {
+      throw new Error('PlayerFeatureController requires sourceRouter');
+    }
+    if (!sourceResolver || typeof sourceResolver.resolve !== 'function') {
+      throw new Error('PlayerFeatureController requires sourceResolver');
+    }
+    applySessionSourceContext(null, null);
 
     function copyQueueRecord(source) {
       var result;
@@ -655,7 +796,8 @@
         playerChaptersView = PlayerChaptersView.create({
           document: document, element: element, t: t, formatTime: formatTime,
           pointerActive: function () { return !!(pointerSelectionActive()); },
-          ProgressiveImages: ProgressiveImages, posterLoader: shellPorts.posterLoader()
+          ProgressiveImages: ProgressiveImages, posterLoader: shellPorts.posterLoader(),
+          sourceContext: function () { return sessionSourceContext; }
         });
       }
       return playerChaptersView;
@@ -674,7 +816,7 @@
     function updateChapterFocus(snapshot) {
       var current = snapshot || playerControlsSnapshot();
       var chapter = current.chapter || current.chapters || ChapterState.create();
-      ensurePlayerChaptersView().updateFocus(chapter.index, chapter.open);
+      ensurePlayerChaptersView().updateFocus(chapter.index, chapter.open, chapter.currentIndex === undefined ? chapter.index : chapter.currentIndex);
     }
 
     function renderChapterDrawer(snapshot) {
@@ -779,7 +921,10 @@
       key = nextAssPrefetchIdentity(nextAssTarget, snapshotValue);
       if (!key || key === nextAssPrefetchKey) { return false; }
       nextAssPrefetchKey = key;
-      call(dataPorts.prefetchNextAss, nextAssTarget, detailPlaybackPreferencesFor(nextAssTarget.detail, null), key);
+      if (call(dataPorts.prefetchNextAss, nextAssTarget, detailPlaybackPreferencesFor(nextAssTarget.detail, null), key) === false) {
+        nextAssPrefetchKey = '';
+        return false;
+      }
       return true;
     }
 
@@ -836,7 +981,7 @@
       var index;
       if (!id) { return offLabel; }
       for (index = 0; index < tracks.length; index += 1) {
-        if (tracks[index].id === id) { return MediaProfile.trackDisplayLabel(tracks[index], t('detail.external')); }
+        if (tracks[index].id === id) { return MediaProfile.trackDisplayLabel(tracks[index], t('detail.external'), t('common.unknown')); }
       }
       return offLabel;
     }
@@ -1083,36 +1228,39 @@
       updateSettingsDisplay();
     }
 
-    function openChoiceDialog(title, choices, selectedValue, apply, returnFocus) {
+    function openChoiceDialog(title, choices, selectedValue, apply, returnFocus, variant) {
+      var ownerGeneration = generation;
       return dialogsPorts.openChoice({
         title: title,
         choices: choices,
         selectedValue: selectedValue,
-        apply: apply,
-        returnFocus: returnFocus
+        variant: variant || '',
+        apply: function (choice) {
+          if (destroyed || ownerGeneration !== generation) { return; }
+          call(apply, choice);
+        },
+        returnFocus: function () {
+          if (destroyed || ownerGeneration !== generation) { return; }
+          call(returnFocus);
+        }
       });
     }
     function openRenderingGlobalConfirmation(name, enabled, confirm, returnFocus) {
       var key = name === 'ass'
         ? (enabled ? 'player.subtitleRenderingAssEnableGlobalConfirm' : 'player.subtitleRenderingAssDisableGlobalConfirm')
         : (enabled ? 'player.subtitleRenderingSrtEnableGlobalConfirm' : 'player.subtitleRenderingSrtDisableGlobalConfirm');
-      return dialogsPorts.openChoice({
-        title: t(key),
-        choices: [
-          { value: 'yes', label: t('common.yes') },
-          { value: 'no', label: t('common.no') }
-        ],
-        selectedValue: 'no',
-        variant: 'confirm',
-        apply: function (choice) { if (choice && choice.value === 'yes') { call(confirm); } },
-        returnFocus: returnFocus
-      });
+      return openChoiceDialog(t(key), [
+        { value: 'yes', label: t('common.yes') },
+        { value: 'no', label: t('common.no') }
+      ], 'no', function (choice) {
+        if (choice && choice.value === 'yes') { call(confirm); }
+      }, returnFocus, 'confirm');
     }
 
     function playerTrackChoices(tracks, includeOff) {
       var choices = MediaChoiceModel.trackChoices(tracks, {
         off: includeOff ? { value: SUBTITLE_OFF_VALUE, label: t('subtitle.off') } : null,
-        label: function (track) { return MediaProfile.trackDisplayLabel(track, t('detail.external')); }
+        label: function (track) { return MediaProfile.trackDisplayLabel(track, t('detail.external'), t('common.unknown')); }
       });
       choices.unshift({ value: SUBTITLE_AUTOMATIC_VALUE, label: t('player.automatic'), track: null });
       return choices;
@@ -1413,14 +1561,15 @@
     function showPlayerError(waitingForNetwork, retryAction, fallbackAction) {
       if (destroyed) { return; }
       playerErrorVisible = true;
-      playerErrorIndex = 0;
       playerErrorRetryAction = retryAction || null;
+      playerErrorIndex = (waitingForNetwork || !playerErrorRetryAction) ? 1 : 0;
       playerErrorFallbackAction = fallbackAction || null;
       if (waitingForNetwork || !diagnosticsPorts.error()) { diagnosticsPorts.setError(t(waitingForNetwork ? 'player.waitingNetwork' : 'player.errorMessage')); }
       setText('player-error-message', t(waitingForNetwork ? 'player.waitingNetwork' : 'player.errorMessage'));
       setText('player-error-settings', t(playerErrorFallbackAction ? 'player.switchToAutomatic' : 'player.settings'));
       document.getElementById('player-error').className = 'player-error';
-      document.getElementById('player-error-retry').disabled = !!waitingForNetwork;
+      document.getElementById('player-error-retry').disabled = !!waitingForNetwork || !playerErrorRetryAction;
+      document.getElementById('player-error-retry').className = !playerErrorRetryAction ? 'is-hidden' : '';
       setPlayerLoading(false);
       updatePlayerErrorFocus();
     }
@@ -1535,10 +1684,16 @@
     function openPlayer(state) {
       var detailState = state || detailSnapshot();
       var detail = detailState.currentDetail;
+      var sourceContextValue;
       if (currentView() === 'detail' && (!detail || !detail.ratingKey || detail.type === 'show' || detail.type === 'season')) {
         detailPorts.setPlayPending(true); return;
       }
-      if (!detail || !detail.ratingKey) { showMessage(t('status.metadataUnavailable')); return; }
+      if (!detail || !detail.ratingKey) { showMessage(t('status.metadataUnavailable')); return false; }
+      sourceContextValue = standaloneDetailState ? sessionSourceContext : call(detailPorts.sourceContext);
+      if (!applySessionSourceContext(sourceContextValue, detailState.selectedItem || detail)) {
+        showMessage(t('status.mediaUnavailable'));
+        return false;
+      }
       detailPorts.setPlayPending(false);
       resumeChoiceState = ResumeChoice.create(detail.viewOffset);
       if (!resumeChoiceState.visible) { beginPlayer(null); return; }
@@ -1550,6 +1705,10 @@
       var detail = request && request.detail;
       var item = request && (request.item || request.detail);
       if (destroyed || !detail || !detail.ratingKey) { return false; }
+      if (!applySessionSourceContext(request && request.sourceContext ? request.sourceContext : call(detailPorts.sourceContext), item || detail)) {
+        showMessage(t('status.mediaUnavailable'));
+        return false;
+      }
       standaloneDetailState = {
         selectedItem: item || detail,
         currentDetail: detail,
@@ -1679,7 +1838,7 @@
       playerControlsController.reset(); document.getElementById('player-settings').className = 'player-settings is-hidden'; document.getElementById('player-settings').setAttribute('aria-hidden', 'true');
       document.getElementById('player-view').className = 'player-view is-hidden';
       resetNextAssTarget();
-      call(dataPorts.cancelAssPrefetch, 'player closed');
+      call(dataPorts.cancelAssPrefetch, 'player closed', '', true);
       call(settingsPorts.restoreSubtitleStyle, currentSettings());
       standaloneDetailState = null;
       if (destination === 'home') {
@@ -1694,6 +1853,8 @@
     }
 
     function closePlayer(destination) {
+      generation += 1;
+      playbackQueueController.cancelPendingPlayback();
       diagnosticsPorts.capturePlayback();
       playerControlsController.cancelControlsTimeout();
       if (!playbackController) { restorePlayerSurfaceAfterClose(destination); return; }
@@ -1706,10 +1867,6 @@
     }
     function playlistQueuePlayable(items) {
       return PlaybackQueueModel.playableItems(items);
-    }
-
-    function playlistQueueSeriesContext(context) {
-      return PlaybackQueueModel.seriesContext(context);
     }
 
     function seriesPlaybackTarget(queue, target, existingContext) {
@@ -1752,7 +1909,7 @@
       if (currentView() === 'player') {
         diagnosticsPorts.setError(error || t('status.metadataUnavailable'));
         setText('player-status', t('status.streamError'));
-        showPlayerError(false, function () {});
+        showPlayerError(false);
       } else {
         failContainerDirectPlayStart(t('status.metadataUnavailable'));
       }
@@ -1762,15 +1919,30 @@
       if (destroyed) { return false; }
       var queue;
       var target;
+      var resolvedTarget;
+      var originalTarget;
+      var rebased;
       var activated;
       var context = null;
       var seasonIndex = 0;
       var episodeIndex = 0;
       var existingContext;
       var seriesTarget;
+      var requestGeneration = generation;
       if (!request || !request.item) { return false; }
+      originalTarget = request.item;
+      resolvedTarget = resolvePlayerItem(originalTarget);
+      if (!resolvedTarget) { handlePlaybackQueueError(new Error('queue source unavailable')); return false; }
+      target = resolvedTarget.item;
+      rebased = target !== originalTarget;
+      if (rebased) {
+        request = copyRecord(request);
+        request.item = target;
+        request.detail = null;
+      }
       if (!request.detail) {
-        playbackQueueController.waitForDetail(request.item.ratingKey, function (error, detail) {
+        playbackQueueController.waitForDetail(target, function (error, detail) {
+          if (destroyed || requestGeneration !== generation) { return; }
           if (error || !detail) { handlePlaybackQueueError(error); return; }
           request.detail = detail;
           applyPlaybackQueueRequest(request);
@@ -1778,7 +1950,10 @@
         return true;
       }
       queue = request.queue || playbackQueueController.activeQueue(detailPorts.queueSnapshot());
-      target = request.item;
+      if (!boundSessionRoute(target) && !applySessionSourceContext(sessionSourceContext, target)) {
+        handlePlaybackQueueError(new Error('queue source unavailable'));
+        return false;
+      }
       if (queue && queue.kind === 'series') {
         existingContext = detailSnapshot().seriesContext || {};
         seriesTarget = seriesPlaybackTarget(queue, target, existingContext);
@@ -1845,10 +2020,6 @@
 
     function playbackQueueModel(snapshotValue) {
       return playbackQueueController.activeQueue(snapshotValue || detailQueueSnapshot());
-    }
-
-    function resolvePlaybackQueueAdjacent(direction, callback) {
-      playbackQueueController.resolveAdjacent(direction, callback, detailQueueSnapshot());
     }
 
     function playlistQueueCurrentIndex(queue, snapshotValue) {
@@ -2165,13 +2336,21 @@
     function prefetchAutoplayBackdrop(target) {
       var detailState = detailSnapshot();
       var currentKey;
+      var resolved;
+      var targetItem;
       var source;
       var key;
+      var sourceIdentity;
       var preview;
       if (destroyed || !target || currentSettings().autoplayDelay === 0 || currentView() !== 'player' || !root.Image) { return; }
       currentKey = String(detailState.currentDetail && detailState.currentDetail.ratingKey || '');
-      source = artworkUrl(target.item || {});
-      key = [currentKey, target.index, source].join('|');
+      targetItem = target.item || target;
+      resolved = sourceResolver.resolve(targetItem, { candidateContext: sessionSourceContext });
+      if (!resolved) { return; }
+      targetItem = resolved.item;
+      source = artworkUrl(targetItem || {});
+      sourceIdentity = resolved.route.identity;
+      key = (sourceIdentity ? sourceIdentity + '|' : '') + [currentKey, target.index, source].join('|');
       if (!source || !playbackQueueController.claimBackdropPrefetch(key)) { return; }
       if (autoplayPrefetchImage) {
         autoplayPrefetchImage.onload = null;
@@ -2185,7 +2364,7 @@
         preview.onerror = null;
         preview = null;
       };
-      preview.src = imageRequestUrl(source, 640, 360, 'up-next-backdrop');
+      preview.src = imageRequestUrl(source, 640, 360, 'up-next-backdrop', resolved.route.config);
     }
 
     function setAutoplayBackdropVisible(visible) {
@@ -2209,7 +2388,8 @@
     function loadAutoplayBackdrop(item) {
       if (destroyed) { return; }
       var image = document.getElementById('autoplay-backdrop');
-      var source = artworkUrl(item || {});
+      var resolved = resolvePlayerItem(item || {});
+      var source = resolved ? artworkUrl(resolved.item) : '';
       var token = playbackQueueController.beginBackdropLoad();
       shellPorts.cancelImages('up-next-backdrop');
       setAutoplayBackdropVisible(false);
@@ -2226,6 +2406,7 @@
         height: 1080,
         priority: 0,
         scope: 'up-next-backdrop',
+        sourceContext: resolved.route.context,
         onPreview: function () {
           if (!playbackQueueController.isBackdropLoadCurrent(token, true)) { return; }
           image.className = 'player-up-next-backdrop is-ready';
@@ -2364,7 +2545,7 @@
       generation += 1;
       resetNextAssTarget();
       // A failed constructor has never owned a playback/prefetch session.
-      if (initialized) { release(function () { call(dataPorts.cancelAssPrefetch, 'player destroyed'); }); }
+      if (initialized) { release(function () { call(dataPorts.cancelAssPrefetch, 'player destroyed', '', true); }); }
       while (ownedTimers.length) { release(function () { clearOwnedTimer(ownedTimers[ownedTimers.length - 1]); }); }
       subtitlePanelTransitionTimer = null;
       containerDirectPlayTransitionTimer = null;
@@ -2442,6 +2623,8 @@
       });
       playbackQueueController = PlaybackQueueController.create({
         root: root,
+        PlaybackOperation: PlaybackOperation,
+        onAbortError: function (error) { diagnosticsPorts.setError(error); },
         PlaybackQueueModel: PlaybackQueueModel,
         QueueSequenceContract: QueueSequenceContract,
         BoundedQueueCache: BoundedQueueCache,
@@ -2451,9 +2634,29 @@
         UpNextTiming: UpNextTiming,
         currentDetailSnapshot: detailQueueSnapshot,
         queueLabel: function () { return playerQueueController.label(); },
-        loadSeasonEpisodes: function (season, callback) { return PlexClient.loadSeasonEpisodes(config, season.ratingKey, '', callback); },
-        loadContainerPage: function (container, start, size, callback) { return PlexClient.loadLibraryContainerPage(config, container, start, size, callback); },
-        loadMetadata: function (ratingKey, callback) { return PlexClient.loadMetadata(config, ratingKey, callback); },
+        loadSeasonEpisodes: function (season, callback) {
+          var route;
+          if (season && season.sourceVariants && season.sourceVariants.length > 1 &&
+              typeof dataPorts.loadMergedSeasonEpisodes === 'function') {
+            return dataPorts.loadMergedSeasonEpisodes(season, callback);
+          }
+          route = sessionRouteFor(season || null);
+          if (!route) {
+            callback(new Error('season unavailable'), null);
+            return null;
+          }
+          return PlexClient.loadSeasonEpisodes(route.config, season.ratingKey, '', function (error, items) {
+            callback(error, error ? items : (items || []).map(function (episode) { return decorateWithContext(episode, route.context); }));
+          });
+        },
+        loadContainerPage: function (container, start, size, callback) {
+          return PlexClient.loadLibraryContainerPage(sessionConfig, container, start, size, function (error, page) {
+            callback(error, error ? page : decorateSessionPage(page));
+          });
+        },
+        loadMetadata: function (itemOrRatingKey, callback) {
+          return loadOwnedMetadata(itemOrRatingKey, callback);
+        },
         requestPlayback: applyPlaybackQueueRequest,
         onPlaybackError: handlePlaybackQueueError,
         onQueueChanged: function () { invalidateQueueGap(); if (playerQueueController) { playerQueueController.updatePresentation(); } },
@@ -2469,7 +2672,10 @@
         },
         requestHome: closePlayerToHome,
         upNextItem: function (target, layout) {
-          var item = target && (target.item || target) || {};
+          var sourceItem = target && (target.item || target) || {};
+          var resolved = resolvePlayerItem(sourceItem);
+          var item = resolved ? resolved.item : sourceItem;
+          var result;
           if (target && target.action === 'home') {
             return {
               action: 'home',
@@ -2477,16 +2683,20 @@
               imageUrl: item.imageUrl || 'ploff-logo.svg'
             };
           }
-          var source = layout === 'bottom-panel'
+          var source = !resolved ? '' : (layout === 'bottom-panel'
             ? (item.art || item.image || item.thumb || '')
-            : (item.image || item.thumb || item.art || '');
-          return {
+            : (item.image || item.thumb || item.art || ''));
+          result = {
             ratingKey: item.ratingKey,
             title: item.type === 'episode' && item.detail ? item.detail : item.title,
             parentTitle: item.parentTitle || item.meta,
             grandparentTitle: item.grandparentTitle || (item.type === 'episode' ? item.title : ''),
             imageSource: source
           };
+          if (item.serverMachineIdentifier) { result.serverMachineIdentifier = item.serverMachineIdentifier; }
+          if (item.sourceId) { result.sourceId = item.sourceId; }
+          if (item.serverName) { result.serverName = item.serverName; }
+          return result;
         },
         renderUpNext: renderPlaybackQueueUpNext,
         loadUpNextBackdrop: loadAutoplayBackdrop,
@@ -2519,6 +2729,16 @@
         translate: t,
         element: element,
         posterLoader: function () { return typeof shellPorts.posterLoader === 'function' ? shellPorts.posterLoader() : null; },
+        sourceContext: function () { return sessionSourceContext; },
+        resolvePresentationItem: function (item) {
+          var resolved = resolvePlayerItem(item);
+          if (!resolved) { return null; }
+          return {
+            item: resolved.item,
+            sourceContext: resolved.route && resolved.route.context || null,
+            available: true
+          };
+        },
         loadRenderedPoster: loadRenderedPoster,
         cancelImages: function (scope) { return call(shellPorts.cancelImages, scope); },
         showMessage: showMessage,
@@ -2533,7 +2753,7 @@
         root: root,
         document: document,
         video: document.getElementById('player-video'),
-        config: config,
+        config: sessionConfig,
         storage: storage,
         PlexClient: PlexClient,
         PlaybackClock: PlaybackClock,
@@ -2541,6 +2761,7 @@
         NativeVideoDriver: NativeVideoDriver,
         PlaybackReposition: PlaybackReposition,
         PlaybackSession: PlaybackSession,
+        PlaybackOperation: PlaybackOperation,
         PlaybackTimeline: PlaybackTimeline,
         SubtitleRuntime: SubtitleRuntime,
         PlaybackStrategy: PlaybackStrategy,
@@ -2553,7 +2774,9 @@
         subtitlePresentation: function (current, track) { return subtitlePresentation(track, current); },
         AssSubtitleRenderer: AssSubtitleRenderer,
         AssSubtitlePrefetch: dataPorts.AssSubtitlePrefetch,
-        assSubtitlePrefetchIdentity: dataPorts.assSubtitlePrefetchIdentity,
+        assSubtitlePrefetchIdentity: function (current, track) {
+          return call(dataPorts.assSubtitlePrefetchIdentity, decorateWithContext(current, sessionSourceContext), track);
+        },
         subtitleRendering: function () {
           var presentation = effectiveSubtitlePresentation(currentPlayerPlayback());
           return {
@@ -2562,11 +2785,16 @@
           };
         },
         capabilities: function () { return call(dataPorts.playbackCapabilities) || {}; },
+        compatibilityIdentity: function () { return activeServerIdentity(); },
+        recoverStartupRoute: recoverStartupRoute,
         isActive: function () { return currentView() === 'player'; },
         isOffline: function () { return root.navigator && root.navigator.onLine === false; },
         subscribeNetwork: function (listener) { return dataPorts.subscribeNetwork(listener); },
         networkAvailable: function (snapshot) { return snapshot && snapshot.lanAvailable !== false; },
-        playbackPreferences: function (request) { return detailPlaybackPreferences(request && request.versionAffinity); },
+        playbackPreferences: function (request) {
+          if (request && request.detail) { return detailPlaybackPreferencesFor(request.detail, request.versionAffinity); }
+          return detailPlaybackPreferences(request && request.versionAffinity);
+        },
         resolveVersionTracks: function (current) {
           return detailPorts ? detailPorts.resolvePlaybackTracks(current) : null;
         },
@@ -2650,12 +2878,14 @@
         },
         onClosed: function (position, reported, ratingKey) {
           if (destroyed) { return; }
-          playbackAtEnd = false;
-          hideEndPauseOverlay();
-          if (!playbackController.snapshot().active) { setPlaybackIdentity(null); }
+          if (!playbackController.snapshot().active) {
+            playbackAtEnd = false;
+            hideEndPauseOverlay();
+            setPlaybackIdentity(null);
+          }
           if (reported) {
             applyLocalPlaybackProgress(ratingKey, position);
-            call(libraryPorts.refreshAfterPlayback, ratingKey, position);
+            call(libraryPorts.refreshAfterPlayback, ratingKey, position, sessionSourceContext);
           }
           call(detailPorts.refreshPlaybackState, ratingKey, position);
         },
@@ -2668,49 +2898,18 @@
         onTrackChanged: function () {
           if (destroyed) { return; }
           nextAssPrefetchKey = '';
-          call(dataPorts.cancelAssPrefetch, 'subtitle selection changed');
+          call(dataPorts.cancelAssPrefetch, 'subtitle selection changed', '', true);
           updateSettingsDisplay();
         },
         onVersionChanged: function () {
           if (destroyed) { return; }
           nextAssPrefetchKey = '';
-          call(dataPorts.cancelAssPrefetch, 'media version changed');
+          call(dataPorts.cancelAssPrefetch, 'media version changed', '', true);
           updateSettingsDisplay();
         },
         onSettingsApplied: function () { if (!destroyed) { updateSettingsDisplay(); saveDetailMediaOverride(); } },
         onSubtitleEditorState: function (snapshot) { if (!destroyed) { updateSubtitleEditorPresentation(snapshot); } },
-        onSubtitleUnavailable: function () { if (!destroyed) { showMessage(t('player.subtitleSyncUnavailable')); } },
-        resolveAdjacent: function (direction, callback) {
-          var requestGeneration = generation;
-          resolvePlaybackQueueAdjacent(direction, function (target) {
-            var item;
-            if (destroyed || requestGeneration !== generation) { return; }
-            item = target && (target.item || target.episode || target);
-            if (!item || !item.ratingKey) { callback(null, null); return; }
-            PlexClient.loadMetadata(config, item.ratingKey, function (error, detail) {
-              if (destroyed || requestGeneration !== generation) { return; }
-              if (error || !detail) { callback(error || null, null); return; }
-              callback(null, { item: item, detail: detail, queueTarget: target, versionAffinity: null });
-            });
-          });
-        },
-        onAdjacentStarted: function (target) {
-          if (destroyed) { return; }
-          var queueTarget = target && target.queueTarget;
-          var detail = target && target.detail;
-          var item = target && target.item;
-          var queue = queueTarget && queueTarget.queue;
-          var seriesTarget = seriesPlaybackTarget(queue, item, detailSnapshot().seriesContext);
-          var context = seriesTarget ? seriesTarget.context : (queue ? playlistQueueSeriesContext(queue) : null);
-          var seasonIndex = seriesTarget ? seriesTarget.seasonIndex : 0;
-          var episodeIndex = seriesTarget ? seriesTarget.episodeIndex : (queueTarget && Number(queueTarget.index || 0));
-          if (!detail) { return; }
-          detailPorts.setPlaybackContext(detail, item || detail, context, seasonIndex, episodeIndex);
-          detailPorts.queueMediaProfile(detail);
-          detailPorts.renderEpisodeContext();
-          renderPlayerTitle(detail);
-          playerQueueController.updateButton();
-        }
+        onSubtitleUnavailable: function () { if (!destroyed) { showMessage(t('player.subtitleSyncUnavailable')); } }
       });
       playerSubtitleEditorController = PlayerSubtitleEditorController.create({
         platform: { document: document },

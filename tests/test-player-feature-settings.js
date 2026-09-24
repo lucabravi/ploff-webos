@@ -142,7 +142,7 @@ var createHarness = Fixture.createHarness;
     options: { audioStreamID: '', subtitleStreamID: track.id, subtitleSize: 125, mediaIndex: 0, partIndex: 0, videoQuality: 'original', playbackMode: 'auto' },
     audioTracks: [], subtitleTracks: [track], mediaVersions: [], markers: [], chapters: []
   };
-  SubtitleSeriesOffset.saveMedia(storage, 'server-a', detail, { subtitleSize: 125, subtitleBackground: 'high', offsetMs: 200 });
+  SubtitleSeriesOffset.saveProfile(storage, 'server-a', detail, 'media', null, { subtitleSize: 125, subtitleBackground: 'high', offsetMs: 200 });
   var h = createHarness({
     storage: storage,
     playbackValue: playbackValue,
@@ -189,7 +189,7 @@ var createHarness = Fixture.createHarness;
     setItem: function (key, value) { stored[key] = value; }
   };
   var detail = { type: 'episode', ratingKey: 'episode-editor-3', parentRatingKey: 'season-editor-3' };
-  SubtitleSeriesOffset.saveMedia(storage, 'server-a', detail, { subtitleBackground: 'low' });
+  SubtitleSeriesOffset.saveProfile(storage, 'server-a', detail, 'media', null, { subtitleBackground: 'low' });
   var before = storage.getItem(SubtitleSeriesOffset.STORAGE_KEY);
   var restores = [];
   var choiceConfig = null;
@@ -579,10 +579,8 @@ var createHarness = Fixture.createHarness;
     options: { audioStreamID: '', subtitleStreamID: firstTrack.id, subtitleSize: 100, mediaIndex: 0, partIndex: 0, videoQuality: 'original', playbackMode: 'auto' },
     audioTracks: [], subtitleTracks: [firstTrack, secondTrack], mediaVersions: [], markers: [], chapters: []
   };
-  SubtitleSeriesOffset.saveMedia(storage, 'server-a', detail, {
-    subtitleMode: 'track', subtitleTrack: firstTrack, offsetMs: 450, track: firstTrack
-  });
-  SubtitleSeriesOffset.saveMedia(storage, 'server-a', detail, { offsetMs: -200, track: secondTrack });
+  SubtitleSeriesOffset.saveProfile(storage, 'server-a', detail, 'media', firstTrack, { offsetMs: 450 });
+  SubtitleSeriesOffset.saveProfile(storage, 'server-a', detail, 'media', secondTrack, { offsetMs: -200 });
   var h = createHarness({
     storage: storage,
     playbackValue: playbackValue,
@@ -692,6 +690,79 @@ var createHarness = Fixture.createHarness;
   assert.deepStrictEqual(preferences.subtitleTrackPreference, MediaPreferences.trackPreference(track),
     'the shared detail resolver must pass the semantic subtitle identity at playback start');
   assert.deepStrictEqual(preferences.subtitleSuppressedForAudio, [], 'scoped subtitle selection must not be suppressed by the global audio suppression list');
+}());
+
+
+(function nextEpisodePlaybackRestoresSeasonSubtitlePresentation() {
+  var stored = {};
+  var storage = {
+    getItem: function (key) { return stored[key] || null; },
+    setItem: function (key, value) { stored[key] = value; },
+    removeItem: function (key) { delete stored[key]; }
+  };
+  var currentDetail = { type: 'episode', ratingKey: 'episode-45', parentRatingKey: 'season-9' };
+  var nextDetail = { type: 'episode', ratingKey: 'episode-46', parentRatingKey: 'season-9' };
+  var track = { id: 'season-track', languageTag: 'it', codec: 'ass', format: 'ass', external: true, title: 'Dialoghi', forced: false };
+  var startCalls;
+  SubtitleSeriesOffset.saveSeason(storage, 'server-a', currentDetail, { subtitleSize: 175, track: track });
+  var h = createHarness({
+    storage: storage,
+    data: { activeServer: function () { return { machineIdentifier: 'server-a' }; } },
+    detail: {
+      snapshot: function () { return { currentDetail: currentDetail, selectedItem: currentDetail }; },
+      playbackPreferences: function () {
+        return { subtitleMode: 'always', subtitleTrackPreference: MediaPreferences.trackPreference(track) };
+      },
+      playbackPreferencesFor: function () {
+        return { subtitleMode: 'always', subtitleTrackPreference: MediaPreferences.trackPreference(track) };
+      },
+      setPlaybackContext: function () {},
+      queueMediaProfile: function () {},
+      renderEpisodeContext: function () {}
+    }
+  });
+  h.captured.queueOptions.requestPlayback({ detail: nextDetail, item: { ratingKey: nextDetail.ratingKey } });
+  startCalls = h.calls.filter(function (entry) { return entry[0] === 'start-item'; });
+  assert.strictEqual(startCalls.length, 1, 'the next episode must start through the generic playback queue boundary');
+  assert.strictEqual(startCalls[0][2].preferences.subtitleSize, 175,
+    'the next episode must receive the season subtitle presentation size');
+}());
+
+
+(function playbackFallbackUsesTargetDetailForSeasonSubtitlePresentation() {
+  var stored = {};
+  var storage = {
+    getItem: function (key) { return stored[key] || null; },
+    setItem: function (key, value) { stored[key] = value; },
+    removeItem: function (key) { delete stored[key]; }
+  };
+  var currentDetail = { type: 'episode', ratingKey: 'episode-47', parentRatingKey: 'season-10' };
+  var nextDetail = { type: 'episode', ratingKey: 'episode-48', parentRatingKey: 'season-10' };
+  var currentTrack = { id: 'english-track', languageTag: 'en', codec: 'ass', format: 'ass', external: true, title: 'English', forced: false };
+  var nextTrack = { id: 'italian-track', languageTag: 'it', codec: 'ass', format: 'ass', external: true, title: 'Dialoghi', forced: false };
+  SubtitleSeriesOffset.saveSeason(storage, 'server-a', currentDetail, { subtitleSize: 175, track: nextTrack });
+  var h = createHarness({
+    storage: storage,
+    data: { activeServer: function () { return { machineIdentifier: 'server-a' }; } },
+    detail: {
+      snapshot: function () { return { currentDetail: currentDetail, selectedItem: currentDetail }; },
+      playbackPreferences: function () {
+        return { subtitleMode: 'always', subtitleTrackPreference: MediaPreferences.trackPreference(currentTrack) };
+      },
+      playbackPreferencesFor: function () {
+        return { subtitleMode: 'always', subtitleTrackPreference: MediaPreferences.trackPreference(nextTrack) };
+      }
+    },
+    settings: {
+      settings: function () { return { subtitleSize: 100 }; },
+      animationDuration: function (delay) { return delay; },
+      videoQualityLabel: function (value) { return value; },
+      playbackPreferenceLabel: function (value) { return value; },
+      connectionRouteLabel: function () { return ''; }
+    }
+  });
+  assert.strictEqual(h.captured.playbackOptions.playbackPreferences({ detail: nextDetail }).subtitleSize, 175,
+    'playback fallback must resolve the subtitle presentation against the requested episode detail');
 }());
 
 
@@ -815,6 +886,31 @@ var createHarness = Fixture.createHarness;
   assert.strictEqual(loaded.scope, 'global', 'with subtitles Off, a track-specific media presentation must stay inactive');
   assert.strictEqual(loaded.effective.subtitleSize, 100, 'with no active subtitle track, the editor must start from global presentation instead of another track profile');
   assert.strictEqual(loaded.effective.offsetMs, 0, 'an inactive track offset must not leak into the Off state');
+}());
+
+(function stalePlayerSettingChoiceCannotApplyToNewPlaybackGeneration() {
+  var choiceConfig = null;
+  var applied = [];
+  var rows = [fakeNode('setting-0'), fakeNode('setting-1'), fakeNode('setting-quality')];
+  rows[2].firstChild.textContent = 'Quality';
+  rows[2].getAttribute = function (name) { return name === 'data-setting' ? 'quality' : ''; };
+  var h = createHarness({
+    querySelectorAll: function (selector) { return selector === '.setting-row, .playback-info' ? rows : []; },
+    playbackValue: {
+      ratingKey: 'episode-a', requestedVideoQuality: 'original', requestedPlaybackMode: 'auto',
+      options: { audioStreamID: '', subtitleStreamID: '', subtitleSize: 100, mediaIndex: 0, partIndex: 0, videoQuality: 'original', playbackMode: 'auto' },
+      audioTracks: [], subtitleTracks: [], mediaVersions: [], markers: [], chapters: []
+    },
+    dialogs: { openChoice: function (config) { choiceConfig = config; return true; } },
+    prepare: function (_options, context) {
+      context.controls.applySettingChoice = function (key, value) { applied.push([key, value]); };
+    }
+  });
+  h.captured.controlsOptions.openSettingChoice('quality');
+  assert.ok(choiceConfig && typeof choiceConfig.apply === 'function', 'Player setting choice must open before testing generation ownership');
+  h.captured.playbackOptions.onOpening();
+  choiceConfig.apply({ value: '4000' });
+  assert.deepStrictEqual(applied, [], 'a setting choice owned by the previous playback generation must not mutate the newly opening item');
 }());
 
 console.log('Player feature settings checks passed');

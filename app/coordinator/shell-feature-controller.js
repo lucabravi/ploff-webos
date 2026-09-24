@@ -4,7 +4,6 @@
   else { root.PloffShellFeatureController = factory(); }
 }(this, function () {
   'use strict';
-
   function create(options) {
     var values = options || {};
     var platform = values.platform || {};
@@ -16,7 +15,6 @@
     var transitions = values.transitions || {};
     var root = platform.root || {};
     var document = platform.document;
-    var storage = platform.storage || root.localStorage;
     var ShellController = modules.ShellController;
     var HomeState = modules.HomeState;
     var NavigationModel = modules.NavigationModel;
@@ -25,6 +23,7 @@
     var ViewState = modules.ViewState;
     var PlexClient = data.PlexClient;
     var config = data.config || {};
+    var sourceRouter = data.sourceRouter || null;
     var destroyed = false;
     var started = false;
     var clockTimer = null;
@@ -38,6 +37,7 @@
     var homeRefreshVisualActive = false;
     var homeRefreshVisualTimer = null;
     var lastHomeInteractionAt = 0;
+    var homeMovedSinceEntry = false;
     var homeSourceRows = [];
     var homeSourceGeneration = 0;
     var watchedProjections = {};
@@ -51,10 +51,49 @@
     var backgroundAudio;
     var navigationPreviewScheduler;
     var controller;
+    var homeArtworkPressureReasons = {};
+    var homeArtworkPressureApplied = false;
 
     function call(callback, arg1, arg2, arg3, arg4, arg5, arg6) {
       if (typeof callback === 'function') { return callback(arg1, arg2, arg3, arg4, arg5, arg6); }
       return undefined;
+    }
+
+    function homeArtworkPressureActive() {
+      var reason;
+      for (reason in homeArtworkPressureReasons) {
+        if (Object.prototype.hasOwnProperty.call(homeArtworkPressureReasons, reason)) { return true; }
+      }
+      return false;
+    }
+
+    function syncHomeArtworkPressure() {
+      var active = homeArtworkPressureActive();
+      if (homeArtworkPressureApplied === active) { return active; }
+      homeArtworkPressureApplied = active;
+      if (posterLoader && posterLoader.setHomePressure) { posterLoader.setHomePressure(active); }
+      return active;
+    }
+
+    function setHomeArtworkPressure(reason, active) {
+      var key = String(reason || '');
+      if (!key) { return homeArtworkPressureActive(); }
+      if (active === true) { homeArtworkPressureReasons[key] = true; }
+      else { delete homeArtworkPressureReasons[key]; }
+      return syncHomeArtworkPressure();
+    }
+
+    function warmHomeArtworkPreviews(callback) {
+      var settled = false;
+      function finish() {
+        if (settled) { return; }
+        settled = true;
+        setHomeArtworkPressure('startup-render', false);
+        call(callback);
+      }
+      if (destroyed || !controller || typeof controller.warmHomeArtworkPreviews !== 'function') { finish(); return false; }
+      if (controller.warmHomeArtworkPreviews(finish) === false) { finish(); return false; }
+      return true;
     }
 
     function settings() { return call(statePort.settings) || {}; }
@@ -101,16 +140,19 @@
 
     function applyPendingHomeRows() {
       var nextRows = pendingHomeRows;
+      var currentFocus;
       pendingHomeRows = null;
       pendingHomeApplyTimer = null;
       if (destroyed || !nextRows) { return; }
       if (currentView() === 'home') {
-        useHomeRows(nextRows, 0, {
-          focus: focusState().area === 'nav' ? 'nav' : 'preserve',
-          selectionKey: controller.selectionKey()
+        currentFocus = focusState();
+        useHomeRows(nextRows, currentFocus.area === 'nav' ? currentFocus.navIndex : 0, {
+          focus: currentFocus.area === 'nav' ? 'nav' : 'preserve',
+          selectionKey: controller.selectionKey(),
+          normalized: true
         });
       } else {
-        controller.setRows(nextRows);
+        controller.setRows(nextRows, true);
         controller.markHomeDirty();
       }
     }
@@ -124,17 +166,45 @@
     function noteHomeInteraction() {
       if (destroyed || currentView() !== 'home') { return; }
       lastHomeInteractionAt = now();
+      homeMovedSinceEntry = true;
       if (pendingHomeRows) { schedulePendingHomeApply(700); }
     }
 
-    function projectWatchedState(targetRows, ratingKey, watched) {
+    function hasContinueWatching(targetRows) {
+      var index;
+      for (index = 0; index < (targetRows || []).length; index += 1) {
+        if (targetRows[index] && targetRows[index].kind === 'continue' && targetRows[index].items && targetRows[index].items.length) { return true; }
+      }
+      return false;
+    }
+
+    function focusContinueWatching() {
+      var currentRows = rows();
+      var index;
+      for (index = 0; index < currentRows.length; index += 1) {
+        if (currentRows[index] && currentRows[index].kind === 'continue' && currentRows[index].items && currentRows[index].items.length) {
+          controller.setFocus({ area: 'media', navIndex: 0, rowIndex: index, column: 0 });
+          controller.updateFocus();
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function sourceIdentity(value) {
+      return String(value && (value.serverMachineIdentifier || value.machineIdentifier) || '');
+    }
+
+    function projectWatchedState(targetRows, ratingKey, watched, sourceContext) {
       var rowIndex;
       var itemIndex;
       var item;
+      var expectedSource = sourceIdentity(sourceContext);
       for (rowIndex = 0; rowIndex < (targetRows || []).length; rowIndex += 1) {
         for (itemIndex = 0; itemIndex < (targetRows[rowIndex].items || []).length; itemIndex += 1) {
           item = targetRows[rowIndex].items[itemIndex];
-          if (String(item.ratingKey || '') === String(ratingKey || '')) {
+          if (String(item.ratingKey || '') === String(ratingKey || '') &&
+              (!expectedSource || sourceIdentity(item) === expectedSource)) {
             item.viewed = watched;
             item.viewOffset = 0;
             item.progress = 0;
@@ -145,18 +215,26 @@
 
     function applyWatchedProjections(targetRows) {
       var key;
+      var projection;
       for (key in watchedProjections) {
         if (Object.prototype.hasOwnProperty.call(watchedProjections, key)) {
-          projectWatchedState(targetRows, key.slice(1), watchedProjections[key]);
+          projection = watchedProjections[key];
+          projectWatchedState(targetRows, projection.ratingKey, projection.watched, projection.sourceContext);
         }
       }
     }
 
-    function updateWatched(ratingKey, watched) {
-      watchedProjections['$' + String(ratingKey || '')] = watched === true;
-      projectWatchedState(rows(), ratingKey, watched);
-      projectWatchedState(homeSourceRows, ratingKey, watched);
-      projectWatchedState(pendingHomeRows, ratingKey, watched);
+    function updateWatched(ratingKey, watched, sourceContext) {
+      var identity = sourceIdentity(sourceContext);
+      var projectionKey = '$' + identity + '|' + String(ratingKey || '');
+      watchedProjections[projectionKey] = {
+        ratingKey: String(ratingKey || ''),
+        watched: watched === true,
+        sourceContext: sourceContext || null
+      };
+      projectWatchedState(rows(), ratingKey, watched, sourceContext);
+      projectWatchedState(homeSourceRows, ratingKey, watched, sourceContext);
+      projectWatchedState(pendingHomeRows, ratingKey, watched, sourceContext);
       return controller.refreshHome();
     }
 
@@ -183,9 +261,28 @@
       var configurableKinds = modules.SettingsSchema && modules.SettingsSchema.allowed
         ? modules.SettingsSchema.allowed('homeRows')
         : null;
-      (nextRows || []).forEach(function (row) { if (row.recommendation) { row.title = t('home.recommended'); } });
-      if (!HomeState || typeof HomeState.applyRowPreferences !== 'function') { return (nextRows || []).slice(); }
-      return HomeState.applyRowPreferences(nextRows || [], current.homeRows, configurableKinds);
+      var visibleRows = (nextRows || []).filter(function (row) {
+        if (!row || row.kind !== 'recent' || !row.sourceId || typeof data.homeRecentEnabled !== 'function') { return true; }
+        return data.homeRecentEnabled(row.sourceId) !== false;
+      });
+      visibleRows.forEach(function (row) {
+        var parameters;
+        if (!row) { return; }
+        if (row.recommendation || row.kind === 'recommended') { row.title = t('home.recommended'); return; }
+        if (row.kind === 'continue') { row.title = t('library.continue'); return; }
+        if (row.kind !== 'recent') { return; }
+        parameters = row.titleParameters && typeof row.titleParameters === 'object' ? row.titleParameters : null;
+        row.title = t('home.recentInLibrary', {
+          library: String(parameters && parameters.library || row.sectionTitle || '')
+        });
+      });
+      var preferred;
+      if (!HomeState || typeof HomeState.applyRowPreferences !== 'function') { return visibleRows.slice(); }
+      preferred = HomeState.applyRowPreferences(visibleRows, current.homeRows, configurableKinds);
+      if (typeof HomeState.applyRowOrder === 'function' && typeof data.homeRowOrder === 'function') {
+        preferred = HomeState.applyRowOrder(preferred, data.homeRowOrder(current.homeRows || []));
+      }
+      return preferred;
     }
 
     function loadHome(callback) {
@@ -222,10 +319,38 @@
       }, false);
     }
 
-    function loadThemeMetadata(ratingKey, callback) {
-      if (typeof data.loadThemeMetadata === 'function') { return data.loadThemeMetadata(ratingKey, callback); }
+    function sourceContextIdentity(context) {
+      if (sourceRouter && typeof sourceRouter.contextIdentity === 'function') { return sourceRouter.contextIdentity(context); }
+      context = context || {};
+      return String(context.serverMachineIdentifier || context.sourceId || '');
+    }
+
+    function themeRequestConfig(item, sourceContext) {
+      var result = {};
+      var context = sourceContext || null;
+      var key;
+      if (sourceRouter && typeof sourceRouter.configFor === 'function') {
+        return sourceRouter.configFor(item && typeof item === 'object' ? item : null, context);
+      }
+      if (!context) { return config; }
+      if (!context.apiBaseUrl) { return null; }
+      for (key in config) {
+        if (Object.prototype.hasOwnProperty.call(config, key)) { result[key] = config[key]; }
+      }
+      result.apiBaseUrl = context.apiBaseUrl;
+      result.token = Object.prototype.hasOwnProperty.call(context, 'token') ? context.token : '';
+      if (Object.prototype.hasOwnProperty.call(context, 'requestTimeout')) { result.requestTimeout = context.requestTimeout; }
+      return result;
+    }
+
+    function loadThemeMetadata(item, callback, sourceContext) {
+      var requestConfig;
+      var ratingKey = String(item && item.ratingKey || item || '');
+      if (typeof data.loadThemeMetadata === 'function') { return data.loadThemeMetadata(item, callback, sourceContext); }
       if (!PlexClient || typeof PlexClient.loadMetadata !== 'function') { call(callback, new Error('Theme metadata unavailable')); return null; }
-      return PlexClient.loadMetadata(config, ratingKey, callback);
+      requestConfig = themeRequestConfig(item, sourceContext);
+      if (!requestConfig) { call(callback, new Error('Theme source unavailable')); return null; }
+      return PlexClient.loadMetadata(requestConfig, ratingKey, callback);
     }
 
     function element(tagName, className, text) {
@@ -238,9 +363,9 @@
 
     function setText(id, value) { call(presentationServices.setText, id, value); }
 
-    function progressivePosterSpecification(source, width, height, priority, scope) {
+    function progressivePosterSpecification(source, width, height, priority, scope, sourceContext, sourceItem) {
       var preview = ProgressiveImages.previewSize(width, height, 96);
-      return {
+      var specification = {
         source: source,
         previewWidth: preview.width,
         previewHeight: preview.height,
@@ -249,6 +374,13 @@
         priority: priority,
         scope: scope
       };
+      if (sourceContext) { specification.sourceContext = sourceContext; }
+      if (sourceItem && sourceItem.serverMachineIdentifier) { specification.sourceOwnerMachineIdentifier = String(sourceItem.serverMachineIdentifier); }
+      var sourceIdentity = sourceRouter && typeof sourceRouter.identityFor === 'function'
+        ? sourceRouter.identityFor(sourceItem || null, sourceContext || null)
+        : sourceContextIdentity(sourceContext);
+      if (sourceIdentity) { specification.sourceIdentity = sourceIdentity; }
+      return specification;
     }
 
     function qualityAdjustedSize(width, height, scope) {
@@ -261,19 +393,19 @@
       return ProgressiveImages.qualitySize(width, height, quality);
     }
 
-    function renderedPosterSpecification(image, source, priority, scope, fallbackWidth, fallbackHeight) {
+    function renderedPosterSpecification(image, source, priority, scope, fallbackWidth, fallbackHeight, sourceContext, sourceItem) {
       var size = ProgressiveImages.renderedSize(image, fallbackWidth || 154, fallbackHeight || 224);
-      return progressivePosterSpecification(source, size.width, size.height, priority, scope);
+      return progressivePosterSpecification(source, size.width, size.height, priority, scope, sourceContext, sourceItem);
     }
 
-    function fixedPosterSpecification(source, size, priority, scope) {
+    function fixedPosterSpecification(source, size, priority, scope, sourceContext, sourceItem) {
       var dimensions = size || {};
       var width = Math.max(1, Number(dimensions.width) || 1);
       var height = Math.max(1, Number(dimensions.height) || 1);
       var preview = dimensions.previewWidth && dimensions.previewHeight
         ? dimensions
         : ProgressiveImages.previewSize(width, height, 96);
-      return {
+      var specification = {
         source: source,
         previewWidth: Math.max(1, Number(preview.previewWidth || preview.width) || 1),
         previewHeight: Math.max(1, Number(preview.previewHeight || preview.height) || 1),
@@ -282,17 +414,27 @@
         priority: priority,
         scope: scope
       };
+      if (sourceContext) { specification.sourceContext = sourceContext; }
+      if (sourceItem && sourceItem.serverMachineIdentifier) { specification.sourceOwnerMachineIdentifier = String(sourceItem.serverMachineIdentifier); }
+      var sourceIdentity = sourceRouter && typeof sourceRouter.identityFor === 'function'
+        ? sourceRouter.identityFor(sourceItem || null, sourceContext || null)
+        : sourceContextIdentity(sourceContext);
+      if (sourceIdentity) { specification.sourceIdentity = sourceIdentity; }
+      return specification;
     }
 
-    function loadRenderedPoster(image, source, priority, scope, fallbackWidth, fallbackHeight) {
+    function loadRenderedPoster(image, source, priority, scope, fallbackWidth, fallbackHeight, sourceContext) {
       if (posterLoader && posterLoader.load) {
-        posterLoader.load(image, renderedPosterSpecification(image, source, priority, scope, fallbackWidth, fallbackHeight));
+        posterLoader.load(image, renderedPosterSpecification(image, source, priority, scope, fallbackWidth, fallbackHeight, sourceContext));
       }
     }
 
     function prioritizePoster(card) {
-      var images = card && card.getElementsByTagName ? card.getElementsByTagName('img') : [];
-      if (images.length && posterLoader && posterLoader.prioritize) { posterLoader.prioritize(images[0]); }
+      var parts = card && (card.__ploffHomeParts || card.__ploffLibraryParts);
+      var image = parts && parts.image ? parts.image : (card && card.getElementsByTagName ? card.getElementsByTagName('img')[0] : null);
+      var focused = card && /(^|\s)is-focused(?=\s|$)/.test(String(card.className || ''));
+      if (focused && posterLoader && currentView() !== 'home' && posterLoader.deferFullLoads) { posterLoader.deferFullLoads(120); }
+      if (image && posterLoader && posterLoader.prioritize) { posterLoader.prioritize(image); }
     }
 
     function cancelImages(scope) {
@@ -327,9 +469,11 @@
       var current = activeViewState;
       var callback;
       if (!current) { return; }
-      callback = action === 'retry' ? current.retry : current.back;
+      callback = action === 'retry' ? current.retry : (action === 'server' ? current.server : current.back);
+      if (!callback) { return false; }
       hideViewState();
       call(callback);
+      return true;
     }
 
     function showPassiveHomeState(messageKey) {
@@ -346,7 +490,7 @@
       return true;
     }
 
-    function showViewState(kind, scope, retryAction, backAction) {
+    function showViewState(kind, scope, retryAction, backAction, serverAction) {
       var model;
       var actions;
       var section;
@@ -354,7 +498,15 @@
       model = ViewState.model(kind, scope);
       actions = document.getElementById('view-state-actions');
       section = document.getElementById('view-state');
-      activeViewState = { model: model, index: 0, retry: retryAction || null, back: backAction || null };
+      model.actions = model.actions.filter(function (action) {
+        if (action === 'retry') { return typeof retryAction === 'function'; }
+        if (action === 'server') { return typeof serverAction === 'function'; }
+        return typeof backAction === 'function';
+      });
+      activeViewState = {
+        model: model, index: 0, retry: retryAction || null,
+        back: backAction || null, server: serverAction || null
+      };
       setText('view-state-title', t(model.titleKey));
       setText('view-state-message', t(model.messageKey));
       if (actions) {
@@ -388,7 +540,7 @@
         action = actions[activeViewState.index];
         executeViewStateAction(action);
       } else if (keyCode === 27 || keyCode === 461) {
-        executeViewStateAction('back');
+        if (activeViewState.back) { executeViewStateAction('back'); }
       }
       return true;
     }
@@ -515,6 +667,8 @@
       var details;
       var summary;
       var network = networkSnapshot();
+      var warnings = call(statePort.sourceWarnings) || [];
+      var networkClass = String(call(presentation.networkStatusClass, network) || '');
       var networkLabel = call(presentation.networkStatusLabel, network) || '';
       var title = activities.length ? (activities[0].title || t('activity.working')) : '';
       var desiredVisualState = serverActivityDesiredVisualState(homeRefreshVisualActive && !activities.length, activities);
@@ -523,7 +677,11 @@
       focused = String(button.className || '').indexOf('is-focused') !== -1;
       visualState = updateServerActivityVisualState(desiredVisualState);
       if (activities.length > 1) { title += ' ' + t('activity.more', { count: activities.length - 1 }); }
-      button.className = 'server-activity ' + String(call(presentation.networkStatusClass, network) || '') + ' is-' + visualState +
+      if (warnings.length) {
+        if (networkClass !== 'is-network-offline') { networkClass = 'is-network-local-only'; }
+        title = title || t('activity.sourcesUnavailable');
+      }
+      button.className = 'server-activity ' + networkClass + ' is-' + visualState +
         (desiredVisualState === 'home-refreshing' ? ' is-home-refreshing-source' : '') + (focused ? ' is-focused' : '');
       button.setAttribute('data-nav-index', navigationItems().length);
       button.setAttribute('aria-label', t('activity.label') + ': ' + networkLabel + (title ? ' \u00b7 ' + title : ''));
@@ -537,8 +695,11 @@
       panel.appendChild(summary);
       panel.appendChild(details);
       details.appendChild(element('div', 'activity-network-status', t('settings.networkStatus') + ': ' + networkLabel));
+      warnings.forEach(function (warning) {
+        details.appendChild(element('div', 'activity-row', t('activity.sourcesUnavailable') + ': ' + warning));
+      });
       if (!activities.length) {
-        details.appendChild(element('div', 'activity-empty', t('activity.idle')));
+        if (!warnings.length) { details.appendChild(element('div', 'activity-empty', t('activity.idle'))); }
         return true;
       }
       for (index = 0; index < activities.length; index += 1) {
@@ -627,11 +788,15 @@
     }
 
     function useHomeRows(nextRows, navIndex, homeOptions) {
-      return controller.useHomeRows(nextRows, navIndex, homeOptions || {});
+      var stable = homeMovedSinceEntry && homeOptions && homeOptions.normalized;
+      var result = controller.useHomeRows(stable ? stableHomeRows(rows(), nextRows) : nextRows, navIndex, homeOptions || {});
+      if (stable) { controller.markHomeDirty(); }
+      return result;
     }
 
     function refreshHome() {
       if (destroyed) { return false; }
+      homeMovedSinceEntry = false;
       if (currentView() === 'home' && !rows().length && !homeRowsHiddenBySettings() && !homeRowsUnavailableBySettings() && !passiveHomeState('state.homeLoading')) {
         showViewState('loading', 'home', null, null);
       }
@@ -648,6 +813,7 @@
       homeOptions = homeOptions || {};
       focusMode = homeOptions.focus || 'preserve';
       call(statePort.setView, 'home');
+      homeMovedSinceEntry = false;
       focus = focusState();
       focus.navIndex = 0;
       controller.renderNavigation();
@@ -689,13 +855,15 @@
         return;
       }
       if (!passiveHomeState('state.homeEmpty')) {
-        showViewState('empty', 'home', null, presentation.openSetup);
+        showViewState('empty', 'home', null, null, presentation.openSetup);
       }
     }
 
     function onHomeResult(error, nextRows, changed, initial) {
       var elapsed;
       var focusMode;
+      var resultOptions = arguments[4] || null;
+      var focusContinue = !!(resultOptions && resultOptions.focusContinue);
       if (destroyed) { return; }
       if (error) {
         if (currentView() === 'home' && !rows().length && (homeRowsHiddenBySettings() || homeRowsUnavailableBySettings())) {
@@ -705,7 +873,7 @@
         }
         if (currentView() === 'home' && !rows().length) {
           controller.completeStartup();
-          if (!passiveHomeState('state.homeError')) { showViewState('error', 'home', refreshHome, presentation.openSetup); }
+          showViewState('error', 'home', refreshHome, null, presentation.openSetup);
         }
         return;
       }
@@ -715,7 +883,7 @@
         return;
       }
       if (currentView() === 'home') {
-        if (!initial && lastHomeInteractionAt) {
+        if (!initial && lastHomeInteractionAt && !focusContinue) {
           elapsed = Math.max(0, now() - lastHomeInteractionAt);
           if (elapsed < 700) {
             pendingHomeRows = (nextRows || []).slice();
@@ -726,13 +894,63 @@
         clearPendingHomeApply();
         focusMode = !rows().length && !lastHomeInteractionAt && nextRows && nextRows.length
           ? 'first'
-          : (focusState().area === 'nav' ? 'nav' : (initial ? 'first' : 'preserve'));
-        useHomeRows(nextRows, 0, { focus: focusMode, selectionKey: controller.selectionKey() });
+          : (focusState().area === 'nav' ? 'nav' : (initial && !homeMovedSinceEntry ? 'first' : 'preserve'));
+        useHomeRows(nextRows, focusMode === 'nav' ? focusState().navIndex : 0, {
+          focus: focusMode,
+          selectionKey: controller.selectionKey(),
+          normalized: true
+        });
+        if (focusContinue && focusState().area !== 'nav') { focusContinueWatching(); }
       } else {
         clearPendingHomeApply();
-        controller.setRows(nextRows);
+        controller.setRows(nextRows, true);
         controller.markHomeDirty();
       }
+    }
+
+    function applyHomeEnrichment(nextRows) {
+      var normalizedSource;
+      var normalizedPrevious;
+      var preferred;
+      var continueWasVisible;
+      var focusContinue;
+      if (destroyed) { return false; }
+      nextRows = (nextRows || []).slice();
+      applyWatchedProjections(nextRows);
+      normalizedSource = HomeState && HomeState.normalizeRows ? HomeState.normalizeRows(nextRows) : nextRows.slice();
+      normalizedPrevious = HomeState && HomeState.normalizeRows ? HomeState.normalizeRows(homeSourceRows) : homeSourceRows.slice();
+      if (HomeState && HomeState.rowsEqual && HomeState.rowsEqual(normalizedSource, normalizedPrevious)) { return false; }
+      continueWasVisible = currentView() === 'home' && hasContinueWatching(rows());
+      homeSourceGeneration += 1;
+      homeSourceRows = nextRows;
+      preferred = preferredHomeRows(nextRows);
+      preferred = HomeState && HomeState.normalizeRows ? HomeState.normalizeRows(preferred) : preferred.slice();
+      focusContinue = currentView() === 'home' && !continueWasVisible && hasContinueWatching(preferred) &&
+        !homeMovedSinceEntry;
+      onHomeResult.apply(null, [null, preferred, true, false, { focusContinue: focusContinue }]);
+      return true;
+    }
+
+    function stableHomeRows(previous, incoming) {
+      function key(item) { return item.guid || HomeState.mediaKey(item); }
+      function retain(old, fresh, identity, update) {
+        var remaining = fresh.slice();
+        var result = old.map(function (item) {
+          var index;
+          for (index = 0; index < remaining.length; index += 1) {
+            if (identity(item) === identity(remaining[index])) { return update(item, remaining.splice(index, 1)[0]); }
+          }
+          return item;
+        });
+        return result.concat(remaining);
+      }
+      return retain(previous, incoming, function (row) { return row.kind + '|' + row.title; }, function (old, fresh) {
+        fresh.items = retain(old.items, fresh.items, key, function (previousItem, item) {
+          item.homeDisplayKey = HomeState.mediaKey(previousItem);
+          return item;
+        });
+        return fresh;
+      });
     }
 
     function renderNavigation() { controller.renderNavigation(); }
@@ -913,9 +1131,12 @@
     }
 
     function finishReorder(save) {
+      var sourceIds;
       if (!navigationReorderMode) { return false; }
       if (save) {
-        NavigationModel.save(storage, NavigationModel.libraryKeys(navigationItems()));
+        sourceIds = navigationItems().filter(function (item) { return item && item.kind === 'library'; })
+          .map(function (item) { return String(item.sourceId || item.key || ''); }).filter(Boolean);
+        call(transitions.persistLibraryOrder, sourceIds);
       } else if (navigationReorderOriginalItems) {
         controller.setNavigationItems(navigationReorderOriginalItems);
       }
@@ -956,7 +1177,7 @@
 
     function onVisibilityChange() {
       if (destroyed) { return; }
-      if (document && document.hidden) { controller.stopHomePolling(); }
+      if (document && document.hidden) { controller.cancelBackdropPrefetch(); controller.stopHomePolling(); }
       else { controller.scheduleHomePolling(); }
     }
 
@@ -1002,6 +1223,8 @@
       if (clockTimer !== null && root.clearInterval) { root.clearInterval(clockTimer); }
       clockTimer = null;
       hideViewState();
+      homeArtworkPressureReasons = {};
+      homeArtworkPressureApplied = false;
       destroyOne(controller);
       destroyOne(posterLoader);
       if (backgroundAudio && backgroundAudio.stop) { backgroundAudio.stop(); }
@@ -1023,17 +1246,26 @@
 
     posterLoader = ProgressiveImages.create({
       Image: root.Image,
+      clock: root,
       previewConcurrency: 6,
       fullConcurrency: 3,
       runtimeSettings: settings,
+      sourceContextIdentity: sourceContextIdentity,
       isAttached: function (target) { return !!(document && document.body && document.body.contains && document.body.contains(target)); },
-      urlFor: function (source, width, height, scope) {
+      urlFor: function (source, width, height, scope, specification) {
         var size = qualityAdjustedSize(width, height, scope);
-        return data.PlexClient && data.PlexClient.posterUrl ? data.PlexClient.posterUrl(data.config || {}, source, size.width, size.height) : source;
+        var context = specification && specification.sourceContext || null;
+        var owner = String(specification && specification.sourceOwnerMachineIdentifier || '');
+        var sourceItem = owner ? { serverMachineIdentifier: owner } : null;
+        var requestConfig = sourceRouter && typeof sourceRouter.configFor === 'function'
+          ? sourceRouter.configFor(sourceItem, context)
+          : (context || data.config || {});
+        if (!requestConfig) { return ''; }
+        return data.PlexClient && data.PlexClient.posterUrl ? data.PlexClient.posterUrl(requestConfig, source, size.width, size.height) : source;
       }
     });
     backgroundAudio = BackgroundAudio.create(document && document.getElementById ? document.getElementById('theme-audio') : null, root);
-    navigationPreviewScheduler = NavigationModel.createPreviewScheduler(root, 250, showNavigationPreview);
+    navigationPreviewScheduler = NavigationModel.createPreviewScheduler(root, NavigationModel.PREVIEW_DELAY_MS, showNavigationPreview);
 
     controller = ShellController.create({
       modules: {
@@ -1042,7 +1274,8 @@
         NavigationModel: modules.NavigationModel,
         NavbarWindow: modules.NavbarWindow,
         CardLayout: modules.CardLayout,
-        MediaLabels: modules.MediaLabels
+        MediaLabels: modules.MediaLabels,
+        NavigationIcon: modules.NavigationIcon
       },
       root: root,
       clock: root,
@@ -1061,8 +1294,17 @@
         element: element,
         updateText: updateNodeText,
         translate: t,
+        sourceContextForItem: function (item) { return call(data.sourceContextForItem, item); },
+        sourceContextIdentity: sourceContextIdentity,
+        sourceIdentityForItem: function (item, sourceContext) {
+          return sourceRouter && typeof sourceRouter.identityFor === 'function'
+            ? sourceRouter.identityFor(item || null, sourceContext || null)
+            : sourceContextIdentity(sourceContext);
+        },
         renderedPosterSpecification: renderedPosterSpecification,
         fixedPosterSpecification: fixedPosterSpecification,
+        deferHomeArtworkLoads: function () { return setHomeArtworkPressure('startup-render', true); },
+        homeArtworkPressureActive: homeArtworkPressureActive,
         prioritizePoster: prioritizePoster,
         renderActiveProfile: renderActiveProfile,
         renderServerActivities: renderServerActivities,
@@ -1086,8 +1328,9 @@
         onHomeEmpty: handleHomeEmpty,
         playHomeItem: transitions.playHomeItem,
         requestExit: transitions.requestExit,
-        scheduleAdjacentLibraryPrefetch: function () { call(transitions.scheduleAdjacentLibraryPrefetch, focusState().navIndex, navigationItems()); },
+        scheduleAdjacentLibraryPrefetch: function (immediate) { call(transitions.scheduleAdjacentLibraryPrefetch, immediate === true); },
         onHomeReady: transitions.onHomeReady,
+        onHomeArtworkPreviewReady: transitions.onHomeArtworkPreviewReady,
         scheduleNavigationPreview: scheduleNavigationPreview,
         startNavHold: startNavigationHold
       },
@@ -1102,9 +1345,11 @@
       activeBackdropSource: function () { return controller.activeBackdropSource(); },
       activeProfileTitle: activeProfileTitle,
       applyCardScale: function () { return controller.applyCardScale(); },
+      applyHomeEnrichment: applyHomeEnrichment,
       applyNavigationVisibility: applyNavigationVisibility,
       animateLibrarySurface: animateLibrarySurface,
       cancelImages: cancelImages,
+      cancelBackdropPrefetch: function () { return controller.cancelBackdropPrefetch(); },
       cancelNavigationHold: cancelNavigationHold,
       cardMetrics: function () { return controller.cardMetrics(); },
       cardProfile: function () { return controller.cardProfile(); },
@@ -1141,6 +1386,8 @@
       posterLoader: function () { return posterLoader; },
       prepareServerSwitch: prepareServerSwitch,
       prioritizePoster: prioritizePoster,
+      setHomeArtworkPressure: setHomeArtworkPressure,
+      warmHomeArtworkPreviews: warmHomeArtworkPreviews,
       refreshHome: refreshHome,
       renderActiveProfile: renderActiveProfile,
       renderNavigation: renderNavigation,
@@ -1151,17 +1398,20 @@
       resetHome: function () {
         clearPendingHomeApply();
         lastHomeInteractionAt = 0;
+        homeMovedSinceEntry = false;
         homeSourceGeneration += 1;
         homeSourceRows = [];
+        watchedProjections = {};
         return controller.resetHome();
       },
       rows: rows,
       scheduleBackdrop: scheduleBackdrop,
+      scheduleBackdropPrefetch: function (items, expectedView) { return controller.scheduleBackdropPrefetch(items, expectedView); },
       scheduleDetailBackdrop: function (item) { return controller.scheduleDetailBackdrop(item); },
       scheduleHomePolling: function () { return controller.scheduleHomePolling(); },
       scheduleNavigationPreview: scheduleNavigationPreview,
       scheduleSearchBackdrop: function (item) { return controller.scheduleSearchBackdrop(item); },
-      scheduleTheme: function (item) { return controller.scheduleTheme(item); },
+      scheduleTheme: function (item, sourceContext) { return controller.scheduleTheme(item, sourceContext); },
       selectorForNavIndex: selectorForNavIndex,
       setFocus: function (next) { noteHomeInteraction(); return controller.setFocus(next); },
       showHomeSurface: showHomeSurface,
@@ -1170,7 +1420,7 @@
       start: start,
       startNavigationHold: startNavigationHold,
       stopHomePolling: function () { return controller.stopHomePolling(); },
-      stopTheme: function () { if (backgroundAudio && backgroundAudio.stop) { backgroundAudio.stop(); } },
+      stopTheme: function () { if (controller && controller.stopTheme) { return controller.stopTheme(); } if (backgroundAudio && backgroundAudio.stop) { backgroundAudio.stop(); } },
       translateStaticUi: translateStaticUi,
       updateFocus: function () { return controller.updateFocus(); },
       updateWatched: updateWatched,

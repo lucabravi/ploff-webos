@@ -210,11 +210,14 @@ xhr.status = 200;
 xhr.readyState = 4;
 xhr.responseText = '<xml/>';
 xhr.onreadystatechange();
-assert.strictEqual(recentPage.items.length, 1, 'recent pages may group multiple raw episodes into one card');
-assert.strictEqual(recentPage.nextStart, 2, 'recent pagination must advance by raw episodes rather than grouped cards');
+assert.strictEqual(recentPage.items.length, 2, 'two adjacent recent episodes must remain separate cards');
+assert.strictEqual(recentPage.nextStart, 2, 'recent pagination must advance by raw episodes rather than visible grouped cards');
 assert.strictEqual(recentPage.hasMore, true, 'recent pagination must retain the raw Plex continuation state');
-assert.strictEqual(recentPage.items[0].recentGroup.count, 2, 'grouped recent cards must retain their raw episode count');
-assert.strictEqual(recentPage.items[0].recentGroup.seasonItem.type, 'season', 'grouped recent cards must retain a stable season presentation template');
+assert.ok(recentPage.items.every(function (item) { return item.recentGroup.count === 1; }),
+  'ungrouped recent cards must retain one raw episode each for cross-page adjacency checks');
+assert.ok(recentPage.items.every(function (item) { return item.detailKey === 'media.episodeNumber'; }),
+  'ungrouped recent cards must use spoiler-safe episode-number presentation');
+assert.strictEqual(recentPage.items[0].recentGroup.seasonItem.type, 'season', 'recent episode cards must retain a stable season presentation template');
 
 parseCount = 0;
 nextDocument = documentFor([

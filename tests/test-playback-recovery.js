@@ -56,7 +56,6 @@ assert.strictEqual(state.index, 1, 'network restoration must preserve the strate
 state = Recovery.fallback(state, false, 131, { code: 3 }, 'native');
 state = Recovery.fallback(state, false, 132, { code: 3 }, 'native');
 assert.strictEqual(state.status, 'failed', 'recovery must stop after the final strategy');
-assert.strictEqual(Recovery.canRetry(state), true, 'a final failure must remain manually retryable');
 state = Recovery.retry(state);
 assert.strictEqual(state.status, 'retrying', 'manual retry must restart the current strategy');
 assert.strictEqual(state.index, 2, 'manual retry must retain the selected strategy');

@@ -200,4 +200,32 @@ function createTimeline(overrides) {
   assert.strictEqual(h.root.intervals[1].cleared, true);
 }());
 
+
+
+(function retiredKeepaliveCallbackCannotStopTheNewSessionTimer() {
+  var h = createTimeline();
+  h.timeline.startKeepalive({ transcodeSession: 'a' }, function () { return false; });
+  var old = h.root.intervals[0];
+  h.timeline.reset({ server: 'b' });
+  h.timeline.startKeepalive({ transcodeSession: 'b' }, function () { return true; });
+  var next = h.root.intervals[1];
+  old.callback();
+  assert.strictEqual(next.cleared, false, 'a copied old timer must not cancel the replacement timer');
+  next.callback();
+  assert.strictEqual(h.pings[h.pings.length - 1].config.server, 'b');
+  h.timeline.reset();
+}());
+
+(function retiredReportingCallbackCannotReportTheOldItemToTheNewServer() {
+  var h = createTimeline({ config: { server: 'a' } });
+  h.timeline.startReporting({
+    current: function () { return { ratingKey: 'a' }; }, state: function () { return 'playing'; },
+    position: function () { return 40; }, duration: function () { return 100; }
+  });
+  var old = h.root.intervals[0];
+  h.timeline.reset({ server: 'b' });
+  old.callback();
+  assert.strictEqual(h.sent.length, 0, 'an already copied callback is still owned by its reporting lifetime');
+}());
+
 console.log('Playback timeline checks passed');

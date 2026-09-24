@@ -1,6 +1,19 @@
 'use strict';
 
 var assert = require('assert');
+var WarmMetrics = require('../app/startup-metrics');
+(function firstFrameTestNeedsNoUnboundedCapture() {
+  var time = 0;
+  var metrics = WarmMetrics.createAssColdStartMetrics({ warmTest: true, now: function () { return time; } });
+  assert.strictEqual(metrics.recordAssSync('renderer', { requestedTime: 1 }), true);
+  metrics.recordAssSync('worker-frame', { bitmapCount: 0, libassMs: 1 });
+  metrics.recordAssSync('worker-frame', { bitmapCount: 1, libassMs: 7000, blendMs: 12 });
+  time = 15000;
+  metrics.recordAssSync('raf-presented', { bitmapCount: 1, rafMs: 20 });
+  assert.deepStrictEqual(metrics.firstRenderProfile(), { libassMs: 7000, blendMs: 12, presentedAt: 15000, rafMs: 20 });
+  assert.deepStrictEqual(metrics.syncTrace(), [], 'test panel must not enable raw trace retention');
+  assert.strictEqual(metrics.recordAssSync('renderer', { requestedTime: 2 }), false, 'stop per-frame callbacks after first visible frame');
+}());
 var StartupMetrics = require('../app/startup-metrics');
 var DebugCapture = require('../app/debug-capture');
 

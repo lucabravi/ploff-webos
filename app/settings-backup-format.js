@@ -1,8 +1,8 @@
 (function (root, factory) {
   'use strict';
-  if (typeof module === 'object' && module.exports) { module.exports = factory(require('./settings')); }
-  else { root.PloffSettingsBackupFormat = factory(root.PloffSettings); }
-}(this, function (Settings) {
+  if (typeof module === 'object' && module.exports) { module.exports = factory(require('./settings'), require('./library-tab-store')); }
+  else { root.PloffSettingsBackupFormat = factory(root.PloffSettings, root.PloffLibraryTabStore); }
+}(this, function (Settings, LibraryTabStore) {
   'use strict';
 
   var FORMAT = 'ploff-settings';
@@ -14,7 +14,9 @@
   var MAX_ENCODED_BYTES = 12 * 1024;
   var MEDIA_PREFERENCE_PREFIX = 'ploff.mediaPreference.v1.';
   var MEDIA_PREFERENCE_V2_PREFIX = 'ploff.mediaPreference.v2.';
+  var MEDIA_SOURCE_PREFERENCE_KEY = 'ploff.mediaSourcePreference.v1';
   var LIBRARY_ORDER_KEY = 'ploff.libraryOrder.v1';
+  var LIBRARY_TABS_KEY = LibraryTabStore && LibraryTabStore.STORAGE_KEY ? LibraryTabStore.STORAGE_KEY : 'ploff.libraryTabs.v1';
   var SUBTITLE_OFFSETS_KEY = 'ploff.subtitle-offsets.v1';
   var SUBTITLE_PRESENTATION_KEY = 'ploff.subtitle-presentation.v2';
   var LEGACY_SUBTITLE_PRESENTATION_KEY = 'ploff.subtitle-presentation.v1';
@@ -70,6 +72,13 @@
     var value = readJson(storage, LIBRARY_ORDER_KEY, []);
     return isArray(value) ? value.map(String) : [];
   }
+  function libraryTabs(storage) {
+    var raw;
+    if (!storage || !storage.getItem || !LibraryTabStore || typeof LibraryTabStore.validate !== 'function') { return null; }
+    try { raw = storage.getItem(LIBRARY_TABS_KEY); } catch (_error) { return null; }
+    if (!raw) { return null; }
+    return LibraryTabStore.validate(readJson(storage, LIBRARY_TABS_KEY, {}));
+  }
   function subtitleOffsetsFromValue(value) {
     var result = {};
     Object.keys(value && typeof value === 'object' ? value : {}).sort().forEach(function (key) {
@@ -115,6 +124,34 @@
     }
     if (mediaIndex !== null && isFinite(mediaIndex) && mediaIndex >= 0) { result.legacyVersion = { mediaIndex: mediaIndex, partIndex: isFinite(partIndex) && partIndex >= 0 ? partIndex : 0 }; }
     return result;
+  }
+  function mediaSourcePreferenceEntry(guidValue, machineValue) {
+    var guid;
+    var machine;
+    if (typeof guidValue !== 'string' || typeof machineValue !== 'string') { return null; }
+    guid = cleanText(guidValue, 500);
+    machine = cleanText(machineValue, 240);
+    if (guid.indexOf('plex://') !== 0 || !/^[A-Za-z0-9._-]+$/.test(machine)) { return null; }
+    return { guid: guid, serverMachineIdentifier: machine };
+  }
+  function mediaSourcePreferencesFromValue(value) {
+    var result = [];
+    if (isArray(value)) {
+      value.slice(0, 512).forEach(function (entry) {
+        var sanitized = mediaSourcePreferenceEntry(entry && entry.guid, entry && entry.serverMachineIdentifier);
+        if (sanitized) { result.push(sanitized); }
+      });
+    } else if (value && typeof value === 'object') {
+      Object.keys(value).sort().slice(0, 512).forEach(function (guid) {
+        var sanitized = mediaSourcePreferenceEntry(guid, value[guid]);
+        if (sanitized) { result.push(sanitized); }
+      });
+    }
+    result.sort(function (left, right) { return left.guid < right.guid ? -1 : (left.guid > right.guid ? 1 : 0); });
+    return result;
+  }
+  function mediaSourcePreferences(storage) {
+    return mediaSourcePreferencesFromValue(readJson(storage, MEDIA_SOURCE_PREFERENCE_KEY, {}));
   }
   function mediaPreferences(storage) {
     var result = [];
@@ -257,6 +294,38 @@
     if (!save[property].length) { delete save[property]; }
     return save;
   }
+  function addMediaSourcePreferencesWithinBudget(save, values, omitted) {
+    var candidate = copy(save);
+    candidate.mediaSourcePreferences = [];
+    if (!fits(candidate)) { omitted.push('mediaSourcePreferences'); return save; }
+    save = candidate;
+    values.forEach(function (entry) {
+      candidate = copy(save);
+      candidate.mediaSourcePreferences.push(copy(entry));
+      if (fits(candidate)) { save = candidate; }
+      else { omitted.push('mediaSourcePreference:' + String(entry.guid || '')); }
+    });
+    return save;
+  }
+  function addLibraryTabsWithinBudget(save, tabs, omitted) {
+    var candidate;
+    var base;
+    if (!tabs) { return save; }
+    base = {
+      version: 1, legacyMigrated: tabs.legacyMigrated === true, displayMode: String(tabs.displayMode || 'text'),
+      home: copy(tabs.home), serverAliases: copy(tabs.serverAliases || []),
+      serverStates: copy(tabs.serverStates || []), homeOrder: copy(tabs.homeOrder || []), items: []
+    };
+    candidate = copy(save); candidate.libraryTabs = base;
+    if (!fits(candidate)) { omitted.push('libraryTabs'); return save; }
+    save = candidate;
+    (tabs.items || []).forEach(function (entry) {
+      candidate = copy(save); candidate.libraryTabs.items.push(copy(entry));
+      if (fits(candidate)) { save = candidate; }
+      else { omitted.push('libraryTab:' + String(entry.sourceId || '')); }
+    });
+    return save;
+  }
   function build(storage, settings, appVersion, now, options) {
     var values = options || {};
     var save = {
@@ -268,16 +337,24 @@
     var omitted = [];
     var candidate;
     var order = libraryOrder(storage);
+    var tabs = libraryTabs(storage);
     var preferences = mediaPreferences(storage);
+    var sourcePreferences = mediaSourcePreferences(storage);
     var offsets = subtitleOffsets(storage);
     var presentation = subtitlePresentation(storage);
     var learned = compatibility(storage);
     if (!fits(save)) { throw new Error('Ploff settings exceed the backup budget'); }
+    if (tabs) {
+      save = addLibraryTabsWithinBudget(save, tabs, omitted);
+      if (save.libraryTabs) { included.push('libraryTabs'); }
+    }
     if (order.length) {
       candidate = copy(save); candidate.libraryOrder = order;
       if (fits(candidate)) { save = candidate; included.push('libraryOrder'); }
       else { omitted.push('libraryOrder'); }
     }
+    save = addMediaSourcePreferencesWithinBudget(save, sourcePreferences, omitted);
+    if (own(save, 'mediaSourcePreferences')) { included.push('mediaSourcePreferences'); }
     if (preferences.length) {
       save = addArrayWithinBudget(save, 'mediaPreferences', preferences, omitted, 'mediaPreference:');
       if (save.mediaPreferences) { included.push('mediaPreferences'); }
@@ -316,17 +393,23 @@
       return entry && entry.key && preference ? { key: String(entry.key), storage: isV2 ? 'v2' : 'v1', value: preference } : null;
     }).filter(Boolean) : [];
   }
+  function parsedMediaSourcePreferences(parsed) {
+    return mediaSourcePreferencesFromValue(parsed.mediaSourcePreferences);
+  }
   function parseCurrent(parsed) {
     return {
       format: FORMAT, version: VERSION, sourceVersion: VERSION, legacyKind: '', appVersion: String(parsed.appVersion || ''),
       createdAt: Math.max(0, Number(parsed.createdAt || 0)), device: deviceRecord(parsed.device || {}),
       settings: exportedSettings(parsed.settings),
       libraryOrder: isArray(parsed.libraryOrder) ? parsed.libraryOrder.map(String) : [],
+      libraryTabs: LibraryTabStore && typeof LibraryTabStore.validate === 'function' ? LibraryTabStore.validate(parsed.libraryTabs || {}) : null,
       mediaPreferences: parsedMediaPreferences(parsed),
+      mediaSourcePreferences: parsedMediaSourcePreferences(parsed),
       subtitleOffsets: subtitleOffsetsFromValue(parsed.subtitleOffsets || {}),
       subtitlePresentation: subtitlePresentationFromValue(parsed.subtitlePresentation || {}),
       compatibility: compatibilityFromValue(parsed.compatibility || {}),
-      hasLibraryOrder: own(parsed, 'libraryOrder'), hasMediaPreferences: own(parsed, 'mediaPreferences'),
+      hasLibraryOrder: own(parsed, 'libraryOrder'), hasLibraryTabs: own(parsed, 'libraryTabs'), hasMediaPreferences: own(parsed, 'mediaPreferences'),
+      hasMediaSourcePreferences: own(parsed, 'mediaSourcePreferences'),
       hasSubtitleOffsets: own(parsed, 'subtitleOffsets'), hasSubtitlePresentation: own(parsed, 'subtitlePresentation'), hasCompatibility: own(parsed, 'compatibility')
     };
   }
@@ -338,11 +421,14 @@
       device: kind === 'device' ? deviceRecord(parsed.device || {}) : null,
       settings: exportedPresentSettings(parsed.settings),
       libraryOrder: isArray(parsed.libraryOrder) ? parsed.libraryOrder.map(String) : [],
+      libraryTabs: null,
       mediaPreferences: parsedMediaPreferences(parsed),
+      mediaSourcePreferences: [],
       subtitleOffsets: subtitleOffsetsFromValue(parsed.subtitleOffsets || {}),
       subtitlePresentation: subtitlePresentationFromValue(parsed.subtitlePresentation || {}),
       compatibility: compatibilityFromValue(parsed.compatibility || {}),
-      hasLibraryOrder: own(parsed, 'libraryOrder'), hasMediaPreferences: own(parsed, 'mediaPreferences'),
+      hasLibraryOrder: own(parsed, 'libraryOrder'), hasLibraryTabs: false, hasMediaPreferences: own(parsed, 'mediaPreferences'),
+      hasMediaSourcePreferences: false,
       hasSubtitleOffsets: own(parsed, 'subtitleOffsets'), hasSubtitlePresentation: own(parsed, 'subtitlePresentation'), hasCompatibility: own(parsed, 'compatibility')
     };
   }
@@ -379,12 +465,20 @@
     Object.keys(save.settings).forEach(function (key) { merged[key] = copy(save.settings[key]); });
     merged = Settings.save(storage, merged);
     if (save.hasLibraryOrder) { storage.setItem(LIBRARY_ORDER_KEY, JSON.stringify(save.libraryOrder)); }
+    if (save.hasLibraryTabs && LibraryTabStore && typeof LibraryTabStore.validate === 'function') {
+      storage.setItem(LIBRARY_TABS_KEY, JSON.stringify(LibraryTabStore.validate(save.libraryTabs)));
+    }
     if (save.hasMediaPreferences) {
       removeByPrefix(storage, MEDIA_PREFERENCE_PREFIX);
       removeByPrefix(storage, MEDIA_PREFERENCE_V2_PREFIX);
       save.mediaPreferences.forEach(function (entry) {
         storage.setItem((entry.storage === 'v2' ? MEDIA_PREFERENCE_V2_PREFIX : MEDIA_PREFERENCE_PREFIX) + entry.key, JSON.stringify(entry.value));
       });
+    }
+    if (save.hasMediaSourcePreferences) {
+      var sourcePreferenceState = {};
+      save.mediaSourcePreferences.forEach(function (entry) { sourcePreferenceState[entry.guid] = entry.serverMachineIdentifier; });
+      storage.setItem(MEDIA_SOURCE_PREFERENCE_KEY, JSON.stringify(sourcePreferenceState));
     }
     if (save.hasSubtitleOffsets) { storage.setItem(SUBTITLE_OFFSETS_KEY, JSON.stringify(save.subtitleOffsets)); }
     if (save.hasSubtitlePresentation) {
@@ -398,14 +492,10 @@
     return { settings: merged, save: save, backup: save, compatibilityApplied: save.hasCompatibility && values.includeCompatibility === true };
   }
   function devicePlaylistTitle(name) { return DEVICE_PLAYLIST_PREFIX + cleanText(name, 80) + ' - Do Not Delete'; }
-  function isTechnicalPlaylist(item) {
-    var summary = String(item && item.summary || '');
-    return String(item && item.title || '').indexOf(PLAYLIST_PREFIX) === 0 && (summary.indexOf(MARKER) === 0 || summary.indexOf(LEGACY_MARKER) === 0);
-  }
   return {
-    FORMAT: FORMAT, VERSION: VERSION, MARKER: MARKER, LEGACY_MARKER: LEGACY_MARKER, PLAYLIST_PREFIX: PLAYLIST_PREFIX,
-    DEVICE_PLAYLIST_PREFIX: DEVICE_PLAYLIST_PREFIX, MAX_ENCODED_BYTES: MAX_ENCODED_BYTES,
-    SETTINGS_KEYS: SETTINGS_KEYS, build: build, parse: parse, apply: apply, settingsEqual: settingsEqual,
-    encodedBytes: encodedBytes, devicePlaylistTitle: devicePlaylistTitle, isTechnicalPlaylist: isTechnicalPlaylist
+    FORMAT: FORMAT, VERSION: VERSION, MARKER: MARKER, PLAYLIST_PREFIX: PLAYLIST_PREFIX,
+    MAX_ENCODED_BYTES: MAX_ENCODED_BYTES,
+    build: build, parse: parse, apply: apply, settingsEqual: settingsEqual,
+    encodedBytes: encodedBytes, devicePlaylistTitle: devicePlaylistTitle
   };
 }));

@@ -4,13 +4,13 @@ var fs = require('fs');
 var path = require('path');
 var Minifier = require('./minify-javascript');
 
-var PRELUDE_FILES = ['player-runtime-loader.js'];
+var PRELUDE_FILES = ['player-runtime-loader.js', 'diagnostics-support-runtime-loader.js'];
 
 var PLAYER_FILES = [
   'skip-marker-state.js', 'player-controls-state.js', 'player-controls-view.js', 'player-buffering-indicator.js',
   'chapter-state.js', 'player-chapters-view.js', 'playback-recovery.js', 'playback-clock.js', 'native-video-driver.js',
-  'player-seek-controller.js', 'playback-reposition.js', 'playback-session.js', 'playback-timeline.js',
-  'episode-navigation.js', 'resume-choice.js', 'subtitle-sync.js', 'subtitle-runtime.js', 'subtitle-editor-session.js',
+  'player-seek-controller.js', 'playback-reposition.js', 'playback-session.js', 'playback-operation.js', 'playback-timeline.js',
+  'resume-choice.js', 'subtitle-sync.js', 'subtitle-runtime.js', 'subtitle-editor-session.js',
   'subtitle-editor-view.js', 'subtitle-offset-store.js', 'up-next-state.js', 'up-next-timing.js', 'up-next-view.js', 'queue-gap-view.js',
   'coordinator/queue-sequence-contract.js', 'coordinator/bounded-queue-cache.js', 'coordinator/plex-container-queue-provider.js',
   'coordinator/series-queue-provider.js', 'coordinator/queue-gap-controller.js', 'coordinator/playback-queue-controller.js',
@@ -31,11 +31,17 @@ var MODULE_FILES = [
   'setup-feature-controller.js',
   'server-controller.js',
   'server-feature-controller.js',
+  'plex-source-router.js',
+  'media-source-resolver.js',
+  'library-sources-controller.js',
+  'multi-server-content-controller.js',
   'search-controller.js',
   'search-feature-controller.js',
   'shell-controller.js',
   'shell-feature-controller.js',
   'library-controller.js',
+  'library-tab-prefetch.js',
+  '../library-grid-view.js',
   'library-feature-controller.js',
   'detail-controller.js',
   'detail-feature-controller.js',

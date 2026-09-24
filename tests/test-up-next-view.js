@@ -76,6 +76,26 @@ assert.strictEqual(nodes['autoplay-play'].textContent, 'Go Home');
 assert.strictEqual(nodes['autoplay-cancel'].textContent, 'Stay here');
 
 view.render({
+  visible: true,
+  layout: 'bottom-panel',
+  focus: 1,
+  progress: 0.5,
+  seconds: 4,
+  total: 10,
+  item: { ratingKey: 'episode-2', serverMachineIdentifier: 'server-b', title: 'Episode 2', imageSource: '/episode-2.jpg' }
+}, { countdown: 'Up next in 4s', play: 'Play now', cancel: 'Cancel' });
+view.render({
+  visible: true,
+  layout: 'bottom-panel',
+  focus: 1,
+  progress: 0.3,
+  seconds: 3,
+  total: 10,
+  item: { ratingKey: 'episode-2', serverMachineIdentifier: 'server-c', title: 'Episode 2', imageSource: '/episode-2.jpg' }
+}, { countdown: 'Up next in 3s', play: 'Play now', cancel: 'Cancel' });
+assert.strictEqual(nodes['autoplay-progress'].style.transition, 'width 3000ms linear', 'changing only the owning PMS must restart the Up Next countdown');
+
+view.render({
   visible: true, layout: 'bottom-panel', focus: 1, progress: 0.5, seconds: 5, total: 10,
   item: { action: 'home', title: 'Home', imageUrl: 'ploff-logo.svg' }
 }, { countdown: 'Home in 5s', play: 'Go Home', cancel: 'Stay here' });

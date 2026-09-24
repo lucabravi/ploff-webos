@@ -11,6 +11,7 @@
     var PlayerTimelinePolicy = values.PlayerTimelinePolicy;
     var PlexClient = values.PlexClient;
     var timerRoot = values.root || {};
+    var config = copyConfig(values.config);
     var clock = PlaybackClock.create(2);
     var timelineTimer = null;
     var estimatedEndTimer = null;
@@ -22,16 +23,32 @@
       return undefined;
     }
 
+    function copyConfig(source) {
+      var result = {};
+      Object.keys(source || {}).forEach(function (key) { result[key] = source[key]; });
+      return result;
+    }
+
+    function clearIntervals(timers) {
+      var cleanupError = null;
+      timers.forEach(function (timer) {
+        try { if (timer !== null && timerRoot.clearInterval) { timerRoot.clearInterval(timer); } }
+        catch (error) { if (!cleanupError) { cleanupError = error; } }
+      });
+      if (cleanupError) { throw cleanupError; }
+    }
+
     function stopReporting() {
-      if (timelineTimer !== null && timerRoot.clearInterval) { timerRoot.clearInterval(timelineTimer); }
-      if (estimatedEndTimer !== null && timerRoot.clearInterval) { timerRoot.clearInterval(estimatedEndTimer); }
+      var timers = [timelineTimer, estimatedEndTimer];
       timelineTimer = null;
       estimatedEndTimer = null;
+      clearIntervals(timers);
     }
 
     function stopKeepalive() {
-      if (keepaliveTimer !== null && timerRoot.clearInterval) { timerRoot.clearInterval(keepaliveTimer); }
+      var timer = keepaliveTimer;
       keepaliveTimer = null;
+      clearIntervals([timer]);
     }
 
     function anchor(absolute, frozen) {
@@ -87,7 +104,7 @@
         call(callback, reportPosition, false);
         return false;
       }
-      PlexClient.sendTimeline(values.config, current, stateName, reportPosition * 1000, callback ? function (error) {
+      PlexClient.sendTimeline(config, current, stateName, reportPosition * 1000, callback ? function (error) {
         callback(reportPosition, !error);
       } : undefined);
       return true;
@@ -95,37 +112,50 @@
 
     function startReporting(accessors) {
       var source = accessors || {};
+      var reportTimer;
+      var endTimer;
       var reportPosition = source.reportPosition || source.position;
       var estimatedPosition = source.estimatedPosition || source.position;
       stopReporting();
       if (!timerRoot.setInterval) { return false; }
       timelineTimer = timerRoot.setInterval(function () {
+        if (timelineTimer !== reportTimer) { return; }
         report(call(source.current), call(source.state), call(reportPosition), call(source.duration), call(source.terminal));
       }, 3000);
+      reportTimer = timelineTimer;
       estimatedEndTimer = timerRoot.setInterval(function () {
+        if (estimatedEndTimer !== endTimer) { return; }
         updateEstimatedEnd(call(estimatedPosition), call(source.duration), call(source.terminal), call(source.snapshot));
       }, 10000);
+      endTimer = estimatedEndTimer;
       updateEstimatedEnd(call(estimatedPosition), call(source.duration), call(source.terminal), call(source.snapshot));
       return true;
     }
 
     function startKeepalive(current, isCurrent) {
+      var timer;
       stopKeepalive();
       if (!current || !current.transcodeSession || current.options && current.options.delivery === 'direct-play') { return false; }
-      PlexClient.pingTranscode(values.config, current);
+      PlexClient.pingTranscode(config, current);
       if (!timerRoot.setInterval) { return true; }
       keepaliveTimer = timerRoot.setInterval(function () {
+        if (keepaliveTimer !== timer) { return; }
         if (call(isCurrent) !== true) { stopKeepalive(); return; }
-        PlexClient.pingTranscode(values.config, current);
+        PlexClient.pingTranscode(config, current);
       }, 30000);
+      timer = keepaliveTimer;
       return true;
     }
 
-    function reset() {
-      stopReporting();
-      stopKeepalive();
+    function reset(nextConfig) {
+      var timers = [timelineTimer, estimatedEndTimer, keepaliveTimer];
+      timelineTimer = null;
+      estimatedEndTimer = null;
+      keepaliveTimer = null;
+      if (nextConfig) { config = copyConfig(nextConfig); }
       clock = PlaybackClock.create(2);
       timelineSuppressed = false;
+      clearIntervals(timers);
     }
 
     if (!PlaybackClock || !PlayerTimelinePolicy || !PlexClient) { throw new Error('PlaybackTimeline requires clock, timeline policy, and Plex client capabilities'); }

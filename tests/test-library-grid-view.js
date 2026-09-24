@@ -45,7 +45,11 @@ function fixture(rootOverride, viewOptions) {
   var cancelled = [];
   var cancelledTargets = [];
   var focusEvents = [];
+  var adjacentEvents = [];
+  var fullDeferrals = [];
+  var prioritized = [];
   var metricCalls = 0;
+  var clearFocusCalls = 0;
   viewOptions = viewOptions || {};
   ['library-grid', 'library-grid-content', 'library-recommended'].forEach(function (id) { roots[id] = node('div'); roots[id].id = id; });
   roots['library-grid'].clientWidth = 320;
@@ -66,6 +70,7 @@ function fixture(rootOverride, viewOptions) {
   }
   var documentRef = {
     createElement: function (tagName) { return node(tagName); },
+    createDocumentFragment: function () { return node('#fragment'); },
     createTextNode: function (text) { return node('#text', '', text); },
     getElementById: function (id) { return roots[id]; },
     querySelector: function (selector) { var ids = Object.keys(roots); var index; var found; for (index = 0; index < ids.length; index += 1) { found = find(roots[ids[index]], selector); if (found.length) { return found[0]; } } return null; },
@@ -76,23 +81,31 @@ function fixture(rootOverride, viewOptions) {
     document: documentRef, SearchModel: SearchModel,
     moveGridDown: LibraryContainers.moveGridDown,
     element: function (tagName, className, text) { return node(tagName, className, text); },
+    cardProfile: viewOptions.cardProfile,
     cardMetrics: function () { metricCalls += 1; return { width: 100, imageHeight: 70, columnStep: 100, rowStep: 80 }; },
     mediaTitle: function (item) { return item.title; }, mediaCardMeta: function (item) { return item.meta || ''; }, mediaCardDetail: function (item) { return item.detail || ''; },
     mediaKey: function (item) { return item.ratingKey; },
     presentationVersion: viewOptions.presentationVersion,
+    artworkSignature: viewOptions.artworkSignature,
     showLibraryBadge: viewOptions.showLibraryBadge,
     recommendationTitle: function (row) { return row.title; },
-    renderedPosterSpecification: function (image, source, priority, scope, width, height) { image.setAttribute('data-poster', source || ''); return { source: source, priority: priority, scope: scope, width: width, height: height }; },
+    renderedPosterSpecification: function (image, source, priority, scope, width, height, sourceContext, sourceItem) { image.setAttribute('data-poster', source || ''); return { source: source, priority: priority, scope: scope, width: width, height: height, sourceContext: sourceContext, sourceItem: sourceItem }; },
+    fixedPosterSpecification: function (source, size, priority, scope, sourceContext, sourceItem) { return { source: source, priority: priority, scope: scope, width: size.width, height: size.height, sourceContext: sourceContext, sourceItem: sourceItem }; },
+    sourceContextForItem: viewOptions.sourceContextForItem,
+    sourceContextIdentity: viewOptions.sourceContextIdentity,
+    sourceIdentityForItem: viewOptions.sourceIdentityForItem,
     posterLoader: {
       cancel: function (target) { cancelledTargets.push(target); },
-      loadBatch: function (jobs) { posterBatches.push(jobs); },
+      loadBatch: function (jobs, callback) { posterBatches.push(jobs); if (callback) { callback(); } },
       cancelScope: function (scope) { cancelled.push(scope); },
-      prioritize: function () {}
+      deferFullLoads: function (delay) { fullDeferrals.push(delay); },
+      needsLoad: function (target, previewOnly) { return viewOptions.posterNeedsLoad ? viewOptions.posterNeedsLoad(target, previewOnly) : false; },
+      prioritize: function (target) { prioritized.push(target); }
     },
-    clearFocus: function () {}, pointerSelectionActive: function () { return false; }, onFocus: function (focus) { focusEvents.push(focus); },
+    clearFocus: function () { clearFocusCalls += 1; }, pointerSelectionActive: function () { return typeof viewOptions.pointerSelectionActive === 'function' ? viewOptions.pointerSelectionActive() : viewOptions.pointerSelectionActive === true; }, onFocus: function (focus, item, adjacent) { focusEvents.push(focus); adjacentEvents.push((adjacent || []).map(function (entry) { return entry.ratingKey; })); },
     overscanRows: 3
   });
-  return { view: view, roots: roots, batches: posterBatches, cancelled: cancelled, cancelledTargets: cancelledTargets, focusEvents: focusEvents, metricCalls: function () { return metricCalls; } };
+  return { view: view, roots: roots, batches: posterBatches, cancelled: cancelled, cancelledTargets: cancelledTargets, prioritized: prioritized, focusEvents: focusEvents, adjacentEvents: adjacentEvents, fullDeferrals: fullDeferrals, metricCalls: function () { return metricCalls; }, clearFocusCalls: function () { return clearFocusCalls; } };
 }
 
 function items(count, prefix) {
@@ -101,6 +114,57 @@ function items(count, prefix) {
   return result;
 }
 
+(function visibleRecentLibraryRowPromotesAllPreviewPosters() {
+  var recent = fixture();
+  var cards;
+  var index;
+  recent.view.setMode('recent', false);
+  recent.view.setItems(items(9), 9);
+  cards = recent.roots['library-grid-content'].children;
+  for (index = 0; index < cards.length; index += 1) {
+    cards[index].querySelector('.library-card-image').__plexProgressiveState = 'full';
+  }
+  for (index = 6; index < 9; index += 1) {
+    cards[index].querySelector('.library-card-image').__plexProgressiveState = 'preview';
+  }
+  recent.prioritized.length = 0;
+  recent.roots['library-grid'].scrollTop = 80;
+  recent.view.onScroll();
+  assert.deepStrictEqual(recent.prioritized.map(function (image) { return image.parentNode.getAttribute('data-library-index'); }), ['6', '7', '8'],
+    'scrolling a recent-library grid must promote every visible SD card, not only the focused one');
+  recent.prioritized.length = 0;
+  recent.view.focusCatalog(6);
+  assert.ok(recent.prioritized.some(function (image) { return image.parentNode.getAttribute('data-library-index') === '7'; }) &&
+    recent.prioritized.some(function (image) { return image.parentNode.getAttribute('data-library-index') === '8'; }),
+  'focusing one recent-library card must also promote its visible SD neighbors');
+}());
+
+(function gridFocusOwnershipCoversRemoteAndPointerMovement() {
+  var pointerActive = false;
+  var owned = fixture(null, { pointerSelectionActive: function () { return pointerActive; } });
+  var before;
+  var pointerTarget;
+  owned.view.setMode('catalog', true);
+  owned.view.setItems(items(4), 4);
+  owned.view.refreshFocus();
+  before = owned.clearFocusCalls();
+  owned.view.handleDirection('right');
+  assert.strictEqual(owned.clearFocusCalls(), before, 'Library grid D-pad movement must retain local focus ownership without a global clear');
+
+  pointerActive = true;
+  pointerTarget = owned.roots['library-grid-content'].children[2];
+  before = owned.clearFocusCalls();
+  owned.view.pointerFocus(pointerTarget);
+  assert.strictEqual(owned.clearFocusCalls(), before, 'Magic Remote movement inside the Library grid must reuse local focus ownership');
+  assert.ok(String(pointerTarget.className || '').indexOf('is-focused') !== -1, 'pointer grid focus must still move the logical focus ring');
+
+  owned.view.setContentActive(false);
+  owned.view.setContentActive(true);
+  before = owned.clearFocusCalls();
+  owned.view.pointerFocus(owned.roots['library-grid-content'].children[1]);
+  assert.strictEqual(owned.clearFocusCalls(), before + 1, 'Library grid must use the global clear after ownership is explicitly released');
+}());
+
 var playlist = fixture(null, {
   presentationVersion: function () { return 'en|playlist'; },
   showLibraryBadge: function () { return true; }
@@ -108,6 +172,69 @@ var playlist = fixture(null, {
 playlist.view.setMode('catalog', true);
 playlist.view.setItems([{ ratingKey: 'mixed', title: 'Mixed', image: '/mixed.jpg', libraryTitle: 'Anime', rating: 8.4 }], 1);
 assert.strictEqual(playlist.roots['library-grid-content'].children[0].querySelector('.library-source-badge').textContent, 'Anime', 'playlist contents display the source library badge');
+
+(function mixedArtworkUsesOwningServerContext() {
+  var macContext = { serverMachineIdentifier: 'mac-m4', apiBaseUrl: 'https://mac.example', token: 'mac-token' };
+  var lucaContext = { serverMachineIdentifier: 'luca-nuc', apiBaseUrl: 'https://luca.example', token: 'luca-token' };
+  var mixed = fixture(null, {
+    cardProfile: function () {
+      return { metrics: { width: 100, imageHeight: 70, columnStep: 100, rowStep: 80 }, poster: { width: 100, height: 70, previewWidth: 50, previewHeight: 35 } };
+    },
+    sourceContextForItem: function (item) { return item.serverMachineIdentifier === 'mac-m4' ? macContext : lucaContext; }
+  });
+  mixed.view.setMode('catalog', true);
+  mixed.view.setItems([
+    { ratingKey: 'mac', title: 'MAC M4', image: '/mac-poster', serverMachineIdentifier: 'mac-m4' },
+    { ratingKey: 'luca', title: 'LUCA-NUC', image: '/luca-poster', serverMachineIdentifier: 'luca-nuc' }
+  ], 2);
+  assert.strictEqual(mixed.batches.length, 1, 'mixed catalog artwork must be submitted as one batch');
+  assert.strictEqual(mixed.batches[0][0].specification.sourceContext, macContext, 'catalog artwork must use its owning MAC M4 context');
+  assert.strictEqual(mixed.batches[0][1].specification.sourceContext, lucaContext, 'catalog artwork must use its owning LUCA-NUC context');
+}());
+
+(function unresolvedLibraryArtworkKeepsDeclaredOwner() {
+  var item = { ratingKey: 'offline-owner', title: 'Offline owner', image: '/offline-owner.jpg', serverMachineIdentifier: 'server-offline' };
+  var unresolved = fixture(null, {
+    sourceContextForItem: function () { return null; },
+    sourceIdentityForItem: function (candidate) { return 'server:' + String(candidate && candidate.serverMachineIdentifier || ''); }
+  });
+  unresolved.view.setMode('catalog', true);
+  unresolved.view.setItems([item], 1);
+  assert.strictEqual(unresolved.batches.length, 1, 'unresolved external artwork must still reach the poster pipeline');
+  assert.strictEqual(unresolved.batches[0][0].specification.sourceItem, item, 'Library poster specifications must retain the declaring media item when its owner route is unavailable');
+}());
+
+(function libraryArtworkIdentityIgnoresTransportRotation() {
+  var context = { serverMachineIdentifier: 'server-a', apiBaseUrl: 'https://relay-one.example', token: 'one' };
+  var stable = fixture(null, {
+    sourceContextForItem: function () { return context; },
+    sourceContextIdentity: function (value) { return 'server:' + String(value && value.serverMachineIdentifier || ''); }
+  });
+  var item = { ratingKey: 'stable-source', title: 'Stable', image: '/same-art.jpg', serverMachineIdentifier: 'server-a' };
+  stable.view.setMode('catalog', true);
+  stable.view.setItems([item], 1);
+  assert.strictEqual(stable.batches.length, 1, 'initial artwork render must queue one batch');
+  context = { serverMachineIdentifier: 'server-a', apiBaseUrl: 'https://relay-two.example', token: 'two' };
+  stable.view.setItems([item], 1);
+  assert.strictEqual(stable.batches.length, 1, 'rotating route/token for the same PMS must not change Library artwork identity');
+}());
+
+(function retainedLibraryArtworkReloadsWhenEffectiveQualityChanges() {
+  var quality = '90';
+  var retained = fixture(null, {
+    artworkSignature: function () { return quality; }
+  });
+  var item = { ratingKey: 'quality', title: 'Quality', image: '/quality.jpg' };
+  retained.view.setMode('catalog', true);
+  retained.view.setItems([item], 1);
+  assert.strictEqual(retained.batches.length, 1, 'initial Library artwork must queue normally');
+  var saved = retained.view.snapshot();
+  quality = '100';
+  retained.view.restore(saved);
+  assert.strictEqual(retained.batches.length, 2,
+    'restored Library cards must request fresh artwork when the effective artwork quality changes');
+}());
+
 assert.strictEqual(playlist.roots['library-grid-content'].children[0].querySelector('.library-rating-badge').textContent, '♥ 8.4', 'source and rating badges may coexist on opposite card corners');
 
 var catalog = fixture();
@@ -121,13 +248,62 @@ assert.strictEqual(catalog.metricCalls(), 1, 'one catalog render must read card 
 var initialCatalogJobs = catalog.batches[catalog.batches.length - 1];
 assert.strictEqual(initialCatalogJobs.filter(function (job) { return job.specification.previewOnly !== true; }).length, 9, 'visible cards and one neighboring row must be eligible for full artwork');
 assert.strictEqual(initialCatalogJobs.filter(function (job) { return job.specification.previewOnly === true; }).length, 6, 'farther overscan rows must request preview-only artwork');
+catalog.view.refreshFocus();
 var catalogFocusBatches = catalog.batches.length;
 var catalogFocusEvents = catalog.focusEvents.length;
+var stableFocusAttributeReads = 0;
+var stableFocusTarget = catalog.roots['library-grid-content'].querySelector('[data-library-index="1"]');
+var stableFocusGetAttribute = stableFocusTarget.getAttribute;
+stableFocusTarget.getAttribute = function (key) { stableFocusAttributeReads += 1; return stableFocusGetAttribute.call(this, key); };
 catalog.view.handleDirection('right');
+assert.strictEqual(stableFocusAttributeReads, 0, 'catalog focus movement must trust a current presentation cache instead of rereading stable card attributes');
+assert.deepStrictEqual(catalog.fullDeferrals, [120], 'catalog key navigation must defer new full-resolution artwork until the key-repeat burst settles');
 catalog.view.refreshFocus();
 assert.strictEqual(catalog.batches.length, catalogFocusBatches, 'catalog focus movement must not rebuild poster batches');
 assert.strictEqual(catalog.focusEvents.length, catalogFocusEvents + 1, 'one catalog movement must publish one focus change even when the outer controller refreshes focus');
+assert.deepStrictEqual(catalog.adjacentEvents[catalog.adjacentEvents.length - 1], ['item2', 'item0', 'item4'],
+  'catalog focus must publish adjacent backdrop candidates with the movement direction first, then opposite and vertical neighbors');
 assert.strictEqual(catalog.view.navigationSnapshot().itemCount, 40, 'navigation snapshots must expose catalog counts without copying the full item array');
+
+var focusGutter = fixture(null, {
+  cardProfile: function () {
+    return { metrics: { width: 100, imageHeight: 60, captionHeight: 10, height: 70, columnStep: 100, rowStep: 80 }, poster: null };
+  }
+});
+focusGutter.roots['library-grid-content'].offsetTop = 6;
+focusGutter.view.setMode('catalog', true);
+focusGutter.view.setItems(items(20), 20);
+focusGutter.view.focusCatalog(3);
+focusGutter.roots['library-grid'].scrollTop = 0;
+var focusGutterTarget = focusGutter.roots['library-grid-content'].querySelector('[data-library-index="3"]');
+focusGutter.roots['library-grid'].getBoundingClientRect = function () { return { top: 0, bottom: this.clientHeight, left: 0, right: this.clientWidth }; };
+focusGutterTarget.getBoundingClientRect = function () {
+  var top = 6 + (parseInt(this.style.top, 10) || 0) - focusGutter.roots['library-grid'].scrollTop;
+  return { top: top, bottom: top + 70, left: 0, right: 100, width: 100, height: 70 };
+};
+focusGutter.view.refreshFocus();
+assert.ok(focusGutter.roots['library-grid'].clientHeight - focusGutterTarget.getBoundingClientRect().bottom >= 12, 'catalog focus must preserve the 12px bottom gutter including the real grid padding');
+
+var resizedFocus = fixture(null, {
+  cardProfile: function () {
+    return { metrics: { width: 100, imageHeight: 60, captionHeight: 10, height: 70, columnStep: 100, rowStep: 80 }, poster: null };
+  }
+});
+resizedFocus.roots['library-grid'].clientHeight = 240;
+resizedFocus.roots['library-grid-content'].offsetTop = 6;
+resizedFocus.view.setMode('catalog', true);
+resizedFocus.view.setItems(items(20), 20);
+resizedFocus.view.focusCatalog(3);
+resizedFocus.roots['library-grid'].scrollTop = 0;
+resizedFocus.roots['library-grid'].clientHeight = 160;
+var resizedTarget = resizedFocus.roots['library-grid-content'].querySelector('[data-library-index="3"]');
+resizedFocus.roots['library-grid'].getBoundingClientRect = function () { return { top: 0, bottom: this.clientHeight, left: 0, right: this.clientWidth }; };
+resizedTarget.getBoundingClientRect = function () {
+  var top = 6 + (parseInt(this.style.top, 10) || 0) - resizedFocus.roots['library-grid'].scrollTop;
+  return { top: top, bottom: top + 70, left: 0, right: 100, width: 100, height: 70 };
+};
+resizedFocus.view.refreshFocus();
+assert.ok(resizedFocus.roots['library-grid'].clientHeight - resizedTarget.getBoundingClientRect().bottom >= 12, 'catalog focus must use the current viewport height after a resize instead of stale cached geometry');
 
 var watchedFocus = fixture();
 var watchedFocusItem = { ratingKey: 'watched-focus', title: 'Watched focus', image: '/watched.jpg', viewed: false };
@@ -138,6 +314,19 @@ assert.strictEqual(watchedFocusCard.className.indexOf('is-viewed'), -1, 'catalog
 watchedFocusItem.viewed = true;
 watchedFocus.view.refreshFocus();
 assert.notStrictEqual(watchedFocusCard.className.indexOf('is-viewed'), -1, 'focus recovery must synchronize a mutated watched state without rebuilding the virtual catalog');
+
+var interruptedArtwork = fixture(null, {
+  posterNeedsLoad: function (target) { return target.retryArtwork === true; }
+});
+var interruptedItems = items(1, 'interrupted');
+interruptedArtwork.view.setMode('catalog', true);
+interruptedArtwork.view.setItems(interruptedItems, 1);
+var interruptedBatchCount = interruptedArtwork.batches.length;
+var interruptedImage = interruptedArtwork.roots['library-grid-content'].children[0].querySelector('img');
+interruptedImage.retryArtwork = true;
+interruptedArtwork.view.setItems(interruptedItems, 1);
+assert.strictEqual(interruptedArtwork.batches.length, interruptedBatchCount + 1,
+  'rerendering a visible card must requeue artwork left incomplete by a cancelled or failed request');
 
 var distantInitialFocus = fixture(null, { clampScrollToContent: true });
 distantInitialFocus.view.setMode('catalog', true);
@@ -229,6 +418,45 @@ preserved.view.focusCatalog(17);
 preserved.view.setItems([items(1, 'replacement')[0]].concat(items(23)), 24);
 assert.strictEqual(preserved.view.snapshot().focus.index, 18, 'data updates must follow the focused media when a prepend shifts its position');
 assert.strictEqual(preserved.view.focusedItem().ratingKey, 'item17', 'focus preservation must retain the selected content identity after an insertion');
+var focusedRemoval = items(24).filter(function (item) { return item.ratingKey !== 'item17'; });
+preserved.view.setItems(focusedRemoval, focusedRemoval.length);
+assert.strictEqual(preserved.view.snapshot().focus.index, 18, 'removing the focused Library item must keep the nearest valid numeric position when its identity no longer exists');
+assert.strictEqual(preserved.view.focusedItem().ratingKey, 'item19', 'focused-item removal must land on a real surviving Library card rather than a stale detached node');
+
+(function detachedRecommendationPrefetchBuildsCardsAndSdArtworkOnly() {
+  var prefetched = fixture();
+  var settled = 0;
+  var dom = prefetched.view.buildDetachedRecommendations([
+    { identifier: 'recent', title: 'Recent', items: items(4, 'prefetch') }
+  ], 30, function () { settled += 1; });
+  assert.ok(dom && dom.recommendations, 'adjacent Library prefetch must build detached recommendation DOM before first entry');
+  assert.strictEqual(dom.recommendations.children.length, 1, 'detached prefetch must preserve recommendation sections');
+  assert.strictEqual(prefetched.batches.length, 1, 'detached prefetch must batch poster warming with the shared progressive loader');
+  assert.strictEqual(prefetched.batches[0].length, 4, 'detached prefetch must warm the cards it prebuilt');
+  assert.strictEqual(prefetched.batches[0].every(function (job) { return job.specification.scope === 'library-prefetch'; }), true,
+    'detached poster warming must remain isolated in the Library prefetch scope');
+  assert.strictEqual(prefetched.batches[0].every(function (job) { return job.specification.previewOnly === true; }), true,
+    'detached Library prefetch must warm only SD previews, leaving HD work for foreground entry');
+  assert.strictEqual(settled, 1, 'detached Library prefetch must settle only after its SD poster batch settlement callback');
+}());
+
+(function detachedTabPrefetchUsesViewportAndRetainsReusableSkeleton() {
+  var prefetched = fixture();
+  var page = { items: items(20, 'tab-prefetch'), totalSize: 20 };
+  var limit = prefetched.view.prefetchLimit('catalog', true);
+  var dom = prefetched.view.buildDetachedTab('catalog', page, limit, function () {});
+  assert.strictEqual(limit, 9, 'tab prefetch must warm the visible catalog rows plus one overscan row');
+  assert.ok(dom && dom.grid, 'tab prefetch must return a detached catalog skeleton');
+  assert.strictEqual(dom.grid.children.length, limit, 'tab skeleton size must follow the measured viewport instead of a fixed page size');
+  assert.strictEqual(dom.grid.children[0].getAttribute('data-library-index'), '0', 'catalog skeleton cards must retain their logical index for adoption');
+  assert.strictEqual(prefetched.batches[prefetched.batches.length - 1].every(function (job) { return job.specification.scope === 'library-tab-prefetch'; }), true,
+    'tab presentation warming must use its own low-priority scope');
+  assert.strictEqual(prefetched.batches[prefetched.batches.length - 1].every(function (job) { return job.specification.previewOnly === true; }), true,
+    'tab presentation warming must request only SD previews');
+  prefetched.view.buildDetachedTab('catalog', page, 1, function () {}, 'library-tab-prefetch-catalog');
+  assert.strictEqual(prefetched.batches[prefetched.batches.length - 1].every(function (job) { return job.specification.scope === 'library-tab-prefetch-catalog'; }), true,
+    'tab presentation warming must allow the controller to isolate artwork cancellation per tab');
+}());
 
 var recommendations = fixture();
 recommendations.view.setMode('recommended', false);

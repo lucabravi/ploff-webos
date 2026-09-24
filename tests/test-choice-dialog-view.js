@@ -178,6 +178,7 @@ assert.strictEqual(nodes['choice-dialog-preview'].children[0].src, 'https://exam
 view.close();
 view.open('Exit Ploff', [{ value: 'exit', label: 'Exit' }], 'exit', 'full-screen');
 assert.ok(/is-full-screen/.test(nodes['choice-dialog'].className), 'the exit confirmation must support the full-screen shared dialog presentation');
+assert.ok(!/is-selected/.test(nodes['choice-dialog-list'].children[0].className), 'action confirmations must not present their focused action as a persisted selection');
 view.close();
 
 view.open('Global renderer?', [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }], 'no', 'confirm');

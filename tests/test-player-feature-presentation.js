@@ -212,6 +212,25 @@ var createHarness = Fixture.createHarness;
     'current-detail promotion must still open the normal playback controller exactly once');
 }());
 
+(function foregroundAssOwnershipIsCancelledOnPlayerSourceChangesAndClose() {
+  var cancellations = [];
+  var h = createHarness({
+    data: {
+      cancelAssPrefetch: function (reason, preserveIdentity, includeForeground) {
+        cancellations.push([reason, preserveIdentity, includeForeground]);
+      }
+    }
+  });
+  h.captured.playbackOptions.onTrackChanged();
+  h.captured.playbackOptions.onVersionChanged();
+  h.captured.controlsOptions.closePlayer();
+  assert.deepStrictEqual(cancellations.slice(0, 3), [
+    ['subtitle selection changed', '', true],
+    ['media version changed', '', true],
+    ['player closed', '', true]
+  ], 'track/version changes and Player close must abort foreground ASS ownership tied to the previous target');
+}());
+
 (function timedNextAssPrefetchStartsOnceAtTheEffectiveTrigger() {
   var pendingNext = null;
   var requests = [];
@@ -258,6 +277,46 @@ var createHarness = Fixture.createHarness;
 
   h.captured.controlsOptions.closePlayer();
   assert.strictEqual(cancellations, 1, 'closing Player must cancel speculative ASS work');
+}());
+
+(function nextAssPrefetchRetriesWhenLocalRenderingWasUnavailable() {
+  var pendingNext = null;
+  var attempts = 0;
+  var latestState = { positionSeconds: 1700, durationSeconds: 1800, paused: false, subtitleEditor: {}, markers: [] };
+  var current = {
+    ratingKey: 'episode-current',
+    options: { subtitleStreamID: '', subtitleSize: 100, mediaIndex: 0, partIndex: 0 },
+    markers: []
+  };
+  var h = createHarness({
+    playbackValue: current,
+    playbackSnapshot: function (playbackValue, subtitleEditorState) {
+      return {
+        active: true,
+        positionSeconds: latestState.positionSeconds,
+        durationSeconds: latestState.durationSeconds,
+        paused: latestState.paused,
+        subtitleEditor: subtitleEditorState,
+        playback: playbackValue
+      };
+    },
+    resolveAdjacentState: function (direction, callback) {
+      if (direction < 0) { callback(null, { state: 'unavailable' }); return { state: 'unavailable' }; }
+      pendingNext = callback;
+      return { state: 'resolving' };
+    },
+    data: {
+      prefetchNextAss: function () {
+        attempts += 1;
+        return attempts > 1;
+      }
+    }
+  });
+  h.captured.playbackOptions.onPlaybackLoaded(current, { detail: { ratingKey: 'episode-current' } });
+  pendingNext(null, { state: 'available', index: 1, item: { ratingKey: 'episode-next', type: 'episode' } });
+  assert.strictEqual(attempts, 1, 'the first due next-ASS prefetch may be rejected when local rendering is unavailable');
+  h.captured.playbackOptions.onState(latestState);
+  assert.strictEqual(attempts, 2, 'a synchronously rejected next-ASS prefetch must not consume the identity and must retry after local rendering becomes available');
 }());
 
 (function resumePointerFocusSelectsTheClickedChoice() {
@@ -334,6 +393,17 @@ var createHarness = Fixture.createHarness;
   h.controller.openStandalone({ item: extra, detail: extra, resume: false });
   h.controller.destroy();
   assert.strictEqual(h.captured.playerQueueOptions.detailSnapshot().currentDetail.ratingKey, 'parent-movie', 'destroy must release the transient standalone Detail override');
+}());
+
+(function errorsWithoutRetryHideTheRetryCommand() {
+  var errorButtons = [fakeNode('player-error-retry'), fakeNode('player-error-settings'), fakeNode('player-error-back')];
+  var h = createHarness({
+    querySelectorAll: function (selector) { return selector === '.player-error-actions button' ? errorButtons : []; }
+  });
+  h.captured.playbackOptions.showError(false, null);
+  assert.strictEqual(h.nodes['player-error-retry'].disabled, true, 'errors without a retry callback must disable Retry');
+  assert.ok(/is-hidden/.test(h.nodes['player-error-retry'].className), 'errors without a retry callback must not present Retry as a usable action');
+  assert.strictEqual(errorButtons[1].focusCount, 1, 'errors without Retry must focus the next usable action');
 }());
 
 (function forcedDirectErrorOffersAutomaticModeInPlayerUi() {
@@ -476,10 +546,6 @@ var createHarness = Fixture.createHarness;
       pendingNext = callback;
       return { state: 'resolving' };
     },
-    resolveAdjacent: function () {
-      // Mirrors PlaybackQueueController while the same-direction lookup is already resolving:
-      // the second consumer cannot attach a callback to the in-flight request.
-    },
     settings: { settings: function () { return { autoplayDelay: 10 }; } },
     shell: {
       t: function (key) { return key; },
@@ -570,6 +636,21 @@ var createHarness = Fixture.createHarness;
   h.controller.handleQueueCapture({ keyCode: 38, preventDefault: function () {} });
   assert.strictEqual(queueReads, 1, 'queue key routing must read the queue snapshot once');
   assert.strictEqual(viewReads, 1, 'queue key routing must read the active view once');
+}());
+
+(function queueClosePointerControlIsNotHandledAsAQueueCommand() {
+  var button = fakeNode('player-playlist-queue-close');
+  var h = createHarness({
+    queueSnapshot: { playlistQueue: { id: 'queue' }, drawer: { open: true, index: 0 }, directPlayPending: false, destroyed: false },
+    state: { currentView: function () { return 'player'; }, setView: function () {}, pointerSelectionActive: function () { return false; } }
+  });
+  h.controller.pointerCaptureClick({ preventDefault: function () {} }, button);
+  assert.strictEqual(h.calls.some(function (entry) { return entry[0] === 'close-drawer'; }), false, 'the removed Queue Close pointer control must not add a second close path');
+}());
+
+(function chapterDrawerDoesNotExposeARedundantCloseControl() {
+  var h = createHarness();
+  assert.strictEqual(h.nodes['player-chapters-close'], undefined, 'the Chapters drawer must not expose a redundant Close control');
 }());
 
 (function queuePointerRoutingReadsSnapshotsOnce() {
@@ -752,9 +833,20 @@ var createHarness = Fixture.createHarness;
 
 (function upNextItemsExposeArtworkSourceWithoutPreSizing() {
   var posterCalls = [];
-  var h = createHarness({ data: { PlexClient: { posterUrl: function () { posterCalls.push(Array.prototype.slice.call(arguments)); return 'unexpected'; } } } });
-  var item = h.captured.queueOptions.upNextItem({ item: { ratingKey: 'next', image: '/next.jpg', title: 'Next' } }, 'bottom-panel');
+  var sourceRouter = require('../app/coordinator/plex-source-router').create({ sources: {
+    contextForMachine: function (machine) {
+      return machine === 'server-b' ? { serverMachineIdentifier: 'server-b', apiBaseUrl: 'https://b.example', token: 'b-token' } : null;
+    }
+  } });
+  var h = createHarness({ data: { sourceRouter: sourceRouter,
+    PlexClient: { posterUrl: function () { posterCalls.push(Array.prototype.slice.call(arguments)); return 'unexpected'; } } } });
+  var item = h.captured.queueOptions.upNextItem({ item: {
+    ratingKey: 'next', image: '/next.jpg', title: 'Next',
+    serverMachineIdentifier: 'server-b', sourceId: 'server-b|4', serverName: 'Marco'
+  } }, 'bottom-panel');
   assert.strictEqual(item.imageSource, '/next.jpg', 'the Up Next view must receive the original artwork source for DOM-sized generation');
+  assert.strictEqual(item.serverMachineIdentifier, 'server-b', 'the Up Next media model must retain the owning PMS identifier');
+  assert.strictEqual(item.sourceId, 'server-b|4', 'the Up Next media model must retain its source identity');
   assert.strictEqual(Object.prototype.hasOwnProperty.call(item, 'imageUrl'), false, 'the player feature must not pre-generate a 2x Up Next cover');
   assert.deepStrictEqual(posterCalls, [], 'Up Next cover sizing belongs to the rendered view, not the player orchestrator');
 }());

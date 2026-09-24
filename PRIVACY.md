@@ -37,6 +37,12 @@ Ploff does not operate an analytics service, advertising service, telemetry
 backend, or developer-controlled database. The Ploff developer does not receive
 the data stored by the application.
 
+The local development preview has one additional test-only behavior: if the
+browser blocks Web Storage, its temporary preview helper may persist the
+authentication record in a JavaScript-readable cookie so reloads keep the test
+session. This helper is not included in the packaged TV app and is not used by
+the release runtime.
+
 ## Data Transmission
 
 Ploff communicates directly with:

@@ -86,17 +86,6 @@ var ranges = Fixture.ranges;
   assert.deepStrictEqual(h.closed, [{ position: 40, reported: true, ratingKey: 'episode-1' }]);
 }());
 
-(function staleAdjacentResolutionCannotReopenAfterClose() {
-  var resolver = null;
-  var h = harness({ resolveAdjacent: function (direction, callback) { resolver = callback; } });
-  h.controller.open({ detail: { ratingKey: 'episode-1' }, startOffset: 40 });
-  h.controller.startAdjacent(1, function () { throw new Error('a cancelled adjacent request must not complete'); });
-  h.controller.close();
-  resolver(null, { item: { ratingKey: 'episode-2' }, detail: { ratingKey: 'episode-2' } });
-  assert.strictEqual(h.controller.snapshot().active, false, 'a late adjacent resolver must not reopen playback after Back/close');
-  assert.strictEqual(h.adjacentStarted.length, 0);
-}());
-
 (function externalSubtitleEditorKeepsVerifiedLocalOverlay() {
   var h = harness();
   var preparations;

@@ -37,6 +37,11 @@ function elapsedMs(started) {
   return Math.round(elapsed[0] * 1000 + elapsed[1] / 1000000);
 }
 
+function exclusiveTest(fileName) {
+  var name = path.basename(fileName);
+  return name === 'test-ass-legacy-worker-profile.js' || name === 'test-ass-wasm-worker-profile.js';
+}
+
 function outputBlock(fileName, stdout, stderr, failed, durationMs) {
   var relative = path.relative(root, fileName) || fileName;
   var target = failed ? process.stderr : process.stdout;
@@ -67,8 +72,12 @@ function run(files, options, callback) {
   function schedule() {
     var fileName;
     var child;
+    var exclusive;
     while (!failed && running.length < jobs && nextIndex < list.length) {
+      if (running.some(function (record) { return record.exclusive; })) { break; }
       fileName = list[nextIndex];
+      exclusive = exclusiveTest(fileName);
+      if (exclusive && running.length) { break; }
       nextIndex += 1;
       child = childProcess.spawn(process.execPath, [fileName], {
         cwd: root,
@@ -76,7 +85,7 @@ function run(files, options, callback) {
       });
       (function (currentFile, currentChild) {
         var started = process.hrtime();
-        var record = { fileName: currentFile, started: started };
+        var record = { fileName: currentFile, started: started, exclusive: exclusiveTest(currentFile) };
         running.push(record);
         var childStdout = '';
         var childStderr = '';
@@ -120,6 +129,7 @@ function run(files, options, callback) {
           settle(timedOut || code !== 0);
         });
       }(fileName, child));
+      if (exclusive) { break; }
     }
     complete();
   }

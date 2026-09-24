@@ -50,6 +50,7 @@ var opened = 0;
 var closed = 0;
 var rendered = 0;
 var qrRendered = 0;
+var supportRequests = [];
 var documentStub = {
   getElementById: function (id) { return nodes[id]; },
   querySelectorAll: function () { return actions; }
@@ -90,11 +91,7 @@ var view = DiagnosticsView.create({
     requests.push({ callback: callback, request: request });
     return request;
   },
-  getSupportReport: function () { return { mailto: 'mailto:?body=support', body: 'safe report text' }; },
-  SupportQr: {
-    create: function (value) { assert.strictEqual(value, 'mailto:?body=support'); return { modules: [[true]], size: 1, version: 1 }; },
-    render: function () { qrRendered += 1; return true; }
-  },
+  requestSupportReport: function (identityState, callback) { supportRequests.push({ identityState: identityState, callback: callback }); },
   isPointerSelectionActive: function () { return false; },
   onOpen: function () { opened += 1; },
   onClose: function () { closed += 1; }
@@ -166,10 +163,20 @@ assert.strictEqual(rendered, renderedBeforeStaleRefresh, 'an older request must 
 
 view.setFocus(1);
 view.handleKey({ keyCode: 13, preventDefault: function () {} });
-assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog', 'Export must open the support QR dialog');
-assert.strictEqual(nodes['diagnostics-report-text'].textContent, 'safe report text', 'Export must expose the privacy-safe text report even when QR rendering succeeds');
-assert.strictEqual(qrRendered, 1, 'Export must render one QR for the current support report');
+assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog', 'Export must open the support QR dialog immediately');
+assert.strictEqual(supportRequests.length, 1, 'Export must request the support runtime only on activation');
+assert.strictEqual(nodes['diagnostics-report-text'].textContent, '', 'the dialog must not expose stale report text while support code is loading');
+assert.strictEqual(qrRendered, 0, 'QR rendering must wait for the lazy support runtime');
+assert.strictEqual(nodes['diagnostics-qr-canvas'].className, 'is-hidden', 'the previous QR canvas must stay hidden while support code is loading');
 assert.strictEqual(nodes['diagnostics-qr-close'].focused, true, 'opening the support QR dialog must focus its close action');
+var supportQr = {
+  create: function (value) { assert.strictEqual(value, 'mailto:?body=support'); return { modules: [[true]], size: 1, version: 1 }; },
+  render: function () { qrRendered += 1; return true; }
+};
+supportRequests[0].callback(null, { mailto: 'mailto:?body=support', body: 'safe report text' }, supportQr);
+assert.strictEqual(nodes['diagnostics-report-text'].textContent, 'safe report text', 'resolved export must expose the privacy-safe text report');
+assert.strictEqual(qrRendered, 1, 'resolved export must render one QR for the current support report');
+assert.strictEqual(nodes['diagnostics-qr-canvas'].className, '', 'successful QR rendering must reveal the canvas');
 view.handleKey({ keyCode: 38, preventDefault: function () {} }, 'up');
 assert.strictEqual(nodes['diagnostics-report-text'].focused, true, 'Up from the close action must focus the report');
 nodes['diagnostics-report-text'].scrollTop = 0;
@@ -182,8 +189,21 @@ nodes['diagnostics-qr-close'].onclick();
 assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog is-hidden', 'the QR close button must close the dialog');
 view.setFocus(1);
 view.handleKey({ keyCode: 13, preventDefault: function () {} });
+assert.strictEqual(supportRequests.length, 2, 'reopening export may join/reuse the runtime through the controller port');
 view.handleKey({ keyCode: 461, preventDefault: function () {} });
 assert.strictEqual(nodes['diagnostics-qr-dialog'].className, 'diagnostics-qr-dialog is-hidden', 'Back must close the support QR dialog first');
+supportRequests[1].callback(null, { mailto: 'mailto:?body=stale', body: 'stale report' }, supportQr);
+assert.strictEqual(qrRendered, 1, 'a late support callback must not repaint a closed dialog');
+assert.notStrictEqual(nodes['diagnostics-report-text'].textContent, 'stale report', 'a late support callback must not replace closed-dialog content');
+
+view.setFocus(1);
+view.handleKey({ keyCode: 13, preventDefault: function () {} });
+assert.strictEqual(supportRequests.length, 3);
+supportRequests[2].callback(new Error('load failed'), null, null);
+assert.strictEqual(nodes['diagnostics-qr-fallback'].className, 'diagnostics-qr-fallback', 'support load failure must reveal the existing QR-unavailable fallback');
+assert.strictEqual(nodes['diagnostics-qr-fallback'].textContent, 'diagnostics.qrUnavailable');
+assert.strictEqual(nodes['diagnostics-qr-canvas'].className, 'is-hidden', 'failed support loading must not expose a stale QR canvas');
+nodes['diagnostics-qr-close'].onclick();
 
 view.close();
 assert.strictEqual(view.isOpen(), false, 'closing must deactivate the diagnostics controller');
@@ -196,6 +216,7 @@ requests[1].callback(null, { name: 'Stale server' });
 assert.strictEqual(rendered, 1, 'stale identity callbacks after close must not render diagnostics again');
 
 var synchronousNames = [];
+var synchronousPreloads = [];
 var synchronousView = DiagnosticsView.create({
   document: documentStub,
   root: rootStub,
@@ -225,10 +246,12 @@ var synchronousView = DiagnosticsView.create({
     callback(null, { name: 'Immediate server' });
     return { abort: function () {} };
   },
+  preloadSupportRuntime: function () { synchronousPreloads.push(synchronousNames[synchronousNames.length - 1]); },
   isPointerSelectionActive: function () { return false; }
 });
 synchronousView.open();
 assert.strictEqual(synchronousNames[synchronousNames.length - 1], 'Immediate server', 'a synchronous identity callback must update diagnostics before refresh returns');
+assert.deepStrictEqual(synchronousPreloads, ['Immediate server'], 'support runtime preload must start only after identity completion has been rendered');
 
 var offlineRenders = 0;
 var offlineView = DiagnosticsView.create({

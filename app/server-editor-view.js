@@ -23,8 +23,15 @@
     }
     function updateFocus() {
       var list = values.document.getElementById('server-editor-list');
+      var editor;
+      var parentRow;
       var index;
       if (!list) { return snapshot(); }
+      editor = list.parentNode;
+      parentRow = editor && editor.previousSibling;
+      /* The parent setting is replaced by the inline editor while it is
+       * open. Keep one logical focus ring: the active server row. */
+      setFocused(parentRow, false);
       for (index = 0; index < list.children.length; index += 1) {
         setFocused(list.children[index], index === viewState.index);
       }
@@ -43,21 +50,36 @@
       var index;
       var server;
       var button;
+      var viewState;
       if (!list) { return; }
+      if (state && state.index !== undefined) { focus(state.index, servers.length + 2); }
+      viewState = snapshot();
       list.innerHTML = '';
-      button = row(values.t('settings.findServers'), 'server-editor-row' + (state.index === 0 ? ' is-focused' : ''), 0);
+      button = row(values.t('settings.findServers'), 'server-editor-row' + (viewState.index === 0 ? ' is-focused' : ''), 0);
+      button.disabled = state.resolving === true;
       list.appendChild(button);
-      button = row(values.t('setup.manualAddress'), 'server-editor-row' + (state.index === 1 ? ' is-focused' : ''), 1, 'manual');
+      button = row(values.t('setup.manualAddress'), 'server-editor-row' + (viewState.index === 1 ? ' is-focused' : ''), 1, 'manual');
+      button.disabled = state.resolving === true;
       list.appendChild(button);
       for (index = 0; index < servers.length; index += 1) {
         server = servers[index];
-        button = row((state.activeUri === server.uri ? '\u2713 ' : '') + server.name, 'server-editor-row' + (state.index === index + 2 ? ' is-focused' : ''), index + 2);
+        var routeLabel = typeof values.serverRouteLabel === 'function' ? values.serverRouteLabel(server) : '';
+        var serverLabel = (state.activeUri === server.uri ? '\u2713 ' : '') + server.name;
+        if (routeLabel) { serverLabel += ' \u00b7 ' + routeLabel; }
+        button = row(serverLabel,
+          'server-editor-row' + (viewState.index === index + 2 ? ' is-focused' : '') +
+          (state.resolving && viewState.index === index + 2 ? ' is-loading' : ''), index + 2);
         values.appendAddresses(button, state.addressesFor(server));
+        if (state.resolving && viewState.index === index + 2) {
+          button.appendChild(values.element('span', 'server-editor-loading', state.loadingLabel));
+        }
+        button.disabled = state.resolving === true;
         list.appendChild(button);
       }
-      if (!values.isPointerSelectionActive() && state.open && list.children[state.index]) {
-        list.children[state.index].focus();
-        values.keepFocusVisible(list, list.children[state.index]);
+      updateFocus();
+      if (!values.isPointerSelectionActive() && viewState.open && list.children[viewState.index]) {
+        list.children[viewState.index].focus();
+        values.keepFocusVisible(list, list.children[viewState.index]);
       }
     }
     return { open: open, close: close, focus: focus, updateFocus: updateFocus, snapshot: snapshot, render: render };

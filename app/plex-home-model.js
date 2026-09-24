@@ -16,9 +16,13 @@
       return section.key && section.title && (section.type === 'movie' || section.type === 'show');
     }).map(function (section) {
       return {
-        title: 'Recentemente aggiunto in ' + section.title,
+        title: 'home.recentInLibrary',
+        titleKey: 'home.recentInLibrary',
+        titleParameters: { library: String(section.title) },
         path: '/library/sections/' + section.key + '/recentlyAdded',
         kind: 'recent',
+        sectionKey: String(section.key),
+        sectionTitle: String(section.title),
         groupRecent: true
       };
     });
@@ -26,7 +30,8 @@
 
   function homeDefinitions(sections, config) {
     return [{
-      title: 'Continua a guardare',
+      title: 'library.continue',
+      titleKey: 'library.continue',
       path: config && config.continuePath || '/hubs/continueWatching/items',
       kind: 'continue',
       showLibraryBadge: true

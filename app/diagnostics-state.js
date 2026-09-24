@@ -151,7 +151,6 @@
     playback: playback,
     profile: profile,
     sanitizeText: sanitizeText,
-    sanitizeServerUri: sanitizeServerUri,
     server: server,
     startup: startup,
     snapshot: snapshot

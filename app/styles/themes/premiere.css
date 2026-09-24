@@ -27,6 +27,7 @@ body.visual-theme-premiere {
   --focus-color: #fff4d7;
   --focus-shadow: 0 0 0 3px rgba(10,13,18,.95), 0 0 0 7px rgba(255,244,215,.96), 0 18px 44px rgba(0,0,0,.48);
   --focus-shadow-inset: inset 0 0 0 2px rgba(10,13,18,.95), inset 0 0 0 6px rgba(255,244,215,.94);
+  --navigation-focus-gutter: 6px;
   --primary-focus-shadow: 0 0 0 2px rgba(10,13,18,.95), 0 0 0 6px rgba(255,210,133,.96), 0 16px 40px rgba(0,0,0,.42);
 }
 
@@ -102,6 +103,10 @@ body.visual-theme-premiere .nav-item.is-selected:after {
 body.visual-theme-premiere .navigation-libraries .nav-item.is-focused,
 body.visual-theme-premiere .nav-item.is-focused {
   background: linear-gradient(135deg, rgba(40,49,67,.96) 0%, rgba(23,29,41,.98) 100%);
+}
+
+body.visual-theme-premiere .navigation-libraries .nav-item.is-focused {
+  box-shadow: var(--navigation-focus-shadow);
 }
 
 body.visual-theme-premiere .server-activity,
@@ -343,7 +348,6 @@ body.visual-theme-premiere .app-settings-title,
 body.visual-theme-premiere .search-query,
 body.visual-theme-premiere .detail-copy,
 body.visual-theme-premiere .detail-playback-controls,
-body.visual-theme-premiere .detail-choice,
 body.visual-theme-premiere .library-filter-drawer,
 body.visual-theme-premiere .app-settings-list,
 body.visual-theme-premiere .player-playlist-queue,
@@ -408,7 +412,6 @@ body.visual-theme-premiere .language-editor-row,
 body.visual-theme-premiere .server-editor-row,
 body.visual-theme-premiere .search-key,
 body.visual-theme-premiere .detail-action,
-body.visual-theme-premiere .detail-choice,
 body.visual-theme-premiere .player-button,
 body.visual-theme-premiere .player-chapters-hint,
 body.visual-theme-premiere .update-dialog-actions button,
@@ -549,7 +552,7 @@ body.visual-theme-premiere .detail-summary-button.is-overflowing:after {
 }
 
 body.visual-theme-premiere .detail-poster {
-  border-radius: 24px;
+  border-radius: var(--theme-corner-radius);
   overflow: hidden;
   box-shadow: 0 20px 48px rgba(0,0,0,.34);
 }

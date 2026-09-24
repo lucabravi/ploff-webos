@@ -76,7 +76,7 @@ fan-out/aggregate-byte guardrails remain mandatory. The remaining export matrix 
 - [x] Run `npm run test:memory`.
 - [x] Run `git diff --check`, performance budget checks and `git fsck --no-dangling`.
 - [x] Record before/after Plex/composition/bundle metrics and retained compatibility rationale.
-- [x] Update `CHANGELOG.md`, `CHATGPT-HANDOFF.md`, and Phase 4 inventory.
+- [x] Update `CHANGELOG.md` and the Phase 4 inventory.
 - [x] Commit Phase 4 checkpoint documentation.
 
 ### Phase 4 closure

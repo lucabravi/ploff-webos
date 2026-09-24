@@ -54,5 +54,18 @@ assert.ok(/\.language-editor-actions button,\s*\.detail-summary-dialog-close,\s*
 assert.ok(/\.language-editor-actions button\.is-focused,\s*\.detail-summary-dialog-close\.is-focused,\s*\.media-info-dialog-close\.is-focused,\s*\.media-info-dialog-apply\.is-focused,\s*\.media-info-dialog-version-value\.is-focused,\s*\.choice-dialog-actions button\.is-focused,\s*\.privacy-dialog-close\.is-focused\s*\{[^}]*box-shadow:\s*var\(--focus-shadow\)/.test(styles), 'persistent dialog exits and media version controls must share one neutral focus declaration');
 assert.ok(/\.language-editor\s*\{[^}]*width:\s*620px[^}]*max-width:\s*84vw[^}]*max-height:\s*76vh[^}]*transform:\s*translate\(-50%,\s*-50%\)/.test(styles), 'priority editors must use the compact centered dialog frame');
 assert.ok(/\.language-editor-list\s*\{[^}]*width:\s*100%[^}]*max-height:\s*52vh/.test(styles), 'priority editors must give their ordered options the same usable width and list budget as choice dialogs');
+assert.ok(/\.language-editor-row\.is-reorder-from-above\s*\{[^}]*animation:\s*language-reorder-from-above\s+170ms/.test(styles), 'Home reorder feedback must use a short legacy-safe transform animation');
+assert.ok(/\.library-tabs-editor-row\.is-reorder-from-above\s*\{[^}]*animation:\s*library-reorder-from-above\s+170ms/.test(styles), 'library reorder feedback must use a short legacy-safe transform animation');
+assert.ok(/@keyframes\s+reorder-rank-pulse[\s\S]*transform:\s*scale\(1\.22\)/.test(styles), 'the new order number must pulse briefly so the result is immediately legible');
+
+
+assert.ok(/\.app-settings-subsection\s*\{[^}]*padding:\s*0 18px 7px/.test(styles), 'Settings subsection titles must align with the text inside setting rows');
+assert.ok(/\.app-settings-row-spacer\s*\{[^}]*height:\s*54px/.test(styles), 'generic Settings row spacers must reserve at least one row of vertical separation');
+assert.ok(/\.library-tabs-editor-row\.is-server-group\s*\{[^}]*margin-top:\s*32px/.test(styles), 'server groups after the first must be visually separated');
+
+assert.ok(/\.library-tabs-editor-row\.is-server\s*\{[^}]*background:\s*var\(--action-surface\)[^}]*font-weight:\s*700/.test(styles), 'server rows must read as the visual parent of each library group');
+assert.ok(/\.library-tabs-editor-row\.is-library\s*\{[^}]*width:\s*calc\(100% - 30px\)[^}]*margin-left:\s*30px[^}]*border-left:\s*3px solid var\(--panel-divider\)/.test(styles), 'library rows must be visibly indented beneath their server');
+assert.ok(/\.library-tabs-editor-row\.is-server\.is-disabled\s*\{[^}]*opacity:\s*\.58/.test(styles), 'disabled servers must remain visible with a clearly muted treatment');
+assert.ok(/\.library-tabs-editor-row\.is-order-action\s*\{[^}]*margin-top:\s*54px/.test(styles), 'Order libraries must be separated from library groups by one row of space');
 
 console.log('Shared UI control style checks passed');

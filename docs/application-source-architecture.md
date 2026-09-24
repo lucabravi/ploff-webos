@@ -8,7 +8,7 @@ There are no ordered lexical fragments and no JavaScript under `app/source/`.
 ## Bundle order
 
 `scripts/build-app.js` declares the canonical order: `PRELUDE_FILES` supplies the
-small Core Player loader; `MODULE_FILES` supplies Core coordinators ending in
+small deferred-runtime loaders for Player and diagnostics support; `MODULE_FILES` supplies Core coordinators ending in
 `application-controller.js` and `application-bootstrap.js`; `PLAYER_FILES` supplies
 Player-only support modules and controllers ending in `player-composition.js`.
 `npm run check:app-bundle` compares both checked-in bundles byte-for-byte with these
@@ -22,22 +22,43 @@ source fragments or the historical generated-entry marker reappear.
 ### Production package startup bundle
 
 The checked-in `app/index.html` remains modular and readable for development and tests. During
+development, `locale-bootstrap.js` loads only the selected language before Settings starts;
+the other locale files remain available for a later language change. During
 IPK staging, after generated artifacts and `build-info.js` are present but before the content cache
 key is calculated, `scripts/build-production-runtime.js` replaces the ordered core startup script tags
 between `vendor/webOSTV.js` and `app.js` with one ordered ES5 `core.js`. Each source file keeps its
-script boundary through an explicit separator; the QR vendor is preserved raw because the local
-minifier is not semantics-safe for that vendor source. The individual bundled files are then removed
-from the stage. The deferred `player.js` stays separate and is required even though
-it has no static script tag. The same content-derived cache identity covers both
-Core and Player; the loader inherits the current `app.js` URL query.
+script boundary through an explicit separator. Diagnostics export-only code is excluded from this initial
+bundle: the QR vendor, `support-qr.js`, and `support-snapshot.js` are staged as deferred `support.js`; the
+QR vendor remains raw inside that asset because the local minifier is not semantics-safe for its source.
+The individual source files are then removed from the production stage. Deferred `player.js` and `support.js`
+stay separate and have no static script tag. The same content-derived cache identity covers Core, Player,
+and diagnostics support because both runtime loaders inherit the current `app.js` URL query.
 
 This is a packaging optimization, not a new source owner. `vendor/webOSTV.js`, generated `app.js`,
 and the packaged `core.js` remain separate startup boundaries. JavascriptSubtitlesOctopus runtime
-and worker assets stay outside `core.js`; on legacy non-WebAssembly TVs `startup-metrics.js`
+and worker assets stay outside `core.js`; diagnostics support export code stays in `support.js`; on legacy non-WebAssembly TVs `startup-metrics.js`
 may initialize the one ASS worker from the document head **only when global local ASS/SSA rendering
 is enabled**. With ASS rendering disabled, worker startup/prewarm is skipped entirely. Tests require exact source order, ES5 parsing, separate subtitle assets, at least a 75%
 script-count reduction, and no more than a 5% increase in aggregate initial gzip bytes before this
 optimization may ship.
+
+## Multi-server source resolution
+
+Application creates one `MediaSourceResolver` after `PlexSourceRouter` and passes
+it to Content, Detail and the deferred Player. It is an explicit stateless port,
+not a service locator. `resolve(item, {preferredMachine, candidateContext})`
+returns a concrete item together with its route, or null. `available()` enumerates
+routeable copies through the same traversal. Consumers must carry the resolved
+ratingKey and context/config together and treat null as unavailable, including
+artwork and prefetch.
+
+`LibrarySourcesController` still owns discovery, enabled state and live contexts;
+`PlexSourceRouter` only routes an already-concrete item. Pure identity/merge/
+projection stays in `MultiServerMedia`. Profile/version/language ranking and
+persisted preferences remain in Detail. The resolver neither loads profiles nor
+writes preferences, changes primary credentials or owns queue state. See
+[`multi-server-source-resolution.md`](multi-server-source-resolution.md) for the
+selection order, full audit and tested invariants.
 
 ## Ownership
 
@@ -209,8 +230,14 @@ feature controllers, supplies explicit callbacks, binds every global DOM event
 through `ApplicationEvents`, invokes startup, and owns feature/shared-dialog
 teardown. It contains no direct Plex transport,
 feature DOM presentation mutation, feature timer, transport request generation, or
-parallel active-view state. The bounded post-Home Player warm timer and single
-pending first-Play intent are application-readiness responsibilities.
+parallel active-view state. The completion-driven post-Home background chain, Player
+single-flight promotion, and single pending first-Play intent are application-readiness
+responsibilities. Shell publishes the initial visible/near Home SD-preview settlement boundary;
+Application also arms a one-shot five-second Home-ready watchdog so a missing settlement signal
+cannot stall the chain indefinitely. The chain first promotes the remaining off-screen Home cards
+through their SD previews, then adjacent Library prefetch prepares recommendation data, detached
+card DOM and SD poster previews, followed by Player warm-up and Watchlist warm-up. Each step
+advances from its real completion callback rather than a fixed startup delay.
 
 `ShellFeatureController` owns Home transport/polling, navbar/Home/profile/activity
 presentation, the global clock, shell resize debounce, recoverable view state,

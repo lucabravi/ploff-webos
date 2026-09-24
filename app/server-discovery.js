@@ -195,7 +195,6 @@
   }
 
   return {
-    SERVICE_URI: SERVICE_URI,
     configuredUris: configuredUris,
     discover: discover,
     identityFromXml: identityFromXml,

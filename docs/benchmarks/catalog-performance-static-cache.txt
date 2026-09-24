@@ -1,32 +1,32 @@
 
-> ploff-webos@1.0.6 benchmark:library-catalog
+> ploff-webos@1.0.7 benchmark:library-catalog
 > node scripts/benchmark-library-catalog.js
 
 Ploff catalog benchmark
-Node v26.0.0, items 5000, measured rounds 7
+Node v22.16.0, items 5000, measured rounds 7
 
-focus-move-integrated: 10.633 ms / 5000 iterations
-{"appendChild":0,"cardMetrics":0,"cardProfile":0,"createdNodes":0,"focus":2,"layoutReads":4,"mediaDetail":0,"mediaMeta":0,"mediaTitle":0,"posterBatches":0,"posterCancels":0,"posterFullJobs":0,"posterJobs":0,"posterPreviewJobs":0,"posterSpecifications":0,"querySelector":2,"removeChild":0,"setAttribute":0}
+focus-move-integrated: 8.902 ms / 5000 iterations
+{"appendChild":0,"cardMetrics":0,"cardProfile":0,"createdNodes":0,"focus":2,"layoutReads":4,"mediaDetail":0,"mediaMeta":0,"mediaTitle":0,"posterBatches":0,"posterCancels":0,"posterFullJobs":0,"posterJobs":0,"posterPreviewJobs":0,"posterSpecifications":0,"querySelector":0,"removeChild":0,"setAttribute":0}
 
-scroll-same-window: 0.819 ms / 3000 iterations
+scroll-same-window: 2.111 ms / 3000 iterations
 {"appendChild":0,"cardMetrics":0,"cardProfile":1,"createdNodes":0,"focus":0,"layoutReads":0,"mediaDetail":0,"mediaMeta":0,"mediaTitle":0,"posterBatches":0,"posterCancels":0,"posterFullJobs":0,"posterJobs":0,"posterPreviewJobs":0,"posterSpecifications":0,"querySelector":0,"removeChild":0,"setAttribute":0}
 
-scroll-row-boundary: 44.003 ms / 1500 iterations
+scroll-row-boundary: 42.115 ms / 1500 iterations
 {"appendChild":5.069,"cardMetrics":0,"cardProfile":1,"createdNodes":0.069,"focus":0,"layoutReads":0,"mediaDetail":5.01,"mediaMeta":5.01,"mediaTitle":5.01,"posterBatches":1,"posterCancels":5,"posterFullJobs":5.01,"posterJobs":10.013,"posterPreviewJobs":5.003,"posterSpecifications":10.013,"querySelector":0,"removeChild":5,"setAttribute":15.03}
 
-append-pages: 0.995 ms / 100 iterations
+append-pages: 0.860 ms / 100 iterations
 {"appendChild":0,"cardMetrics":0,"cardProfile":1,"createdNodes":0,"focus":0,"layoutReads":0,"mediaDetail":0,"mediaMeta":0,"mediaTitle":0,"posterBatches":0,"posterCancels":0,"posterFullJobs":0,"posterJobs":0,"posterPreviewJobs":0,"posterSpecifications":0,"querySelector":0,"removeChild":0,"setAttribute":0}
 
 JSON
 {
-  "node": "v26.0.0",
+  "node": "v22.16.0",
   "items": 5000,
   "rounds": 7,
   "results": [
     {
       "name": "focus-move-integrated",
       "iterations": 5000,
-      "medianMs": 10.633,
+      "medianMs": 8.902,
       "operationsPerIteration": {
         "appendChild": 0,
         "cardMetrics": 0,
@@ -43,15 +43,17 @@ JSON
         "posterJobs": 0,
         "posterPreviewJobs": 0,
         "posterSpecifications": 0,
-        "querySelector": 2,
+        "querySelector": 0,
         "removeChild": 0,
         "setAttribute": 0
-      }
+      },
+      "operationBudgetFailures": [],
+      "operationsWithinBudget": true
     },
     {
       "name": "scroll-same-window",
       "iterations": 3000,
-      "medianMs": 0.819,
+      "medianMs": 2.111,
       "operationsPerIteration": {
         "appendChild": 0,
         "cardMetrics": 0,
@@ -71,12 +73,14 @@ JSON
         "querySelector": 0,
         "removeChild": 0,
         "setAttribute": 0
-      }
+      },
+      "operationBudgetFailures": [],
+      "operationsWithinBudget": true
     },
     {
       "name": "scroll-row-boundary",
       "iterations": 1500,
-      "medianMs": 44.003,
+      "medianMs": 42.115,
       "operationsPerIteration": {
         "appendChild": 5.069,
         "cardMetrics": 0,
@@ -96,12 +100,14 @@ JSON
         "querySelector": 0,
         "removeChild": 5,
         "setAttribute": 15.03
-      }
+      },
+      "operationBudgetFailures": [],
+      "operationsWithinBudget": true
     },
     {
       "name": "append-pages",
       "iterations": 100,
-      "medianMs": 0.995,
+      "medianMs": 0.86,
       "operationsPerIteration": {
         "appendChild": 0,
         "cardMetrics": 0,
@@ -121,7 +127,9 @@ JSON
         "querySelector": 0,
         "removeChild": 0,
         "setAttribute": 0
-      }
+      },
+      "operationBudgetFailures": [],
+      "operationsWithinBudget": true
     }
   ]
 }

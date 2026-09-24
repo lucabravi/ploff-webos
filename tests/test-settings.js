@@ -24,9 +24,6 @@ assert.strictEqual(defaults.wheelBehavior, 'items', 'the Magic Remote wheel must
 assert.strictEqual(defaults.cardScale, 90, 'new installations must default poster cards to 90%');
 assert.strictEqual(defaults.uiTextScale, 100, 'UI text must preserve the current 100% scale by default');
 assert.strictEqual(defaults.artworkDataSaver, false, 'artwork data saver must be opt-in');
-assert.deepStrictEqual(Settings.ARTWORK_QUALITIES, [70, 80, 85, 90, 100], 'artwork quality must expose the approved high-resolution steps');
-assert.deepStrictEqual(Settings.BACKDROP_QUALITIES, [50, 60, 70, 85, 100], 'backdrop quality must expose the approved wider steps');
-assert.deepStrictEqual(Settings.VIDEO_QUALITIES, ['4000', '8000', '12000', 'original'], 'video quality must expose an increasing scale with Original at the maximum step');
 assert.strictEqual(defaults.artworkQuality, 90, 'poster and thumbnail downloads must default to the step below maximum');
 assert.strictEqual(defaults.backdropQuality, 85, 'backdrop downloads must default to 85% independently');
 assert.strictEqual(defaults.accentColor, 'cyan', 'the original cyan accent must remain the default');
@@ -35,6 +32,8 @@ assert.strictEqual(defaults.searchT9Input, true, 'T9 search input must be enable
 assert.strictEqual(defaults.showWatchlist, true, 'Watchlist navigation must remain visible by default');
 assert.strictEqual(defaults.showPlaylists, true, 'Playlist navigation must remain visible by default');
 assert.deepStrictEqual(defaults.homeRows, ['continue', 'recommended', 'recent'], 'all current Home row groups must remain visible in the historical order by default');
+assert.strictEqual(defaults.aggregateHomeLibraries, false, 'Home library aggregation must be opt-in');
+assert.strictEqual(defaults.aggregateLibraries, false, 'virtual library aggregation must be opt-in');
 assert.strictEqual(defaults.settingsBackupMode, 'off', 'Plex settings backup automation must remain opt-in');
 assert.strictEqual(defaults.subtitleBackground, 'off', 'subtitle background must preserve the existing transparent default');
 assert.strictEqual(defaults.subtitlePosition, 7, 'subtitle position must preserve the existing seven-percent baseline');

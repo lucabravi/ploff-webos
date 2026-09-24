@@ -119,10 +119,8 @@
   }
 
   return {
-    trimSlash: trimSlash,
     buildUrl: buildUrl,
     assetUrl: assetUrl,
-    replaceQueryParameter: replaceQueryParameter,
     posterUrl: posterUrl,
     buildLibraryBrowseUrl: buildLibraryBrowseUrl,
     buildWatchedUrl: buildWatchedUrl,

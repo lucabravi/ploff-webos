@@ -27,6 +27,7 @@ body.visual-theme-aurora {
   --focus-color: #66f2c4;
   --focus-shadow: 0 0 0 2px #041713, 0 0 0 5px #52ecc1, 0 0 26px rgba(66,235,182,.5), 0 0 54px rgba(140,104,255,.26);
   --focus-shadow-inset: inset 0 0 0 2px #041713, inset 0 0 0 5px #52ecc1, 0 0 22px rgba(66,235,182,.38);
+  --navigation-focus-shadow: inset 0 0 0 2px #041713, inset 0 0 0 5px #52ecc1;
   --primary-focus-shadow: 0 0 0 2px #041713, 0 0 0 5px #8f6bff, 0 0 26px rgba(143,107,255,.46), 0 0 50px rgba(66,235,182,.22);
 }
 
@@ -122,6 +123,10 @@ body.visual-theme-aurora .navigation-libraries .nav-item.is-focused,
 body.visual-theme-aurora .nav-item.is-focused {
   border-color: rgba(102,242,196,.7);
   background: linear-gradient(90deg, rgba(9,40,36,.96) 0%, rgba(19,17,42,.96) 100%);
+}
+
+body.visual-theme-aurora .navigation-libraries .nav-item.is-focused {
+  box-shadow: var(--navigation-focus-shadow);
 }
 
 body.visual-theme-aurora .server-activity,

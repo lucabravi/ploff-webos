@@ -132,6 +132,15 @@
         canChangeLanguage: snapshot.canChangeLanguage === true,
         returnView: String(snapshot.returnView || state.returnView || ''),
         statusKey: statusKey(snapshot, state),
+        localeText: [
+          text('setup.stepServer'),
+          text('setup.findServerTitle'),
+          text(statusKey(snapshot, state) || 'setup.findServerMessage'),
+          text('setup.scanAgain'),
+          text('setup.manualAddress'),
+          text('setup.findAccountServers'),
+          text('setup.cancel')
+        ].join('\u001f'),
         ownerToken: state.ownerToken ? '1' : '0',
         discoveryActive: state.serverDiscoveryActive === true
       });
@@ -167,6 +176,7 @@
       var identity;
       var flag;
       var meta;
+      var actions = documentRef.getElementById('setup-actions');
       reset(text('setup.stepLanguage'), text('setup.chooseLanguageTitle'), text('setup.chooseLanguageMessage'));
       list.className = 'setup-list setup-language-list';
       list.innerHTML = '';
@@ -184,6 +194,7 @@
         option.appendChild(element('span', 'setup-option-meta', meta));
         list.appendChild(option);
       }
+      if (snapshot.returnView || state.returnView) { appendAction(actions, 'setup.cancel', 'cancel', false); }
     }
 
     function renderServers(snapshot, state) {
@@ -238,6 +249,31 @@
       list.appendChild(connectionOption(text('setup.useLocalConnection'), 'use-local-connection', snapshot.selectedServer && snapshot.selectedServer.uri));
       list.appendChild(connectionOption(text('setup.useEnteredConnection'), 'use-entered-connection', snapshot.enteredConnectionUri));
       appendAction(actions, 'setup.cancel', 'manual', false);
+    }
+
+    function renderServerConnectionChoice(snapshot) {
+      var list = documentRef.getElementById('setup-server-list');
+      var actions = documentRef.getElementById('setup-actions');
+      var server = snapshot.selectedServer || {};
+      var routes = array(server.connectionRoutes);
+      var seen = {};
+      var index;
+      var route;
+      var labelKey;
+      var option;
+      reset(text('setup.stepServer'), text('setup.connectionChoiceTitle'), String(server.name || ''));
+      list.className = 'setup-list';
+      list.innerHTML = '';
+      for (index = 0; index < routes.length; index += 1) {
+        route = routes[index] || {};
+        if (!route.uri || seen[route.uri]) { continue; }
+        seen[route.uri] = true;
+        labelKey = route.relay === true ? 'connection.relay' : (route.local === true ? 'settings.localAddress' : 'settings.remoteAddress');
+        option = connectionOption(text(labelKey), 'use-server-connection', route.uri);
+        option.setAttribute('data-setup-uri', route.uri);
+        list.appendChild(option);
+      }
+      appendAction(actions, 'setup.cancel', 'servers', false);
     }
 
     function renderAccess(snapshot, state) {
@@ -408,6 +444,7 @@
       else if (current.stage === 'servers') { renderServers(current, state); }
       else if (current.stage === 'manual') { renderManual(current, state); }
       else if (current.stage === 'connection-choice') { renderConnectionChoice(current); }
+      else if (current.stage === 'server-connection-choice') { renderServerConnectionChoice(current); }
       else if (current.stage === 'access') { renderAccess(current, state); }
       else if (current.stage === 'login') { renderLogin(current, state); }
       else if (current.stage === 'profiles') { renderProfiles(current, state); }

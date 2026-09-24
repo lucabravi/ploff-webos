@@ -36,10 +36,17 @@
     return select(client, ['findByGuid', 'search']);
   }
 
+  function globalMedia(client) {
+    return select(client, [
+      'findByGuid', 'loadHome', 'loadLibraryContainerPage', 'loadLibraryFilterOptions',
+      'loadLibraryPage', 'loadLibraryRecommendations', 'loadMediaProfile', 'loadMetadata', 'loadSeasonEpisodes', 'loadSeriesContext', 'search'
+    ]);
+  }
+
   function library(client) {
     return select(client, [
       'findByGuid', 'loadLibraryContainerPage', 'loadLibraryFilterOptions',
-      'loadLibraryPage', 'loadLibraryRecommendations', 'refreshLibrary',
+      'loadLibraryPage', 'loadLibraryRecommendations', 'loadLibrarySections', 'refreshLibrary',
       'refreshLibraryMetadata'
     ]);
   }
@@ -72,6 +79,7 @@
 
   return {
     detail: detail,
+    globalMedia: globalMedia,
     library: library,
     mediaContext: mediaContext,
     player: player,

@@ -62,6 +62,70 @@
       return String(button && button.className || '').indexOf(name) !== -1;
     }
 
+    function contains(container, target) {
+      var node = target;
+      if (!container || !target) { return false; }
+      if (typeof container.contains === 'function') { return container.contains(target); }
+      while (node) {
+        if (node === container) { return true; }
+        node = node.parentNode;
+      }
+      return false;
+    }
+
+    function modalVisible(modal) {
+      if (!modal) { return false; }
+      if (modal.getAttribute && String(modal.getAttribute('aria-hidden') || '') === 'true') { return false; }
+      return !classContains(modal, 'is-hidden');
+    }
+
+    function modalZIndex(modal, index) {
+      var style = platformRoot.getComputedStyle ? platformRoot.getComputedStyle(modal) : null;
+      var value = Number(style && style.zIndex);
+      if (!isFinite(value)) { value = Number(modal && modal.style && modal.style.zIndex); }
+      if (!isFinite(value)) { value = 0; }
+      return value * 10000 + index;
+    }
+
+    function activeModal() {
+      var modals = document && document.querySelectorAll ? document.querySelectorAll('[role="dialog"][aria-modal="true"]') : [];
+      var best = null;
+      var bestRank = -Infinity;
+      var index;
+      var rank;
+      for (index = 0; index < modals.length; index += 1) {
+        if (!modalVisible(modals[index])) { continue; }
+        rank = modalZIndex(modals[index], index);
+        if (!best || rank >= bestRank) { best = modals[index]; bestRank = rank; }
+      }
+      return best;
+    }
+
+    function modalContent(modal) {
+      var children = modal && modal.children || [];
+      var index;
+      for (index = 0; index < children.length; index += 1) {
+        if (/(?:^|\s)[^\s]*panel(?:\s|$)/.test(String(children[index].className || ''))) { return children[index]; }
+      }
+      return modal;
+    }
+
+    function targetInsideActiveModal(target) {
+      var modal = activeModal();
+      if (!modal) { return true; }
+      return contains(modalContent(modal), target);
+    }
+
+    function consumeModalOutsideClick(event) {
+      var modal = activeModal();
+      if (!modal || contains(modalContent(modal), event && event.target)) { return false; }
+      if (event && event.preventDefault) { event.preventDefault(); }
+      if (event && event.stopImmediatePropagation) { event.stopImmediatePropagation(); }
+      else if (event && event.stopPropagation) { event.stopPropagation(); }
+      call(values.inputKey, keyEvent(461, event));
+      return true;
+    }
+
     function closestButton(node) {
       while (node && node !== document) {
         if (node.tagName && String(node.tagName).toLowerCase() === 'button') { return node; }
@@ -168,15 +232,26 @@
         return focusCall(focus.detail, button.id === 'detail-audio' ? 'audio' : (button.id === 'detail-subtitles' ? 'subtitles' : 'version'), 0);
       }
       if (button.id === 'detail-summary-button') { return focusCall(focus.detail, 'summary', 0); }
+      if (button.id === 'detail-back') { return focusCall(focus.detail, 'back', 0); }
       return undefined;
     }
 
     function syncSettingsFocus(button, session) {
+      if (has(button, 'data-library-tabs-index') && session.libraryTabsOpen) {
+        return focusCall(focus.libraryTabs, Number(attribute(button, 'data-library-tabs-index')));
+      }
       if (has(button, 'data-safe-area-index') && session.safeAreaOpen) {
         return focusCall(focus.safeArea, Number(attribute(button, 'data-safe-area-index')), button);
       }
       if (has(button, 'data-subtitle-style-index') && session.subtitleStyleOpen) {
         return focusCall(focus.subtitleStyle, Number(attribute(button, 'data-subtitle-style-index')), button);
+      }
+      /* The expanded Plex setting is only the editor's parent. While the
+       * inline editor is open, pointer hover must not steal focus back from
+       * one of its server rows. */
+      if (has(button, 'data-setting-index') &&
+          String(attribute(button, 'aria-expanded') || '') === 'true') {
+        return true;
       }
       if (has(button, 'data-setting-index')) {
         return focusCall(focus.settings, Number(attribute(button, 'data-setting-index')));
@@ -198,6 +273,11 @@
         return focusCall(focus.server, Number(attribute(button, 'data-server-index')));
       }
       return undefined;
+    }
+
+    function isExpandedServerSetting(button, _session) {
+      return !!(has(button, 'data-setting-index') &&
+        String(attribute(button, 'aria-expanded') || '') === 'true');
     }
 
     function syncSearchFocus(button) {
@@ -263,6 +343,7 @@
     function syncPointerFocus(button) {
       var session = currentSession();
       if (state.destroyed || !button || button.disabled) { return false; }
+      if (!targetInsideActiveModal(button)) { return false; }
       state.pageScrollPendingFocus = false;
       return withSelection(function () {
         var result;
@@ -305,6 +386,7 @@
     function handleOver(event) {
       var button;
       if (state.destroyed) { return; }
+      if (!targetInsideActiveModal(event && event.target)) { return; }
       button = closestButton(event && event.target);
       if (button && withSelection(function () { return call(capture.focus, button, currentSession()) === true; })) { return; }
       if (state.wheelPointerLocked || now() < state.suppressedUntil) { return; }
@@ -375,6 +457,7 @@
       if (session.appView === 'library' && session.libraryZone === 'grid') { return document.getElementById(session.libraryViewKey === 'recommended' ? 'library-recommended' : 'library-grid'); }
       if (session.appView === 'watchlist' && session.watchlistZone === 'grid') { return document.getElementById('watchlist-grid'); }
       if (session.appView === 'search' && session.searchZone === 'results') { return document.getElementById('search-results'); }
+      if (session.appView === 'settings' && session.libraryTabsOpen) { return document.getElementById('library-tabs-editor-list'); }
       if (session.appView === 'settings' && session.serverEditorOpen) { return document.getElementById('app-settings-list'); }
       if (session.appView === 'settings' && !session.languageKind) { return document.getElementById('app-settings-list'); }
       if (session.appView === 'settings' && session.languageKind) { return document.getElementById('language-editor-list'); }
@@ -418,6 +501,9 @@
       } else if (session.appView === 'search') {
         button = firstVisibleButton(container, '[data-search-index]');
         if (button) { call(page.restoreSearch, Number(attribute(button, 'data-search-index'))); }
+      } else if (session.appView === 'settings' && session.libraryTabsOpen) {
+        button = firstVisibleButton(container, '[data-library-tabs-index]');
+        if (button) { call(page.restoreLibraryTabs, Number(attribute(button, 'data-library-tabs-index'))); }
       } else if (session.appView === 'settings' && session.serverEditorOpen) {
         button = firstVisibleButton(container, '[data-server-index]');
         if (button) { call(page.restoreServer, Number(attribute(button, 'data-server-index'))); }
@@ -546,6 +632,7 @@
       var accentColor;
       var session;
       if (state.destroyed) { return; }
+      if (consumeModalOutsideClick(event)) { return; }
       button = closestButton(event && event.target);
       accentColor = event && event.target && event.target.getAttribute ? event.target.getAttribute('data-accent-color') : '';
       if (!button || button.disabled) { return; }
@@ -556,7 +643,13 @@
         return;
       }
       session = currentSession();
+      if (session.appView === 'settings' && button.id === 'app-settings-back') {
+        if (event && event.preventDefault) { event.preventDefault(); }
+        call(values.inputKey, keyEvent(461, event));
+        return;
+      }
       if (call(capture.click, event, button, session) === true) { return; }
+      if (isExpandedServerSetting(button, session)) { return; }
       if (typeof button.onclick === 'function') {
         notePlayerPointerActivity(button);
         return;
@@ -620,7 +713,6 @@
       handleWheel: handleWheel,
       isSelectionActive: function () { return state.selectionActive; },
       isWheelNavigationActive: function () { return state.wheelNavigationActive; },
-      seekTimelineFromPointer: seekTimelineFromPointer,
       snapshot: snapshot,
       syncFocus: syncPointerFocus,
       syncPageFocus: syncPageFocus

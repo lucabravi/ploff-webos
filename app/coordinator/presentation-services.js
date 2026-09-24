@@ -43,7 +43,11 @@
 
     function mediaKey(item) {
       item = item || {};
-      return String(item.ratingKey || item.key || item.image || item.title || '');
+      var aggregate = String(item.__ploffAggregateIdentity || '');
+      var machine = String(item.serverMachineIdentifier || '');
+      var local = String(item.ratingKey || item.key || item.image || item.title || '');
+      if (aggregate) { return 'aggregate|' + aggregate; }
+      return machine && local ? machine + '|' + local : local;
     }
 
     function mediaTitle(item) { return MediaLabels ? MediaLabels.title(item, t) : String(item && item.title || ''); }

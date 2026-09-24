@@ -2,7 +2,7 @@
 
 var assert = require('assert');
 
-(function injectedWorkerIsAdoptedWithoutStartingASecondLegacyWorker() {
+[false, true].forEach(function injectedWorkerIsAdoptedWithoutStartingASecondWorker(useWasm) {
   var originalWindow = global.window;
   var originalDocument = global.document;
   var originalWorker = global.Worker;
@@ -63,7 +63,7 @@ var assert = require('assert');
     global.document = documentRef;
     global.Worker = UnexpectedWorker;
     global.ImageData = FakeImageData;
-    global.WebAssembly = undefined;
+    global.WebAssembly = useWasm ? originalWebAssembly : undefined;
     delete require.cache[require.resolve('../app/vendor/subtitles-octopus')];
     var SubtitlesOctopus = require('../app/vendor/subtitles-octopus');
     var instance = new SubtitlesOctopus({
@@ -71,12 +71,15 @@ var assert = require('assert');
       worker: worker,
       workerInitialized: true,
       workerSubContent: '[Script Info]\nTitle: warm',
+      workerUrl: 'vendor/subtitles-octopus-worker.js?v=wasm-test',
       legacyWorkerUrl: 'vendor/subtitles-octopus-worker-legacy.js?v=test',
       renderMode: 'js-blend',
       subContent: '[Script Info]\nTitle: warm'
     });
 
     assert.strictEqual(constructedWorkers, 0, 'injected preloaded worker must replace duplicate Worker construction');
+    assert.strictEqual(instance.workerUrl, useWasm ? 'vendor/subtitles-octopus-worker.js?v=wasm-test' : 'vendor/subtitles-octopus-worker-legacy.js?v=test',
+      'worker URL selection must follow actual WebAssembly capability');
     assert.strictEqual(instance.worker, worker, 'SubtitlesOctopus must adopt the injected worker instance');
     assert.strictEqual(typeof listeners.message, 'function', 'adopted worker must receive the normal message listener');
     assert.strictEqual(typeof listeners.error, 'function', 'adopted worker must receive the normal error listener');
@@ -95,7 +98,7 @@ var assert = require('assert');
     global.WebAssembly = originalWebAssembly;
     delete require.cache[require.resolve('../app/vendor/subtitles-octopus')];
   }
-}());
+});
 
 
 (function preinitializedWorkerReplacesWarmTrackBeforeReadiness() {

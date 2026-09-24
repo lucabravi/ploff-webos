@@ -103,11 +103,9 @@
   }
 
   return {
-    SCALES: SCALES.slice(),
     columns: columns,
     metrics: metrics,
     profile: profile,
-    supportedScale: supportedScale,
     wideMetrics: wideMetrics
   };
 }));

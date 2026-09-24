@@ -6,6 +6,41 @@ history; this file is the current architecture and maintenance reference.
 
 ## Scope and editor eligibility
 
+### Diagnostic font comparison (2026-09-11)
+
+The fallback currently uses `vendor/default.ttf`, decompressed from the packaged
+WOFF2 with `scripts/decompress-ass-font.py` (fontTools + Brotli). Glyph, metrics
+and naming tables are verified unchanged. The original WOFF2 remains packaged
+for provenance. This tests whether repeated FreeType WOFF2 decompression on new
+font faces contributes to cold rendering; it does not establish the TV speedup.
+Keep the same seven warm events for comparison. Legacy cache revision is `assWarm=4`.
+
+The 85% raster probe showed no meaningful warm-up improvement (4.75s versus
+4.72s at full resolution in the measured runs). Rendering and warm-up now use
+100% resolution again. TTF and interruptible warm-up remain enabled.
+The on-screen panel is disabled by default. To enable it for the next app launch,
+run `localStorage.setItem('ploff.assWarmTest', '1')` in the Web Inspector and
+restart Ploff. To disable it, run `localStorage.removeItem('ploff.assWarmTest')`
+and restart. Normal launches do not attach panel refresh callbacks.
+
+The wrapper selects the packaged WASM worker after a WebAssembly Module/Instance
+capability probe. The head preloader skips legacy initialization on those devices.
+Both workers now receive the same Ploff protocol transformations at build time:
+frame barrier, discontinuity, epochs, validity windows, external clock, persistent
+renderer and track replacement. Run `npm run build:ass-wasm-worker` to regenerate
+the WASM JavaScript glue. The pinned original is archived in
+`scripts/vendor-sources/subtitles-octopus-worker-wasm-4.1.0.full.js.gz`.
+The native `.wasm` binary and the generated legacy worker remain unchanged.
+The WASM URL has its own `assWasm=1` cache revision. Chrome 53 continues to load
+only legacy; modern devices load the WASM assets on demand at renderer creation.
+
+`tests/test-ass-wasm-worker-profile.js` runs the same real font/render/clock/track
+contract as legacy using native WebAssembly, including frame barriers, lookahead,
+high timestamps and font failure cases. Physical modern-webOS acceptance is still
+required; this establishes protocol compatibility, not measured TV performance.
+This retains Octopus 4.1.0, not a migration to current JASSUB. A future maintained
+engine should be separately capability-gated and preserve this same contract.
+
 Ploff can locally render both external and embedded ASS/SSA when the global ASS rendering setting is
 enabled and the playback mode permits it. Renderer enablement is global-only: media/season profiles do
 not own `renderAss` or `renderSrt`, and legacy scoped renderer flags are ignored. **Advanced Subtitle
@@ -43,22 +78,39 @@ startup while keeping exactly one libass worker:
    the persisted global ASS rendering setting is enabled. With ASS rendering OFF, no startup worker is
    created.
 2. When enabled, the preloader sends `worker-init` immediately, so static memory, packaged fallback
-   font, libass, and a tiny bootstrap `ASS_Track` with one synthetic Dialogue are prepared before
-   playback needs them. Initial worker creation does **not** render that Dialogue.
+   font, libass, and a bootstrap `ASS_Track` with seven nonoverlapping synthetic Dialogues are prepared
+   before playback needs them. Initial worker creation does **not** render those Dialogues.
 3. After the first Home surface reports ready, `ApplicationController` defers one event-loop turn and
-   asks the preloader to perform one glyph-bearing render inside the Dialogue window. That single
-   measured step completes warmup; the former empty-state second step was removed because TV data
-   showed no reduction in first real-track render cost. The deferred callback rechecks the global ASS
-   setting before doing work.
+   asks the preloader to render seven short Latin/alphanumeric/accented/symbol samples. Regular,
+   bold, italic, alternate size, and border/shadow are isolated for physical-TV profiling. Each step runs libass, the production RGBA
+   conversion and transferable buffers, then canvas upload/draw on detached scratch canvases.
+   Only after its response does main schedule the next step, yielding 25 ms. Worker dispatch also
+   yields before rendering so an already queued cancellation or real track can win. No synthetic
+   bitmap enters the playback presentation queue. Scratch canvases are released on completion,
+   failure, cancellation or handoff; only seven numeric measurements remain.
+   The deferred callback rechecks global enablement; enabling ASS later also schedules warmup.
 4. `app/libass-subtitle-renderer.js` can claim that same initialized worker at any time; it never
-   creates a second libass instance. Claiming it cancels remaining synthetic warm work, so immediate
-   playback wins over speculative startup work.
+   creates a second libass instance. The synthetic glyph warm is cancelled only when the real renderer
+   actually claims that worker; pressing Play or starting the foreground ASS text fetch does not cancel
+   warm-up early. A foreground ASS request still supersedes speculative subtitle-network work. An already
+   executing synchronous libass render cannot be interrupted; chunking bounds queued work, not the
+   duration of that individual call.
 5. Plex Detail metadata is parsed once and its inline media profile is reused to resolve an external
-   ASS track without a second metadata request in the normal path.
-6. `app/ass-subtitle-prefetch.js` fetches the selected external ASS as soon as it is known;
-   `AssSubtitleRendererPool.prepare()` can place the real track on the warm worker before Play.
-7. Foreground playback joins in-flight prefetch work and latest-wins ordering prevents stale
-   speculative preparation from delaying the requested media.
+   ASS track without a second metadata request in the normal path. When an episode belongs to a multi-server
+   season, the selected episode's ASS fetch/cache candidate is dispatched before speculative merged-season
+   ownership/version hydration, so version discovery does not get network priority over the subtitle that
+   may be needed immediately for Play.
+6. `app/ass-subtitle-prefetch.js` fetches and keeps one selected external ASS payload as a bounded text cache
+   while browsing Detail. Browsing never calls `AssSubtitleRendererPool.prepare()` or installs the real track
+   in libass; the startup glyph warm can therefore continue independently until Play actually claims the worker.
+7. Foreground playback joins or claims the cached payload and only then loads the real track through
+   `SubtitleRuntime.loadAss()`. Both proactive download and real-track loading are gated by the persisted
+   `subtitleRenderingAss` setting; with local ASS rendering disabled Ploff performs neither operation.
+   Disabling the setting while a foreground fetch is pending aborts that ownership and cannot fall back to
+   a direct Plex subtitle download or install the track in libass. Track/version changes, Player close and
+   Player destruction also retire foreground ASS ownership for the previous target. A synchronously rejected
+   next-episode ASS prefetch does not consume its identity, so it may be retried after local rendering becomes
+   available again.
 
 The remote/non-local Plex subtitle path remains separate and unchanged. Embedded ASS extraction must
 not start speculative transcode sessions merely because Detail was opened.
@@ -180,7 +232,13 @@ geometry/pixel `frameFingerprint`, their playback epoch, render generation and l
 Prepared activity is recorded with bounded `prepared-frame`, `prepared-presented`, `prepared-dropped`
 and `prepared-invalidated` stages plus total queue depth, `preparedCostlyDepth`, bytes, worker
 `workerPreparedCostlyDepth`, and lookahead counters. Home warmup telemetry exposes
-`warmFirstFrame`, `warmStepCount`, `warmTotalMs`, `warmMaxMs`, and `warmComplete`. Rejected frames
+`warmFirstFrame`, `warmStepCount`, `warmTotalMs`, `warmMaxMs`, and `warmComplete`. The preloader's
+`warmSteps` snapshot contains at most seven records with `index`, `libassMs`, `blendMs`, `drawMs` and
+`pixelCount`. Here `warmComplete` requires all seven bitmap-producing steps and successful offscreen
+draws, not merely worker readiness. Worker frame telemetry's `workerWarmComplete` describes only
+worker-side completion; it cannot certify main-thread drawing. This generic warmup does not guarantee
+that every real ASS size/effect is cached. Confirm cold-start improvement on the physical TV using
+the existing first-real-frame metrics; desktop timings are not a TV latency estimate. Rejected frames
 record only bounded reasons such as `backward-time`, `backward-boundary`, `expired-window`, `epoch` or
 `generation`; `future-window` is a deferred prepared state rather than a rejection. It does not retain
 Plex URLs, stream IDs, subtitle text, font names, or arbitrary diagnostic payloads.

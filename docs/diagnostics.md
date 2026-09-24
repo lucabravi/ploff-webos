@@ -9,6 +9,9 @@ privacy boundary in `app/support-snapshot.js`.
 ```text
 runtime state / playback / Settings / compatibility summary
   -> diagnostics controller
+  -> server identity refresh settles and Diagnostics renders
+  -> DiagnosticsSupportRuntimeLoader preloads support.js in production
+  -> user selects Export support report
   -> support-snapshot.js allowlists and sanitizes
   -> report.body + report.serialized + report.mailto
   -> diagnostics-view.js
@@ -19,6 +22,16 @@ runtime state / playback / Settings / compatibility summary
 controller, or feature module. The visible fallback text must use the already-sanitized
 `report.body` (or the already-sanitized serialized report as a last fallback), never raw runtime
 objects.
+
+In development the support serializer and QR modules remain ordinary static scripts for simple debugging.
+Production staging moves `vendor/qrcode-generator.js`, `support-qr.js`, and `support-snapshot.js` into
+a single deferred `support.js`. `app/diagnostics-support-runtime-loader.js` is part of the small generated
+Core application bundle, inherits the current `app.js` cache identity, and coalesces concurrent preload/export requests.
+The runtime stays absent from application startup and begins loading only after the Diagnostics identity request has
+settled and the refreshed Diagnostics surface has rendered. This keeps Diagnostics presentation work ahead of QR
+parsing while making a later **Export support report** action reuse the already-ready or already-loading runtime.
+A late completion after the export dialog closes is ignored; load or QR-generation failure uses the
+existing unavailable fallback and never bypasses the sanitized report boundary.
 
 ## Privacy contract
 
@@ -73,8 +86,7 @@ object alongside this clock record.
 ## Manual unbounded Web Inspector capture
 
 Rare playback/decoder failures may need more history than the bounded support report can retain. Ploff
-therefore exposes `PloffDebugCapture` specifically for an attached Web Inspector / Codex debugging
-session.
+therefore exposes `PloffDebugCapture` specifically for an attached Web Inspector debugging session.
 
 This collector is **opt-in and inactive by default**. A normal Ploff launch retains no continuous raw
 ASS/playback trace. Starting a debug capture clears any previous session and then retains events without
@@ -106,7 +118,7 @@ Then export the complete session:
 PloffDebugCapture.export()
 ```
 
-For a text payload that Codex can save from DevTools, evaluate:
+To copy or save the capture as a text payload from DevTools, evaluate:
 
 ```js
 JSON.stringify(PloffDebugCapture.export())

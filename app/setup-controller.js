@@ -40,6 +40,24 @@
     return result;
   }
 
+  function connectionRoutes(server) {
+    var value = server || {};
+    var source = array(value.connectionRoutes);
+    var result = [];
+    var seen = {};
+    var index;
+    var route;
+    var uri;
+    for (index = 0; index < source.length; index += 1) {
+      route = source[index] || {};
+      uri = String(route.uri || '');
+      if (!uri || seen[uri]) { continue; }
+      seen[uri] = true;
+      result.push({ uri: uri, local: route.local === true, relay: route.relay === true });
+    }
+    return result;
+  }
+
   function create(options) {
     var values = options || {};
     var generation = 0;
@@ -180,8 +198,37 @@
     function chooseConnection(uri) {
       var selected = state.selectedServer;
       state.preferredConnectionUri = String(uri || (selected && selected.uri) || '');
+      if (selected && state.preferredConnectionUri) {
+        selected.uri = state.preferredConnectionUri;
+        selected.connections = [state.preferredConnectionUri].concat((selected.connections || []).filter(function (candidate) {
+          return String(candidate || '') !== state.preferredConnectionUri;
+        }));
+      }
       if (values.selectServerConnection) { values.selectServerConnection(selected ? copyObject(selected) : null, state.preferredConnectionUri, snapshot()); }
-      setStage('access', '');
+      if (state.profileSelectionAfterAccountServer && state.accountToken) {
+        state.profileSelectionAfterAccountServer = false;
+        loadProfiles(state.accountToken);
+        state.accountToken = '';
+      } else {
+        setStage('access', '');
+      }
+    }
+
+    function resolveSelectedConnection() {
+      var requestToken = token('connection');
+      reserveRequest('connection', requestToken);
+      state.statusKey = 'setup.findServerMessage';
+      publish();
+      retainRequest('connection', requestToken, values.resolveServerConnection(state.selectedServer, function (error, resolved) {
+        if (!current(requestToken, 'connection')) { return; }
+        delete pending.connection;
+        if (error || !resolved || !resolved.uri) {
+          setStage('servers', 'setup.serverUnavailable');
+          return;
+        }
+        state.selectedServer = copyObject(resolved);
+        chooseConnection(resolved.uri);
+      }));
     }
 
     function requestManualProbe(payload) {
@@ -389,7 +436,11 @@
           state.selectedServer = copyObject(serverFor(selected));
           state.preferredConnectionUri = state.selectedServer.uri || '';
           state.enteredConnectionUri = '';
-          if (state.profileSelectionAfterAccountServer && state.accountToken) {
+          if (connectionRoutes(state.selectedServer).length > 1 && values.resolveServerConnection) {
+            resolveSelectedConnection();
+          } else if (connectionRoutes(state.selectedServer).length > 1) {
+            chooseConnection(state.selectedServer.uri);
+          } else if (state.profileSelectionAfterAccountServer && state.accountToken) {
             state.profileSelectionAfterAccountServer = false;
             loadProfiles(state.accountToken);
             state.accountToken = '';
@@ -399,6 +450,7 @@
         }
       } else if (action === 'use-local-connection') { chooseConnection(state.selectedServer && state.selectedServer.uri); }
       else if (action === 'use-entered-connection') { chooseConnection(state.enteredConnectionUri); }
+      else if (action === 'use-server-connection') { chooseConnection(payload); }
       else if (action === 'access') { setStage('access', ''); }
       else if (action === 'offline') {
         if (values.continueOffline) { values.continueOffline(snapshot()); }
@@ -428,6 +480,7 @@
       var nextStage;
       if (destroyed) { return snapshot(); }
       if (state.stage === 'language') {
+        if (state.returnView) { cancel(); return snapshot(); }
         setStage('language', '', 0);
         return snapshot();
       }
@@ -441,6 +494,7 @@
       if (state.returnView) { cancel(); return snapshot(); }
       if (state.stage === 'manual' || state.stage === 'access') { nextStage = 'servers'; }
       else if (state.stage === 'connection-choice') { nextStage = 'manual'; }
+      else if (state.stage === 'server-connection-choice') { nextStage = 'servers'; }
       else if (state.stage === 'login') { nextStage = state.loginPurpose === 'servers' ? 'servers' : 'access'; }
       else if (state.stage === 'profiles') { nextStage = 'access'; }
       else if (state.stage === 'profile-pin') { nextStage = 'profiles'; }

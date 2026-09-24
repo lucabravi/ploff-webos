@@ -26,11 +26,11 @@
       setText('detail-summary-dialog-close', t('common.close'));
       values.root.setTimeout(updateSummaryOverflow, 0);
     }
-    function renderChoice(id, cyclable, openable) {
+    function renderChoice(id, cyclable, openable, cycleReserved) {
       var button = node(id);
       var focused = button && button.className.indexOf('is-focused') !== -1;
       if (!button) { return; }
-      button.className = 'detail-choice' + (cyclable ? ' is-cyclable' : '') + (focused ? ' is-focused' : '');
+      button.className = 'detail-choice' + (cycleReserved ? ' is-cycle-reserved' : '') + (cyclable ? ' is-cyclable' : '') + (focused ? ' is-focused' : '');
       button.disabled = !(cyclable || openable);
     }
     function renderMediaControls(model) {
@@ -49,7 +49,7 @@
       setText('detail-subtitles-source', sourceLabel(data.sources && data.sources.subtitles, data.detail));
       renderChoice('detail-audio', !!choices.audio);
       renderChoice('detail-subtitles', !!choices.subtitles);
-      renderChoice('detail-version', !!choices.versions, choices.versionOpenable === true);
+      renderChoice('detail-version', !!choices.versions, choices.versionOpenable === true, choices.versionCycleReserved === true);
     }
     function sourceLabel(source, detail) {
       if (source === 'season') { return t('detail.preferenceSeason'); }

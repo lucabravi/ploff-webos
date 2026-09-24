@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <MediaContainer size='4'>
-<Video addedAt='1705703377' art='/library/metadata/fixture-id-244/art/1786263948' audienceRating='8.7' audienceRatingImage='rottentomatoes://image.rating.upright' chapterSource='media' duration='8088080' guid='fixture-guid-024' key='/library/metadata/fixture-id-244' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2017-10-21' ratingKey='fixture-id-244' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-244/thumb/1786263948' title='Sample Film 3' type='movie' updatedAt='1786263948' year='2017'>
+<Video addedAt='1705703377' art='/library/metadata/fixture-id-244/art/1786263948' audienceRating='8.7' audienceRatingImage='rottentomatoes://image.rating.upright' chapterSource='media' duration='8088080' guid='fixture-guid-024' key='/library/metadata/fixture-id-244' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2017-10-21' ratingKey='fixture-id-244' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-244/thumb/1786263948' title='Sample Film 1' type='movie' updatedAt='1786263948' year='2017'>
 <Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='7029' container='mkv' duration='8088080' hasVoiceActivity='1' height='1080' id='fixture-id-246' videoCodec='h264' videoFrameRate='24p' videoProfile='high' videoResolution='1080' width='1920'>
-<Part container='mkv' duration='8088080' file='/fixtures/media/fixture-media-119b9009c6.mkv' id='fixture-id-247' key='/library/parts/fixture-id-247/1705537694/file.mkv' size='7110459577' videoProfile='high'/>
+<Part container='mkv' duration='8088080' file='/fixtures/media/fixture-media-1.mkv' id='fixture-id-247' key='/library/parts/fixture-id-247/1705537694/file.mkv' size='7110459577' videoProfile='high'/>
 </Media>
 <Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/5484/thumb/1786263948'/>
 <Image alt='Synthetic media artwork' type='background' url='/library/metadata/5484/art/1786263948'/>
@@ -12,16 +12,16 @@
 <Genre tag='Animazione'/>
 <Country tag='Japan'/>
 <Collection tag='Sample Collection'/>
-<Director tag='Goro Taniguchi'/>
-<Writer tag='Goro Taniguchi'/>
-<Writer tag='Ichiro Okouchi'/>
-<Role tag='Performer 9065871'/>
-<Role tag='Performer 14388946'/>
-<Role tag='Performer 8065056'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 1'/>
+<Role tag='Performer 2'/>
+<Role tag='Performer 3'/>
 </Video>
-<Video addedAt='1705703377' art='/library/metadata/fixture-id-248/art/1786263948' audienceRating='7.8' audienceRatingImage='rottentomatoes://image.rating.upright' chapterSource='media' contentRating='TV-14' duration='7980950' guid='fixture-guid-025' key='/library/metadata/fixture-id-248' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2018-02-10' ratingKey='fixture-id-248' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-248/thumb/1786263948' title='Sample Film 4' type='movie' updatedAt='1786263948' year='2018'>
+<Video addedAt='1705703377' art='/library/metadata/fixture-id-248/art/1786263948' audienceRating='7.8' audienceRatingImage='rottentomatoes://image.rating.upright' chapterSource='media' contentRating='TV-14' duration='7980950' guid='fixture-guid-025' key='/library/metadata/fixture-id-248' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2018-02-10' ratingKey='fixture-id-248' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-248/thumb/1786263948' title='Sample Film 2' type='movie' updatedAt='1786263948' year='2018'>
 <Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='7313' container='mkv' duration='7980950' hasVoiceActivity='1' height='1080' id='fixture-id-249' videoCodec='h264' videoFrameRate='24p' videoProfile='high' videoResolution='1080' width='1920'>
-<Part container='mkv' duration='7980950' file='/fixtures/media/fixture-media-8dfabc3693.mkv' id='fixture-id-250' key='/library/parts/fixture-id-250/1705537767/file.mkv' size='7295231855' videoProfile='high'/>
+<Part container='mkv' duration='7980950' file='/fixtures/media/fixture-media-2.mkv' id='fixture-id-250' key='/library/parts/fixture-id-250/1705537767/file.mkv' size='7295231855' videoProfile='high'/>
 </Media>
 <Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/5479/thumb/1786263948'/>
 <Image alt='Synthetic media artwork' type='background' url='/library/metadata/5479/art/1786263948'/>
@@ -30,15 +30,15 @@
 <Genre tag='Anime'/>
 <Country tag='Japan'/>
 <Collection tag='Sample Collection'/>
-<Director tag='Goro Taniguchi'/>
-<Writer tag='Ichiro Okouchi'/>
-<Role tag='Performer 9065871'/>
-<Role tag='Performer 8065056'/>
-<Role tag='Performer 5883870'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 4'/>
+<Role tag='Performer 5'/>
+<Role tag='Performer 6'/>
 </Video>
-<Video addedAt='1705703378' art='/library/metadata/fixture-id-251/art/1786263948' audienceRating='7.5' audienceRatingImage='imdb://image.rating' chapterSource='media' duration='8432591' guid='fixture-guid-026' key='/library/metadata/fixture-id-251' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2018-05-26' ratingKey='fixture-id-251' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-251/thumb/1786263948' title='Sample Film 2' type='movie' updatedAt='1786263948' year='2018'>
+<Video addedAt='1705703378' art='/library/metadata/fixture-id-251/art/1786263948' audienceRating='7.5' audienceRatingImage='imdb://image.rating' chapterSource='media' duration='8432591' guid='fixture-guid-026' key='/library/metadata/fixture-id-251' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2018-05-26' ratingKey='fixture-id-251' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-251/thumb/1786263948' title='Sample Film 3' type='movie' updatedAt='1786263948' year='2018'>
 <Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='7325' container='mkv' duration='8432591' hasVoiceActivity='1' height='1080' id='fixture-id-252' videoCodec='h264' videoFrameRate='24p' videoProfile='high' videoResolution='1080' width='1920'>
-<Part container='mkv' duration='8432591' file='/fixtures/media/fixture-media-6555d4d777.mkv' id='fixture-id-253' key='/library/parts/fixture-id-253/1705537841/file.mkv' size='7720832208' videoProfile='high'/>
+<Part container='mkv' duration='8432591' file='/fixtures/media/fixture-media-3.mkv' id='fixture-id-253' key='/library/parts/fixture-id-253/1705537841/file.mkv' size='7720832208' videoProfile='high'/>
 </Media>
 <Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/5481/thumb/1786263948'/>
 <Image alt='Synthetic media artwork' type='background' url='/library/metadata/5481/art/1786263948'/>
@@ -47,16 +47,16 @@
 <Genre tag='Anime'/>
 <Country tag='Japan'/>
 <Collection tag='Sample Collection'/>
-<Director tag='Goro Taniguchi'/>
-<Writer tag='Goro Taniguchi'/>
-<Writer tag='Ichiro Okouchi'/>
-<Role tag='Performer 9065871'/>
-<Role tag='Performer 8065056'/>
-<Role tag='Performer 5883870'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 7'/>
+<Role tag='Performer 8'/>
+<Role tag='Performer 9'/>
 </Video>
-<Video addedAt='1705703399' art='/library/metadata/fixture-id-254/art/1784390146' audienceRating='8.0' audienceRatingImage='rottentomatoes://image.rating.upright' chapterSource='media' contentRating='Not Rated' duration='6775811' guid='fixture-guid-027' key='/library/metadata/fixture-id-254' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2019-02-09' ratingKey='fixture-id-254' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-254/thumb/1784390146' title='Sample Film 1' type='movie' updatedAt='1784390146' year='2019'>
+<Video addedAt='1705703399' art='/library/metadata/fixture-id-254/art/1784390146' audienceRating='8.0' audienceRatingImage='rottentomatoes://image.rating.upright' chapterSource='media' contentRating='Not Rated' duration='6775811' guid='fixture-guid-027' key='/library/metadata/fixture-id-254' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2019-02-09' ratingKey='fixture-id-254' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' tagline='Synthetic fixture tagline' thumb='/library/metadata/fixture-id-254/thumb/1784390146' title='Sample Film 4' type='movie' updatedAt='1784390146' year='2019'>
 <Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='14529' container='mkv' duration='6775811' hasVoiceActivity='1' height='1080' id='fixture-id-255' videoCodec='h264' videoFrameRate='24p' videoProfile='high' videoResolution='1080' width='1920'>
-<Part container='mkv' duration='6775811' file='/fixtures/media/fixture-media-cbe81883ec.mkv' id='fixture-id-256' key='/library/parts/fixture-id-256/1705537957/file.mkv' size='12306103902' videoProfile='high'/>
+<Part container='mkv' duration='6775811' file='/fixtures/media/fixture-media-4.mkv' id='fixture-id-256' key='/library/parts/fixture-id-256/1705537957/file.mkv' size='12306103902' videoProfile='high'/>
 </Media>
 <Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/5482/thumb/1784390146'/>
 <Image alt='Synthetic media artwork' type='background' url='/library/metadata/5482/art/1784390146'/>
@@ -66,11 +66,11 @@
 <Genre tag='Anime'/>
 <Country tag='Japan'/>
 <Collection tag='Sample Collection'/>
-<Director tag='Goro Taniguchi'/>
-<Writer tag='Ichiro Okouchi'/>
-<Writer tag='Goro Taniguchi'/>
-<Role tag='Performer 9065871'/>
-<Role tag='Performer 8065056'/>
-<Role tag='Performer 5883870'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 10'/>
+<Role tag='Performer 11'/>
+<Role tag='Performer 12'/>
 </Video>
 </MediaContainer>

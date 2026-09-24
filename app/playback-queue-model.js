@@ -27,26 +27,6 @@
     return -1;
   }
 
-  function originFocusIndex(queue, items) {
-    var queueItems = queue && queue.items || [];
-    var sourceItems = items || [];
-    var queueIndex = Number(queue && queue.index);
-    var current = isFinite(queueIndex) && queueItems[queueIndex] ? queueItems[queueIndex] : null;
-    var occurrence = 0;
-    var seen = 0;
-    var index;
-    if (!current || !current.ratingKey) { return -1; }
-    for (index = 0; index < queueIndex; index += 1) {
-      if (String(queueItems[index] && queueItems[index].ratingKey || '') === String(current.ratingKey)) { occurrence += 1; }
-    }
-    for (index = 0; index < sourceItems.length; index += 1) {
-      if (String(sourceItems[index] && sourceItems[index].ratingKey || '') !== String(current.ratingKey)) { continue; }
-      if (seen === occurrence) { return index; }
-      seen += 1;
-    }
-    return -1;
-  }
-
   function itemTitle(item) {
     var detail = String(item && item.detail || '');
     if (item && item.type === 'episode' && detail) {
@@ -87,7 +67,10 @@
       (title ? ' - ' + title : '');
   }
 
-  function itemTypeLabel(item, language) {
+  function itemTypeLabel(item, language, translate) {
+    if (typeof translate === 'function') {
+      return translate(item && item.type === 'episode' ? 'player.queueSeries' : 'player.queueMovie');
+    }
     var italian = String(language || 'en').toLowerCase().indexOf('it') === 0;
     return item && item.type === 'episode' ? (italian ? 'SERIE' : 'SERIES') : (italian ? 'FILM' : 'MOVIE');
   }
@@ -118,6 +101,30 @@
     return { kind: 'container', items: playable, index: index, title: String(title || 'Queue') };
   }
 
+  function copyOwnerIdentity(target, source) {
+    var identityFields = ['serverMachineIdentifier', 'sourceId', 'serverName', 'guid', 'sourcePreferenceGuid', 'librarySectionID'];
+    var index;
+    if (!target || !source) { return target; }
+    for (index = 0; index < identityFields.length; index += 1) {
+      if (source[identityFields[index]] !== undefined && source[identityFields[index]] !== null && source[identityFields[index]] !== '') {
+        target[identityFields[index]] = source[identityFields[index]];
+      }
+    }
+    if (source.primarySource === true || source.primarySource === false) { target.primarySource = source.primarySource; }
+    if (source.sourceVariants && source.sourceVariants.length) {
+      target.sourceVariants = source.sourceVariants.map(function (variant) {
+        var result = {};
+        var key;
+        variant = variant || {};
+        for (key in variant) {
+          if (Object.prototype.hasOwnProperty.call(variant, key)) { result[key] = variant[key]; }
+        }
+        return result;
+      });
+    }
+    return target;
+  }
+
   function seriesContext(context) {
     var current = context || {};
     var items = current.items || [];
@@ -125,7 +132,7 @@
       playlistQueue: true,
       seasons: [{ ratingKey: 'playlist', index: 1, title: current.title || '', selected: true }],
       episodes: items.map(function (item, index) {
-        return {
+        return copyOwnerIdentity({
           ratingKey: item.ratingKey,
           type: item.type,
           title: itemTitle(item),
@@ -134,15 +141,9 @@
           viewed: !!item.viewed,
           progress: Number(item.progress || 0),
           selected: index === current.index
-        };
+        }, item);
       })
     };
-  }
-
-  function upcomingItems(items, current) {
-    var source = items || [];
-    var start = Math.max(0, Math.min(source.length, Number(current) || 0));
-    return source.slice(start);
   }
 
   function focusedIndex(requested, length) {
@@ -274,14 +275,6 @@
     return { direction: direction, pendingDirection: next, pendingCount: pendingCount };
   }
 
-  function adjacentItem(queue, current, direction) {
-    var items = queue && queue.items || [];
-    var step = Number(direction) < 0 ? -1 : 1;
-    var index = Number(current || 0) + step;
-    if (index < 0 || index >= items.length || !items[index]) { return null; }
-    return { queue: queue, index: index, item: items[index] };
-  }
-
   function containerKind(container) {
     var kind = String(container && container.containerType || '');
     return kind === 'playlist' || kind === 'collection' ? kind : '';
@@ -296,7 +289,7 @@
     for (index = start; index < source.length; index += 1) {
       episode = source[index];
       if (!episode || !episode.ratingKey) { continue; }
-      result.push({
+      result.push(copyOwnerIdentity({
         ratingKey: episode.ratingKey,
         type: 'episode',
         title: itemTitle(episode),
@@ -313,7 +306,7 @@
         queueSeasonNumber: Number(season && season.index || Number(seasonIndex || 0) + 1),
         queueEpisodeNumber: Number(episode.index || index + 1),
         queueEpisodes: source
-      });
+      }, episode));
     }
     return result;
   }
@@ -338,22 +331,18 @@
   return {
     playableItems: playableItems,
     currentIndex: currentIndex,
-    originFocusIndex: originFocusIndex,
-    itemTitle: itemTitle,
     episodeNumbers: episodeNumbers,
     itemDisplayTitle: itemDisplayTitle,
     itemTypeLabel: itemTypeLabel,
     firstUnfinishedIndex: firstUnfinishedIndex,
     createQueue: createQueue,
     seriesContext: seriesContext,
-    upcomingItems: upcomingItems,
     focusedIndex: focusedIndex,
     progressSummary: progressSummary,
     drawerScrollTop: drawerScrollTop,
     windowBounds: windowBounds,
     windowTier: windowTier,
     prefetchDirection: prefetchDirection,
-    adjacentItem: adjacentItem,
     containerKind: containerKind,
     seriesItems: seriesItems,
     versionAffinity: versionAffinity

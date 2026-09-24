@@ -11,9 +11,9 @@ assert.deepStrictEqual(PlexHomeModel.homeDefinitions([
   { key: '2', title: 'Film', type: 'movie' },
   { key: '4', title: 'Anime', type: 'show' }
 ], {}), [
-  { title: 'Continua a guardare', path: '/hubs/continueWatching/items', kind: 'continue', showLibraryBadge: true },
-  { title: 'Recentemente aggiunto in Film', path: '/library/sections/2/recentlyAdded', kind: 'recent', groupRecent: true },
-  { title: 'Recentemente aggiunto in Anime', path: '/library/sections/4/recentlyAdded', kind: 'recent', groupRecent: true }
+  { title: 'library.continue', titleKey: 'library.continue', path: '/hubs/continueWatching/items', kind: 'continue', showLibraryBadge: true },
+  { title: 'home.recentInLibrary', titleKey: 'home.recentInLibrary', titleParameters: { library: 'Film' }, path: '/library/sections/2/recentlyAdded', kind: 'recent', sectionKey: '2', sectionTitle: 'Film', groupRecent: true },
+  { title: 'home.recentInLibrary', titleKey: 'home.recentInLibrary', titleParameters: { library: 'Anime' }, path: '/library/sections/4/recentlyAdded', kind: 'recent', sectionKey: '4', sectionTitle: 'Anime', groupRecent: true }
 ], 'Home definitions must retain Continue Watching and one recent row per compatible library');
 
 assert.strictEqual(PlexHomeModel.recommendationHubPriority('tv.startwatching.4'), 1);

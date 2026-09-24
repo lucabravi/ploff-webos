@@ -121,12 +121,15 @@
 
   function findMatch(items, candidate) {
     var index;
+    function verifiedIdentitySource(source) {
+      return source === 'plex' || source === 'probe';
+    }
     for (index = 0; index < items.length; index += 1) {
       if (items[index].uri === candidate.uri || (
         candidate.machineIdentifier &&
         items[index].machineIdentifier === candidate.machineIdentifier &&
-        items[index].source === 'plex' &&
-        candidate.source === 'plex'
+        verifiedIdentitySource(items[index].source) &&
+        verifiedIdentitySource(candidate.source)
       )) {
         return index;
       }

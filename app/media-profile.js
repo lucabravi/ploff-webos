@@ -46,7 +46,7 @@
     var tag = normalizedLanguage(stream);
     return {
       id: stream.id || '',
-      language: stream.language || stream.languageCode || 'Sconosciuta',
+      language: stream.language || stream.languageCode || '',
       languageTag: tag,
       languageCode: LANGUAGE_ALIASES[String(stream.languageCode || '').toLowerCase()] || tag,
       codec: stream.codec || '',
@@ -91,10 +91,11 @@
     return channels ? channels + ' ch' : '';
   }
 
-  function trackDisplayLabel(item, externalLabel) {
+  function trackDisplayLabel(item, externalLabel, unknownLabel) {
     var trackValue = item || {};
     var official = String(trackValue.extendedDisplayTitle || trackValue.displayTitle || '').trim();
     var language = String(trackValue.language || trackValue.title || trackValue.languageTag || trackValue.languageCode || '').trim();
+    if (!language && item) { language = String(unknownLabel || ''); }
     var details = [];
     var channels;
     if (official) { return official; }

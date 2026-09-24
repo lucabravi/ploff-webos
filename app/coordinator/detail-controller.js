@@ -153,7 +153,7 @@
         if (state.destroyed || generation !== state.generation || token !== state.selectedMetadataToken || !state.selectedItem || String(state.selectedItem.ratingKey || '') !== key) { return; }
         if (!error && detail) { setCurrentDetail(detail); }
         call(callback, error, detail || null);
-      });
+      }, item);
       return request;
     }
 
@@ -168,7 +168,7 @@
         if (state.destroyed || token !== state.episodeToken || (selected && String(selected.ratingKey || '') !== key)) { return; }
         if (!error && detail) { setCurrentDetail(detail); }
         call(callback, error, detail || null);
-      });
+      }, episode);
     }
 
     function scheduleEpisodePreview(callback, delay) {
@@ -277,10 +277,6 @@
     function queueMediaProfile(detail, identity, callback) {
       var key = String(detail && detail.ratingKey || '');
       var inlineProfile = inlineMediaProfile(detail, key);
-      if (inlineProfile && key && state.mediaProfileRatingKey === key && !state.mediaProfileLoading) {
-        call(callback, null, inlineProfile);
-        return null;
-      }
       key = prepareMediaProfile(detail, identity);
       if (!key) { return null; }
       if (inlineProfile) {
@@ -411,12 +407,6 @@
       state.episodeIndex = episodes.length ? Math.min(episodes.length - 1, requested) : requested;
       for (position = 0; position < episodes.length; position += 1) { episodes[position].selected = position === state.episodeIndex; }
       return state.episodeIndex;
-    }
-
-    function setReturnView(value) {
-      if (state.destroyed) { return state.returnView; }
-      state.returnView = String(value || 'home');
-      return state.returnView;
     }
 
     function setFromContinueWatching(value) {
@@ -560,6 +550,7 @@
       if (direction) { call(values.navigate, direction); return { handled: true }; }
       if (code !== 13) { return { handled: false }; }
       if (state.zone === 'nav') { call(values.activateNavigation); }
+      else if (state.zone === 'back') { call(values.closeDetail); }
       else if (state.zone === 'seasons') { call(values.loadSeason); }
       else if (state.zone === 'episodes' && state.seriesContext) { call(values.playEpisode, state.seriesContext.episodes[state.episodeIndex]); }
       else if (state.zone === 'extended') { call(values.activateExtended); }
@@ -612,7 +603,6 @@
       cancelEpisodePreview: cancelEpisodePreview,
       cancelTransitions: cancelTransitions,
       clearMetadataStatusTimer: clearMetadataStatusTimer,
-      canRequestPlayback: canRequestPlayback,
       close: close,
       destroy: destroy,
       focus: focusSnapshot,
@@ -644,7 +634,6 @@
       setFocus: setFocus,
       setMetadataStatusTemporary: setMetadataStatusTemporary,
       setPlayPending: setPlayPending,
-      setReturnView: setReturnView,
       setSelectedItem: setSelectedItem,
       setSeasonTransitionMediaKey: setSeasonTransitionMediaKey,
       setSeriesContext: setSeriesContext,

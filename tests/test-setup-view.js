@@ -106,11 +106,23 @@ assert.strictEqual(nodes['setup-server-list'].children[1].children[0].children[0
 assert.strictEqual(nodes['setup-server-list'].children[1].className, 'setup-option is-active', 'injected active language must be marked');
 assert.deepStrictEqual(focusCalls[0], { index: 1, count: 2 }, 'language stage must delegate the controller focus index');
 
+view.render({ stage: 'language', focusIndex: 0, selectedLanguage: 'it', profiles: [], servers: [], returnView: 'settings' });
+assert.deepStrictEqual(actions(), [
+  { label: 'setup.cancel', action: 'cancel', primary: false }
+], 'language selection reopened from Settings must expose an explicit Cancel action');
+
 view.render({
   stage: 'servers', focusIndex: 0, servers: [{ name: 'Local Plex', uri: 'http://plex.local:32400', version: '1.2' }],
   profiles: [], statusKey: '', returnView: 'settings', canChangeLanguage: true
 });
 assert.deepStrictEqual(listText('setup-server-list'), ['Local Plexplex.local:32400 - 1.2'], 'servers stage must render server identity and metadata');
+assert.strictEqual(nodes['setup-title'].textContent, 'setup.findServerTitle', 'servers stage must initially use the current locale');
+translations['setup.findServerTitle'] = 'Trova server';
+view.render({
+  stage: 'servers', focusIndex: 0, servers: [{ name: 'Local Plex', uri: 'http://plex.local:32400', version: '1.2' }],
+  profiles: [], statusKey: '', returnView: 'settings', canChangeLanguage: true
+});
+assert.strictEqual(nodes['setup-title'].textContent, 'Trova server', 'loading a newly selected locale must refresh an already visible servers stage');
 assert.deepStrictEqual(actions(), [
   { label: 'setup.scanAgain', action: 'scan', primary: true },
   { label: 'setup.manualAddress', action: 'manual', primary: false },
@@ -152,6 +164,24 @@ view.render({
 });
 assert.deepStrictEqual(listText('setup-server-list'), ['setup.useLocalConnectionhttp://local:32400', 'setup.useEnteredConnectionhttps://remote.test'], 'connection choice must render both routes');
 assert.deepStrictEqual(actions().map(function (item) { return item.action; }), ['manual'], 'connection choice must return to manual entry');
+
+view.render({
+  stage: 'server-connection-choice', focusIndex: 0, profiles: [], servers: [],
+  selectedServer: {
+    name: 'Remote Plex', uri: 'http://172.19.0.1:32400',
+    connectionRoutes: [
+      { uri: 'http://172.19.0.1:32400', local: true, relay: false },
+      { uri: 'https://remote.plex.direct:32400', local: false, relay: false },
+      { uri: 'https://relay.plex.tv', local: false, relay: true }
+    ]
+  }
+});
+assert.deepStrictEqual(listText('setup-server-list'), [
+  'settings.localAddresshttp://172.19.0.1:32400',
+  'settings.remoteAddresshttps://remote.plex.direct:32400',
+  'connection.relayhttps://relay.plex.tv'
+], 'account server route choice must distinguish local, remote-direct, and relay endpoints');
+assert.deepStrictEqual(actions().map(function (item) { return item.action; }), ['servers'], 'account server route choice must return to the server list');
 
 view.render({ stage: 'access', focusIndex: 0, profiles: [], servers: [], returnView: 'settings' });
 assert.deepStrictEqual(actions().map(function (item) { return item.action; }), ['offline', 'load-profiles', 'disconnect', 'cancel'], 'authenticated access must expose offline, profiles, disconnect, and cancel');

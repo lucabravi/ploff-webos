@@ -8,16 +8,16 @@ var parser = Parser.create({
   }
 });
 
-assert.strictEqual(parser.normalizedSearchText('Yomi no Tsugai: Vol. 1'), 'yomi no tsugai vol 1', 'normalizes punctuation and case');
-assert.strictEqual(parser.searchAttributesMatch({ title: 'Yomi no Tsugai', originalTitle: '', titleSort: '' }, 'yomi tsu'), true, 'matches separate normalized terms');
-assert.strictEqual(parser.searchAttributesMatch({ title: 'Yomi no Tsugai', originalTitle: '', titleSort: '' }, 'attack'), false, 'does not return unrelated local results');
+assert.strictEqual(parser.normalizedSearchText('Sample Saga: Vol. 1'), 'sample saga vol 1', 'normalizes punctuation and case');
+assert.strictEqual(parser.searchAttributesMatch({ title: 'Sample Saga', originalTitle: '', titleSort: '' }, 'sample sa'), true, 'matches separate normalized terms');
+assert.strictEqual(parser.searchAttributesMatch({ title: 'Sample Saga', originalTitle: '', titleSort: '' }, 'unrelated'), false, 'does not return unrelated local results');
 
 var results = parser.searchItemsFromAttributes([
-  { type: 'show', ratingKey: '1', title: 'Yomi no Tsugai', librarySectionTitle: 'Anime' },
-  { type: 'show', ratingKey: '1', title: 'Yomi no Tsugai duplicate', librarySectionTitle: 'Anime' },
-  { type: 'episode', ratingKey: '2', title: 'Yomi no Tsugai Episode' }
-], 'https://plex.example', 'token', 'yomi');
+  { type: 'show', ratingKey: '1', title: 'Sample Saga', librarySectionTitle: 'Anime' },
+  { type: 'show', ratingKey: '1', title: 'Sample Saga duplicate', librarySectionTitle: 'Anime' },
+  { type: 'episode', ratingKey: '2', title: 'Sample Saga Episode' }
+], 'https://plex.example', 'token', 'sample');
 
-assert.deepStrictEqual(results, [{ ratingKey: '1', title: 'Yomi no Tsugai', type: 'show', libraryTitle: 'Anime' }], 'keeps only unique local movie and show results');
+assert.deepStrictEqual(results, [{ ratingKey: '1', title: 'Sample Saga', type: 'show', libraryTitle: 'Anime' }], 'keeps only unique local movie and show results');
 
 console.log('Plex search parser checks passed');

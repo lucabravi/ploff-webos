@@ -127,7 +127,8 @@ function createFixture() {
       startupSnapshot: function () { return { bootstrap: 0, compositionReady: 12 }; }
     },
     transport: {
-      loadIdentity: function () { calls.push('load-identity'); return null; }
+      loadIdentity: function () { calls.push('load-identity'); return null; },
+      loadSupportRuntime: function (callback) { calls.push('load-support-runtime'); callback(null, { SupportSnapshot: {}, SupportQr: {} }); }
     },
     transitions: {
       enter: function () { calls.push('surface-enter'); },
@@ -197,6 +198,9 @@ function createFixture() {
   }, 'Diagnostics must carry the bounded buffering-clock allowlist into SupportSnapshot');
   assert.deepStrictEqual(providers.jsErrors(), [{ type: 'error', message: 'runtime failure' }]);
   assert.deepStrictEqual(providers.startup(), { bootstrap: 0, compositionReady: 12 }, 'feature must expose startup metrics only through DiagnosticsController providers');
+  assert.strictEqual(typeof fixture.captured().transport.loadSupportRuntime, 'function', 'feature must forward the lazy support runtime port to DiagnosticsController');
+  fixture.captured().transport.loadSupportRuntime(function () {});
+  assert.ok(fixture.calls.indexOf('load-support-runtime') !== -1, 'support runtime must remain owned by the application transport');
 }());
 
 (function ownsLifecycleAndSemanticInput() {

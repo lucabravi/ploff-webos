@@ -86,6 +86,7 @@ controllerFiles.forEach(function (filename) {
     NativeVideoDriver: NativeVideoDriver,
     PlaybackReposition: PlaybackReposition,
     PlaybackSession: PlaybackSession,
+    PlaybackOperation: require('../app/playback-operation'),
     PlaybackTimeline: PlaybackTimeline,
     SubtitleRuntime: SubtitleRuntime,
     PlexClient: {},
@@ -101,7 +102,7 @@ controllerFiles.forEach(function (filename) {
   });
   assert.deepStrictEqual(Object.keys(controller).sort(), [
     'applySubtitleEditor', 'cancelSubtitleEditor', 'changeTrack', 'changeVersion', 'close', 'destroy',
-    'diagnostics', 'open', 'openSubtitleEditor', 'seekAbsolute', 'snapshot', 'startAdjacent', 'startItem',
+    'diagnostics', 'open', 'openSubtitleEditor', 'seekAbsolute', 'snapshot', 'startItem',
     'subtitleEditorAvailability', 'toggle'
   ], 'PlaybackController public methods must match the explicitly reviewed playback boundary');
   controller.destroy();

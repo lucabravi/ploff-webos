@@ -293,7 +293,7 @@
       for (index = 0; index < state.choices.length; index += 1) {
         if (String(state.choices[index].value) === String(selectedValue)) {
           state.index = index;
-          state.selectedIndex = index;
+          state.selectedIndex = state.variant === 'full-screen' ? -1 : index;
           state.previewIndex = index;
           break;
         }

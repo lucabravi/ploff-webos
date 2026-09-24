@@ -90,7 +90,7 @@ assert.ok(!/WatchlistView\.create\s*\(/.test(applicationSource), 'composition ro
 assert.ok(!/\b(?:libraryGridView|libraryLifecycle|libraryFilterView|watchlistView)\b/.test(applicationSource), 'composition root must not retain Library feature view or lifecycle aliases');
 assert.ok(!/getElementById\(['"](?:library|watchlist)-/.test(applicationSource), 'composition root must not mutate or bind Library-owned DOM directly');
 
-assert.deepStrictEqual(Build.MODULE_FILES.concat(Build.PLAYER_FILES.filter(function (name) { return name.indexOf('coordinator/') === 0; }).map(function (name) { return name.slice(12); })).sort(), coordinatorFiles, 'the Core and Player bundles together must include every coordinator module exactly once');
+assert.deepStrictEqual(Build.MODULE_FILES.filter(function (name) { return name.indexOf('/') === -1; }).concat(Build.PLAYER_FILES.filter(function (name) { return name.indexOf('coordinator/') === 0; }).map(function (name) { return name.slice(12); })).sort(), coordinatorFiles, 'the Core and Player bundles together must include every coordinator module exactly once');
 
 assert.strictEqual(fs.existsSync(path.join(coordinatorDirectory, 'setup-adapter.js')), false, 'the transitional Setup adapter must stay removed');
 assert.strictEqual(fs.existsSync(path.join(project, 'app/source')), false, 'legacy shared-scope source fragments must stay removed');

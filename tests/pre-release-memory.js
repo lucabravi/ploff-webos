@@ -259,6 +259,7 @@ function createRuntimeLifecycleCycle(seed, exposeWeakReference, intentionalRetai
   });
   var assDisposals = 0;
   var subtitle = SubtitleRuntime.create({
+    PlaybackOperation: require('../app/playback-operation'),
     SubtitleSync: SubtitleSync,
     SubtitleOffsetStore: { get: function () { return 0; } },
     AssSubtitleRenderer: {
@@ -366,8 +367,10 @@ function createRuntimeLifecycleCycle(seed, exposeWeakReference, intentionalRetai
   queuePresentation.move(1);
   queuePresentation.close(true);
 
-  session.resetForClose(true);
-  session.resetForClose(false);
+  session.beginClose(true);
+  session.finishClose();
+  session.beginClose(false);
+  session.finishClose();
   session.prepare();
   session.beginStreamSwitch('starting');
   assert.strictEqual(session.shouldRejectPlaying(), true, 'runtime memory cycle must preserve the reopen startup guard');

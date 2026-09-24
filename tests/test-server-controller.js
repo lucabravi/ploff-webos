@@ -145,15 +145,28 @@ assert.strictEqual(controller.activateConnection(remoteUri), true, 'a reachable 
 assert.strictEqual(session.apiBaseUrl, remoteUri, 'route promotion updates the active API URI');
 assert.strictEqual(storedServers[0].uri, remoteUri, 'route promotion persists the preferred connection');
 
-controller.attemptFailover(new Error('primary failed'), function () {});
+var secondaryServer = makeServer('https://shared-offline.example:32400', 'machine-shared', ['https://shared-offline.example:32400']);
+var activeUriBeforeSecondaryStore = session.serverState.activeUri;
+controller.storeServer(secondaryServer);
+assert.strictEqual(session.serverState.activeUri, activeUriBeforeSecondaryStore,
+  'persisting background state for a secondary PMS must not replace the primary active server');
+
+var concurrentFailoverResults = [];
+var failoverCallsBefore = reachableConnectionCalls;
+controller.attemptFailover(new Error('primary failed'), function (switched, error) { concurrentFailoverResults.push(['first', switched, error]); });
 assert.ok(failoverCallback, 'failover probes alternate routes');
 var firstFailoverCallback = failoverCallback;
-firstFailoverCallback(new Error('remote failed'));
+controller.attemptFailover(new Error('parallel primary failed'), function (switched, error) { concurrentFailoverResults.push(['second', switched, error]); });
+assert.strictEqual(reachableConnectionCalls, failoverCallsBefore + 1, 'parallel primary failures must share one route probe instead of starting competing failovers');
+assert.strictEqual(concurrentFailoverResults.length, 0, 'parallel callers must wait for the in-flight failover result');
+firstFailoverCallback(null, directUri);
+assert.deepStrictEqual(concurrentFailoverResults.map(function (entry) { return [entry[0], entry[1]]; }), [['first', true], ['second', true]],
+  'all callers waiting on the same primary failover must observe the promoted route');
 failoverCallback = null;
-controller.attemptFailover(new Error('remote failed'), function () {});
+controller.attemptFailover(new Error('direct failed'), function () {});
 assert.ok(failoverCallback, 'a later failover can probe remaining routes');
 assert.notStrictEqual(failoverCallback, firstFailoverCallback, 'failed routes do not block a new failover request');
-assert.strictEqual(failoverCandidates[1].indexOf(remoteUri), -1, 'a failed active route is suppressed from later probes');
+assert.strictEqual(failoverCandidates[1].indexOf(remoteUri), -1, 'a previously failed route is suppressed from later probes');
 
 controller.discover();
 assert.strictEqual(discoveries, 1, 'discovery is delegated once');
@@ -185,6 +198,96 @@ controller.pollActivities();
 assert.strictEqual(timers.length, timerCountAfterDestroy, 'destroy prevents further polling');
 assert.strictEqual(controller.snapshot().destroyed, true, 'destroyed state is observable');
 
+
+
+(function stalePrimaryFailoverCannotPromoteRouteOntoNewServer() {
+  var serverA = makeServer('http://10.0.0.10:32400', 'machine-stale-a', ['http://10.0.0.10:32400', 'https://stale-a.example:32400']);
+  var serverB = makeServer('http://10.0.0.20:32400', 'machine-current-b', ['http://10.0.0.20:32400', 'https://current-b.example:32400']);
+  var state = {
+    apiBaseUrl: serverA.uri,
+    token: 'token-a',
+    activeServer: serverA,
+    serverState: { activeUri: serverA.uri, servers: [serverA, serverB] },
+    view: 'home'
+  };
+  var failoverCallbacks = [];
+  var aborts = 0;
+  var failoverResults = [];
+  var local = ServerController.create({
+    root: { setTimeout: function () { return 1; }, clearTimeout: function () {} },
+    modules: {
+      ActivityState: {
+        createWaiter: function () { return {}; },
+        advanceWaiter: function () { return false; },
+        fingerprint: function () { return ''; }
+      },
+      NetworkPolicy: { allowsFailover: function () { return true; } },
+      PlexAuth: {
+        findReachableConnection: function (_root, _token, _candidates, _machineIdentifier, _options, callback) {
+          failoverCallbacks.push(callback);
+          return { abort: function () { aborts += 1; } };
+        }
+      },
+      PlexClient: { loadActivities: function () { return { abort: function () {} }; } },
+      ServerDiscovery: { discover: function (_root, _config, callback) { callback([]); }, isLocalCandidate: function () { return true; } },
+      ServerStore: {
+        connectionUris: function (server) { return (server.connections || []).slice(); },
+        merge: function (current) { return current.slice(); },
+        normalizeUri: normalizeUri,
+        preferConnection: function (server, uri) {
+          var promoted = makeServer(uri, server.machineIdentifier, server.connections);
+          promoted.connectionRoutes = server.connectionRoutes;
+          return promoted;
+        },
+        save: function (_storage, servers, activeUri) { return { activeUri: activeUri, servers: servers.slice() }; }
+      }
+    },
+    storage: {},
+    networkSnapshot: function () { return { status: 'online' }; },
+    session: {
+      read: function () { return state; },
+      update: function (changes) { Object.keys(changes).forEach(function (key) { state[key] = changes[key]; }); }
+    },
+    auth: {
+      activeProfile: function () { return null; },
+      activeToken: function (machineIdentifier) { return machineIdentifier === serverB.machineIdentifier ? 'token-b' : 'token-a'; }
+    },
+    presentation: {},
+    lifecycle: {}
+  });
+
+  local.attemptFailover(new Error('route A failed'), function (switched, error) { failoverResults.push([switched, error]); });
+  assert.strictEqual(failoverCallbacks.length, 1, 'primary failover must have an in-flight route probe');
+  local.applyServer(serverB);
+  assert.strictEqual(aborts, 1, 'switching PMS must abort the obsolete primary failover probe');
+  assert.strictEqual(failoverResults.length, 1, 'switching PMS must settle callers waiting on the obsolete failover');
+  assert.strictEqual(failoverResults[0][0], false, 'an obsolete failover must be reported as cancelled rather than promoted');
+  assert.strictEqual(state.activeServer.machineIdentifier, serverB.machineIdentifier, 'the explicit server switch must own the active PMS');
+  assert.strictEqual(state.apiBaseUrl, serverB.uri, 'the explicit server switch must own the active route');
+
+  local.attemptFailover(new Error('route B failed'), function (switched, error) { failoverResults.push([switched, error]); });
+  assert.strictEqual(failoverCallbacks.length, 2, 'the newly selected PMS must be able to start its own failover');
+  assert.strictEqual(local.snapshot().failoverActive, true, 'the new PMS failover must own the active failover slot');
+
+  failoverCallbacks[0](null, 'https://stale-a.example:32400');
+  assert.strictEqual(state.activeServer.machineIdentifier, serverB.machineIdentifier,
+    'a late callback from the previous PMS failover must not replace the newly selected PMS');
+  assert.strictEqual(state.apiBaseUrl, serverB.uri,
+    'a late callback from the previous PMS failover must not promote its route onto the newly selected PMS');
+  assert.strictEqual(local.snapshot().failoverActive, true,
+    'a late callback from the previous PMS must not clear the new PMS failover request');
+  assert.strictEqual(failoverResults.length, 1,
+    'a late callback from the previous PMS must not settle waiters belonging to the new PMS failover');
+
+  failoverCallbacks[1](null, 'https://current-b.example:32400');
+  assert.strictEqual(failoverResults.length, 2, 'the current PMS failover must settle its own waiter');
+  assert.strictEqual(failoverResults[1][0], true, 'the current PMS failover must still be allowed to promote its route');
+  assert.strictEqual(state.activeServer.machineIdentifier, serverB.machineIdentifier,
+    'the promoted route must retain ownership of the current PMS');
+  assert.strictEqual(state.apiBaseUrl, 'https://current-b.example:32400',
+    'the current PMS failover must promote only its own reachable route');
+  local.destroy();
+}());
 
 (function testRemoteVerificationCancellationOwnership() {
   var deferredWork = null;

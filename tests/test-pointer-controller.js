@@ -62,9 +62,11 @@ var session = {
   serverEditorOpen: false, languageKind: '', summaryDialogOpen: false,
   navigationHasFocus: false, navReorderMode: false, navReorderReady: false, navHoldTriggered: false,
   choiceDialogOpen: false, privacyDialogOpen: false, updateDialogOpen: false, resumeChoiceOpen: false, subtitleEditorOpen: false,
-  playerControlsMode: 'hidden', playerChapterOpen: false, playerSettingsOpen: false, safeAreaOpen: false, subtitleStyleOpen: false
+  playerControlsMode: 'hidden', playerChapterOpen: false, playerSettingsOpen: false, safeAreaOpen: false, subtitleStyleOpen: false,
+  libraryTabsOpen: false
 };
 var visibleHome = button({ 'data-row-index': '2', 'data-column': '1' }, { rect: { left: 10, top: 10, right: 110, bottom: 60, width: 100, height: 50 } });
+var visibleLibraryTab = button({ 'data-library-tabs-index': '1' }, { rect: { left: 10, top: 10, right: 210, bottom: 70, width: 200, height: 60 } });
 var content = {
   clientHeight: 800,
   scrollTop: 0,
@@ -72,7 +74,11 @@ var content = {
   getBoundingClientRect: function () { return { left: 0, top: 0, right: 1600, bottom: 800 }; },
   querySelectorAll: function () { return [visibleHome]; }
 };
-var elements = { content: content };
+var libraryTabsList = {
+  getBoundingClientRect: function () { return { left: 0, top: 0, right: 900, bottom: 700 }; },
+  querySelectorAll: function (selector) { return selector === '[data-library-tabs-index]' ? [visibleLibraryTab] : []; }
+};
+var elements = { content: content, 'library-tabs-editor-list': libraryTabsList };
 var document = {
   activeElement: { blur: function () { blurred += 1; } },
   getElementById: function (id) { return elements[id] || null; },
@@ -106,13 +112,15 @@ controller = PointerController.create({
     navigation: function (index) { calls.push('focus-nav:' + index); },
     search: function () { calls.push('focus-search'); },
     settings: function (index) { calls.push('focus-setting:' + index); },
+    libraryTabs: function (index) { calls.push('focus-library-tabs:' + index); },
     safeArea: function (index) { calls.push('focus-safe-area:' + index); },
     subtitleStyle: function (index) { calls.push('focus-subtitle-style:' + index); },
     diagnostics: function (index) { calls.push('focus-diagnostics:' + index); },
     updateDialog: function (index) { calls.push('focus-update:' + index); },
     resume: function (index) { calls.push('focus-resume:' + index); },
     detail: function (zone, index) { calls.push('focus-detail:' + zone + ':' + index); },
-    player: function (zone, index) { calls.push('focus-player:' + zone + ':' + index); }
+    player: function (zone, index) { calls.push('focus-player:' + zone + ':' + index); },
+    server: function (index) { calls.push('focus-server:' + index); }
   },
   contextMenu: {
     canOpen: function () { return mediaHoldEnabled; },
@@ -129,6 +137,7 @@ controller = PointerController.create({
   },
   page: {
     restoreHome: function (row, column) { calls.push('restore-home:' + row + ':' + column); },
+    restoreLibraryTabs: function (index) { calls.push('restore-library-tabs:' + index); },
     scrollSummary: function (direction) { calls.push('summary:' + direction); },
     beginLibraryWheel: function (duration) { calls.push('library-wheel:' + duration); }
   },
@@ -145,7 +154,7 @@ controller = PointerController.create({
 assert.deepStrictEqual(Object.keys(controller).sort(), [
   'clearPageScrollPendingFocus', 'clearWheelNavigation', 'destroy', 'handleClick', 'handleDown',
   'handleMove', 'handleOver', 'handleUp', 'handleWheel', 'isSelectionActive',
-  'isWheelNavigationActive', 'seekTimelineFromPointer', 'snapshot', 'syncFocus', 'syncPageFocus'
+  'isWheelNavigationActive', 'snapshot', 'syncFocus', 'syncPageFocus'
 ], 'pointer controller must expose only its explicit event, state and lifecycle contract');
 
 var first = button({ 'data-row-index': '0', 'data-column': '0' });
@@ -166,6 +175,30 @@ session.appView = 'settings';
 controller.handleClick({ target: setting });
 assert.ok(calls.indexOf('focus-setting:4') >= 0, 'pointer clicks must focus the addressed Settings row');
 assert.deepStrictEqual(pressedCodes, [13, 13], 'pointer clicks must use the same semantic OK path for Settings rows');
+session.serverEditorOpen = true;
+var expandedServerSetting = button({ 'data-setting-index': '1', 'aria-expanded': 'true' });
+var focusCallsBeforeExpandedServer = calls.length;
+var pressesBeforeExpandedServer = pressedCodes.length;
+assert.strictEqual(controller.syncFocus(expandedServerSetting), true, 'the expanded Server Plex row must remain a handled pointer target');
+assert.strictEqual(calls.length, focusCallsBeforeExpandedServer, 'the expanded Server Plex row must not steal focus from its inline editor');
+assert.strictEqual(controller.syncFocus(button({ 'data-server-index': '0' })), true, 'inline Plex server rows must use their own focus model');
+assert.ok(calls.indexOf('focus-server:0') >= 0, 'inline Plex server rows must receive pointer focus');
+controller.handleClick({ target: expandedServerSetting });
+assert.strictEqual(pressedCodes.length, pressesBeforeExpandedServer, 'clicking the expanded Server Plex label must not activate the wrong editor row');
+var settingsBack = button({}, { id: 'app-settings-back' });
+var backInputsBefore = inputCodes.length;
+controller.handleClick({ target: settingsBack, preventDefault: function () {} });
+assert.strictEqual(inputCodes.length, backInputsBefore + 1, 'clicking the visible Settings Back control must route one semantic Back event');
+assert.strictEqual(inputCodes[inputCodes.length - 1], 461, 'Settings Back pointer clicks must use the same hierarchy as the remote Back key');
+assert.strictEqual(pressedCodes.length, pressesBeforeExpandedServer, 'Settings Back pointer clicks must not synthesize OK into the open server editor');
+inputCodes = [];
+session.serverEditorOpen = false;
+session.libraryTabsOpen = true;
+assert.strictEqual(controller.syncFocus(button({ 'data-library-tabs-index': '2' })), true, 'pointer movement must enter the library tabs editor focus model');
+assert.ok(calls.indexOf('focus-library-tabs:2') >= 0, 'pointer focus must address library tab editor rows while it is open');
+assert.strictEqual(controller.syncPageFocus(), true, 'wheel/page focus restoration must target the library tabs editor while it is open');
+assert.ok(calls.indexOf('restore-library-tabs:1') >= 0, 'page focus restoration must preserve the visible library tab row');
+session.libraryTabsOpen = false;
 session.safeAreaOpen = true;
 assert.strictEqual(controller.syncFocus(button({ 'data-safe-area-index': '6' })), true, 'pointer movement must enter the safe-area modal focus model');
 assert.ok(calls.indexOf('focus-safe-area:6') >= 0, 'pointer focus must address safe-area actions while the modal is open');

@@ -22,7 +22,6 @@ var special = {
   viewed: false
 };
 var queue;
-var target;
 var affinity;
 
 assert.deepStrictEqual(QueueModel.playableItems([]), [], 'empty queues must stay empty');
@@ -36,26 +35,6 @@ assert.strictEqual(QueueModel.currentIndex([null, episode], 's1e2', 0), 1, 'malf
 assert.strictEqual(QueueModel.currentIndex([episode, movie, episode], 's1e2', 2), 2, 'the preferred duplicate occurrence must win');
 assert.strictEqual(QueueModel.currentIndex([episode, movie], 'movie-1', 0), 1, 'rating key fallback must find the current item');
 
-assert.strictEqual(
-  QueueModel.originFocusIndex({ items: [movie, episode], index: 1 }, [movie, episode]),
-  1,
-  'playlist return must focus the queue item that is currently playing'
-);
-assert.strictEqual(
-  QueueModel.originFocusIndex({ items: [movie, episode], index: 1 }, [episode, movie]),
-  0,
-  'playlist return must resolve the current item by media identity instead of stale queue position'
-);
-assert.strictEqual(
-  QueueModel.originFocusIndex({ items: [movie, episode], index: 1 }, [movie]),
-  -1,
-  'playlist return must keep the existing grid focus when the current item is not loaded'
-);
-assert.strictEqual(
-  QueueModel.originFocusIndex({ items: [episode, movie, episode], index: 2 }, [{ ratingKey: 'folder', type: 'show' }, episode, movie, episode]),
-  3,
-  'playlist return must restore the selected duplicate occurrence even when the source grid contains non-playable entries'
-);
 
 assert.deepStrictEqual(QueueModel.seriesContext(null), { playlistQueue: true, seasons: [{ ratingKey: 'playlist', index: 1, title: '', selected: true }], episodes: [] }, 'missing series context must degrade to an empty deterministic queue');
 
@@ -118,17 +97,6 @@ assert.strictEqual(QueueModel.containerKind({ containerType: 'collection' }), 'c
 assert.strictEqual(QueueModel.containerKind({ containerType: 'library' }), '', 'ordinary libraries are not queue origins');
 assert.strictEqual(QueueModel.createQueue([{ ratingKey: 'show', type: 'show' }], 'show', 'Invalid', 0), null, 'non-playable containers cannot form queues');
 
-queue = {
-  kind: 'series',
-  items: [
-    { ratingKey: 's1e10', type: 'episode', queueSeasonNumber: 1, queueEpisodeNumber: 10 },
-    { ratingKey: 's2e1', type: 'episode', queueSeasonNumber: 2, queueEpisodeNumber: 1 }
-  ]
-};
-target = QueueModel.adjacentItem(queue, 0, 1);
-assert.strictEqual(target.item.ratingKey, 's2e1', 'adjacency must cross season boundaries without changing order');
-assert.strictEqual(QueueModel.adjacentItem(queue, 0, -1), null, 'the first item has no previous target');
-assert.strictEqual(QueueModel.adjacentItem(queue, 1, 1), null, 'the final item has no next target');
 
 assert.deepStrictEqual(
   QueueModel.seriesItems({ index: 2 }, 1, [{ ratingKey: 's2e3', type: 'episode', title: 'Third', index: 3 }], 0)[0],
@@ -164,6 +132,50 @@ queue = QueueModel.seriesItems({ index: 5 }, 4, [{
 assert.strictEqual(queue[0].grandparentTitle, 'Rent-a-Girlfriend', 'series queue entries preserve the show title for Up Next');
 assert.strictEqual(queue[0].parentTitle, 'Stagione 5', 'series queue entries preserve the season title for Up Next');
 assert.strictEqual(queue[0].title, 'Il reggiseno e la ragazza', 'series queue entries keep the episode title separate from its show');
+
+var ownedSeriesItems = QueueModel.seriesItems({ index: 2 }, 1, [{
+  ratingKey: 'owned-s2e3',
+  type: 'episode',
+  title: 'Owned',
+  index: 3,
+  serverMachineIdentifier: 'server-b',
+  sourceId: 'server-b|4',
+  serverName: 'Marco',
+  guid: 'plex://episode/owned-s2e3',
+  sourcePreferenceGuid: 'plex://show/owned',
+  librarySectionID: '4',
+  primarySource: false,
+  sourceVariants: [
+    { serverMachineIdentifier: 'server-b', ratingKey: 'owned-s2e3', sourceId: 'server-b|4', librarySectionID: '4' },
+    { serverMachineIdentifier: 'server-a', ratingKey: 'primary-s2e3', sourceId: 'server-a|1', librarySectionID: '1' }
+  ]
+}], 0);
+assert.strictEqual(ownedSeriesItems[0].serverMachineIdentifier, 'server-b', 'series queue records must retain the owning PMS identifier');
+assert.strictEqual(ownedSeriesItems[0].sourceId, 'server-b|4', 'series queue records must retain their source identity');
+assert.strictEqual(ownedSeriesItems[0].serverName, 'Marco', 'series queue records may retain the display server name');
+assert.strictEqual(ownedSeriesItems[0].guid, 'plex://episode/owned-s2e3', 'series queue records must retain their cross-server GUID');
+assert.strictEqual(ownedSeriesItems[0].sourcePreferenceGuid, 'plex://show/owned', 'series queue records must retain their source preference scope');
+assert.strictEqual(ownedSeriesItems[0].librarySectionID, '4', 'series queue records must retain their source library identity');
+assert.strictEqual(ownedSeriesItems[0].primarySource, false, 'series queue records must retain primary-source metadata');
+assert.strictEqual(ownedSeriesItems[0].sourceVariants.length, 2, 'series queue records must retain alternate PMS variants for Up Next failover');
+var ownedSeriesContext = QueueModel.seriesContext({ title: 'Shared queue', index: 0, items: [{
+  ratingKey: 'owned-context-1',
+  type: 'episode',
+  title: 'Owned context',
+  serverMachineIdentifier: 'server-b',
+  sourceId: 'server-b|4',
+  serverName: 'Marco',
+  guid: 'plex://episode/owned-context-1',
+  sourcePreferenceGuid: 'plex://show/owned',
+  sourceVariants: [
+    { serverMachineIdentifier: 'server-b', ratingKey: 'owned-context-1', sourceId: 'server-b|4' },
+    { serverMachineIdentifier: 'server-a', ratingKey: 'primary-context-1', sourceId: 'server-a|1' }
+  ]
+}] });
+assert.strictEqual(ownedSeriesContext.episodes[0].serverMachineIdentifier, 'server-b', 'virtual queue context episodes must retain the owning PMS identifier');
+assert.strictEqual(ownedSeriesContext.episodes[0].sourceId, 'server-b|4', 'virtual queue context episodes must retain their source identity');
+assert.strictEqual(ownedSeriesContext.episodes[0].guid, 'plex://episode/owned-context-1', 'virtual queue context episodes must retain their GUID');
+assert.strictEqual(ownedSeriesContext.episodes[0].sourceVariants.length, 2, 'virtual queue context episodes must retain alternate PMS variants');
 
 assert.strictEqual(QueueModel.versionAffinity({}, {}, function () {}), null, 'automatic version selection has no affinity descriptor');
 affinity = QueueModel.versionAffinity(

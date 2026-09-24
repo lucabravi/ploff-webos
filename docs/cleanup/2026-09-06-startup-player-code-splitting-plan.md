@@ -423,7 +423,6 @@ git commit -m "perf: warm player after home becomes interactive"
 - Modify: `docs/architecture.md`
 - Modify: `docs/testing.md`
 - Modify: `CHANGELOG.md`
-- Modify: `CHATGPT-HANDOFF.md`
 - Modify: `docs/cleanup/2026-09-06-startup-player-code-splitting-plan.md` checkboxes
 
 **Interfaces:**
@@ -465,7 +464,7 @@ player-load-start/code-ready/feature-ready (physical LG pending)
 - [x] **Step 5: Commit final bookkeeping**
 
 ```bash
-git add scripts app docs CHANGELOG.md CHATGPT-HANDOFF.md
+git add scripts app docs CHANGELOG.md
 git commit -m "docs: record deferred player startup architecture"
 ```
 

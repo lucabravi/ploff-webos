@@ -46,6 +46,11 @@ var controller = SetupController.create({
   shouldOfferConnection: function (localUri, enteredUri) {
     return localUri === 'http://192.168.1.20:32400' && enteredUri === 'https://plex.example.test';
   },
+  resolveServerConnection: function (server, callback) {
+    callback(null, { name: server.name, uri: 'https://remote.plex.direct:32400', machineIdentifier: server.machineIdentifier,
+      connections: server.connections, connectionRoutes: server.connectionRoutes });
+    return null;
+  },
   selectServerConnection: function (server, uri) { selectedConnections.push({ server: server, uri: uri }); },
   selectLanguage: function (language) { selectedLanguages.push(language); },
   beginLogin: function (purpose, callback) {
@@ -78,6 +83,15 @@ var localServer = {
   name: 'Local Plex',
   uri: 'http://192.168.1.20:32400',
   machineIdentifier: 'machine-local'
+};
+var routedServer = {
+  name: 'Remote Plex',
+  uri: 'http://172.19.0.1:32400',
+  machineIdentifier: 'machine-remote',
+  connectionRoutes: [
+    { uri: 'http://172.19.0.1:32400', local: true, relay: false },
+    { uri: 'https://remote.plex.direct:32400', local: false, relay: false }
+  ]
 };
 var protectedProfile = { id: 'profile-1', title: 'Protected', protected: true };
 var openSnapshot;
@@ -126,6 +140,11 @@ ongoingPrefetchController.back();
 assert.strictEqual(ongoingPrefetchController.snapshot().stage, 'language', 'Back on language selection must keep onboarding open');
 assert.strictEqual(ongoingPrefetchController.snapshot().focusIndex, 0, 'Back on language selection must return focus to the first language');
 
+var cancelledBeforeLanguageBack = cancelled.length;
+controller.open({ stage: 'language', scan: false, languageExplicit: true, returnView: 'settings', servers: [localServer] });
+controller.back();
+assert.strictEqual(cancelled.length, cancelledBeforeLanguageBack + 1, 'Back from language selection reopened from Settings must cancel setup');
+
 openSnapshot = controller.open({ firstRun: true, servers: [localServer] });
 assert.strictEqual(openSnapshot.stage, 'language', 'first-run setup must start with language selection');
 assert.strictEqual(openSnapshot.focusIndex, 0, 'first-run language selection must focus its first option');
@@ -154,6 +173,14 @@ assert.strictEqual(controller.snapshot().focusIndex, 1, 'setup open must preserv
 controller.activate('servers');
 assert.strictEqual(controller.snapshot().stage, 'servers', 'explicit server navigation must return to the server stage');
 
+controller.open({ stage: 'servers', scan: false, languageExplicit: true, servers: [routedServer] });
+controller.activate('select-server', 0);
+assert.strictEqual(controller.snapshot().stage, 'access', 'account servers with multiple routes must automatically advance through a reachable route');
+assert.strictEqual(controller.snapshot().selectedServer.machineIdentifier, 'machine-remote', 'automatic route resolution must retain the logical server identity');
+assert.strictEqual(controller.snapshot().preferredConnectionUri, 'https://remote.plex.direct:32400', 'the verified remote route must become preferred');
+assert.strictEqual(selectedConnections[selectedConnections.length - 1].uri, 'https://remote.plex.direct:32400', 'automatic route resolution must reach the persistence adapter');
+controller.open({ stage: 'servers', scan: false, languageExplicit: true, servers: [localServer] });
+
 controller.activate('manual');
 assert.strictEqual(controller.snapshot().stage, 'manual', 'manual server entry must have its own stage');
 controller.activate('connect-manual', { address: 'plex.example.test' });
@@ -170,7 +197,7 @@ assert.strictEqual(controller.snapshot().selectedServer.uri, localServer.uri, 'c
 controller.activate('use-entered-connection');
 assert.strictEqual(controller.snapshot().stage, 'access', 'choosing a route must advance to access selection');
 assert.strictEqual(controller.snapshot().preferredConnectionUri, 'https://plex.example.test', 'entered connection must become preferred when selected');
-assert.strictEqual(selectedConnections.length, 1, 'connection selection must be delegated to the injected adapter');
+assert.strictEqual(selectedConnections.length, 2, 'each explicit connection selection must be delegated to the injected adapter');
 
 controller.activate('offline');
 assert.strictEqual(offline.length, 1, 'offline setup must delegate persistence to its adapter');
@@ -192,6 +219,11 @@ assert.strictEqual(finished.length, 1, 'offline setup must finish exactly once')
       accountServerRequests.push({ token: token, callback: callback, request: request });
       return request;
     },
+    resolveServerConnection: function (server, callback) {
+      callback(null, { name: server.name, uri: 'https://remote.plex.direct:32400', machineIdentifier: server.machineIdentifier,
+        connections: server.connections, connectionRoutes: server.connectionRoutes });
+      return null;
+    },
     loadProfiles: function (token, callback) {
       var request = abortable();
       accountProfileRequests.push({ token: token, callback: callback, request: request });
@@ -201,12 +233,27 @@ assert.strictEqual(finished.length, 1, 'offline setup must finish exactly once')
   accountController.open({ languageExplicit: true, servers: [localServer] });
   accountController.activate('login-servers');
   accountLoginRequests[0].callback(null, { token: 'account-token' });
-  accountServerRequests[0].callback(null, [{ name: 'Remote Plex', uri: 'https://remote.example.test' }]);
-  accountController.activate('select-server', { name: 'Remote Plex', uri: 'https://remote.example.test' });
-  assert.strictEqual(accountProfileRequests.length, 1, 'a Plex account login followed by server selection must load profiles directly');
+  accountServerRequests[0].callback(null, [routedServer]);
+  accountController.activate('select-server', routedServer);
+  assert.strictEqual(accountProfileRequests.length, 1, 'a Plex account login followed by automatic route resolution must load profiles directly');
   assert.strictEqual(accountProfileRequests[0].token, 'account-token', 'profile loading must reuse the authenticated account token');
   assert.strictEqual(accountController.snapshot().stage, 'profiles', 'account login must skip the access-mode screen after server selection');
   accountController.destroy();
+}());
+
+(function selectedServerNeverFallsBackToManualRouteChoice() {
+  var pending;
+  var routeController = SetupController.create({
+    render: function () {},
+    resolveServerConnection: function (_server, callback) { pending = callback; return abortable(); }
+  });
+  routeController.open({ languageExplicit: true, servers: [routedServer] });
+  routeController.activate('select-server', routedServer);
+  assert.strictEqual(routeController.snapshot().statusKey, 'setup.findServerMessage', 'automatic route race must expose loading feedback');
+  pending(new Error('unreachable'));
+  assert.strictEqual(routeController.snapshot().stage, 'servers', 'a failed automatic route race must return to server selection instead of asking for an endpoint');
+  assert.strictEqual(routeController.snapshot().statusKey, 'setup.serverUnavailable', 'failed automatic route selection must remain retryable with visible feedback');
+  routeController.destroy();
 }());
 
 controller.open({ languageExplicit: true, servers: [localServer] });

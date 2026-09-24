@@ -2,6 +2,83 @@
 
 All notable changes to Ploff are documented in this file.
 
+## [Unreleased]
+
+## [1.0.8] - 2026-09-24
+
+### Added
+
+- Support for multiple owned and shared Plex servers linked to the same account.
+  Secondary libraries can be browsed and played directly from the main navigation,
+  without changing the configured primary server.
+- Optional merged library tabs and Home rows for matching libraries on different
+  servers. A custom **Merge group** can also combine libraries whose displayed names
+  differ.
+- TV series can be assembled across servers: missing episodes use the server that
+  provides them, while episodes available in more than one place retain every
+  playable copy.
+- Media Detail can find alternate copies and versions on other servers. The Version
+  selector switches between them and refreshes the available audio and subtitles.
+- Search, Watchlist, Plex playlists, Continue Watching, recommendations, and Recently
+  Added can use content from all enabled servers.
+- Home and merged libraries fill progressively as servers respond. Items remain
+  playable while at least one copy is online and are marked unavailable only when no
+  copy can be reached.
+- New **Home & libraries** settings control library visibility, names, icons, order,
+  navigation style, server aliases, and multi-server merging.
+- Ploff can prepare nearby covers and library tabs quietly after the visible page and
+  playback work are complete.
+- Built-in navigation icons for Home, Search, Settings, and library tabs, plus the
+  remote-friendly keyboard and T9 input for library and server aliases.
+
+### Changed
+
+- Connection selection now prefers **Local**, then **Direct**, then **Relay**, while
+  still checking that each address belongs to the expected Plex server.
+- Home, Library, Search, Watchlist, Settings, and Media Detail do less work while focus
+  is moving. Existing cards remain visible while refreshed or newly selected content
+  is loading, reducing blank screens and sudden jumps.
+- Library tabs react immediately to navigation and repeated Back presses. Focus and
+  scroll position are restored more consistently with both the D-pad and Magic Remote.
+- Artwork loading gives visible covers priority, prepares nearby images in advance,
+  and retains useful covers across quick tab changes.
+- Startup loads only the selected interface language. Diagnostics and automatic update
+  checks are deferred until they are needed, reducing initial work on older TVs.
+- Local ASS/SSA subtitle startup is roughly **50% faster** on tested Chrome 53 webOS
+  TVs. Subtitle preparation now begins when playback needs it and stops cleanly after
+  track, version, renderer, or Player changes.
+- Playback operations are more strictly tied to the current media, preventing delayed
+  work from a previous selection from affecting what is now playing.
+- Settings backup now includes library presentation, merging choices, and server
+  aliases, while continuing to exclude credentials and connection addresses.
+- The **More details** screen uses the available space more effectively and gives cast,
+  extras, and episodes consistent horizontal navigation.
+- Track lists include flags for more commonly used languages, including Arabic and
+  Polish. Dialog buttons and navigation controls now share the same rounded styling.
+
+### Fixed
+
+- Visible Library covers now reliably upgrade from their SD preview after scrolling or
+  returning focus to a different row.
+- Recently Added no longer combines every pair of same-season episodes into a
+  misleading season count. One or two additions remain separate, while runs of three
+  or more can be summarized as `N new episodes`.
+- Queue labels, missing episode titles, unknown track labels, Home headings, and setup
+  steps now stay in the selected interface language.
+- Language, audio, and subtitle defaults imported from Plex are preserved when
+  Settings are saved during startup or profile loading.
+- Artwork recovers more reliably from temporary network failures, stale cached images,
+  and artwork-quality changes.
+- Plex Home profile and permission changes no longer leave inaccessible libraries in
+  navigation.
+- Setup, recovery, and error screens show only actions that can actually be completed,
+  with consistent Cancel and Back behavior.
+- Magic Remote input is confined to the active dialog instead of activating controls
+  behind it.
+- Rapid media, version, audio, subtitle, and queue changes now consistently keep the
+  most recent selection.
+- Fixed assorted focus, scrollbar, and Player-control alignment issues.
+
 ## [1.0.7] - 2026-09-11
 
 ### Added

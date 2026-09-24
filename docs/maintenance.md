@@ -24,7 +24,7 @@ be edited directly. `npm run check:styles` enforces registered files, required t
 tokens, selector scoping, generated-bundle freshness, the single-stylesheet runtime,
 and `theme-registry.js` loading before `settings.js`.
 
-The current registry ships `classic`, `immersive`, `premiere`, `nova`, and `atelier`.
+The current registry ships `immersive`, `premiere`, `aurora`, `mahogany`, `atelier`, `nova`, and `classic`.
 When a shared DOM or core rule changes, verify every registered theme. When only one
 theme changes, do not modify another theme or core CSS merely to compensate for that
 change. Theme-specific motion must stay within Chrome 53-safe transforms/opacity and
@@ -281,6 +281,11 @@ when a real owner can accept a coherent responsibility.
 `npm run verify`. It protects risks demonstrated by the 2026-08-18 hardening audit and the
 2026-08-19 runtime architecture redesign:
 
+- variant selection is owned by `media-source-resolver.js`; only that owner may
+  consume `MultiServerMedia.selectSourceVariant` (including property aliases).
+  The pure projection itself stays in `multi-server-media.js`. Removed private
+  source pickers must not return in the features; callers may still route an
+  already-concrete item directly, but config-only helpers must not hide fallback;
 - runtime Advanced Subtitle Settings eligibility and session-local subtitle failure state are owned
   by `subtitle-runtime.js`; presentation code may use `SubtitleSync.classify()`
   for labels/rendering choices, but must not call `SubtitleSync.availability()`,
@@ -407,6 +412,14 @@ detached, cancelled, or destroyed job must release its target binding, preview
 callback, preload, and completion closures. Live card nodes may keep the rendered
 preview or full URL, but must never retain a finished job graph.
 
+Speculative detached Library previews may opt into `preemptible`. When preview
+capacity is full and a higher-priority visible image is waiting, the loader may
+cancel and requeue only a lower-priority preemptible preview, preserving its
+settlement callbacks; it resumes when capacity is available. Never mark visible
+artwork preemptible or preempt ordinary in-flight image work. If requeueing fails
+synchronously, settle its callbacks as failed and resume the image pump so visible
+artwork is not stranded behind the failed background job.
+
 ## Plex transport ports
 
 Do not pass the complete `PloffClient` object into feature/controller code. Update the
@@ -523,7 +536,9 @@ change from invalidating the production asset cache key when generated runtime o
 The same stage then runs `scripts/build-production-runtime.js` before the cache-key calculation. It
 preserves the source-index execution order while collapsing the 122 core startup modules into
 `core.js`, removes those individual module files from the stage, and leaves `vendor/webOSTV.js`,
-`app.js`, and ASS/SSA worker/runtime assets separate from the core bundle. On legacy non-WebAssembly
+`app.js`, deferred `player.js`, deferred diagnostics `support.js`, and ASS/SSA worker/runtime assets
+separate from the core bundle. `support.js` owns the QR vendor plus the support serializer/renderer and
+is requested only by the diagnostics export action; opening Diagnostics alone must not load it. On legacy non-WebAssembly
 TVs the worker may be initialized dynamically by `startup-metrics.js` only when global local ASS/SSA
 rendering is enabled; with ASS disabled no startup worker/prewarm is created. The worker is still not
 folded into the initial core script. The retained experiment measured 124 -> 3 initial local scripts and

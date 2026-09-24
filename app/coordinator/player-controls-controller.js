@@ -64,7 +64,7 @@
       };
     }
 
-    function copyChapters(source) { return { open: source.open, index: source.index }; }
+    function copyChapters(source) { return { open: source.open, index: source.index, currentIndex: source.currentIndex }; }
 
     function snapshot() {
       return {
@@ -106,12 +106,12 @@
     function scheduleControlsTimeout() {
       var delay;
       clearControlsTimer();
-      if (state.destroyed || state.settingsOpen || drawerSnapshot().open) { return; }
+      if (state.destroyed || state.settingsOpen || state.chapters.open || drawerSnapshot().open) { return; }
       delay = ControlsState.timeout(state.mode);
       if (!delay || !timerRoot.setTimeout) { return; }
       controlsTimer = timerRoot.setTimeout(function () {
         controlsTimer = null;
-        if (state.destroyed || state.settingsOpen || drawerSnapshot().open || call(values.playerActive) === false) { return; }
+        if (state.destroyed || state.settingsOpen || state.chapters.open || drawerSnapshot().open || call(values.playerActive) === false) { return; }
         hide(false);
       }, delay);
     }
@@ -320,7 +320,6 @@
     function moveChapter(direction) {
       if (!state.chapters.open) { return false; }
       state.chapters = Chapters.move(state.chapters, chapters().length, direction);
-      renderChapters();
       renderFocus();
       return true;
     }
@@ -329,7 +328,6 @@
       if (!state.chapters.open) { return false; }
       state.chapters.index = Math.max(0, Math.min(chapters().length - 1, Number(index || 0)));
       state.zone = 'chapters';
-      renderChapters();
       renderFocus();
       return true;
     }
@@ -481,20 +479,6 @@
 
     function resetSeekRepeat() { state.seekRepeatCount = 0; }
 
-    function seekPointer(clientX, left, width, durationSeconds) {
-      var x = Number(clientX);
-      var start = Number(left);
-      var size = Number(width);
-      var total = Number(durationSeconds);
-      var ratio;
-      var target;
-      if (!isFinite(x) || !isFinite(start) || !isFinite(size) || size <= 0 || !isFinite(total) || total <= 0) { return null; }
-      ratio = Math.max(0, Math.min(1, (x - start) / size));
-      target = ratio * total;
-      call(values.seekAbsolute, target, { source: 'pointer' });
-      return target;
-    }
-
     function pointerSeek(seconds) {
       var target = Number(seconds);
       if (!isFinite(target)) { return null; }
@@ -545,10 +529,12 @@
     }
 
     function handleChaptersKey(code) {
-      showFull();
       if (code === 37 || code === 39) { moveChapter(code === 37 ? -1 : 1); }
-      else if (code === 38) { closeChapters(true); }
-      else if (code === 13) { activateChapter(); }
+      else {
+        showFull();
+        if (code === 38) { closeChapters(true); }
+        else if (code === 13) { activateChapter(); }
+      }
       return true;
     }
 
@@ -735,8 +721,6 @@
       return snapshot();
     }
 
-    function pointerReveal() { return pointerActivity(); }
-
     function focus(zone, index) { setZone(zone, index); return snapshot(); }
     function focusSetting(index) { return pointSetting(index); }
 
@@ -781,43 +765,32 @@
       showFull: showFull,
       holdVisible: holdVisible,
       resumeAutoHide: resumeAutoHide,
-      showTimeline: showTimeline,
       hide: hide,
       initializeHidden: initializeHidden,
-      scheduleTimeout: scheduleControlsTimeout,
       cancelControlsTimeout: clearControlsTimer,
       updateSkip: updateSkip,
-      showSkipForControls: showSkipForControls,
-      hideSkipWithControls: hideSkipWithControls,
-      dismissSkip: dismissSkip,
-      activateSkip: activateSkip,
       resetSkip: resetSkip,
       chapterHintVisible: chapterHintVisible,
       openChapters: openChapters,
       closeChapters: closeChapters,
       resetChapters: resetChapters,
       moveChapter: moveChapter,
-      pointChapter: pointChapter,
       activateChapter: activateChapter,
       setZone: setZone,
       focus: focus,
-      moveButton: moveButton,
       setSettingsOpen: setSettingsOpen,
       setSettingsSignature: setSettingsSignature,
       moveSetting: moveSetting,
-      pointSetting: pointSetting,
       focusSetting: focusSetting,
       resumeSettings: resumeSettings,
       applySettingChoice: applySettingChoice,
       cycleSetting: cycleSetting,
       seekRelative: relativeSeek,
-      seekPointer: seekPointer,
       pointerSeek: pointerSeek,
       resetSeekRepeat: resetSeekRepeat,
       handleBack: handleBack,
       handleKey: handleKey,
       pointerFocus: pointerFocus,
-      pointerReveal: pointerReveal,
       pointerActivity: pointerActivity,
       destroy: destroy
     };

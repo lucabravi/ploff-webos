@@ -1,12 +1,14 @@
 (function (root, factory) {
   'use strict';
-  if (typeof module === 'object' && module.exports) { module.exports = factory(require('./language-flag')); }
-  else { root.PloffSettingsView = factory(root.PloffLanguageFlag); }
-}(this, function (LanguageFlag) {
+  if (typeof module === 'object' && module.exports) { module.exports = factory(require('./language-flag'), require('./navigation-icon')); }
+  else { root.PloffSettingsView = factory(root.PloffLanguageFlag, root.PloffNavigationIcon); }
+}(this, function (LanguageFlag, NavigationIcon) {
   'use strict';
 
   function create(options) {
     var values = options || {};
+    var focusedTarget = null;
+    var focusedScope = '';
     var state = { open: false, zone: 'list', level: 'categories', index: 0, categoryIndex: 0, categoryId: '', languageKind: '', languageIndex: 0 };
 
     function clamp(index, count) {
@@ -22,6 +24,8 @@
     }
 
     function open(keepNavigationFocus) {
+      focusedTarget = null;
+      focusedScope = '';
       state.open = true;
       state.zone = keepNavigationFocus ? 'nav' : 'list';
       state.level = 'categories';
@@ -34,6 +38,8 @@
     }
 
     function close() {
+      focusedTarget = null;
+      focusedScope = '';
       state.open = false;
       state.languageKind = '';
       state.languageIndex = 0;
@@ -47,7 +53,7 @@
       state.categoryId = String(categoryId || '');
       state.categoryIndex = Math.max(0, Number(categoryIndex) || 0);
       state.zone = 'list';
-      state.index = 0;
+      state.index = 1;
       return snapshot();
     }
 
@@ -154,13 +160,23 @@
       container.appendChild(values.element('span', 'app-setting-stepper-current', row.value));
     }
 
+    function targetOwnsFocus(target) {
+      var rootNode = values.document && values.document.documentElement;
+      return !!target && (' ' + String(target.className || '') + ' ').indexOf(' is-focused ') !== -1 &&
+        (!rootNode || typeof rootNode.contains !== 'function' || rootNode.contains(target));
+    }
+
     function focusSettings(state) {
       var target = state.zone === 'nav'
         ? values.navTarget(state.navIndex)
         : values.document.querySelector('[data-setting-index="' + state.index + '"]');
-      values.clearFocus();
+      var nextScope = state.zone === 'nav' ? 'nav' : 'list';
+      if (focusedScope === nextScope && targetOwnsFocus(focusedTarget)) { clearFocusClass(focusedTarget); }
+      else { values.clearFocus(); }
+      focusedTarget = target || null;
+      focusedScope = nextScope;
       if (!target) { return; }
-      target.className += ' is-focused';
+      if (!targetOwnsFocus(target)) { target.className += ' is-focused'; }
       if (!values.isPointerSelectionActive()) {
         target.focus();
         if (state.zone === 'list') {
@@ -169,8 +185,15 @@
       }
     }
 
+    function clearFocusClass(target) {
+      if (!target) { return; }
+      target.className = String(target.className || '').replace(/\s*is-focused/g, '');
+    }
+
     function render(state) {
       var container = values.document.getElementById('app-settings-list');
+      focusedTarget = null;
+      focusedScope = '';
       var rows = state.rows || [];
       var section = '';
       var index;
@@ -181,15 +204,28 @@
       var currentIndex;
       var ariaValues;
       var languageFlag;
+      var serverEditorParent;
+      var back = values.document.getElementById('app-settings-back');
+      var root = values.document.getElementById('app-settings-view');
+      if (root) { root.className = 'app-settings-view' + (state.level === 'category' ? ' is-category-page' : ''); }
       values.setText('app-settings-title', state.title);
       values.setText('app-settings-notice', state.notice);
       container.innerHTML = '';
+      if (back) {
+        back.className = 'app-settings-back detail-arrow-button is-hidden'; back.innerHTML = '';
+        back.removeAttribute('data-setting-index'); back.removeAttribute('aria-label');
+      }
       for (index = 0; index < rows.length; index += 1) {
         row = rows[index];
         if (state.level !== 'categories' && state.level !== 'category' && row.section !== section) {
           section = row.section;
           container.appendChild(values.element('div', 'app-settings-section', state.sectionLabel(section)));
         }
+        if (state.level === 'category' && row.subsectionTitle) {
+          if (row.subsectionSpacer) { container.appendChild(values.element('div', 'app-settings-subsection-spacer')); }
+          container.appendChild(values.element('div', 'app-settings-subsection', row.subsectionTitle));
+        }
+        if (row.spacerBefore) { container.appendChild(values.element('div', 'app-settings-row-spacer')); }
         if (row.subtitlePreview) {
           rowElement = values.element('div', 'subtitle-style-preview');
           rowElement.setAttribute('aria-hidden', 'true');
@@ -198,12 +234,21 @@
           container.appendChild(rowElement);
           continue;
         }
+        if (row.categoryBack && back) {
+          back.className = 'app-settings-back detail-arrow-button' + (state.index === index ? ' is-focused' : '');
+          back.setAttribute('data-setting-index', index);
+          back.setAttribute('aria-label', row.label);
+          back.innerHTML = NavigationIcon.svg('back');
+          continue;
+        }
         var nonInteractive = row.readOnly || row.disabled;
         rowElement = values.element(nonInteractive ? 'div' : 'button', 'app-setting-row' +
           (row.readOnly ? ' is-read-only' : '') +
           (row.disabled ? ' is-disabled' : '') +
+          (row.categoryBack ? ' is-category-back' : '') +
+          (row.standaloneAction ? ' is-standalone-action' : '') +
           (row.versionRow ? ' is-version' : '') +
-          (index === 0 && state.serverEditorOpen ? ' has-inline-editor' : ''));
+          (row.serverEditor && state.serverEditorOpen ? ' has-inline-editor' : ''));
         if (!nonInteractive) {
           rowElement.type = 'button';
           rowElement.setAttribute('data-setting-index', index);
@@ -212,7 +257,23 @@
           if (row.disabled) { rowElement.setAttribute('aria-disabled', 'true'); }
         }
         if (row.serverEditor) { rowElement.setAttribute('aria-expanded', state.serverEditorOpen ? 'true' : 'false'); }
-        rowElement.appendChild(values.element('span', 'app-setting-label', row.label));
+        var label = values.element('span', 'app-setting-label' + (row.categoryBack ? ' app-setting-back-label' : ''), row.label);
+        var copy = null;
+        if (row.categoryBack && NavigationIcon && typeof NavigationIcon.svg === 'function') {
+          label.innerHTML = '';
+          var backIcon = values.element('span', 'app-setting-back-icon');
+          backIcon.innerHTML = NavigationIcon.svg('back');
+          label.appendChild(backIcon);
+          label.appendChild(values.element('span', 'app-setting-back-text', row.label));
+        }
+        if (row.description) {
+          copy = values.element('span', 'app-setting-copy');
+          copy.appendChild(label);
+          copy.appendChild(values.element('span', 'app-setting-description', row.description));
+          rowElement.appendChild(copy);
+        } else {
+          rowElement.appendChild(label);
+        }
         value = values.element('span', 'app-setting-value' + (row.stepper ? ' app-setting-stepper-value' : ''), row.stepper ? '' : row.value);
         if (row.stepper && row.choices && row.choices.length) {
           currentIndex = stepperIndex(row);
@@ -234,7 +295,8 @@
         rowElement.appendChild(value);
         if (row.category) { rowElement.className += ' is-category'; }
         container.appendChild(rowElement);
-        if (state.index === 0 && state.serverEditorOpen && index === 0) {
+        if (row.serverEditor && state.serverEditorOpen) {
+          serverEditorParent = rowElement;
           editor = values.element('div', 'server-editor-inline');
           editor.id = 'server-editor';
           editor.appendChild(values.element('span', 'server-editor-hint', state.serverDiscoveryActive ? values.t('settings.scanning') : values.t('settings.serverEditorHint')));
@@ -244,8 +306,15 @@
           container.appendChild(editor);
         }
       }
-      container.appendChild(values.element('div', 'app-settings-credit', state.credit));
-      if (state.serverEditorOpen) { values.renderServerEditor(); }
+      if (state.level === 'categories') {
+        container.appendChild(values.element('div', 'app-settings-credit', state.credit));
+      }
+      if (state.serverEditorOpen) {
+        values.renderServerEditor();
+        /* The editor owns focus while expanded. A server refresh can render
+         * the parent again after the editor body, so never leave two rings. */
+        clearFocusClass(serverEditorParent);
+      }
       else { focusSettings(state); }
     }
 
@@ -266,18 +335,26 @@
     function renderLanguages(state) {
       var list = values.document.getElementById('language-editor-list');
       var languages = state.languages || [];
+      var motion = state.motion || null;
       var index;
       var row;
       var identity;
       var flag;
+      var motionClass;
       var back = values.document.getElementById('language-editor-back');
       values.setText('language-editor-title', state.title);
       values.setText('language-editor-hint', state.hint);
       list.innerHTML = '';
       for (index = 0; index < languages.length; index += 1) {
+        motionClass = '';
+        if (motion && languages[index].code === motion.movedCode) {
+          motionClass = motion.direction > 0 ? ' is-reorder-from-above is-reorder-primary' : ' is-reorder-from-below is-reorder-primary';
+        } else if (motion && languages[index].code === motion.displacedCode) {
+          motionClass = motion.direction > 0 ? ' is-reorder-from-below' : ' is-reorder-from-above';
+        }
         row = values.element('button', 'language-editor-row' +
           (languages[index].disabled ? ' is-disabled' : '') +
-          (index === state.index && !languages[index].disabled ? ' is-focused' : ''));
+          (index === state.index && !languages[index].disabled ? ' is-focused' : '') + motionClass);
         row.type = 'button';
         row.disabled = languages[index].disabled === true;
         row.setAttribute('data-language-index', index);

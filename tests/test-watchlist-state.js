@@ -60,4 +60,12 @@ var optimistic = WatchlistState.optimistic(original, { ratingKey: 'two' }, true)
 assert.deepStrictEqual(optimistic.items.map(function (item) { return item.ratingKey; }), ['one', 'two'], 'optimistic add must update immediately');
 assert.deepStrictEqual(optimistic.rollback(), original, 'failed optimistic mutations must restore the previous list');
 
+var crossServer = [
+  { ratingKey: 'same', serverMachineIdentifier: 'server-a' },
+  { ratingKey: 'same', serverMachineIdentifier: 'server-b' }
+];
+var removeServerB = WatchlistState.optimistic(crossServer, { ratingKey: 'same', serverMachineIdentifier: 'server-b' }, false);
+assert.deepStrictEqual(removeServerB.items.map(function (item) { return item.serverMachineIdentifier; }), ['server-a'],
+  'Watchlist optimistic removal must not remove the same ratingKey from another PMS');
+
 console.log('Watchlist state checks passed');

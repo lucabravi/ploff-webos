@@ -1,3 +1,5 @@
+> **Archived historical record.** This document describes a completed or superseded implementation phase. Do not use it as the current behavior reference; see `docs/README.md`.
+
 # Ploff Project Hardening and Optimization Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

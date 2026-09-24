@@ -28,9 +28,9 @@
 
     if (next.area === 'nav') {
       if (direction === 'left') {
-        next.navIndex = clamp(next.navIndex - 1, 0, layout.navCount - 1);
+        next.navIndex = next.navIndex === 0 ? Math.max(0, layout.navCount - 1) : clamp(next.navIndex - 1, 0, layout.navCount - 1);
       } else if (direction === 'right') {
-        next.navIndex = clamp(next.navIndex + 1, 0, layout.navCount - 1);
+        next.navIndex = next.navIndex >= layout.navCount - 1 ? 0 : clamp(next.navIndex + 1, 0, layout.navCount - 1);
       } else if (direction === 'down' && layout.rowLengths.length) {
         next.area = 'media';
         next.navIndex = 0;

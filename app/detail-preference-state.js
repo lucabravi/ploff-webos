@@ -197,16 +197,15 @@
     }
     function playbackPreferences(settings, videoQuality, fallbackAffinity, detail) { return buildPlaybackPreferences(detail || state.detail, settings, videoQuality, fallbackAffinity); }
     function playbackPreferencesFor(detail, settings, videoQuality, fallbackAffinity) { return buildPlaybackPreferences(detail, settings, videoQuality, fallbackAffinity); }
-    function hasExplicitVersion(detail) { return !!((currentSelection(detail || state.detail) || {}).versionSignature); }
     function preferenceSource(field, detail) {
       var scopes = currentScopes(detail || state.detail);
       return MediaPreferences && MediaPreferences.selectionSource ? MediaPreferences.selectionSource(scopes, detail || state.detail, field) : 'global';
     }
     return {
       snapshot: snapshot, prepare: prepare, clear: clear, setProfile: setProfile, versions: versions,
-      selectedProfile: selectedProfile, resolved: resolved, choiceState: choiceState, ensureOverride: ensureOverride,
+      selectedProfile: selectedProfile, resolved: resolved, choiceState: choiceState,
       cycleTrack: cycleTrack, setTrack: setTrack, cycleVersion: cycleVersion, setVersion: setVersion,
-      playbackPreferences: playbackPreferences, playbackPreferencesFor: playbackPreferencesFor, hasExplicitVersion: hasExplicitVersion,
+      playbackPreferences: playbackPreferences, playbackPreferencesFor: playbackPreferencesFor,
       preferenceSource: preferenceSource
     };
   }

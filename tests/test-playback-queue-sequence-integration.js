@@ -61,6 +61,7 @@ function harness(configuration) {
   var container = configuration.container || null;
   var controller = Controller.create({
     root: root(),
+    PlaybackOperation: require('../app/playback-operation'),
     PlaybackQueueModel: QueueModel,
     UpNextState: UpNextState,
     UpNextTiming: UpNextTiming,

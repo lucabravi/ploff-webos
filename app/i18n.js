@@ -19,6 +19,11 @@
 
   var dictionaries = {};
   var languageNames = {};
+  var SUPPORTED_LANGUAGES = ['en', 'it', 'es', 'fr', 'de', 'pt', 'ja', 'ko'];
+  var NATIVE_LANGUAGE_NAMES = {
+    en: 'English', it: 'Italiano', es: 'Español', fr: 'Français', de: 'Deutsch',
+    pt: 'Português (Brasil)', ja: '日本語', ko: '한국어'
+  };
 
   function primaryLanguage(value) {
     return String(value || '').toLowerCase().replace(/_/g, '-').split('-')[0];
@@ -33,7 +38,13 @@
 
   function language(value) {
     var primary = primaryLanguage(value);
-    return dictionaries[primary] ? primary : 'en';
+    var index;
+    if (dictionaries[primary]) { return primary; }
+    if (dictionaries.en) { return 'en'; }
+    for (index = 0; index < SUPPORTED_LANGUAGES.length; index += 1) {
+      if (dictionaries[SUPPORTED_LANGUAGES[index]]) { return SUPPORTED_LANGUAGES[index]; }
+    }
+    return 'en';
   }
 
   function interpolate(value, parameters) {
@@ -65,14 +76,19 @@
   function nativeLanguageName(code) {
     var primary = primaryLanguage(code);
     var names = languageNames[primary] || languageNames.en || {};
-    return names[primary] || primary.toUpperCase();
+    return names[primary] || NATIVE_LANGUAGE_NAMES[primary] || primary.toUpperCase();
   }
 
   function supportedLanguages() {
-    return Object.keys(dictionaries);
+    return SUPPORTED_LANGUAGES.slice();
+  }
+
+  function has(locale) {
+    return Object.prototype.hasOwnProperty.call(dictionaries, primaryLanguage(locale));
   }
 
   return {
+    has: has,
     language: language,
     languageName: languageName,
     nativeLanguageName: nativeLanguageName,

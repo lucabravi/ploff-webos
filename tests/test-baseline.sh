@@ -80,7 +80,7 @@ function listedFiles(directory, files) {
 
 assert.strictEqual(new Set(Builder.MODULE_FILES).size, Builder.MODULE_FILES.length, 'MODULE_FILES must be unique');
 assert.strictEqual(Object.prototype.hasOwnProperty.call(Builder, 'LEGACY_FILES'), false, 'final builder must not expose LEGACY_FILES');
-var coordinatorFiles = Builder.MODULE_FILES.concat(Builder.PLAYER_FILES.filter(function (name) { return name.indexOf('coordinator/') === 0; }).map(function (name) { return name.slice(12); }));
+var coordinatorFiles = Builder.MODULE_FILES.filter(function (name) { return name.indexOf('/') === -1; }).concat(Builder.PLAYER_FILES.filter(function (name) { return name.indexOf('coordinator/') === 0; }).map(function (name) { return name.slice(12); }));
 assert.strictEqual(new Set(coordinatorFiles).size, coordinatorFiles.length, 'Core and Player coordinator manifests must be disjoint');
 listedFiles('coordinator', coordinatorFiles);
 assert.strictEqual(fs.existsSync(path.join('app', 'source')), false, 'final coordinator must remove app/source');
@@ -128,7 +128,7 @@ grep -qi 'unofficial' README.md
 grep -q 'npm run verify' README.md
 grep -q 'npm run build:app' README.md
 grep -q 'npm run verify' .github/workflows/ci.yml
-grep -q 'npm run verify' .github/workflows/release.yml
+grep -q 'npm run test:pre-release' .github/workflows/release.yml
 grep -q 'npm run check:deps' .github/workflows/ci.yml
 grep -q 'npm run check:deps' .github/workflows/release.yml
 grep -q 'check-release-signoff.js.*GITHUB_REF_NAME' .github/workflows/release.yml

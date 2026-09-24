@@ -88,7 +88,7 @@ assert.strictEqual(
   'affinity lookup must return the matching version without applying the Automatic fallback policy'
 );
 assert.strictEqual(
-  VersionSelection.selectAffine(nextVersions, previous, fullCapabilities, 'auto', VersionSelection.DEFAULT_PRIORITIES).mediaIndex,
+  VersionSelection.selectAffine(nextVersions, previous, fullCapabilities, 'auto').mediaIndex,
   1,
   'continuous playback must match technical characteristics instead of reusing an arbitrary numeric index'
 );
@@ -106,7 +106,7 @@ assert.strictEqual(
   'affinity lookup must report no semantic match instead of silently returning the Automatic fallback'
 );
 assert.strictEqual(
-  VersionSelection.selectAffine(unrelated, impossibleAffinity, fullCapabilities, 'auto', VersionSelection.DEFAULT_PRIORITIES).mediaIndex,
+  VersionSelection.selectAffine(unrelated, impossibleAffinity, fullCapabilities, 'auto').mediaIndex,
   1,
   'weak affinity must fall back to the configured automatic policy'
 );

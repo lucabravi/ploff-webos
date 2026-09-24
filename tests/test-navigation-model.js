@@ -13,18 +13,12 @@ var items = [
   { kind: 'settings', title: 'Settings' }
 ];
 
-assert.deepStrictEqual(
-  NavigationModel.applyLibraryOrder(items, ['4', '2']).map(function (item) { return item.title; }),
-  ['Home', 'Anime', 'Film', 'TV', 'Watchlist', 'Search', 'Settings'],
-  'saved libraries must be ordered by Plex section key and unknown libraries appended'
-);
 
 var moved = NavigationModel.moveLibrary(items, 2, -1);
 assert.deepStrictEqual(moved.items.map(function (item) { return item.title; }), ['Home', 'Anime', 'Film', 'TV', 'Watchlist', 'Search', 'Settings'], 'a library must move across adjacent libraries');
 assert.strictEqual(moved.index, 1, 'focus must follow the moved library');
 assert.deepStrictEqual(NavigationModel.moveLibrary(items, 1, -1).items, items, 'Home must remain fixed');
 assert.deepStrictEqual(NavigationModel.moveLibrary(items, 3, 1).items, items, 'Watchlist, Search, and Settings must remain fixed');
-assert.deepStrictEqual(NavigationModel.libraryKeys(moved.items), ['4', '2', '1'], 'only library keys must be persisted');
 
 var visible = NavigationModel.visibleItems(items, { showWatchlist: false, showPlaylists: false });
 assert.deepStrictEqual(visible.map(function (item) { return item.kind; }), ['home', 'library', 'library', 'library', 'search', 'settings'], 'hidden optional navbar entries are filtered by preference');
@@ -46,17 +40,18 @@ var previewTimers = [];
 var clearedPreviewTimers = [];
 var previewedIndexes = [];
 assert.strictEqual(typeof NavigationModel.createPreviewScheduler, 'function', 'navigation model must expose a cancellable preview scheduler');
+assert.strictEqual(NavigationModel.PREVIEW_DELAY_MS, 200, 'all focus previews must share the 200 ms delay');
 var previewScheduler = NavigationModel.createPreviewScheduler({
   setTimeout: function (callback, delay) {
     previewTimers.push({ callback: callback, delay: delay });
     return previewTimers.length;
   },
   clearTimeout: function (timer) { clearedPreviewTimers.push(timer); }
-}, 250, function (index) { previewedIndexes.push(index); });
+}, NavigationModel.PREVIEW_DELAY_MS, function (index) { previewedIndexes.push(index); });
 previewScheduler.schedule(2);
 previewScheduler.schedule(3);
 assert.deepStrictEqual(clearedPreviewTimers, [1], 'moving across the navbar must cancel the previous preview');
-assert.strictEqual(previewTimers[1].delay, 250, 'navbar previews must wait 250 ms');
+assert.strictEqual(previewTimers[1].delay, 200, 'navbar and library previews must wait 200 ms');
 previewTimers[1].callback();
 assert.deepStrictEqual(previewedIndexes, [3], 'only the last focused navbar entry must open');
 previewScheduler.schedule(4);

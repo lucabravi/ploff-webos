@@ -9,7 +9,7 @@ var renderer = {
   discontinuity: function (time) { this.epochs.push(time); },
   hide: function () {}, show: function () {}, dispose: function () {}, setSize: function () {}
 };
-var runtime = Runtime.create({ SubtitleSync: Sync, AssSubtitleRenderer: { create: function () { return renderer; } } });
+var runtime = Runtime.create({ PlaybackOperation: require('../app/playback-operation'), SubtitleSync: Sync, AssSubtitleRenderer: { create: function () { return renderer; } } });
 runtime.loadAss({ id: 'a1' }, '[Script Info]', function (error) { assert.ifError(error); });
 runtime.setLocal({ rendererType: 'ass', offsetMs: 250, streamId: 'a1' });
 runtime.clearLocal();

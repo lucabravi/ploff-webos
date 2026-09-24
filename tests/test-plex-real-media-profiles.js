@@ -51,7 +51,7 @@ function normalizedTracks(part, streamType) {
   assert.strictEqual(english.length, 2, 'the real fixture must retain both English subtitle choices');
   assert.deepStrictEqual(english.map(function (track) { return track.forced; }), [false, true]);
   assert.deepStrictEqual(english.map(function (track) { return track.title; }),
-    ['Sample Media 1', 'Sample Media 1']);
+    ['Full Subtitles [Shadow Garden]', 'Signs/Songs [Shadow Garden]']);
   assert.deepStrictEqual(english.map(function (track) { return track.index; }), [4, 5]);
 }());
 
@@ -125,7 +125,7 @@ function normalizedTracks(part, streamType) {
     external: embedded.external, selected: embedded.selected, index: embedded.index, title: embedded.title
   }, {
     id: 'fixture-stream-003', languageTag: 'it', format: 'ass',
-    external: false, selected: true, index: 2, title: 'Sample Media 1'
+    external: false, selected: true, index: 2, title: 'Italian'
   });
 }());
 

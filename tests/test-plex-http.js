@@ -46,16 +46,20 @@ requests[1].status = 503;
 requests[1].readyState = 4;
 requests[1].onreadystatechange();
 assert.strictEqual(statusError.message, 'status 503');
+assert.strictEqual(statusError.transportFailure, false, 'an HTTP status response proves the route is reachable and must not trigger route failover');
+assert.strictEqual(statusError.status, 503, 'HTTP errors must retain their status for higher-level policy decisions');
 
 var networkError;
 PlexHttp.request(root, { url: '/network', networkError: 'network failure' }, function (error) { networkError = error; });
 requests[2].onerror();
 assert.strictEqual(networkError.message, 'network failure');
+assert.strictEqual(networkError.transportFailure, true, 'XHR network errors must be identifiable as transport failures');
 
 var timeoutError;
 PlexHttp.request(root, { url: '/timeout', timeoutError: 'timeout failure' }, function (error) { timeoutError = error; });
 requests[3].ontimeout();
 assert.strictEqual(timeoutError.message, 'timeout failure');
+assert.strictEqual(timeoutError.transportFailure, true, 'XHR timeouts must be identifiable as transport failures');
 
 var cancelledCallbacks = 0;
 var cancelled = PlexHttp.request(root, { url: '/cancel' }, function () { cancelledCallbacks += 1; });
@@ -73,6 +77,7 @@ assert.strictEqual(requests[4].onerror, null, 'aborted requests must release the
 assert.strictEqual(requests[4].ontimeout, null, 'aborted requests must release their timeout callback');
 
 var deferred;
+var deferredError = null;
 var syncCallbacks = 0;
 var failingRoot = {
   setTimeout: function (callback) { deferred = callback; return 1; },
@@ -83,10 +88,12 @@ var failingRoot = {
 };
 PlexHttp.request(failingRoot, { url: '/broken' }, function (error) {
   assert.strictEqual(error.message, 'invalid endpoint');
+  deferredError = error;
   syncCallbacks += 1;
 });
 assert.strictEqual(syncCallbacks, 0);
 deferred();
 assert.strictEqual(syncCallbacks, 1);
+assert.strictEqual(deferredError.transportFailure, true, 'request construction failures must be identifiable as transport failures');
 
 console.log('Plex HTTP checks passed');

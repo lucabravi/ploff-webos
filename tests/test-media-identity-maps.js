@@ -88,11 +88,12 @@ check('recent season grouping counts external keys and watched episodes correctl
   keys.forEach(function (key) {
     source.push({ type: 'episode', parentRatingKey: key, parentTitle: key, viewCount: '0' });
     source.push({ type: 'episode', parentRatingKey: key, parentTitle: key, viewCount: '1' });
+    source.push({ type: 'episode', parentRatingKey: key, parentTitle: key, viewCount: '0' });
   });
   var before = JSON.stringify(source);
   var result = MediaMapper.groupRecentAttributes(source);
   assert.deepStrictEqual(identities(result), keys);
-  assert.ok(result.every(function (item) { return item.type === 'season' && item.leafCount === '2' && item.viewedLeafCount === '1'; }));
+  assert.ok(result.every(function (item) { return item.type === 'season' && item.leafCount === '3' && item.viewedLeafCount === '1'; }));
   assert.strictEqual(JSON.stringify(source), before);
 });
 

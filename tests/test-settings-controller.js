@@ -15,14 +15,29 @@ var rows = [
   { key: 'playbackCompatibility', label: 'Playback compatibility', action: true, compatibilityEditor: true },
   { key: 'settingsBackup', label: 'Settings save', action: true },
   { key: 'visualTheme', label: 'Visual theme', choices: [{ value: 'classic' }, { value: 'immersive' }, { value: 'neon' }] },
-  { key: 'homeRows', label: 'Home rows', orderedEditor: true }
+  { key: 'libraryDisplayMode', label: 'Navigation bar style', action: true, libraryDisplayMode: true },
+  { key: 'homeRows', label: 'Home item order', value: 'Manage', homeRowsEditor: true },
+  { key: 'libraryTabs', label: 'Servers and libraries', action: true, libraryTabsEditor: true },
+  { key: 'uiLanguage', label: 'Interface language', choices: [{ value: 'en' }, { value: 'it' }] },
+  { key: 'aggregateHomeLibraries', label: 'Merge Home libraries', choices: [{ value: false }, { value: true }] }
 ];
 var calls = [];
+var lastLanguageRenderState = null;
 var lastChoiceArguments = null;
 var textInputOptions = null;
 var textInputOpen = false;
+var libraryTabsOpen = false;
+var libraryTabsFocus = 0;
+var libraryTabsOptions = null;
+var homeOrderCalls = [];
+var homeTabUpdates = [];
+var localeEnsures = [];
 var backupCalls = [];
 var backupSaveError = null;
+var deferBackupStatus = false;
+var pendingBackupStatusCallback = null;
+var deferBackdropPreview = false;
+var pendingBackdropPreviewCallback = null;
 var nextLoadedTheme = 'immersive';
 var currentModel = 'OLED42';
 var backupStatus = {
@@ -51,7 +66,8 @@ var settings = {
   remoteVideoQuality: 8000,
   adaptivePlaybackMemory: true,
   settingsBackupMode: 'off',
-  visualTheme: 'neon'
+  visualTheme: 'neon',
+  aggregateHomeLibraries: false
 };
 var nodes = {};
 var rootStyleProperties = {};
@@ -109,10 +125,17 @@ var fakeView = {
       open: viewState.open,
       zone: viewState.zone,
       index: viewState.index,
+      level: viewState.level || 'categories',
+      categoryId: viewState.categoryId || '',
+      categoryIndex: viewState.categoryIndex || 0,
       languageKind: viewState.languageKind,
       languageIndex: viewState.languageIndex
     };
   },
+  openCategory: function (categoryId, categoryIndex) {
+    viewState.level = 'category'; viewState.categoryId = categoryId; viewState.categoryIndex = categoryIndex; viewState.index = 0;
+  },
+  closeCategory: function () { viewState.level = 'categories'; viewState.categoryId = ''; viewState.index = viewState.categoryIndex || 0; },
   render: function () { calls.push('render'); },
   focus: function () { calls.push('focus'); },
   focusNavigation: function () { viewState.zone = 'nav'; },
@@ -120,7 +143,7 @@ var fakeView = {
   openLanguages: function (kind) { viewState.languageKind = kind; viewState.languageIndex = 0; },
   closeLanguages: function () { viewState.languageKind = ''; },
   focusLanguage: function (index, count) { viewState.languageIndex = Math.max(0, Math.min(count - 1, index)); },
-  renderLanguages: function () { calls.push('renderLanguages'); },
+  renderLanguages: function (state) { lastLanguageRenderState = state; calls.push('renderLanguages'); },
   updateLanguageFocus: function () { calls.push('updateLanguageFocus'); }
 };
 
@@ -148,6 +171,12 @@ var controller = SettingsController.create({
       BACKDROP_QUALITIES: [50, 60, 70, 85, 100],
       HOME_ROWS: ['continue', 'recommended', 'recent'],
       supportedUiLanguages: ['en', 'it'],
+      seedFromPlex: function (value, account) {
+        return Object.assign({}, value, {
+          uiLanguage: account && account.locale ? account.locale : value.uiLanguage,
+          audioLanguages: account && account.profile && account.profile.defaultAudioLanguage ? [account.profile.defaultAudioLanguage] : value.audioLanguages
+        });
+      },
       save: function (storage, value) { calls.push('save'); return value; }
     },
     SettingsCatalog: {
@@ -199,8 +228,29 @@ var controller = SettingsController.create({
         };
       }
     },
+    LibraryTabsEditor: {
+      create: function (options) {
+        libraryTabsOptions = options;
+        return {
+          open: function () { libraryTabsOpen = true; calls.push('library-tabs-open'); return { open: true, index: libraryTabsFocus }; },
+          openCustomize: function () { libraryTabsOpen = true; calls.push('library-tabs-customize'); return { open: true, index: libraryTabsFocus, mode: 'customize' }; },
+          openRecent: function () { libraryTabsOpen = true; calls.push('library-tabs-recent'); return { open: true, index: libraryTabsFocus, mode: 'recent' }; },
+          close: function () { libraryTabsOpen = false; calls.push('library-tabs-close'); return { open: false, index: libraryTabsFocus }; },
+          snapshot: function () { return { open: libraryTabsOpen, index: libraryTabsFocus }; },
+          focus: function (index) { libraryTabsFocus = index; calls.push('library-tabs-focus:' + index); return { open: libraryTabsOpen, index: libraryTabsFocus }; },
+          render: function () { calls.push('library-tabs-render'); },
+          handleKey: function (event) { calls.push('library-tabs-key:' + event.keyCode); if (event.keyCode === 461) { libraryTabsOpen = false; } return true; },
+          destroy: function () { libraryTabsOpen = false; calls.push('library-tabs-destroy'); }
+        };
+      }
+    },
     I18n: { languageName: function (language, code) { return code; }, nativeLanguageName: function (code) { return code; } },
-    CardLayout: { SCALES: ['small', 'large'] },
+    LocaleBootstrap: {
+      ensure: function (_root, _document, language, callback) {
+        localeEnsures.push({ language: language, callback: callback });
+        return true;
+      }
+    },
     ServerStore: { normalizeUri: function (value) { return String(value || ''); } },
     ServerDiscovery: { isLocalCandidate: function () { return true; } },
     VersionSelection: { isPrioritySupported: function () { return true; } }
@@ -210,6 +260,24 @@ var controller = SettingsController.create({
     element: function () { return { appendChild: function () {} }; },
     pointerActive: function () { return false; }
   },
+  librarySources: {
+    preferenceState: function () { return {
+      displayMode: 'text', home: { icon: 'home' }, serverAliases: [], serverStates: [], homeOrder: [],
+      items: [
+        { sourceId: 'server-a|1', serverMachineIdentifier: 'server-a', enabled: true, homeRecentEnabled: true, alias: '', order: 0 },
+        { sourceId: 'server-b|9', serverMachineIdentifier: 'server-b', enabled: true, homeRecentEnabled: true, alias: '', order: 1 }
+      ]
+    }; },
+    sources: function () { return [
+      { id: 'server-a|1', serverMachineIdentifier: 'server-a', sectionTitle: 'Film', primary: true },
+      { id: 'server-b|9', serverMachineIdentifier: 'server-b', sectionTitle: 'Anime', primary: false }
+    ]; },
+    displayTitle: function (sourceId) { return sourceId === 'server-b|9' ? 'Anime \u00b7 Marco' : 'Film'; },
+    homeOrder: function () { return ['kind:continue', 'kind:recommended', 'source:server-a|1', 'source:server-b|9']; },
+    reorderHome: function (order) { homeOrderCalls.push(order.slice()); },
+    updateTab: function (sourceId, changes) { homeTabUpdates.push({ sourceId: sourceId, changes: Object.assign({}, changes) }); },
+    updateDisplayMode: function (mode) { calls.push('library-display:' + mode); }
+  },
   shell: {
     getSettings: function () { return settings; },
     setSettings: function (value) { settings = value; calls.push('setSettings'); },
@@ -217,10 +285,17 @@ var controller = SettingsController.create({
     leaveSettings: function () { calls.push('leave'); },
     transitionHome: function () { calls.push('home'); },
     renderNavigation: function () { calls.push('navigation'); },
+    applyCardScale: function () { calls.push('applyCardScale'); },
+    translateStaticUi: function () { calls.push('translateStaticUi'); },
     refreshCardsForCurrentView: function () { calls.push('refreshCards'); },
     navigationIndex: function () { return 0; },
     markHomeDirty: function () { calls.push('homeDirty'); },
-    loadBackdropPreview: function (callback) { calls.push('loadBackdropPreview'); callback(null, 'https://example.test/sample-art'); },
+    recomposeHome: function () { calls.push('recomposeHome'); },
+    loadBackdropPreview: function (callback) {
+      calls.push('loadBackdropPreview');
+      if (deferBackdropPreview) { pendingBackdropPreviewCallback = callback; return; }
+      callback(null, 'https://example.test/sample-art');
+    },
     clearBackdrop: function () { calls.push('clearBackdrop'); },
     showMessage: function (message) { calls.push('message:' + message); }
   },
@@ -245,7 +320,10 @@ var controller = SettingsController.create({
     clearPlaybackCompatibility: function () { calls.push('clearCompatibility'); },
     playbackCapabilities: function () { return { modelName: currentModel }; },
     settingsBackup: {
-      status: function (callback) { callback(null, backupStatus); },
+      status: function (callback) {
+        if (deferBackupStatus) { pendingBackupStatusCallback = callback; return; }
+        callback(null, backupStatus);
+      },
       save: function (callback) { backupCalls.push({ method: 'save' }); callback(backupSaveError, backupStatus); },
       registerDevice: function (name, callback) { backupCalls.push({ method: 'registerDevice', name: name }); callback(null, backupStatus); },
       restore: function (id, callback) {
@@ -261,6 +339,32 @@ var controller = SettingsController.create({
     }
   }
 });
+
+assert.strictEqual(typeof controller.persist, 'function', 'SettingsController must expose persistence without presentation reapplication');
+assert.strictEqual(controller.save, undefined, 'SettingsController must keep presentation save internal; external callers use persist/owned feature ports');
+assert.ok(libraryTabsOptions && typeof libraryTabsOptions.onRecentChange === 'function', 'library tabs editor must receive the Home presentation change callback');
+var editorRecomposeCount = calls.filter(function (call) { return call === 'recomposeHome'; }).length;
+libraryTabsOptions.onRecentChange();
+assert.strictEqual(calls.filter(function (call) { return call === 'recomposeHome'; }).length, editorRecomposeCount + 1, 'library presentation changes must immediately recompose retained Home data');
+assert.ok(calls.indexOf('homeDirty') >= 0, 'library presentation changes must still invalidate Home presentation');
+
+if (typeof controller.persist === 'function') {
+  var persistCallStart = calls.length;
+  document.body.className = 'shell persist-sentinel';
+  document.documentElement.lang = 'persist-sentinel';
+  controller.persist();
+  var persistCalls = calls.slice(persistCallStart);
+  assert.ok(persistCalls.indexOf('save') !== -1 && persistCalls.indexOf('setSettings') !== -1,
+    'pure Settings persistence must validate/save and publish the canonical settings object');
+  assert.strictEqual(persistCalls.indexOf('applyCardScale'), -1,
+    'pure Settings persistence must not reapply card-scale presentation');
+  assert.strictEqual(persistCalls.indexOf('translateStaticUi'), -1,
+    'pure Settings persistence must not retranslate static UI');
+  assert.strictEqual(document.body.className, 'shell persist-sentinel',
+    'pure Settings persistence must not reapply visual theme presentation');
+  assert.strictEqual(document.documentElement.lang, 'persist-sentinel',
+    'pure Settings persistence must not mutate document presentation state');
+}
 
 
 document.body.className = 'shell visual-theme-classic animations-disabled';
@@ -279,6 +383,14 @@ assert.ok(document.body.className.indexOf('visual-theme-classic') >= 0, 'changin
 assert.strictEqual(document.body.className.indexOf('visual-theme-neon'), -1, 'changing theme removes the previously active theme class');
 controller.leave();
 
+controller.enter({ keepNavigationFocus: false });
+controller.focusList(13, rows);
+var aggregateRecomposeCount = calls.filter(function (call) { return call === 'recomposeHome'; }).length;
+controller.handleKey({ keyCode: 39, preventDefault: function () {} }, 'right');
+assert.strictEqual(settings.aggregateHomeLibraries, true, 'Home library aggregation setting must update normally');
+assert.strictEqual(calls.filter(function (call) { return call === 'recomposeHome'; }).length, aggregateRecomposeCount + 1, 'changing Home library aggregation must immediately recompose retained Home data');
+controller.leave();
+
 assert.strictEqual(controller.snapshot().open, false, 'settings starts closed');
 assert.strictEqual(typeof controller.handleSafeAreaKey, 'function', 'settings controller must expose safe-area input to the application overlay');
 controller.setSetupLanguage('it', false);
@@ -289,8 +401,36 @@ assert.ok(calls.indexOf('homeDirty') >= 0, 'setup language invalidates Home tran
 controller.setSetupLanguage('en', true);
 assert.strictEqual(settings.uiLanguage, 'en', 'explicit setup language replaces the detected language');
 assert.strictEqual(settings.uiLanguageExplicit, true, 'explicit setup language is persisted as an explicit choice');
+var settingsBeforePlexSeed = settings;
+var localeEnsuresBeforePlexSeed = localeEnsures.length;
+assert.strictEqual(typeof controller.seedAccount, 'function', 'SettingsController must own Plex account seeding');
+if (typeof controller.seedAccount === 'function') {
+  controller.seedAccount({ locale: 'it', profile: {} });
+  assert.notStrictEqual(settings, settingsBeforePlexSeed, 'Plex seeding must adopt the new Settings object identity returned by seedFromPlex');
+  assert.strictEqual(settings.uiLanguage, 'it', 'Plex locale seeding must survive Settings persistence');
+  assert.strictEqual(localeEnsures.length, localeEnsuresBeforePlexSeed + 1, 'Plex locale changes must ensure the lazy locale dictionary');
+  assert.strictEqual(localeEnsures[localeEnsures.length - 1].language, 'it', 'Plex locale ensure must target the seeded interface language');
+  settings.uiLanguage = settingsBeforePlexSeed.uiLanguage;
+  document.documentElement.lang = settingsBeforePlexSeed.uiLanguage;
+}
 controller.enter({ keepNavigationFocus: false });
 assert.strictEqual(controller.snapshot().open, true, 'enter opens settings');
+controller.focusList(0, rows);
+var settingsRenderCountBeforeMove = calls.filter(function (call) { return call === 'render'; }).length;
+var settingsFocusCountBeforeMove = calls.filter(function (call) { return call === 'focus'; }).length;
+controller.handleKey({ keyCode: 40, preventDefault: function () {} }, 'down');
+assert.strictEqual(controller.snapshot().index, 1, 'Down must still move Settings focus to the next row');
+assert.strictEqual(calls.filter(function (call) { return call === 'render'; }).length, settingsRenderCountBeforeMove, 'Settings vertical focus movement must not rebuild the list DOM');
+assert.strictEqual(calls.filter(function (call) { return call === 'focus'; }).length, settingsFocusCountBeforeMove + 1, 'Settings vertical focus movement must update focus on the existing DOM');
+rows.push({ key: 'plexCategory', label: 'Plex', category: true, categoryId: 'plex' });
+controller.focusList(rows.length - 1, rows);
+controller.handleKey({ keyCode: 37, preventDefault: function () {} }, 'left');
+assert.strictEqual(controller.snapshot().level, 'categories', 'Left on a Settings category must keep the category list open');
+controller.handleKey({ keyCode: 39, preventDefault: function () {} }, 'right');
+assert.strictEqual(controller.snapshot().level, 'category', 'Right on a Settings category must open it exactly like OK');
+assert.strictEqual(controller.snapshot().categoryId, 'plex', 'Right must open the focused Settings category rather than changing an unrelated value');
+fakeView.closeCategory();
+rows.pop();
 controller.focusList(0, rows);
 assert.ok(calls.indexOf('enter') >= 0, 'enter routes through the shell');
 
@@ -349,15 +489,38 @@ controller.handleKey({ keyCode: 461, preventDefault: function () {} });
 assert.strictEqual(controller.snapshot().languageKind, '', 'remote Back uses the same language-editor exit semantics');
 
 
-controller.focusList(9, rows);
+
+controller.openSettingChoice(11);
+assert.strictEqual(controller.snapshot().libraryTabsOpen, true, 'Server and libraries must open the dedicated customizer');
+assert.ok(calls.indexOf('library-tabs-customize') >= 0, 'library customization must use the simplified customizer mode');
+controller.focusLibraryTabs(1);
+assert.ok(calls.indexOf('library-tabs-focus:1') >= 0, 'pointer focus must delegate to the library tabs editor');
+controller.handleKey({ keyCode: 461, preventDefault: function () {} });
+assert.strictEqual(controller.snapshot().libraryTabsOpen, false, 'Back inside library customization must close the editor without leaving Settings');
+
+controller.openSettingChoice(9);
+assert.strictEqual(lastChoiceArguments[0], 'Navigation bar style', 'Navigation bar style must open one global appearance choice dialog');
+assert.deepStrictEqual(lastChoiceArguments[1].map(function (item) { return item.value; }), ['text', 'icon', 'icon-text'], 'global navigation appearance must expose exactly the three approved modes');
+lastChoiceArguments[3]({ value: 'icon-text' });
+assert.ok(calls.indexOf('library-display:icon-text') >= 0, 'global navigation appearance must update the library source preference store');
+
+controller.focusList(10, rows);
 controller.handleKey({ keyCode: 13, preventDefault: function () {} });
-assert.strictEqual(controller.snapshot().languageKind, 'homeRows', 'Home rows must open in the ordered editor');
-controller.toggleLanguage();
-assert.deepStrictEqual(settings.homeRows, ['recommended', 'recent'], 'OK must hide the focused Home row group without deleting its editor choice');
+assert.strictEqual(controller.snapshot().languageKind, 'homeRows', 'Home item order must open in the unified ordered editor');
+assert.deepStrictEqual(lastLanguageRenderState.languages.map(function (item) { return item.code; }), [
+  'kind:continue', 'kind:recommended', 'source:server-a|1', 'source:server-b|9'
+], 'Home item order must replace the generic Recently Added entry with concrete library rows');
+assert.deepStrictEqual(lastLanguageRenderState.languages.slice(2).map(function (item) { return item.label; }), [
+  'settings.homeRow.recent \u00b7 Film', 'settings.homeRow.recent \u00b7 Anime \u00b7 Marco'
+], 'specific Recently Added rows must identify their library in the unified Home editor');
+controller.focusLanguage(2, 4);
+controller.handleKey({ keyCode: 13, preventDefault: function () {} });
+assert.deepStrictEqual(homeTabUpdates.pop(), { sourceId: 'server-a|1', changes: { homeRecentEnabled: false } }, 'OK on a concrete Recently Added row must toggle only that library Home row');
 assert.ok(calls.indexOf('homeDirty') >= 0, 'changing Home row visibility must invalidate Home presentation');
-controller.focusLanguage(0, 3);
+controller.focusLanguage(0, 4);
 controller.moveLanguage(1);
-assert.deepStrictEqual(settings.homeRows, ['recent', 'recommended'], 'horizontal reorder must move visible Home row groups without re-enabling hidden groups');
+assert.deepStrictEqual(homeOrderCalls.pop(), ['kind:recommended', 'kind:continue', 'source:server-a|1', 'source:server-b|9'], 'horizontal reorder must move generic and source-specific Home rows through one persistent order');
+assert.deepStrictEqual(lastLanguageRenderState.motion, { movedCode: 'kind:continue', displacedCode: 'kind:recommended', direction: 1 }, 'Home reordering must describe the moved and displaced rows so the view can animate the swap');
 controller.closeLanguages();
 
 controller.focusList(7, rows);
@@ -375,6 +538,32 @@ lastChoiceArguments[3]({ value: 'save' });
 assert.ok(calls.indexOf('message:settings.backup.error') >= 0, 'a failed settings save must show an error toast');
 backupSaveError = null;
 backupStatus.settingsMatch = true;
+
+deferBackupStatus = true;
+pendingBackupStatusCallback = null;
+lastChoiceArguments = null;
+controller.focusList(7, rows);
+controller.handleKey({ keyCode: 13, preventDefault: function () {} });
+assert.strictEqual(typeof pendingBackupStatusCallback, 'function', 'opening Settings backup must start the asynchronous status lookup');
+controller.leave();
+pendingBackupStatusCallback(null, backupStatus);
+assert.strictEqual(lastChoiceArguments, null, 'a Settings backup status lookup completed after leaving Settings must not open a stale dialog');
+deferBackupStatus = false;
+pendingBackupStatusCallback = null;
+controller.enter({ keepNavigationFocus: false });
+
+deferBackdropPreview = true;
+pendingBackdropPreviewCallback = null;
+lastChoiceArguments = null;
+controller.openSettingChoice(2);
+assert.strictEqual(typeof pendingBackdropPreviewCallback, 'function', 'backdrop-quality choice must wait for its asynchronous preview');
+controller.suspend();
+assert.strictEqual(controller.snapshot().open, true, 'suspending Settings must preserve the retained Settings state');
+pendingBackdropPreviewCallback(null, 'https://example.test/late-art');
+assert.strictEqual(lastChoiceArguments, null, 'a backdrop preview completed after Settings suspension must not open a stale choice dialog');
+deferBackdropPreview = false;
+pendingBackdropPreviewCallback = null;
+controller.enter({ keepNavigationFocus: false });
 
 controller.openUpNext();
 assert.strictEqual(node('up-next-preview-compact-heading').textContent, 'player.next', 'compact Up Next preview heading must be localized');
@@ -402,6 +591,7 @@ assert.strictEqual(typeof controller.promptSettingsLoad, 'function', 'settings c
 backupCalls = [];
 textInputOptions = null;
 textInputOpen = false;
+var localeEnsuresBeforeBackupLoad = localeEnsures.length;
 controller.promptSettingsLoad(backupStatus, { confirmFirst: false }, function () {});
 assert.strictEqual(lastChoiceArguments[0], 'settings.backup.chooseSave', 'loading settings must first choose a saved device when multiple saves exist');
 lastChoiceArguments[3]({ value: 'living-id' });
@@ -413,6 +603,8 @@ assert.strictEqual(differentModelLoad.options.sameDevice, false, 'different mode
 assert.strictEqual(differentModelLoad.options.deviceName, 'Bedroom renamed');
 assert.ok(document.body.className.indexOf('visual-theme-immersive') >= 0, 'loading settings from another TV applies the saved visual theme immediately');
 assert.strictEqual(document.body.className.indexOf('visual-theme-classic'), -1, 'loading settings removes the previously active theme class');
+assert.strictEqual(localeEnsures.length, localeEnsuresBeforeBackupLoad + 1, 'loading backup settings with another UI language must ensure its lazy locale');
+assert.strictEqual(localeEnsures[localeEnsures.length - 1].language, 'it', 'backup locale ensure must target the loaded interface language');
 
 backupCalls = [];
 textInputOptions = null;
@@ -441,7 +633,33 @@ assert.ok(calls.indexOf('leave') >= 0, 'leave routes through the shell');
 controller.enter({ keepNavigationFocus: false });
 controller.openLanguages('audioLanguages');
 controller.openUpNext();
-controller.openPrivacy();
+rows.push({ key: 'privacy', label: 'Privacy', action: true });
+controller.openSettingChoice(rows.length - 1);
+rows.pop();
+controller.focusList(12, rows);
+controller.openSettingChoice(12);
+var localeBeforeCycle = settings.uiLanguage;
+var localeAfterChoice = localeBeforeCycle === 'en' ? 'it' : 'en';
+var localeEnsuresBeforeCycle = localeEnsures.length;
+lastChoiceArguments[3]({ value: localeAfterChoice });
+assert.strictEqual(settings.uiLanguage, localeAfterChoice, 'choosing the interface language applies the new choice immediately');
+assert.strictEqual(settings.uiLanguageExplicit, true, 'choosing the interface language marks the choice explicit');
+assert.strictEqual(localeEnsures.length, localeEnsuresBeforeCycle + 1, 'interface language changes must ensure the lazy locale dictionary');
+assert.strictEqual(localeEnsures[localeEnsures.length - 1].language, localeAfterChoice, 'locale ensure must target the new interface language');
+var navigationCountBeforeLocale = calls.filter(function (call) { return call === 'navigation'; }).length;
+var renderCountBeforeLocale = calls.filter(function (call) { return call === 'render'; }).length;
+var saveCountBeforeLocaleReady = calls.filter(function (call) { return call === 'save'; }).length;
+var autoSaveCountBeforeLocaleReady = backupCalls.filter(function (entry) { return entry.method === 'scheduleAutoSave'; }).length;
+var translateCountBeforeLocaleReady = calls.filter(function (call) { return call === 'translateStaticUi'; }).length;
+localeEnsures[localeEnsures.length - 1].callback(true);
+assert.strictEqual(calls.filter(function (call) { return call === 'navigation'; }).length, navigationCountBeforeLocale + 1, 'loaded locales must refresh navigation labels');
+assert.strictEqual(calls.filter(function (call) { return call === 'render'; }).length, renderCountBeforeLocale + 1, 'loaded locales must refresh the settings list');
+assert.strictEqual(calls.filter(function (call) { return call === 'translateStaticUi'; }).length, translateCountBeforeLocaleReady + 1, 'loaded locales must retranslate global static UI after the dictionary is ready');
+assert.strictEqual(calls.filter(function (call) { return call === 'save'; }).length, saveCountBeforeLocaleReady, 'locale readiness must not persist Settings a second time');
+assert.strictEqual(backupCalls.filter(function (entry) { return entry.method === 'scheduleAutoSave'; }).length, autoSaveCountBeforeLocaleReady, 'locale readiness must not schedule a second settings backup autosave');
+settings.uiLanguage = localeBeforeCycle;
+localeEnsures[localeEnsures.length - 1].callback(true);
+assert.strictEqual(calls.filter(function (call) { return call === 'navigation'; }).length, navigationCountBeforeLocale + 1, 'stale locale arrivals must not refresh superseded languages');
 controller.destroy();
 controller.destroy();
 assert.strictEqual(node('update-dialog').className, 'update-dialog is-hidden', 'destroy must hide the update overlay');

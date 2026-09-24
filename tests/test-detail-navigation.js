@@ -9,7 +9,9 @@ navigation.set({ zone: 'seasons', seasonIndex: 4 });
 assert.strictEqual(navigation.navigate('right', context).state.seasonIndex, 4, 'season focus must clamp at the final tab');
 assert.strictEqual(navigation.navigate('left', context).effect, 'season-preview', 'season movement must request a deferred preview');
 assert.strictEqual(navigation.snapshot().seasonIndex, 3, 'season movement must update the selected index');
-assert.strictEqual(navigation.navigate('down', context).state.zone, 'play', 'Down from a season must reach Play');
+assert.strictEqual(navigation.navigate('down', context).state.zone, 'back', 'Down from a season must reach the title-row Back control');
+assert.strictEqual(navigation.navigate('down', context).state.zone, 'summary', 'Down from Back must follow the visible summary focus path');
+assert.strictEqual(navigation.navigate('down', context).state.zone, 'play', 'Down from the summary must reach Play');
 
 assert.strictEqual(navigation.navigate('down', context).state.zone, 'version', 'Down from actions must enter Version first');
 assert.strictEqual(navigation.navigate('right', context).effect, 'cycle-version-right', 'Left and Right must preserve quick version cycling');
@@ -38,7 +40,8 @@ assert.strictEqual(navigation.navigate('down', context).state.zone, 'play', 'Dow
 assert.strictEqual(navigation.snapshot().actionIndex, 0, 'returning from summary must select Play');
 
 navigation.set({ zone: 'play' });
-assert.strictEqual(navigation.navigate('up', { hasSeries: false, choiceZones: [], summaryOverflowing: false }).state.zone, 'play', 'movie actions must not move focus into the hidden detail navbar');
+assert.strictEqual(navigation.navigate('up', { hasSeries: false, choiceZones: [], summaryOverflowing: false }).state.zone, 'back', 'movie actions must reach the title-row Back control');
+assert.strictEqual(navigation.navigate('up', { hasSeries: false, choiceZones: [], summaryOverflowing: false }).state.zone, 'nav', 'movie Back must lead to the visible navigation above it');
 navigation.set({ zone: 'play' });
 assert.deepStrictEqual(navigation.navigate('down', { hasSeries: false, hasExtendedDetails: true, choiceZones: [] }), { state: { zone: 'extended', actionIndex: 0, seasonIndex: 3, episodeIndex: 10 }, effect: 'extended-enter' }, 'movie details must follow actions directly when no playback preference rows are visible');
 

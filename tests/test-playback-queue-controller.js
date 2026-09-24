@@ -84,6 +84,7 @@ function createHarness(extra) {
   var settings = extra && extra.settings || { delay: 4, layout: 'compact' };
   var controller = Controller.create({
     root: root,
+    PlaybackOperation: require('../app/playback-operation'),
     PlaybackQueueModel: QueueModel,
     UpNextState: UpNextState,
     UpNextTiming: UpNextTiming,
@@ -104,9 +105,11 @@ function createHarness(extra) {
       pageLoads.push({ container: container, start: start, size: size, callback: callback, request: request });
       return request;
     },
-    loadMetadata: function (ratingKey, callback) {
+    loadMetadata: function (itemOrRatingKey, callback) {
       var request = { aborted: false, abort: function () { this.aborted = true; } };
-      metadataLoads.push({ ratingKey: ratingKey, callback: callback, request: request });
+      var item = itemOrRatingKey && typeof itemOrRatingKey === 'object' ? itemOrRatingKey : null;
+      var ratingKey = item ? item.ratingKey : itemOrRatingKey;
+      metadataLoads.push({ ratingKey: ratingKey, item: item, callback: callback, request: request });
       return request;
     },
     requestPlayback: function (request) { playbackRequests.push(request); },
@@ -136,6 +139,7 @@ function createHarness(extra) {
   });
   return {
     root: root,
+    PlaybackOperation: require('../app/playback-operation'),
     controller: controller,
     seasonLoads: seasonLoads,
     pageLoads: pageLoads,
@@ -176,6 +180,29 @@ function createHarness(extra) {
   h.setDetail(detailFor(s2[0], seasons, s2, 2, 0));
   h.controller.resolveAdjacentState(-1, function (error, result) { assert.ifError(error); target = result; });
   assert.strictEqual(target.item.ratingKey, 's1e2', 'previous navigation must cross season boundaries');
+}());
+
+(function testSeriesSequenceIdentityIsScopedToOwningPms() {
+  var first = episode('same-e1', 1, 1);
+  var second = episode('same-e1', 1, 1);
+  var seasons = [{ ratingKey: 'same-s1', index: 1, leafCount: 1 }];
+  var h;
+  var initial;
+  var updated;
+  first.serverMachineIdentifier = 'server-a';
+  second.serverMachineIdentifier = 'server-b';
+  h = createHarness({ detail: detailFor(first, seasons, [first], 0, 0) });
+  h.controller.ensureSeries();
+  initial = h.controller.snapshot().sequence;
+  h.setDetail(detailFor(second, seasons, [second], 0, 0));
+  h.controller.ensureSeries();
+  updated = h.controller.snapshot().sequence;
+  assert.notStrictEqual(updated.identity, initial.identity,
+    'series sequence identity must distinguish identical Plex ids owned by different PMS servers');
+  assert.notStrictEqual(updated.provider.generation, initial.provider.generation,
+    'switching the owning PMS must reopen the series provider instead of reusing the previous server queue');
+  assert.strictEqual(h.controller.activeQueue().items[0].serverMachineIdentifier, 'server-b',
+    'switching the owning PMS must rebuild the materialized series queue instead of retaining items from the previous server');
 }());
 
 (function testQueueEndOffersHomeAndCountdownNavigatesThere() {
@@ -261,6 +288,34 @@ function createHarness(extra) {
   assert.deepStrictEqual(windowResult.items.map(function (value) { return value.item.ratingKey; }), ['m1', 'm2']);
   assert.strictEqual(h.controller.snapshot().playlistQueue.items.length, 1,
     'paginated drawer loading must not materialize the complete collection in the playback queue');
+}());
+
+(function testContainerSequenceIdentityIsScopedToOwningPms() {
+  var h = createHarness();
+  var firstContainer = {
+    containerType: 'playlist',
+    containerKey: '/playlists/shared/items',
+    title: 'Shared',
+    serverMachineIdentifier: 'server-a'
+  };
+  var secondContainer = {
+    containerType: 'playlist',
+    containerKey: '/playlists/shared/items',
+    title: 'Shared',
+    serverMachineIdentifier: 'server-b'
+  };
+  var first = { ratingKey: 'same-movie', type: 'movie', title: 'One', serverMachineIdentifier: 'server-a' };
+  var second = { ratingKey: 'same-movie', type: 'movie', title: 'One', serverMachineIdentifier: 'server-b' };
+  var initial;
+  var updated;
+  h.controller.prepareContainer(firstContainer, [first], first, 0, {});
+  initial = h.controller.snapshot().sequence;
+  h.controller.prepareContainer(secondContainer, [second], second, 0, {});
+  updated = h.controller.snapshot().sequence;
+  assert.notStrictEqual(updated.identity, initial.identity,
+    'container sequence identity must distinguish the same container path across PMS servers');
+  assert.notStrictEqual(updated.provider.generation, initial.provider.generation,
+    'switching the owning PMS must reopen the container provider instead of reusing cached pages from another server');
 }());
 
 (function testClosedVisibleOnlyDrawerWindowDoesNotHydrateTheRetainedSdRange() {
@@ -580,4 +635,110 @@ function createHarness(extra) {
     'an unsupported playback origin must notify the caller without recursive fallback resolution');
 }());
 
+
+(function testSeriesQueueMetadataKeepsTargetPlexOwner() {
+  var first = episode('a-e1', 1, 1);
+  var second = episode('b-e2', 1, 2);
+  first.serverMachineIdentifier = 'server-a';
+  second.serverMachineIdentifier = 'server-b';
+  var seasons = [{ ratingKey: 'merged-s1', index: 1, sourceVariants: [
+    { serverMachineIdentifier: 'server-a', ratingKey: 'a-s1' },
+    { serverMachineIdentifier: 'server-b', ratingKey: 'b-s1' }
+  ] }];
+  var h = createHarness({ detail: detailFor(first, seasons, [first, second], 0, 0) });
+  assert.strictEqual(h.controller.requestIndex(1, {}), true);
+  assert.ok(h.metadataLoads[0].item, 'series queue metadata loader must receive the full owner-aware item');
+  assert.strictEqual(h.metadataLoads[0].item.serverMachineIdentifier, 'server-b');
+  assert.strictEqual(h.metadataLoads[0].item.ratingKey, 'b-e2');
+}());
+
+
+(function testCrossServerUpNextAutoplayPreservesTargetOwner() {
+  var first = episode('a-e1', 1, 1);
+  var second = episode('b-e2', 1, 2);
+  first.serverMachineIdentifier = 'server-a';
+  second.serverMachineIdentifier = 'server-b';
+  var seasons = [{ ratingKey: 'merged-s1', index: 1, sourceVariants: [
+    { serverMachineIdentifier: 'server-a', ratingKey: 'a-s1' },
+    { serverMachineIdentifier: 'server-b', ratingKey: 'b-s1' }
+  ] }];
+  var h = createHarness({ detail: detailFor(first, seasons, [first, second], 0, 0), settings: { delay: 1, layout: 'compact' } });
+  h.controller.activeQueue();
+  assert.strictEqual(h.controller.playbackEnded({ actualEnd: true }), true);
+  assert.strictEqual(h.controller.upNextSnapshot().target.item.serverMachineIdentifier, 'server-b', 'Up Next preview must retain the next episode PMS owner');
+  h.root.runNext();
+  assert.strictEqual(h.playbackRequests.length, 1, 'autoplay countdown must request the queued next episode');
+  assert.strictEqual(h.playbackRequests[0].item.ratingKey, 'b-e2');
+  assert.strictEqual(h.playbackRequests[0].item.serverMachineIdentifier, 'server-b', 'autoplay request must retain the target PMS owner for deferred Player routing');
+}());
+
+
+
+// Command lifetime is shorter than the bounded queue/cache lifetime.
+var lifecycleFailures = 0;
+function lifecycleTest(name, run) {
+  try { run(); console.log('PASS ' + name); }
+  catch (error) { lifecycleFailures += 1; console.error('FAIL ' + name + '\n' + error.stack); }
+}
+
+lifecycleTest('session reset cancels metadata but retains the queue and its origin', function () {
+  var items = [episode('one', 1, 1), episode('two', 1, 2)];
+  var h = createHarness();
+  var completions = 0;
+  var origin = { ratingKey: 'playlist', type: 'playlist', title: 'List' };
+  h.controller.preparePlaylist(origin, items, items[0], 0);
+  h.controller.waitForDetail(items[1], function () { completions += 1; });
+  h.controller.resetPlaybackSession();
+  h.metadataLoads[0].callback(null, { ratingKey: 'two' });
+  assert.strictEqual(completions, 0, 'retired metadata cannot activate playback');
+  assert.strictEqual(h.metadataLoads[0].request.aborted, true);
+  assert.deepStrictEqual(h.controller.snapshot().playlistQueue.items, items);
+  h.controller.waitForDetail(items[0], function () { completions += 1; });
+  h.metadataLoads[1].callback(null, { ratingKey: 'one' });
+  assert.strictEqual(completions, 1, 'the same queue remains reusable by a new command');
+  h.controller.destroy();
+});
+
+lifecycleTest('one metadata transport completion can publish only once', function () {
+  var h = createHarness();
+  var completions = 0;
+  h.controller.waitForDetail('one', function () { completions += 1; });
+  h.metadataLoads[0].callback(null, { ratingKey: 'one' });
+  h.metadataLoads[0].callback(null, { ratingKey: 'one' });
+  assert.strictEqual(completions, 1);
+  h.controller.destroy();
+});
+
+lifecycleTest('session reset suppresses an adjacent command without discarding bounded pages', function () {
+  var seasons = [{ ratingKey: 's1', index: 1, leafCount: 1 }, { ratingKey: 's2', index: 2, leafCount: 1 }];
+  var first = episode('s1e1', 1, 1);
+  var next = episode('s2e1', 2, 1);
+  var h = createHarness({ detail: detailFor(first, seasons, [first], 0, 0) });
+  var completions = 0;
+  var target;
+  h.controller.resolveAdjacentState(1, function () { completions += 1; });
+  h.controller.resetPlaybackSession();
+  h.seasonLoads[0].callback(null, [next]);
+  assert.strictEqual(completions, 0, 'a finished page must not publish a cancelled activation');
+  h.controller.resolveAdjacentState(1, function (error, result) { assert.ifError(error); target = result; });
+  assert.strictEqual(target.item.ratingKey, 's2e1');
+  assert.strictEqual(h.seasonLoads.length, 1, 'completed bounded pages remain reusable');
+  h.controller.destroy();
+});
+
+lifecycleTest('session reset prevents queued index metadata from reopening playback', function () {
+  var first = episode('one', 1, 1);
+  var next = episode('two', 1, 2);
+  var h = createHarness({ detail: detailFor(first, [{ ratingKey: 's1', index: 1, leafCount: 2 }], [first, next], 0, 0) });
+  assert.strictEqual(h.controller.requestIndex(1, {}), true);
+  h.controller.resetPlaybackSession();
+  h.metadataLoads[0].callback(null, { ratingKey: 'two' });
+  assert.strictEqual(h.playbackRequests.length, 0);
+  assert.strictEqual(h.controller.requestIndex(1, {}), true);
+  h.metadataLoads[1].callback(null, { ratingKey: 'two' });
+  assert.strictEqual(h.playbackRequests.length, 1);
+  h.controller.destroy();
+});
+
+if (lifecycleFailures) { throw new Error(lifecycleFailures + ' queue lifecycle regressions'); }
 console.log('Playback queue controller checks passed');

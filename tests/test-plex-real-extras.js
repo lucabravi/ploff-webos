@@ -28,7 +28,7 @@ function parse(relativePath) {
   }, {
     ratingKey: 'fixture-rating-010',
     type: 'movie',
-    title: "Sample Film 6",
+    title: 'Sample Film 1',
     subtitle: 'Synthetic fixture tagline',
     duration: 9297140,
     image: '/plex-api/library/metadata/fixture-rating-010/thumb/1786386198',

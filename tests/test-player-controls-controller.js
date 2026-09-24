@@ -47,6 +47,7 @@ function createHarness(extra) {
   var calls = [];
   var seeks = [];
   var skipRenders = [];
+  var chapterRenders = 0;
   var signature = 'initial';
   var rows = [
     { key: 'audio', disabled: false },
@@ -76,7 +77,7 @@ function createHarness(extra) {
     settingsRows: function () { return rows; },
     settingsSignature: function () { return signature; },
     applySettings: function () { calls.push(['apply-settings']); },
-    renderMode: function () {}, renderFocus: function () {}, renderChapters: function () {},
+    renderMode: function () {}, renderFocus: function () {}, renderChapters: function () { chapterRenders += 1; },
     renderSkip: function (snapshot) { skipRenders.push(snapshot.settingsOpen); }, renderSettings: function () {},
     onSettingsOpenChanged: function (open) { calls.push(['settings-open', open]); },
     toggle: function () { calls.push(['toggle']); },
@@ -97,6 +98,7 @@ function createHarness(extra) {
   });
   return {
     root: root, controller: controller, calls: calls, seeks: seeks, skipRenders: skipRenders,
+    chapterRenderCount: function () { return chapterRenders; },
     setNow: function (value) { now = value; },
     setPosition: function (value) { playback.positionSeconds = value; },
     setSeekSettling: function (value) { playback.seekSettling = value === true; },
@@ -142,13 +144,29 @@ function createHarness(extra) {
   var h = createHarness({ position: 42 });
   assert.strictEqual(h.controller.openChapters(), true);
   assert.strictEqual(h.controller.snapshot().chapter.index, 1, 'current chapter must be focused from absolute playback time');
+  assert.strictEqual(h.controller.snapshot().chapter.currentIndex, 1, 'current chapter must be retained separately from navigation focus');
+  var chapterRenderCount = h.chapterRenderCount();
+  h.controller.handleKey(key(39), 'right');
+  assert.strictEqual(h.chapterRenderCount(), chapterRenderCount, 'chapter arrow input must not rebuild the chapter drawer');
   h.controller.moveChapter(1);
   assert.strictEqual(h.controller.snapshot().chapter.index, 2);
+  assert.strictEqual(h.chapterRenderCount(), chapterRenderCount, 'moving chapter focus must not rebuild the chapter drawer');
+  h.controller.pointerFocus('chapter', 0);
+  assert.strictEqual(h.chapterRenderCount(), chapterRenderCount, 'pointing a chapter must not rebuild the chapter drawer');
+  h.controller.moveChapter(1);
+  h.controller.moveChapter(1);
   assert.strictEqual(h.controller.activateChapter(), true);
   assert.strictEqual(h.seeks[0].seconds, 90);
   assert.strictEqual(h.seeks[0].options.source, 'chapter');
   assert.strictEqual(h.controller.snapshot().chapter.open, false);
   assert.strictEqual(h.controller.snapshot().zone, 'buttons');
+}());
+
+(function testChapterDrawerOwnsPlayerVisibilityWhileOpen() {
+  var h = createHarness();
+  assert.strictEqual(h.controller.openChapters(), true);
+  h.root.runNext();
+  assert.strictEqual(h.controller.snapshot().chapter.open, true, 'the chapter drawer must keep the player visible while it is open');
 }());
 
 (function testSkipPromptLifetimeAndUpNextPrecedence() {

@@ -21,31 +21,38 @@ assert.deepStrictEqual(SearchModel.applyKey('rent', 'space', false), { query: 'r
 assert.deepStrictEqual(SearchModel.applyKey('rent', 'shift', false), { query: 'rent', symbolMode: true }, 'Shift must open symbols');
 assert.deepStrictEqual(SearchModel.applyKey('rent', 'shift', true), { query: 'rent', symbolMode: false }, 'Shift must return to letters');
 
-assert.deepStrictEqual(SearchModel.relevantCloudItems('attack', [
-  { title: 'Attack on Titan', guid: 'plex://show/attack', score: 0.64 },
-  { title: 'Blue Box', guid: 'plex://show/blue-box', score: 0.31 },
-  { title: 'Attack on Titan', guid: 'plex://show/attack', score: 0.64 }
+assert.deepStrictEqual(SearchModel.relevantCloudItems('sample', [
+  { title: 'Sample Saga', guid: 'plex://show/sample-saga', score: 0.64 },
+  { title: 'Synthetic Series B', guid: 'plex://show/synthetic-series-b', score: 0.31 },
+  { title: 'Sample Saga', guid: 'plex://show/sample-saga', score: 0.64 }
 ]), [
-  { title: 'Attack on Titan', guid: 'plex://show/attack', score: 0.64 }
+  { title: 'Sample Saga', guid: 'plex://show/sample-saga', score: 0.64 }
 ], 'cloud aliases must be relevant to the typed query and deduplicated before local resolution');
-assert.deepStrictEqual(SearchModel.relevantCloudItems('yomi no tsugai', [
-  { title: 'Daemons of the Shadow Realm', guid: 'plex://show/daemons', score: 0.93 },
+assert.deepStrictEqual(SearchModel.relevantCloudItems('lookup', [
+  { title: 'Sample Discovery Series', guid: 'plex://show/sample-discovery-series', score: 0.93 },
   { title: 'No Goal', guid: 'plex://show/no-goal', score: 0.27 }
 ]), [
-  { title: 'Daemons of the Shadow Realm', guid: 'plex://show/daemons', score: 0.93 }
+  { title: 'Sample Discovery Series', guid: 'plex://show/sample-discovery-series', score: 0.93 }
 ], 'the top high-confidence Discover alias must survive even when its localized title does not contain the query');
-assert.deepStrictEqual(SearchModel.relevantCloudItems('yomi', [
-  { title: 'Daemons of the Shadow Realm', guid: 'plex://show/daemons', score: 0.54 },
-  { title: 'Blue Box', guid: 'plex://show/blue-box', score: 0.31 }
+assert.deepStrictEqual(SearchModel.relevantCloudItems('lookup', [
+  { title: 'Sample Discovery Series', guid: 'plex://show/sample-discovery-series', score: 0.54 },
+  { title: 'Synthetic Series B', guid: 'plex://show/synthetic-series-b', score: 0.31 }
 ]), [
-  { title: 'Daemons of the Shadow Realm', guid: 'plex://show/daemons', score: 0.54 }
+  { title: 'Sample Discovery Series', guid: 'plex://show/sample-discovery-series', score: 0.54 }
 ], 'a partial alternate title must retain the first provider-ranked alias without admitting unrelated lower-ranked items');
 assert.deepStrictEqual(SearchModel.mergeLocalResults([
-  { ratingKey: '1', title: 'L’attacco dei giganti' }
+  { ratingKey: '1', title: 'Sample Saga' }
 ], [
-  { ratingKey: '1', title: 'L’attacco dei giganti' },
-  { ratingKey: '2', title: 'Attack the Block' }
+  { ratingKey: '1', title: 'Sample Saga' },
+  { ratingKey: '2', title: 'Sample City Film' }
 ]).map(function (item) { return item.ratingKey; }), ['2', '1'], 'online aliases must add only distinct locally resolved items and retain alphabetical ordering');
+var crossServerResults = SearchModel.mergeLocalResults([
+  { ratingKey: 'same', serverMachineIdentifier: 'server-a', title: 'Alpha' }
+], [
+  { ratingKey: 'same', serverMachineIdentifier: 'server-b', title: 'Beta' }
+]);
+assert.deepStrictEqual(crossServerResults.map(function (item) { return item.serverMachineIdentifier; }), ['server-a', 'server-b'],
+  'Search merge must retain equal ratingKeys that belong to different PMS owners');
 
 var layout = { keyboardRows: [10, 10, 9, 9, 2], resultColumns: 5, resultCount: 12 };
 assert.deepStrictEqual(SearchModel.move({ zone: 'nav', row: 0, column: 3, index: 0 }, 'down', layout), { zone: 'keyboard', row: 0, column: 3, index: 0 }, 'Down from navbar must enter the keyboard');

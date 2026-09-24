@@ -49,6 +49,24 @@ assert.ok(nodes['detail-audio'].className.indexOf('is-focused') !== -1 && nodes[
 assert.strictEqual(nodes['detail-subtitles'].disabled, true, 'single-value controls must be disabled');
 assert.strictEqual(nodes['detail-version'].disabled, false, 'version details must remain openable even when there is only one file version');
 assert.strictEqual(nodes['detail-version'].className.indexOf('is-cyclable'), -1, 'single-file version details must not advertise lateral cycling');
+assert.strictEqual(nodes['detail-version'].className.indexOf('is-cycle-reserved'), -1, 'ordinary single-file version details must not reserve arrow space');
+
+view.renderMediaControls({
+  labels: { version: 'Version', audio: 'Audio', subtitles: 'Subtitles' },
+  choices: { audio: false, subtitles: false, versions: false, versionOpenable: true, versionCycleReserved: true },
+  values: { audio: '', subtitles: '', version: 'Automatic - 1080p' },
+  detail: { type: 'episode' }
+});
+assert.ok(nodes['detail-version'].className.indexOf('is-cycle-reserved') !== -1, 'pending multiserver ownership must reserve Version arrow space');
+assert.strictEqual(nodes['detail-version'].className.indexOf('is-cyclable'), -1, 'reserved arrow space must stay non-cyclable until the episode copy is confirmed');
+view.renderMediaControls({
+  labels: { version: 'Version', audio: 'Audio', subtitles: 'Subtitles' },
+  choices: { audio: false, subtitles: false, versions: true, versionOpenable: true, versionCycleReserved: true },
+  values: { audio: '', subtitles: '', version: 'Automatic - 1080p' },
+  detail: { type: 'episode' }
+});
+assert.ok(nodes['detail-version'].className.indexOf('is-cycle-reserved') !== -1 && nodes['detail-version'].className.indexOf('is-cyclable') !== -1,
+  'confirmed multiserver ownership must reveal cycling inside the already reserved Version layout');
 assert.strictEqual(nodes['detail-version-label'].textContent, 'Version', 'version must render its localized label from the media-control model');
 
 nodes['detail-summary'].scrollHeight = 160;

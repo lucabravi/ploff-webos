@@ -22,40 +22,11 @@ var candidates = [
   { id: 'matching-duplicate', languageTag: 'it', language: 'Italiano', codec: 'SRT', format: 'srt', external: true, title: 'Dialoghi', displayTitle: 'Italiano (SRT External)', forced: false }
 ];
 
-assert.deepStrictEqual(SubtitleSeriesOffset.matchTracks(reference, candidates).map(function (track) { return track.id; }), ['matching-one', 'matching-duplicate'],
-  'matching subtitle occurrences must remain visible and receive the same series offset');
-assert.deepStrictEqual(SubtitleSeriesOffset.matchTracks(reference, [
-  { id: 'embedded', languageTag: 'it', codec: 'SRT', format: 'srt', external: false },
-  { id: 'ass', languageTag: 'it', codec: 'ASS', format: 'ass', external: true }
-]), [], 'embedded tracks and different subtitle formats must never be selected for presentation matching');
-assert.deepStrictEqual(SubtitleSeriesOffset.matchTracks(reference, [
-  { id: 'fallback', languageTag: 'it', language: 'Italiano', codec: 'SRT', format: 'srt', external: true }
-]).map(function (track) { return track.id; }), ['fallback'], 'language and external text format are a safe fallback when descriptive metadata is absent');
-assert.deepStrictEqual(SubtitleSeriesOffset.matchTracks(reference, [
-  { id: 'ambiguous', languageTag: 'it', language: 'Italiano', codec: 'VTT', format: 'webvtt', external: true },
-  { id: 'not-text', languageTag: 'it', codec: 'PGS', format: 'pgs', external: true }
-]), [], 'a different text codec must not be treated as the same subtitle stream');
-
-var assReference = {
-  id: 'ass-current', languageTag: 'it', codec: 'ASS', format: 'ass', external: true,
-  title: 'Dialoghi', forced: false
-};
-assert.deepStrictEqual(SubtitleSeriesOffset.matchTracks(assReference, [
-  { id: 'ass-match', languageTag: 'it', codec: 'ASS', format: 'ass', external: true, title: 'Dialoghi', forced: false },
-  { id: 'ass-other-title', languageTag: 'it', codec: 'ASS', format: 'ass', external: true, title: 'Signs', forced: false },
-  { id: 'ass-embedded', languageTag: 'it', codec: 'ASS', format: 'ass', external: false, title: 'Dialoghi', forced: false },
-  { id: 'pgs', languageTag: 'it', codec: 'PGS', format: 'pgs', external: true, title: 'Dialoghi', forced: false }
-]).map(function (track) { return track.id; }), ['ass-match'], 'external ASS presentation matching must preserve format, source, title, language, and forced state');
 
 var embeddedAssReference = {
   id: 'embedded-ass-current', index: 4, languageTag: 'it', codec: 'ASS', format: 'ass', external: false,
   title: 'Dialoghi', forced: false
 };
-assert.deepStrictEqual(SubtitleSeriesOffset.matchTracks(embeddedAssReference, [
-  { id: 'embedded-ass-match', index: 4, languageTag: 'it', codec: 'ASS', format: 'ass', external: false, title: 'Dialoghi', forced: false },
-  { id: 'embedded-ass-duplicate', index: 5, languageTag: 'it', codec: 'ASS', format: 'ass', external: false, title: 'Dialoghi', forced: false },
-  { id: 'embedded-ssa-other-format', index: 4, languageTag: 'it', codec: 'SSA', format: 'ssa', external: false, title: 'Dialoghi', forced: false }
-]).map(function (track) { return track.id; }), ['embedded-ass-match'], 'embedded ASS presentation matching must preserve stream index so duplicate tracks are not collapsed');
 
 var values = {};
 var storage = {
@@ -63,15 +34,11 @@ var storage = {
   setItem: function (key, value) { values[key] = value; }
 };
 var episode = { type: 'episode', ratingKey: 'episode-2', parentRatingKey: 'season-1' };
-assert.strictEqual(SubtitleSeriesOffset.sourceFor({ media: { subtitleSize: 125 }, season: { offsetMs: 300 } }, 'offsetMs'), 'season',
-  'source resolution must follow the layer that owns the requested presentation field');
-assert.strictEqual(SubtitleSeriesOffset.sourceFor({ media: { subtitleSize: 125 }, season: { offsetMs: 300 } }, 'subtitleSize'), 'media',
-  'media presentation must take precedence for its own field');
 assert.strictEqual(SubtitleSeriesOffset.saveSeason(storage, 'server', episode, { subtitleSize: 125, offsetMs: 400, track: reference }), true);
 assert.deepStrictEqual(SubtitleSeriesOffset.resolve(storage, 'server', episode, candidates[2]), {
   subtitleSize: 125, offsetMs: 400, track: SubtitleSeriesOffset.signature(reference)
 }, 'season presentation must be restored for the equivalent subtitle track');
-assert.strictEqual(SubtitleSeriesOffset.saveMedia(storage, 'server', episode, { subtitleSize: 150, offsetMs: -200, track: reference }), true);
+assert.strictEqual(SubtitleSeriesOffset.saveProfile(storage, 'server', episode, 'media', reference, { subtitleSize: 150, offsetMs: -200 }), true);
 assert.strictEqual(SubtitleSeriesOffset.resolve(storage, 'server', episode, candidates[2]).subtitleSize, 150,
   'the current-media presentation must override the season default');
 assert.strictEqual(SubtitleSeriesOffset.resolve(storage, 'server', episode, candidates[0]), null,
@@ -85,21 +52,6 @@ assert.strictEqual(SubtitleSeriesOffset.resolve(storage, 'server', episode, {
 }), null, 'season presentation must not leak to a duplicate embedded ASS stream with another index');
 
 
-(function scopedLayerBatchUpdateWritesMediaAndSeasonAtomically() {
-  var values = {};
-  var writes = 0;
-  var storage = {
-    getItem: function (key) { return values[key] || null; },
-    setItem: function (key, value) { writes += 1; values[key] = value; }
-  };
-  var detail = { type: 'episode', ratingKey: 'episode-batch', parentRatingKey: 'season-batch' };
-  SubtitleSeriesOffset.saveSeason(storage, 'server', detail, { subtitleSize: 125 });
-  writes = 0;
-  assert.strictEqual(SubtitleSeriesOffset.updateLayers(storage, 'server', detail, { media: { subtitleBackground: 'high' }, season: null }), true,
-    'layer batch update must support replacing media while deleting season');
-  assert.strictEqual(writes, 1, 'media and season changes must be persisted with one storage write');
-  assert.deepStrictEqual(SubtitleSeriesOffset.resolveLayers(storage, 'server', detail), { media: { subtitleBackground: 'high' }, season: null });
-}());
 
 console.log('Subtitle series offset checks passed');
 
@@ -160,14 +112,10 @@ console.log('Subtitle series offset checks passed');
     renderAss: false,
     offsetMs: 350
   }, 'season presentation preferences must override global defaults while renderer flags remain global');
-  assert.strictEqual(SubtitleSeriesOffset.resolveSelectedTrack(SubtitleSeriesOffset.effective(scopedStorage, 'server', detail, globals, episodeTrack), [episodeTrack]), null,
-    'presentation profiles must not also become subtitle track-selection preferences');
 
-  SubtitleSeriesOffset.saveMedia(scopedStorage, 'server', detail, {
+  SubtitleSeriesOffset.saveProfile(scopedStorage, 'server', detail, 'media', null, {
     subtitleSize: 150,
-    subtitleBackground: 'high',
-    renderAss: false,
-    subtitleMode: 'off'
+    subtitleBackground: 'high'
   });
   assert.deepStrictEqual(SubtitleSeriesOffset.effective(scopedStorage, 'server', detail, globals, episodeTrack), {
     subtitleSize: 150,
@@ -185,14 +133,14 @@ console.log('Subtitle series offset checks passed');
     renderAss: true
   }), { subtitleBackground: 'high' }, 'sparse diffs must ignore global renderer flags and omit values equal to the parent scope');
 
-  assert.strictEqual(SubtitleSeriesOffset.clearMedia(scopedStorage, 'server', detail), true, 'media reset must delete only the media scope');
+  assert.strictEqual(SubtitleSeriesOffset.clearProfile(scopedStorage, 'server', detail, 'media', null), true, 'media reset must delete only the media scope');
   assert.strictEqual(SubtitleSeriesOffset.effective(scopedStorage, 'server', detail, globals, episodeTrack).subtitleSize, 125,
     'clearing media preferences must reveal the season preference');
-  assert.strictEqual(SubtitleSeriesOffset.clearSeason(scopedStorage, 'server', detail), true, 'season reset must delete only the season scope');
+  assert.strictEqual(SubtitleSeriesOffset.clearProfile(scopedStorage, 'server', detail, 'season', seasonTrack), true, 'season reset must delete only the season scope');
   assert.deepStrictEqual(SubtitleSeriesOffset.effective(scopedStorage, 'server', detail, globals, episodeTrack), globals,
     'clearing the season preference must reveal global defaults');
 
-  SubtitleSeriesOffset.saveMedia(scopedStorage, 'server', detail, { offsetMs: -250, track: episodeTrack });
+  SubtitleSeriesOffset.saveProfile(scopedStorage, 'server', detail, 'media', episodeTrack, { offsetMs: -250 });
   assert.deepStrictEqual(SubtitleSeriesOffset.diff({ offsetMs: -250 }, { offsetMs: 0, track: episodeTrack }), { offsetMs: 0, track: SubtitleSeriesOffset.signature(episodeTrack) },
     'track profiles must compare structurally while an explicit zero offset remains a meaningful sparse override');
 }());

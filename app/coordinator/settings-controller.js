@@ -17,6 +17,7 @@
     var shell = values.shell || {};
     var server = values.server || {};
     var account = values.account || {};
+    var librarySources = values.librarySources || {};
     var dialogs = values.dialogs || {};
     var environment = values.environment || {};
     var root = platform.root || {};
@@ -36,10 +37,12 @@
     var safeAreaDialog;
     var subtitleStyleDialog;
     var textInputDialog;
+    var libraryTabsEditor;
     var safeAreaOriginal = null;
     var playbackCompatibilityOpen = false;
     var playbackCompatibilityFocus = 0;
     var choicePreviewGeneration = 0;
+    var backupInteractionGeneration = 0;
 
     if (!InputCommandRouter || typeof InputCommandRouter.settings !== 'function') {
       throw new Error('SettingsController requires InputCommandRouter');
@@ -280,7 +283,11 @@
       supportedUiLanguages: modules.Settings.supportedUiLanguages,
       accentValues: accentValues,
       appVersion: String(environment.appVersion || releaseSnapshot().installedVersion || ''),
-      updateStatusLabel: updateRowStatusLabel
+      updateStatusLabel: updateRowStatusLabel,
+      libraryDisplayMode: function () {
+        var current = values.librarySources && typeof values.librarySources.preferenceState === 'function' ? values.librarySources.preferenceState() : null;
+        return String(current && current.displayMode || 'text');
+      }
     });
 
     view = modules.SettingsView.create({
@@ -318,7 +325,29 @@
     textInputDialog = modules.TextInputDialog && modules.TextInputDialog.create ? modules.TextInputDialog.create({
       root: root,
       document: document,
+      t: t,
       t9Enabled: function () { return settings.searchT9Input === true; }
+    }) : null;
+    libraryTabsEditor = modules.LibraryTabsEditor && modules.LibraryTabsEditor.create ? modules.LibraryTabsEditor.create({
+      document: document,
+      element: element,
+      t: t,
+      librarySources: values.librarySources || {},
+      pointerActive: pointerActive,
+      keepFocusVisible: keepPanelFocusVisible,
+      onRecentChange: function () {
+        call(shell.recomposeHome);
+        call(shell.markHomeDirty);
+        if (environment.settingsBackup) { call(environment.settingsBackup.scheduleAutoSave); }
+      },
+      dialogs: {
+        openChoice: function (title, items, selected, apply, returnFocus) {
+          return call(dialogs.openChoice, title, items, selected, apply, returnFocus);
+        },
+        openText: function (options) {
+          return textInputDialog && textInputDialog.open ? textInputDialog.open(options) : false;
+        }
+      }
     }) : null;
 
     function currentCatalog() {
@@ -359,7 +388,9 @@
         if (viewState.level !== 'category') { return categoryRootRows(); }
         list = catalog.categories || [];
         for (index = 0; index < list.length; index += 1) {
-          if (list[index].id === viewState.categoryId) { return list[index].rows; }
+          if (list[index].id === viewState.categoryId) {
+            return [{ key: 'backCategory', label: t('common.back'), value: '', action: true, categoryBack: true }].concat(list[index].rows);
+          }
         }
         return [];
       }
@@ -367,21 +398,31 @@
       if (viewState.level !== 'category') { return categoryRootRows(); }
       list = categories();
       for (index = 0; index < list.length; index += 1) {
-        if (list[index].id === viewState.categoryId) { return list[index].rows; }
+        if (list[index].id === viewState.categoryId) {
+          return [{ key: 'backCategory', label: t('common.back'), value: '', action: true, categoryBack: true }].concat(list[index].rows);
+        }
       }
       return [];
     }
     function sectionLabel(section) { return settingsCatalog.sectionLabel(section); }
+    function categoryNotice(categoryId) {
+      return categoryId ? t('settings.categoryNotice.' + categoryId) : '';
+    }
 
     function publishSettings() {
       call(shell.setSettings, settings);
       return settings;
     }
 
-    function save() {
+    function persist() {
       settings = modules.Settings.save(root.localStorage, settings);
       invalidateCatalog();
       publishSettings();
+      return settings;
+    }
+
+    function saveAndRefreshPresentation() {
+      persist();
       if (document && document.documentElement) { document.documentElement.lang = settings.uiLanguage; }
       call(shell.applyCardScale);
       applyAccentColor();
@@ -399,7 +440,18 @@
       if (explicit === true) { settings.uiLanguageExplicit = true; }
       else if (explicit === false && settings.uiLanguageExplicit !== true) { settings.uiLanguageExplicit = false; }
       call(shell.markHomeDirty);
-      return save();
+      return saveAndRefreshPresentation();
+    }
+
+    function seedAccount(accountProfile) {
+      var previousLanguage = String(settings.uiLanguage || '');
+      settings = modules.Settings.seedFromPlex(settings, accountProfile);
+      saveAndRefreshPresentation();
+      if (String(settings.uiLanguage || '') !== previousLanguage) {
+        call(shell.markHomeDirty);
+        refreshAfterLocale(settings.uiLanguage);
+      }
+      return settings;
     }
 
     function render() {
@@ -412,7 +464,7 @@
       }
       view.render({
         title: viewState.level === 'category' ? sectionLabel(viewState.categoryId) : t('settings.title'),
-        notice: t('settings.globalNotice'), rows: rows(), level: viewState.level,
+        notice: viewState.level === 'category' ? categoryNotice(viewState.categoryId) : '', rows: rows(), level: viewState.level,
         sectionLabel: sectionLabel, zone: viewState.zone, index: viewState.index,
         navIndex: navigationIndex(), serverEditorOpen: serverState.open,
         serverDiscoveryActive: call(server.discoveryActive) === true,
@@ -610,7 +662,7 @@
     function activatePlaybackCompatibility() {
       if (playbackCompatibilityFocus === 0) {
         settings.adaptivePlaybackMemory = !settings.adaptivePlaybackMemory;
-        save();
+        saveAndRefreshPresentation();
         renderPlaybackCompatibility();
       } else if (playbackCompatibilityFocus === 1) {
         clearPlaybackCompatibility('formats');
@@ -810,13 +862,16 @@
     }
 
     function applyLoadedSettings(backup, error, loaded, callback) {
+      var previousLanguage = String(settings.uiLanguage || '');
       if (!error && loaded && loaded.settings) {
         settings = loaded.settings;
-        save();
+        saveAndRefreshPresentation();
         call(shell.markHomeDirty);
+        call(librarySources.reloadPreferences);
         call(shell.applyNavigationVisibility);
         call(shell.renderNavigation);
         if (settings.settingsBackupMode !== 'off') { backup.scheduleAutoSave(); }
+        if (String(settings.uiLanguage || '') !== previousLanguage) { refreshAfterLocale(settings.uiLanguage); }
       }
       call(callback, error || null, loaded || null, false);
     }
@@ -946,7 +1001,7 @@
           function applyMode(error) {
             if (!error) {
               settings.settingsBackupMode = mode;
-              save();
+              saveAndRefreshPresentation();
               if (mode !== 'off') { backup.scheduleAutoSave(); }
             }
             showBackupResult(error, 'settings.backup.modeChanged');
@@ -972,10 +1027,18 @@
 
     function openSettingsBackup() {
       var backup = environment.settingsBackup;
+      var generation;
       if (!backup) { showBackupResult(new Error('unavailable')); return false; }
+      generation = backupInteractionGeneration += 1;
       backup.status(function (error, status) {
-        var exists = !error && status && status.exists;
-        var settingsStatus = !error && status && status.settingsMatch === true ? 'matched' : 'unmatched';
+        var viewState;
+        var exists;
+        var settingsStatus;
+        if (destroyed || generation !== backupInteractionGeneration) { return; }
+        viewState = view && view.snapshot ? view.snapshot() : null;
+        if (!viewState || viewState.open !== true) { return; }
+        exists = !error && status && status.exists;
+        settingsStatus = !error && status && status.settingsMatch === true ? 'matched' : 'unmatched';
         call(dialogs.openChoice, t('settings.backup.title'), [
           { value: 'save', label: t('settings.backup.save'), status: settingsStatus },
           { value: 'restore', label: t('settings.backup.load') + (exists ? '' : ' · ' + t('settings.backup.notFound')) },
@@ -988,6 +1051,31 @@
     }
 
     function activateAction(row) {
+      if (row.key === 'backCategory') {
+        call(server.closeEditor);
+        view.closeCategory();
+        render();
+        return true;
+      }
+      if (row.key === 'libraryDisplayMode') {
+        var currentPreferences = values.librarySources && typeof values.librarySources.preferenceState === 'function' ? values.librarySources.preferenceState() : null;
+        var currentMode = String(currentPreferences && currentPreferences.displayMode || 'text');
+        call(dialogs.openChoice, row.label, [
+          { value: 'text', label: t('settings.libraryTabs.display.text') },
+          { value: 'icon', label: t('settings.libraryTabs.display.icon') },
+          { value: 'icon-text', label: t('settings.libraryTabs.display.icon-text') }
+        ], currentMode, function (choice) {
+          if (!choice || !values.librarySources || typeof values.librarySources.updateDisplayMode !== 'function') { return; }
+          values.librarySources.updateDisplayMode(choice.value);
+          invalidateCatalog();
+          if (environment.settingsBackup) { environment.settingsBackup.scheduleAutoSave(); }
+          render();
+          focus();
+        }, focus);
+        return true;
+      }
+      if (row.key === 'libraryTabs' && libraryTabsEditor) { libraryTabsEditor.openCustomize(); return true; }
+      if (row.key === 'homeRecentLibraries' && libraryTabsEditor) { libraryTabsEditor.openRecent(); return true; }
       if (row.key === 'settingsBackup') { openSettingsBackup(); return true; }
       if (row.key === 'appVersion') { openUpdateDialog(); return true; }
       if (row.key === 'diagnostics') { call(dialogs.openDiagnostics); return true; }
@@ -995,15 +1083,12 @@
       if (row.key === 'playbackCompatibility') { openPlaybackCompatibility(); return true; }
       if (row.key === 'safeAreaCalibration') { openSafeAreaCalibration(); return true; }
       if (row.key === 'subtitleAppearance') { openSubtitleStyleEditor(); return true; }
-      if (row.key === 'disconnectPlex') {
-        if (!call(account.connected)) {
-          call(dialogs.openChoice, t('setup.disconnectPlex'), [{ value: 'cancel', label: t('settings.notConnected') }], 'cancel', null, focus);
-          return true;
-        }
+      if (row.key === 'plexAccountAction') {
+        if (!call(account.connected)) { call(dialogs.openPlexSetup); return true; }
         call(dialogs.openChoice, t('settings.disconnectConfirm'), [
           { value: 'cancel', label: t('common.cancel') },
           { value: 'disconnect', label: t('setup.disconnectPlex') }
-        ], 'cancel', function (choice) {
+        ], null, function (choice) {
           if (choice.value === 'disconnect') { call(account.disconnect); }
         }, focus);
         return true;
@@ -1021,7 +1106,7 @@
     }
 
     function afterChange(row) {
-      save();
+      saveAndRefreshPresentation();
       if (environment.settingsBackup) { environment.settingsBackup.scheduleAutoSave(); }
       if (row.key === 'cardScale') { call(shell.refreshCardsForCurrentView); }
       if (row.key === 'artworkQuality') {
@@ -1036,8 +1121,26 @@
       }
       if (row.key === 'visualTheme') { call(shell.refreshCardsForCurrentView); }
       if (row.key === 'showWatchlist' || row.key === 'showPlaylists') { call(shell.applyNavigationVisibility); }
+      if (row.key === 'aggregateLibraries') { call(librarySources.reloadPreferences); }
+      if (row.key === 'aggregateHomeLibraries') {
+        call(shell.recomposeHome);
+        call(shell.markHomeDirty);
+      }
       call(shell.renderNavigation);
       render();
+    }
+
+    function refreshAfterLocale(language) {
+      var bootstrap = modules.LocaleBootstrap;
+      if (!bootstrap || typeof bootstrap.ensure !== 'function') { return false; }
+      bootstrap.ensure(root, document, language, function (loaded) {
+        if (!loaded || destroyed) { return; }
+        if (String(settings.uiLanguage || '') !== String(language || '')) { return; }
+        call(shell.translateStaticUi);
+        call(shell.renderNavigation);
+        render();
+      });
+      return true;
     }
 
     function applyValue(row, value) {
@@ -1048,6 +1151,7 @@
       }
       if (row.key === 'subtitleMode') { settings.subtitleModeExplicit = true; }
       afterChange(row);
+      if (row.key === 'uiLanguage') { refreshAfterLocale(value); }
     }
 
     function openLanguageEditor(kind) {
@@ -1060,10 +1164,10 @@
     function changeSetting(direction) {
       var row = rows()[view.snapshot().index];
       if (!row) { return; }
-      if (row.category) { return; }
+      if (row.category) { if (direction > 0) { openSettingChoice(view.snapshot().index); } return; }
       if (row.action) { activateAction(row); return; }
       if (row.upNextLayoutEditor) { openUpNextLayoutEditor(); return; }
-      if (row.editor || row.priorityEditor || row.orderedEditor) { openLanguageEditor(row.key); return; }
+      if (row.editor || row.priorityEditor || row.orderedEditor || row.homeRowsEditor) { openLanguageEditor(row.key); return; }
       if (row.serverEditor) { call(server.openEditor); return; }
       if (row.profileEditor) { call(dialogs.openProfileManager); return; }
       if (row.choices && row.choices.length) {
@@ -1088,7 +1192,7 @@
       }
       if (row.action) { activateAction(row); return; }
       if (row.upNextLayoutEditor) { openUpNextLayoutEditor(); return; }
-      if (row.editor || row.priorityEditor || row.orderedEditor) { openLanguageEditor(row.key); return; }
+      if (row.editor || row.priorityEditor || row.orderedEditor || row.homeRowsEditor) { openLanguageEditor(row.key); return; }
       if (row.serverEditor) { call(server.openEditor); return; }
       if (row.profileEditor) { call(dialogs.openProfileManager); return; }
       if (!row.choices || !row.choices.length) { return; }
@@ -1135,7 +1239,7 @@
     function closeUpNextLayoutEditor(apply) {
       if (apply) {
         settings.upNextLayout = upNextLayout.confirm();
-        save();
+        saveAndRefreshPresentation();
         render();
       }
       upNextLayout.close();
@@ -1146,19 +1250,61 @@
     function selectAccentColor(color) {
       if (modules.Settings.ACCENT_COLORS.indexOf(color) === -1) { return; }
       settings.accentColor = color;
-      save();
+      saveAndRefreshPresentation();
       call(shell.renderNavigation);
       render();
+    }
+
+    function homeSourcePreference(sourceId) {
+      var preferences = call(librarySources.preferenceState) || { items: [] };
+      var target = String(sourceId || '');
+      var index;
+      for (index = 0; index < (preferences.items || []).length; index += 1) {
+        if (String(preferences.items[index].sourceId || '') === target) { return preferences.items[index]; }
+      }
+      return null;
+    }
+
+    function homeEditorEnabled(code) {
+      var kind;
+      var sourceId;
+      var preference;
+      code = String(code || '');
+      if (code.indexOf('source:') === 0) {
+        sourceId = code.slice(7);
+        preference = homeSourcePreference(sourceId);
+        return !preference || preference.homeRecentEnabled !== false;
+      }
+      if (code.indexOf('kind:') === 0) {
+        kind = code.slice(5);
+        return (settings.homeRows || []).indexOf(kind) !== -1;
+      }
+      return false;
+    }
+
+    function homeEditorLabel(code) {
+      var sourceId;
+      var title;
+      code = String(code || '');
+      if (code.indexOf('source:') === 0) {
+        sourceId = code.slice(7);
+        title = call(librarySources.displayTitle, sourceId) || sourceId;
+        return t('settings.homeRow.recent') + ' \u00b7 ' + title;
+      }
+      if (code.indexOf('kind:') === 0) { return t('settings.homeRow.' + code.slice(5)); }
+      return code;
     }
 
     function orderedEditorLanguages() {
       var kind = view.snapshot().languageKind;
       var enabled = settings[kind] || [];
       var available;
+      var order;
       if (kind === 'videoVersionPriorities') { return enabled.slice(); }
       if (kind === 'homeRows') {
         available = modules.Settings.HOME_ROWS || [];
-        return enabled.concat(available.filter(function (code) { return enabled.indexOf(code) === -1; }));
+        order = call(librarySources.homeOrder, available) || [];
+        return order.filter(function (code) { return String(code || '') !== 'kind:recent'; });
       }
       return enabled.concat(languageCatalog.filter(function (code) { return enabled.indexOf(code) === -1; }));
     }
@@ -1168,10 +1314,11 @@
         !modules.VersionSelection.isPrioritySupported(code, currentCapabilities());
     }
 
-    function renderLanguageEditor(selectedCode) {
+    function renderLanguageEditor(selectedCode, motion) {
       var viewState = view.snapshot();
       var languages = orderedEditorLanguages();
       var enabled = settings[viewState.languageKind] || [];
+      var enabledRank = 0;
       var index;
       var rank;
       var rendered = [];
@@ -1180,16 +1327,22 @@
         viewState = view.snapshot();
       }
       for (index = 0; index < languages.length; index += 1) {
-        rank = enabled.indexOf(languages[index]);
+        if (viewState.languageKind === 'homeRows') {
+          if (homeEditorEnabled(languages[index])) { enabledRank += 1; rank = enabledRank; }
+          else { rank = 0; }
+        } else {
+          rank = enabled.indexOf(languages[index]);
+          rank = rank === -1 ? 0 : rank + 1;
+        }
         rendered.push({
           code: languages[index],
           label: viewState.languageKind === 'videoVersionPriorities'
             ? t('settings.versionPriority.' + languages[index])
             : (viewState.languageKind === 'homeRows'
-              ? t('settings.homeRow.' + languages[index])
+              ? homeEditorLabel(languages[index])
               : modules.I18n.languageName(settings.uiLanguage, languages[index])),
           languageCode: viewState.languageKind === 'videoVersionPriorities' || viewState.languageKind === 'homeRows' ? '' : languages[index],
-          rank: rank === -1 ? 0 : rank + 1,
+          rank: rank,
           disabled: editorItemDisabled(languages[index])
         });
       }
@@ -1207,6 +1360,7 @@
         hint: t(viewState.languageKind === 'videoVersionPriorities' ? 'settings.priorityEditorHint' : (viewState.languageKind === 'homeRows' ? 'settings.homeRowsEditorHint' : 'settings.languageEditorHint')),
         backLabel: t('common.back'),
         index: viewState.languageIndex,
+        motion: motion || null,
         languages: rendered
       });
     }
@@ -1224,25 +1378,65 @@
       var code = ordered[viewState.languageIndex];
       var enabled = settings[viewState.languageKind];
       var position;
+      var sourceId;
       if (viewState.languageIndex >= ordered.length) { closeLanguageEditor(); return; }
       if (viewState.languageKind === 'videoVersionPriorities' || editorItemDisabled(code)) { return; }
+      if (viewState.languageKind === 'homeRows' && String(code || '').indexOf('source:') === 0) {
+        sourceId = String(code).slice(7);
+        call(librarySources.updateTab, sourceId, { homeRecentEnabled: !homeEditorEnabled(code) });
+        call(shell.markHomeDirty);
+        if (environment.settingsBackup) { call(environment.settingsBackup.scheduleAutoSave); }
+        renderLanguageEditor(code);
+        return;
+      }
+      if (viewState.languageKind === 'homeRows' && String(code || '').indexOf('kind:') === 0) { code = String(code).slice(5); }
       position = enabled.indexOf(code);
       if (position === -1) { enabled.push(code); }
       else { enabled.splice(position, 1); }
-      save();
+      saveAndRefreshPresentation();
       if (viewState.languageKind === 'homeRows') { call(shell.markHomeDirty); }
-      renderLanguageEditor(code);
+      renderLanguageEditor(viewState.languageKind === 'homeRows' ? 'kind:' + code : code);
     }
 
     function moveEditorLanguage(direction) {
       var viewState = view.snapshot();
-      var code = orderedEditorLanguages()[viewState.languageIndex];
+      var ordered = orderedEditorLanguages();
+      var code = ordered[viewState.languageIndex];
       var enabled = settings[viewState.languageKind];
-      var position = enabled.indexOf(code);
-      var next = position + direction;
-      if (viewState.languageIndex >= orderedEditorLanguages().length || position === -1 || next < 0 || next >= enabled.length || editorItemDisabled(code)) { return; }
+      var position;
+      var next;
+      var displacedCode;
+      var genericEnabled;
+      if (viewState.languageIndex >= ordered.length || editorItemDisabled(code)) { return; }
+      if (viewState.languageKind === 'homeRows') {
+        position = ordered.indexOf(code);
+        next = position + direction;
+        if (position === -1 || next < 0 || next >= ordered.length) { return; }
+        displacedCode = ordered[next];
+        ordered[position] = displacedCode;
+        ordered[next] = code;
+        call(librarySources.reorderHome, ordered);
+        genericEnabled = ordered.filter(function (token) {
+          return token.indexOf('kind:') === 0 && token !== 'kind:recent' && (settings.homeRows || []).indexOf(token.slice(5)) !== -1;
+        }).map(function (token) { return token.slice(5); });
+        if ((settings.homeRows || []).indexOf('recent') !== -1) { genericEnabled.push('recent'); }
+        settings.homeRows = genericEnabled;
+        saveAndRefreshPresentation();
+        call(shell.markHomeDirty);
+        if (environment.settingsBackup) { call(environment.settingsBackup.scheduleAutoSave); }
+        renderLanguageEditor(code, {
+          movedCode: code,
+          displacedCode: displacedCode,
+          direction: direction < 0 ? -1 : 1
+        });
+        return;
+      }
+      position = enabled.indexOf(code);
+      next = position + direction;
+      if (position === -1 || next < 0 || next >= enabled.length) { return; }
       while (next >= 0 && next < enabled.length && editorItemDisabled(enabled[next])) { next += direction; }
       if (next < 0 || next >= enabled.length) { return; }
+      displacedCode = enabled[next];
       if (viewState.languageKind === 'videoVersionPriorities') {
         enabled[position] = enabled[next];
         enabled[next] = code;
@@ -1250,9 +1444,8 @@
         enabled.splice(position, 1);
         enabled.splice(next, 0, code);
       }
-      save();
-      if (viewState.languageKind === 'homeRows') { call(shell.markHomeDirty); }
-      renderLanguageEditor(code);
+      saveAndRefreshPresentation();
+      renderLanguageEditor(code, null);
     }
 
     function moveEditorFocus(direction) {
@@ -1278,7 +1471,17 @@
       return snapshot();
     }
 
+    function suspend() {
+      if (destroyed) { return snapshot(); }
+      backupInteractionGeneration += 1;
+      choicePreviewGeneration += 1;
+      return snapshot();
+    }
+
     function leave() {
+      backupInteractionGeneration += 1;
+      choicePreviewGeneration += 1;
+      if (libraryTabsEditor && libraryTabsEditor.snapshot().open) { libraryTabsEditor.close(); }
       if (safeAreaDialog && safeAreaDialog.snapshot().open) {
         safeAreaDialog.dismiss();
         restoreSafeAreaOriginal();
@@ -1318,6 +1521,9 @@
         route.destroyed = true;
         command = InputCommandRouter.settings(route);
         return command === 'ignore' ? handled(false) : handled(true);
+      }
+      if (libraryTabsEditor && libraryTabsEditor.snapshot().open) {
+        return handled(libraryTabsEditor.handleKey(event, direction));
       }
       route.safeAreaOpen = !!(safeAreaDialog && safeAreaDialog.snapshot().open);
       if (route.safeAreaOpen) {
@@ -1364,8 +1570,11 @@
       }
       if (command === 'back-close') { close(); return handled(true); }
       if (command === 'nav-left' || command === 'nav-right') {
-        nextIndex = Math.max(0, Math.min(Number(call(shell.navigationCount) || 1) - 1,
+        var navCount = Math.max(1, Number(call(shell.navigationCount) || 1));
+        nextIndex = Math.max(0, Math.min(navCount - 1,
           navigationIndex() + (command === 'nav-left' ? -1 : 1)));
+        if (command === 'nav-left' && navigationIndex() === 0) { nextIndex = navCount - 1; }
+        if (command === 'nav-right' && navigationIndex() >= navCount - 1) { nextIndex = 0; }
         call(shell.setNavigationIndex, nextIndex);
         call(shell.renderNavigation);
         focus();
@@ -1392,8 +1601,8 @@
         focus();
         return handled(true);
       }
-      if (command === 'list-up') { view.focusList(state.index - 1, rows(), -1); render(); return handled(true); }
-      if (command === 'list-down') { view.focusList(state.index + 1, rows(), 1); render(); return handled(true); }
+      if (command === 'list-up') { view.focusList(state.index - 1, rows(), -1); focus(); return handled(true); }
+      if (command === 'list-down') { view.focusList(state.index + 1, rows(), 1); focus(); return handled(true); }
       if (command === 'list-left') { changeSetting(-1); return handled(true); }
       if (command === 'list-right') { changeSetting(1); return handled(true); }
       if (command === 'list-activate') { openSettingChoice(); return handled(true); }
@@ -1447,6 +1656,8 @@
         subtitleStyleOpen: subtitleStyleDialog && subtitleStyleDialog.snapshot().open === true,
         subtitleStyle: subtitleStyleDialog ? subtitleStyleDialog.snapshot() : { open: false, focus: 0, values: subtitleStyleValues() },
         textInputOpen: textInputDialog && textInputDialog.snapshot().open === true,
+        libraryTabsOpen: libraryTabsEditor && libraryTabsEditor.snapshot().open === true,
+        libraryTabs: libraryTabsEditor ? libraryTabsEditor.snapshot() : { open: false, index: 0, rows: [] },
         upNext: upNextLayout.snapshot(),
         settings: settings
       };
@@ -1458,6 +1669,7 @@
       if (playbackCompatibilityOpen) { renderPlaybackCompatibility(); }
       if (safeAreaDialog && safeAreaDialog.snapshot().open) { safeAreaDialog.render(); }
       if (subtitleStyleDialog && subtitleStyleDialog.snapshot().open) { subtitleStyleDialog.render(); }
+      if (libraryTabsEditor && libraryTabsEditor.snapshot().open) { libraryTabsEditor.render(); }
       return snapshot();
     }
     function focusNavigation() { view.focusNavigation(); return snapshot(); }
@@ -1468,8 +1680,6 @@
       return snapshot();
     }
     function chooseUpNext(value) { upNextLayout.choose(value); return snapshot(); }
-    function moveUpNextHorizontal(direction) { upNextLayout.moveHorizontal(direction); return snapshot(); }
-    function moveUpNextVertical(direction) { upNextLayout.moveVertical(direction); return snapshot(); }
 
     function destroy() {
       var node;
@@ -1477,6 +1687,7 @@
       // Child dialog destruction can synchronously invoke cancellation callbacks.
       destroyed = true;
       choicePreviewGeneration += 1;
+      backupInteractionGeneration += 1;
       privacyOpen = false;
       updateOpen = false;
       playbackCompatibilityOpen = false;
@@ -1484,6 +1695,7 @@
       if (safeAreaDialog) { safeAreaDialog.destroy(); }
       if (subtitleStyleDialog) { subtitleStyleDialog.destroy(); }
       if (textInputDialog) { textInputDialog.destroy(); }
+      if (libraryTabsEditor) { libraryTabsEditor.destroy(); }
       safeAreaOriginal = null;
       call(server.closeEditor);
       view.close();
@@ -1513,7 +1725,9 @@
       close: close,
       rows: rows,
       sectionLabel: sectionLabel,
-      save: save,
+      persist: persist,
+      seedAccount: seedAccount,
+      suspend: suspend,
       promptSettingsLoad: promptSettingsLoad,
       setSetupLanguage: setSetupLanguage,
       render: render,
@@ -1524,28 +1738,18 @@
       focusUpdate: focusUpdate,
       openLanguages: openLanguageEditor,
       closeLanguages: closeLanguageEditor,
-      toggleLanguage: toggleEditorLanguage,
       moveLanguage: moveEditorLanguage,
-      moveLanguageFocus: moveEditorFocus,
       orderedLanguages: orderedEditorLanguages,
-      languageDisabled: editorItemDisabled,
       renderLanguages: renderLanguageEditor,
       changeSetting: changeSetting,
       openSettingChoice: openSettingChoice,
       selectAccentColor: selectAccentColor,
-      openPrivacy: openPrivacyPolicy,
-      closePrivacy: closePrivacyPolicy,
-      scrollPrivacy: scrollPrivacyPolicy,
       openUpNext: openUpNextLayoutEditor,
       closeUpNext: closeUpNextLayoutEditor,
       renderUpNext: renderUpNextLayoutEditor,
       chooseUpNext: chooseUpNext,
-      moveUpNextHorizontal: moveUpNextHorizontal,
-      moveUpNextVertical: moveUpNextVertical,
       handleUpNextKey: handleUpNextKey,
       handlePrivacyKey: handlePrivacyKey,
-      openPlaybackCompatibility: openPlaybackCompatibility,
-      closePlaybackCompatibility: closePlaybackCompatibility,
       focusPlaybackCompatibility: focusPlaybackCompatibility,
       handlePlaybackCompatibilityKey: handlePlaybackCompatibilityKey,
       handleSafeAreaKey: handleSafeAreaKey,
@@ -1557,10 +1761,10 @@
       persistSubtitleSize: persistSubtitleSize,
       handleTextInputKey: function (event, direction) { return textInputDialog && textInputDialog.handleKey(event, direction); },
       focusTextInput: function (index) { return textInputDialog && textInputDialog.focus(index); },
+      focusLibraryTabs: function (index) { return libraryTabsEditor && libraryTabsEditor.focus(index); },
       focusSafeArea: function (index) { return safeAreaDialog && safeAreaDialog.focusAction(index); },
       focusSubtitleStyle: function (index) { return subtitleStyleDialog && subtitleStyleDialog.focusAction(index); },
       videoQualityLabel: videoQualityLabel,
-      activeConnectionRoute: activeConnectionRoute,
       connectionRouteLabel: connectionRouteLabel,
       activeVideoQuality: activeVideoQuality,
       networkStatusLabel: networkStatusLabel,

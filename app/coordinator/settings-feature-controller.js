@@ -15,6 +15,7 @@
     var server = values.server || {};
     var account = values.account || {};
     var dialogs = values.dialogs || {};
+    var librarySources = values.librarySources || {};
     var environment = values.environment || {};
     var transitions = values.transitions || {};
     var document = platform.document || null;
@@ -65,7 +66,10 @@
         UpNextLayoutDialog: modules.UpNextLayoutDialog,
         SafeAreaDialog: modules.SafeAreaDialog,
         SubtitleStyleDialog: modules.SubtitleStyleDialog,
-        TextInputDialog: modules.TextInputDialog
+        TextInputDialog: modules.TextInputDialog,
+        LibraryTabsEditor: modules.LibraryTabsEditor,
+        LibraryTabStore: modules.LibraryTabStore,
+        LocaleBootstrap: modules.LocaleBootstrap
       },
       presentation: {
         t: presentation.t,
@@ -95,6 +99,7 @@
         clearBackdrop: shell.clearBackdrop,
         applyNavigationVisibility: shell.applyNavigationVisibility,
         markHomeDirty: shell.markHomeDirty,
+        recomposeHome: shell.recomposeHome,
         enterSettings: function () {
           call(transitions.enter);
           showView();
@@ -107,6 +112,7 @@
         transitionHome: transitions.home
       },
       server: server,
+      librarySources: librarySources,
       account: account,
       dialogs: dialogs,
       environment: environment
@@ -132,6 +138,7 @@
 
     function suspend() {
       if (!active()) { return false; }
+      if (typeof controller.suspend === 'function') { controller.suspend(); }
       hideView();
       return snapshot();
     }
@@ -190,6 +197,11 @@
       languages = orderedLanguages();
       controller.focusLanguage(index, languages.length + 1, true);
       return snapshot();
+    }
+
+    function focusLibraryTabs(index) {
+      if (!active() || typeof controller.focusLibraryTabs !== 'function') { return false; }
+      return controller.focusLibraryTabs(index);
     }
 
     function focusUpdate(index) {
@@ -272,6 +284,7 @@
       destroy: destroy,
       enter: enter,
       focusLanguage: focusLanguage,
+      focusLibraryTabs: focusLibraryTabs,
       focusNavigation: focusNavigation,
       focusPrivacy: focusPrivacy,
       focusPlaybackCompatibility: focusPlaybackCompatibility,
@@ -299,9 +312,10 @@
       networkStatusLabel: function (network) { return invoke('networkStatusLabel', network); },
       playbackPreferenceLabel: function (value) { return invoke('playbackPreferenceLabel', value); },
       promptSettingsLoad: function (status, options, callback) { return invoke('promptSettingsLoad', status, options, callback); },
+      persist: function () { return invoke('persist'); },
       refresh: function () { return invoke('refresh'); },
       resume: resume,
-      save: function () { return invoke('save'); },
+      seedAccount: function (accountProfile) { return invoke('seedAccount', accountProfile); },
       setSetupLanguage: function (language, explicit) { return invoke('setSetupLanguage', language, explicit === true); },
       selectAccentColor: function (color) { return invoke('selectAccentColor', color); },
       snapshot: snapshot,

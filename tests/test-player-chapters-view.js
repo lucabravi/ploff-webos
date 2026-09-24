@@ -27,7 +27,7 @@ var view = PlayerChaptersView.create({
   posterLoader: { load: function (image, specification) { loaded.push(specification); }, prioritize: function (image) { image.prioritized = true; }, cancelScope: function (scope) { cancelled.push(scope); } }
 });
 var chapters = [{ title: 'Opening', startTimeOffset: 10000, thumb: '/one' }, { title: '', startTimeOffset: 20000, thumb: '/two' }, { title: 'No image', startTimeOffset: 30000, thumb: '' }];
-view.render(chapters, { open: true, index: 1 });
+view.render(chapters, { open: true, index: 1, currentIndex: 1 });
 assert.strictEqual(cards.length, 3, 'chapter rendering must create one card per Plex chapter');
 assert.strictEqual(cards[1].children[1].children[0].textContent, 'Chapter 2', 'untitled chapters must use the localized fallback');
 assert.strictEqual(loaded[0].source, '/two', 'the focused chapter preview must load first');
@@ -35,6 +35,10 @@ assert.strictEqual(loaded[0].width, 300, 'chapter artwork must not exceed the fr
 assert.strictEqual(loaded[0].height, 132, 'chapter artwork must not exceed the fractional rendered height');
 assert.strictEqual(loaded.filter(function (specification) { return specification.source === ''; }).length, 1, 'chapters without Plex artwork must be cleared through the progressive loader without inventing a request URL');
 assert.ok(cards[1].className.indexOf('is-focused') !== -1 && cards[1].focused, 'remote focus must follow chapter state');
+assert.ok(cards[1].className.indexOf('is-current') !== -1, 'the chapter at the playback position must use the current marker');
+view.updateFocus(2, true, 1);
+assert.ok(cards[1].className.indexOf('is-current') !== -1 && cards[1].className.indexOf('is-focused') === -1, 'current chapter marking must survive focus movement');
+assert.ok(cards[2].className.indexOf('is-focused') !== -1, 'focus movement must update only the focused chapter');
 view.renderHint(true, true);
 assert.ok(nodes['player-chapters-hint'].className.indexOf('is-focused') !== -1, 'chapter hint rendering must expose focus');
 view.close();

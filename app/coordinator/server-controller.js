@@ -28,6 +28,8 @@
     var destroyed = false;
     var failedUris = {};
     var failoverRequest = null;
+    var failoverGeneration = 0;
+    var failoverWaiters = [];
     var activityRequest = null;
     var activityTimer = null;
     var activities = [];
@@ -61,7 +63,7 @@
       });
     }
 
-    function replaceStoredServer(server) {
+    function replaceStoredServer(server, activeUri) {
       var current = serverState();
       var servers = current.servers.slice();
       var replaced = false;
@@ -75,12 +77,12 @@
         }
       }
       if (!replaced) { servers.push(server); }
-      updateSession({ serverState: ServerStore.save(storage, servers, server.uri) });
+      updateSession({ serverState: ServerStore.save(storage, servers, activeUri || current.activeUri || '') });
     }
 
     function storeServer(server) {
       var current = activeServer();
-      replaceStoredServer(server);
+      replaceStoredServer(server, serverState().activeUri);
       if (current && ((server.machineIdentifier && server.machineIdentifier === current.machineIdentifier) ||
           server.uri === current.uri)) {
         updateSession({ activeServer: server });
@@ -107,7 +109,7 @@
       promoted = ServerStore.preferConnection(current, uri);
       if (!promoted) { return false; }
       updateSession({ activeServer: promoted, apiBaseUrl: promoted.uri });
-      replaceStoredServer(promoted);
+      replaceStoredServer(promoted, promoted.uri);
       if (auth.persistConnection) { auth.persistConnection(promoted); }
       if (presentation.renderProfile) { presentation.renderProfile(); }
       if (presentation.renderSettings) { presentation.renderSettings(); }
@@ -139,8 +141,10 @@
       var apiBaseUrl;
       var nextState;
       if (destroyed || !server) { return false; }
+      failoverGeneration += 1;
       if (failoverRequest && failoverRequest.abort) { failoverRequest.abort(); }
       failoverRequest = null;
+      if (failoverWaiters.length) { settleFailover(false, new Error('Plex failover cancelled')); }
       failedUris = {};
       previousIdentity = String(current.apiBaseUrl || '') + '|' + String(current.token || '');
       token = auth.activeToken ? auth.activeToken(server.machineIdentifier, server) : current.token;
@@ -161,16 +165,32 @@
       return true;
     }
 
+    function settleFailover(switched, error) {
+      var pending = failoverWaiters.slice();
+      failoverWaiters = [];
+      pending.forEach(function (entry) {
+        entry.callback(switched === true, error || entry.error || null);
+      });
+    }
+
     function attemptFailover(error, callback) {
       var current = readSession();
       var server = activeServer();
       var currentUri = ServerStore.normalizeUri(current.apiBaseUrl);
       var candidates;
       var done = callback || function () {};
-      if (destroyed || !server || !PlexAuth || !PlexAuth.findReachableConnection || failoverRequest) {
+      var completed = false;
+      var nextRequest = null;
+      var requestGeneration;
+      if (destroyed || !server || !PlexAuth || !PlexAuth.findReachableConnection) {
         done(false, error);
         return;
       }
+      if (failoverRequest) {
+        failoverWaiters.push({ callback: done, error: error || null });
+        return;
+      }
+      failoverWaiters.push({ callback: done, error: error || null });
       if (currentUri) { failedUris[currentUri] = true; }
       candidates = connectionUris(server).filter(function (uri) {
         return !failedUris[ServerStore.normalizeUri(uri)] &&
@@ -182,22 +202,33 @@
             ServerDiscovery.isLocalCandidate
           );
       });
-      if (!candidates.length) { done(false, error); return; }
-      failoverRequest = PlexAuth.findReachableConnection(
-        platformRoot,
-        current.token || '',
-        candidates,
-        server.machineIdentifier,
-        values.authOptions || {},
-        function (connectionError, uri) {
-          failoverRequest = null;
-          if (destroyed || connectionError || !uri || !activateConnection(uri)) {
-            done(false, error || connectionError);
-            return;
+      if (!candidates.length) { settleFailover(false, error); return; }
+      requestGeneration = failoverGeneration += 1;
+      try {
+        nextRequest = PlexAuth.findReachableConnection(
+          platformRoot,
+          current.token || '',
+          candidates,
+          server.machineIdentifier,
+          values.authOptions || {},
+          function (connectionError, uri) {
+            completed = true;
+            if (destroyed || requestGeneration !== failoverGeneration) { return; }
+            failoverRequest = null;
+            if (connectionError || !uri || !activateConnection(uri)) {
+              settleFailover(false, error || connectionError);
+              return;
+            }
+            settleFailover(true, null);
           }
-          done(true, null);
-        }
-      );
+        );
+        if (!completed && requestGeneration === failoverGeneration) { failoverRequest = nextRequest; }
+        else if (!completed && nextRequest && nextRequest.abort) { nextRequest.abort(); }
+      } catch (caught) {
+        if (requestGeneration !== failoverGeneration) { return; }
+        failoverRequest = null;
+        settleFailover(false, error || caught);
+      }
     }
 
     function discover(callback) {
@@ -381,8 +412,10 @@
       var key;
       if (destroyed) { return; }
       destroyed = true;
+      failoverGeneration += 1;
       if (failoverRequest && failoverRequest.abort) { failoverRequest.abort(); }
       failoverRequest = null;
+      failoverWaiters = [];
       for (key in remoteVerificationTimers) {
         if (Object.prototype.hasOwnProperty.call(remoteVerificationTimers, key)) {
           platformRoot.clearTimeout(remoteVerificationTimers[key]);

@@ -12,9 +12,11 @@
       setAutoplay: function (value) { video.autoplay = value === true; },
       setSource: function (value) { video.src = String(value || ''); },
       clearSource: function () {
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
+        var cleanupError = null;
+        try { video.pause(); } catch (error) { cleanupError = error; }
+        try { video.removeAttribute('src'); } catch (error) { if (!cleanupError) { cleanupError = error; } }
+        try { video.load(); } catch (error) { if (!cleanupError) { cleanupError = error; } }
+        if (cleanupError) { throw cleanupError; }
       },
       seek: function (seconds) { video.currentTime = Number(seconds); },
       play: function () { return video.play(); },

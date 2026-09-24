@@ -393,7 +393,6 @@ git commit -m "Document retained webOS playback invariants"
 
 **Files:**
 - Modify: `CHANGELOG.md`
-- Modify: `CHATGPT-HANDOFF.md`
 - Modify: `docs/cleanup/playback-phase1-inventory.md`
 - Regenerate: `app/app.js`
 
@@ -465,7 +464,7 @@ physical LG validation still required before release signoff
 - [ ] **Step 6: Commit the Phase 1 checkpoint documentation**
 
 ```sh
-git add CHANGELOG.md CHATGPT-HANDOFF.md docs/cleanup/playback-phase1-inventory.md app/app.js
+git add CHANGELOG.md docs/cleanup/playback-phase1-inventory.md app/app.js
 git commit -m "Complete playback cleanup phase one"
 ```
 

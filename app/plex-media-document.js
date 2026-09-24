@@ -51,8 +51,7 @@
     return attributesFromDocument(parseXmlDocument(xmlText));
   }
 
-  function fromDocument(documentNode) {
-    var videoNode = documentNode && documentNode.getElementsByTagName ? documentNode.getElementsByTagName('Video')[0] || null : null;
+  function fromVideoNode(videoNode, documentNode) {
     var mediaNodes = videoNode ? videoNode.getElementsByTagName('Media') : [];
     var mediaEntries = [];
     var groups = [];
@@ -93,6 +92,11 @@
     };
   }
 
+  function fromDocument(documentNode) {
+    var videoNode = documentNode && documentNode.getElementsByTagName ? documentNode.getElementsByTagName('Video')[0] || null : null;
+    return fromVideoNode(videoNode, documentNode);
+  }
+
   function parse(xmlText, errorMessage) {
     return fromDocument(parseXmlDocument(xmlText, errorMessage));
   }
@@ -101,6 +105,7 @@
     attributesFromNode: attributesFromNode,
     attributesFromDocument: attributesFromDocument,
     fromDocument: fromDocument,
+    fromVideoNode: fromVideoNode,
     parse: parse,
     parseAttributes: parseAttributes,
     parseXmlDocument: parseXmlDocument

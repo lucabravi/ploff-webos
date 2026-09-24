@@ -166,8 +166,5 @@
     };
   }
 
-  return {
-    create: create,
-    createRequestGroup: createRequestGroup
-  };
+  return { create: create };
 }));

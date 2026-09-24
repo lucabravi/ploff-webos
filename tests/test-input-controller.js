@@ -329,11 +329,14 @@ console.log('Input controller checks passed');
     var calls = [];
     var controller = InputController.create({
       sessionSnapshot: function () { return { appView: 'detail', choiceDialogOpen: true }; },
-      lifecycle: { cancelPendingPlayback: function () { calls.push('cancel-pending'); } },
+      lifecycle: {
+        cancelPendingPlayback: function () { calls.push('cancel-pending'); },
+        cancelPendingPlayIntent: function () { calls.push('cancel-direct-play'); }
+      },
       overlays: { choiceDialog: function () { calls.push('choice'); } }
     });
     controller.handleKeyDown(event(key, calls));
-    assert.deepStrictEqual(calls, ['cancel-pending', 'prevent:' + key, 'choice'], 'Back must cancel a deferred intent before an animated close can race readiness');
+    assert.deepStrictEqual(calls, ['cancel-pending', 'cancel-direct-play', 'prevent:' + key, 'choice'], 'Back must cancel deferred Player readiness and pre-Detail direct Play ownership before an animated close can race readiness');
     controller.destroy();
   });
 }());

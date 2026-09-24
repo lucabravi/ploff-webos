@@ -94,7 +94,6 @@
 
 **Files:**
 - Modify: `CHANGELOG.md`
-- Modify: `CHATGPT-HANDOFF.md`
 - Update: `docs/cleanup/player-phase2-inventory.md`
 - Regenerate: `app/app.js`
 

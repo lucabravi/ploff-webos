@@ -38,8 +38,8 @@
     return null;
   }
 
-  function trackLabel(track, externalLabel) {
-    return MediaProfile.trackDisplayLabel(track, externalLabel || 'External');
+  function trackLabel(track, externalLabel, unknownLabel) {
+    return MediaProfile.trackDisplayLabel(track, externalLabel || 'External', unknownLabel || '');
   }
 
   function add(rows, label, value) {
@@ -60,6 +60,7 @@
     var audio = selectedTrack(item.audioTracks, settings.audioStreamID);
     var subtitle = selectedTrack(item.subtitleTracks, settings.subtitleStreamID);
     var externalLabel = t('detail.external');
+    var unknownLabel = t('common.unknown');
     var sections = [];
 
     add(fileRows, t('mediaDetails.fileName'), basename(item.fileName));
@@ -79,10 +80,10 @@
     add(videoRows, t('mediaDetails.colorRange'), details.colorRange || item.videoColorRange);
     if (videoRows.length) { sections.push({ title: t('mediaDetails.video'), column: 'left', rows: videoRows }); }
 
-    add(audioRows, t('mediaDetails.selectedTrack'), trackLabel(audio, externalLabel));
+    add(audioRows, t('mediaDetails.selectedTrack'), trackLabel(audio, externalLabel, unknownLabel));
     if (audioRows.length) { sections.push({ title: t('mediaDetails.audio'), column: 'right', rows: audioRows }); }
 
-    add(subtitleRows, t('mediaDetails.selectedTrack'), subtitle ? trackLabel(subtitle, externalLabel) : t('mediaDetails.off'));
+    add(subtitleRows, t('mediaDetails.selectedTrack'), subtitle ? trackLabel(subtitle, externalLabel, unknownLabel) : t('mediaDetails.off'));
     if (subtitleRows.length) { sections.push({ title: t('mediaDetails.subtitles'), column: 'right', rows: subtitleRows }); }
 
     add(diagnosticRows, t('mediaDetails.recoveryTrace'), diagnosticValues.recoveryTrace);
@@ -92,5 +93,5 @@
     return { sections: sections };
   }
 
-  return { basename: basename, create: create, durationLabel: durationLabel, selectedTrack: selectedTrack, trackLabel: trackLabel };
+  return { basename: basename, create: create, selectedTrack: selectedTrack, trackLabel: trackLabel };
 }));

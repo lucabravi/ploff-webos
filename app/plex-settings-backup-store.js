@@ -16,6 +16,15 @@
 
     function currentSettings() { return typeof values.settings === 'function' ? values.settings() : {}; }
     function currentConfig() { return typeof values.config === 'function' ? values.config() : {}; }
+    function snapshotConfig() {
+      var source = currentConfig() || {};
+      var result = {};
+      var key;
+      for (key in source) {
+        if (Object.prototype.hasOwnProperty.call(source, key)) { result[key] = source[key]; }
+      }
+      return result;
+    }
     function currentDeviceInfo() { return typeof values.deviceInfo === 'function' ? (values.deviceInfo() || {}) : {}; }
     function clean(value, maximum) { return String(value || '').replace(/^\s+|\s+$/g, '').slice(0, maximum); }
     function normalizedModel(value) { return clean(value, 80).toLowerCase(); }
@@ -51,17 +60,18 @@
       var saved = normalizedModel(savedDevice && savedDevice.model);
       return !!current && !!saved && current === saved;
     }
-    function unavailable(callback) {
-      var config = currentConfig();
-      if (!config.apiBaseUrl || !config.token) {
-        callback(new Error('A connected Plex server is required'));
+    function unavailable(callback, config) {
+      var active = config || snapshotConfig();
+      if (!active.apiBaseUrl) {
+        callback(new Error('A Plex server is required'));
         return true;
       }
       return false;
     }
-    function list(callback) {
-      if (destroyed || unavailable(callback)) { return null; }
-      return transport.list(currentConfig(), Format.PLAYLIST_PREFIX, '', function (error, items) {
+    function list(callback, config) {
+      var active = config || snapshotConfig();
+      if (destroyed || unavailable(callback, active)) { return null; }
+      return transport.list(active, Format.PLAYLIST_PREFIX, '', function (error, items) {
         if (!destroyed) { callback(error, items); }
       });
     }
@@ -139,28 +149,29 @@
       };
     }
     function status(callback) {
+      var config = snapshotConfig();
       return list(function (error, items) {
         if (error) { callback(error); return; }
         callback(null, result(records(items)));
-      });
+      }, config);
     }
-    function upsert(entries, built, title, profileId, callback) {
+    function upsert(entries, built, title, profileId, config, callback) {
       // Finish an accepted remote write (including rollback); callers suppress
       // results after teardown rather than leaving a newly created save empty.
       var existing = newest(entries, function (parsed) { return parsed.device && parsed.device.id === profileId; });
       function update(item, createdHere) {
-        transport.update(currentConfig(), item.ratingKey, built.summary, function (error) {
+        transport.update(config, item.ratingKey, built.summary, function (error) {
           if (!error || !createdHere || typeof transport.remove !== 'function') {
             callback(error || null, { ratingKey: item.ratingKey, summary: built.summary });
             return;
           }
-          transport.remove(currentConfig(), item.ratingKey, function () {
+          transport.remove(config, item.ratingKey, function () {
             callback(error);
           });
         });
       }
       if (existing) { update(existing.item, false); return; }
-      transport.create(currentConfig(), title, function (error, created) {
+      transport.create(config, title, function (error, created) {
         if (error) { callback(error); return; }
         update(created, true);
       });
@@ -168,7 +179,8 @@
     function save(callback) {
       var profile = readProfile();
       var built;
-      if (destroyed || unavailable(callback)) { return null; }
+      var config = snapshotConfig();
+      if (destroyed || unavailable(callback, config)) { return null; }
       if (!profile) {
         var missing = new Error('A device name is required');
         missing.name = 'DeviceNameRequiredError';
@@ -181,7 +193,7 @@
         var entries;
         if (error) { callback(error); return; }
         entries = records(items);
-        upsert(entries, built, Format.devicePlaylistTitle(profile.name), profile.id, function (saveError) {
+        upsert(entries, built, Format.devicePlaylistTitle(profile.name), profile.id, config, function (saveError) {
           var nextEntries;
           if (destroyed) { return; }
           if (saveError) { callback(saveError); return; }
@@ -192,7 +204,7 @@
           });
           callback(null, result(nextEntries));
         });
-      });
+      }, config);
     }
     function registerDevice(name, callback) {
       var normalized = clean(name, 80);
@@ -204,6 +216,7 @@
     }
     function load(profileId, loadOptions, callback) {
       var optionsValue = loadOptions;
+      var config = snapshotConfig();
       if (typeof loadOptions === 'function') { callback = loadOptions; optionsValue = {}; }
       optionsValue = optionsValue || {};
       return list(function (error, items) {
@@ -230,10 +243,11 @@
         loaded.profile = profile;
         loaded.sameModel = sameModel(selected.parsed.device);
         callback(null, result(entries), loaded);
-      });
+      }, config);
     }
     function remove(callback) {
       var profile = readProfile();
+      var config = snapshotConfig();
       if (destroyed) { return null; }
       if (!profile) { callback(null, result([])); return null; }
       return list(function (error, items) {
@@ -243,13 +257,13 @@
         entries = records(items);
         selected = newest(entries, function (parsed) { return parsed.device && parsed.device.id === profile.id; });
         if (!selected) { callback(null, result(entries)); return; }
-        transport.remove(currentConfig(), selected.item.ratingKey, function (removeError) {
+        transport.remove(config, selected.item.ratingKey, function (removeError) {
           var remaining;
           if (destroyed) { return; }
           remaining = entries.filter(function (entry) { return entry !== selected; });
           callback(removeError || null, result(remaining));
         });
-      });
+      }, config);
     }
     function scheduleAutoSave() {
       if (destroyed || currentSettings().settingsBackupMode === 'off' || !readProfile()) { return false; }

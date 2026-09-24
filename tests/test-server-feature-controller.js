@@ -61,10 +61,16 @@ var networkListener = null;
 var networkDestroyed = 0;
 var runtimeConfig = { apiBaseUrl: localUri, token: 'token-a' };
 var navigationError = null;
+var navigationDeferred = false;
+var navigationCallback = null;
 var navigationItems = [{ key: 'library-1', title: 'Movies' }];
+var appliedNavigationItems = [];
 var serverAccessCallback = null;
 var applicationCalls = [];
 var reachableConnectionCallback = null;
+var reachableConnectionCalls = [];
+var accountServersCallback = null;
+var accountServerQueries = [];
 
 function memoryStorage() {
   var values = {};
@@ -262,13 +268,18 @@ var feature = ServerFeatureController.create({
     PlexAuth: {
       createPin: function () {},
       pollPin: function () {},
-      loadAccountServers: function () {},
+      loadAccountServers: function (root, token, options, callback) {
+        accountServerQueries.push({ token: token, options: options });
+        accountServersCallback = callback;
+        return { abort: function () {} };
+      },
       loadHomeUsers: function () {},
       loadServerAccess: function (root, token, machineIdentifier, options, callback) {
         serverAccessCallback = callback;
         return { abort: function () {} };
       },
       findReachableConnection: function (root, token, connections, machineIdentifier, options, callback) {
+        reachableConnectionCalls.push({ token: token, connections: (connections || []).slice(), machineIdentifier: machineIdentifier, options: copy(options) });
         reachableConnectionCallback = callback;
         return { abort: function () {} };
       },
@@ -278,6 +289,7 @@ var feature = ServerFeatureController.create({
       loadNavigation: function (config, callback) {
         var error = navigationError;
         navigationError = null;
+        if (navigationDeferred) { navigationCallback = callback; return { abort: function () {} }; }
         callback(error, error ? null : navigationItems.slice());
         return { abort: function () {} };
       },
@@ -320,6 +332,12 @@ var feature = ServerFeatureController.create({
       },
       fromConfig: function (value) { return value && value.apiBaseUrl ? { name: value.apiBaseUrl, uri: value.apiBaseUrl, source: 'config' } : null; },
       normalizeUri: function (uri) { return String(uri || '').replace(/\/$/, ''); },
+      preferConnection: function (server, uri) {
+        var next = copy(server);
+        next.uri = uri;
+        next.connections = [uri].concat((server.connections || []).filter(function (candidate) { return candidate !== uri; }));
+        return next;
+      },
       save: function (storage, servers, activeUri) { return { activeUri: activeUri, servers: servers.slice() }; },
       withRemoteConnections: function (server, connections, status, updatedAt, routes) {
         var next = copy(server);
@@ -358,7 +376,8 @@ var feature = ServerFeatureController.create({
     renderSettings: function () { settingsRenders += 1; }
   },
   application: {
-    applyNavigation: function () { applicationCalls.push('navigation'); },
+    ready: function () { applicationCalls.push('ready'); },
+    applyNavigation: function (items) { applicationCalls.push('navigation'); appliedNavigationItems.push((items || []).slice()); },
     loadHome: function () { applicationCalls.push('home'); },
     preloadWatchlist: function () { applicationCalls.push('watchlist'); },
     loaded: function () { applicationCalls.push('loaded'); },
@@ -376,6 +395,10 @@ var feature = ServerFeatureController.create({
 
 assert.ok(controllerOptions, 'the feature must construct ServerController');
 assert.ok(editorOptions, 'the feature must construct ServerEditorView');
+assert.strictEqual(typeof editorOptions.serverRouteLabel, 'function', 'the server picker must expose the effective route type for each saved endpoint');
+assert.strictEqual(editorOptions.serverRouteLabel(serverA), 'settings.localAddress', 'local saved endpoints must be labeled as local');
+assert.strictEqual(editorOptions.serverRouteLabel({ uri: remoteUri }), 'settings.remoteAddress', 'relay endpoints must be labeled as remote');
+assert.strictEqual(editorOptions.serverRouteLabel({ uri: directUri }), 'settings.remoteDirect', 'plex.direct endpoints must be labeled as direct remote');
 assert.strictEqual(typeof feature.authMode, 'function', 'the Server feature must own the persisted authentication mode');
 assert.strictEqual(typeof feature.networkSnapshot, 'function', 'the Server feature must own network state');
 assert.strictEqual(typeof feature.loadApplication, 'function', 'the Server feature must own server-scoped application loading');
@@ -415,12 +438,24 @@ assert.strictEqual(session.token, 'token-b', 'domain-controller token updates mu
 assert.ok(publishes.length > 0, 'session changes must be published through the application-session port');
 
 var startedBeforeLoad = started;
+var homeCallsBeforeDeferredLoad = applicationCalls.filter(function (callName) { return callName === 'home'; }).length;
+navigationDeferred = true;
 feature.loadApplication();
+assert.strictEqual(applicationCalls.filter(function (callName) { return callName === 'home'; }).length, homeCallsBeforeDeferredLoad + 1,
+  'Home loading must start independently while primary navigation remains pending');
+navigationDeferred = false;
+navigationCallback(null, navigationItems.slice());
+navigationCallback = null;
 assert.strictEqual(started, startedBeforeLoad + 1, 'application loading must start activity polling once');
 assert.ok(applicationCalls.indexOf('home') >= 0, 'application loading must start Home after navigation is available');
 assert.strictEqual(applicationCalls.indexOf('watchlist'), -1, 'application loading must not preload Watchlist concurrently with first Home');
 feature.loadApplication();
 assert.strictEqual(started, startedBeforeLoad + 2, 'application reload must re-arm activity polling');
+navigationItems = [];
+feature.loadApplication();
+assert.deepStrictEqual(appliedNavigationItems[appliedNavigationItems.length - 1], [],
+  'a successful empty navigation response must clear stale library navigation instead of preserving the previous sections');
+navigationItems = [{ key: 'library-1', title: 'Movies' }];
 feature.openEditor();
 assert.strictEqual(editorOpened, 1, 'openEditor must open the owned editor view');
 assert.strictEqual(feature.editorSnapshot().open, true, 'editor state must be exposed read-only');
@@ -446,10 +481,106 @@ assert.strictEqual(switchTransitions.length, 0, 'activating the current server m
 assert.strictEqual(feature.editorSnapshot().open, false, 'same-server activation must close the editor');
 feature.openEditor();
 feature.focusEditor(3);
+var appliedBeforeVerifiedSwitch = applied.length;
 feature.activateEditor();
-assert.strictEqual(applied[applied.length - 1], serverB, 'activating another server must delegate server application');
-assert.strictEqual(switchTransitions[switchTransitions.length - 1], serverB, 'server switches must notify the composition root explicitly');
-assert.strictEqual(feature.activeServer(), serverB, 'the feature must expose the authoritative active server');
+assert.strictEqual(applied.length, appliedBeforeVerifiedSwitch, 'a server route must not be applied before its identity is verified');
+serverAccessCallback(null, {
+  token: 'token-b',
+  connections: [serverB.uri, 'https://bedroom.example'],
+  connectionRoutes: [{ uri: serverB.uri, local: true, relay: false }, { uri: 'https://bedroom.example', local: false, relay: false }]
+});
+assert.strictEqual(applied.length, appliedBeforeVerifiedSwitch, 'loading target-server credentials must still not apply an unverified route');
+assert.deepStrictEqual(reachableConnectionCalls[reachableConnectionCalls.length - 1].connections, [
+  { uri: serverB.uri, local: true, relay: false },
+  { uri: 'https://bedroom.example', local: false, relay: false }
+], 'interactive server selection must preserve local/direct/Relay route metadata for quality-aware racing');
+assert.strictEqual(reachableConnectionCalls[reachableConnectionCalls.length - 1].options.raceConnections, true,
+  'interactive server selection must keep parallel probing enabled while preserving route quality');
+reachableConnectionCallback(null, serverB.uri);
+assert.strictEqual(applied[applied.length - 1].machineIdentifier, serverB.machineIdentifier, 'activating another server must apply the verified route');
+assert.strictEqual(feature.activeProfile().token, 'token-b', 'an online server switch must persist the target PMS access token before applying it');
+assert.strictEqual(feature.activeProfile().serverMachineIdentifier, serverB.machineIdentifier, 'the active profile must follow the verified target PMS');
+assert.strictEqual(switchTransitions[switchTransitions.length - 1].machineIdentifier, serverB.machineIdentifier, 'verified server switches must notify the composition root explicitly');
+assert.strictEqual(feature.activeServer().machineIdentifier, serverB.machineIdentifier, 'the feature must expose the authoritative active server');
+
+var cancelServer = {
+  name: 'Cancelled Switch',
+  uri: 'https://cancelled-switch.example',
+  machineIdentifier: 'machine-cancelled-switch',
+  connections: ['https://cancelled-switch.example'],
+  connectionRoutes: [{ uri: 'https://cancelled-switch.example', local: false, relay: false }]
+};
+feature.queryAccountServers(function (error) { assert.ifError(error); });
+accountServersCallback(null, [cancelServer]);
+feature.openEditor();
+var cancelServerEditorIndex = feature.servers().map(function (server) { return server.machineIdentifier; }).indexOf(cancelServer.machineIdentifier) + 2;
+assert.ok(cancelServerEditorIndex >= 2, 'the cancellation fixture PMS must be visible in the server editor');
+feature.focusEditor(cancelServerEditorIndex);
+var appliedBeforeCancelledSwitch = applied.length;
+var transitionsBeforeCancelledSwitch = switchTransitions.length;
+serverAccessCallback = null;
+reachableConnectionCallback = null;
+feature.activateEditor();
+assert.strictEqual(typeof serverAccessCallback, 'function', 'switching to another PMS must start an asynchronous access-resolution request');
+feature.closeEditor();
+serverAccessCallback(null, {
+  token: 'token-cancelled-late',
+  connections: [cancelServer.uri],
+  connectionRoutes: cancelServer.connectionRoutes
+});
+if (reachableConnectionCallback) { reachableConnectionCallback(null, cancelServer.uri); }
+assert.strictEqual(applied.length, appliedBeforeCancelledSwitch,
+  'closing the server editor while route resolution is pending must cancel the switch instead of applying it after Back');
+assert.strictEqual(switchTransitions.length, transitionsBeforeCancelledSwitch,
+  'a cancelled server selection must not publish a late server-switched transition');
+assert.strictEqual(feature.activeServer().machineIdentifier, serverB.machineIdentifier,
+  'closing the server editor must keep the previously active PMS authoritative');
+
+
+var incompleteRoutesServer = {
+  name: 'Bedroom',
+  uri: serverB.uri,
+  machineIdentifier: serverB.machineIdentifier,
+  connections: [serverB.uri, 'https://bedroom-direct.example', 'https://bedroom-relay.example'],
+  connectionRoutes: [
+    { uri: 'https://bedroom-direct.example', local: false, relay: false },
+    { uri: 'https://bedroom-relay.example', local: false, relay: true }
+  ]
+};
+var incompleteRoutesResolved = null;
+feature.resolveServerConnection(incompleteRoutesServer, function (error, resolved) { assert.ifError(error); incompleteRoutesResolved = resolved; });
+assert.deepStrictEqual(reachableConnectionCalls[reachableConnectionCalls.length - 1].connections, [
+  { uri: serverB.uri, local: true, relay: false },
+  { uri: 'https://bedroom-direct.example', local: false, relay: false },
+  { uri: 'https://bedroom-relay.example', local: false, relay: true }
+], 'priority race must retain a known LAN URI when saved route metadata only covers direct and Relay connections');
+reachableConnectionCallback(null, serverB.uri);
+assert.strictEqual(incompleteRoutesResolved.uri, serverB.uri, 'the retained LAN candidate must remain usable as the resolved connection');
+
+var discoveredLocalServer = {
+  name: 'Office',
+  uri: 'http://192.168.1.30:32400',
+  machineIdentifier: 'machine-c',
+  connections: ['http://192.168.1.30:32400'],
+  connectionRoutes: []
+};
+var discoveredLocalResolved = null;
+feature.resolveServerConnection(discoveredLocalServer, function (error, resolved) { assert.ifError(error); discoveredLocalResolved = resolved; });
+serverAccessCallback(null, {
+  token: 'token-c',
+  connections: ['https://office-direct.example', 'https://office-relay.example'],
+  connectionRoutes: [
+    { uri: 'https://office-direct.example', local: false, relay: false },
+    { uri: 'https://office-relay.example', local: false, relay: true }
+  ]
+});
+assert.deepStrictEqual(reachableConnectionCalls[reachableConnectionCalls.length - 1].connections, [
+  { uri: 'http://192.168.1.30:32400', local: true, relay: false },
+  { uri: 'https://office-direct.example', local: false, relay: false },
+  { uri: 'https://office-relay.example', local: false, relay: true }
+], 'account access resolution must race the already discovered LAN endpoint together with cloud-provided direct and Relay routes');
+reachableConnectionCallback(null, 'http://192.168.1.30:32400');
+assert.strictEqual(discoveredLocalResolved.uri, 'http://192.168.1.30:32400', 'a discovered LAN endpoint must be selectable even when Plex account route metadata omits it');
 
 var serverC = { name: 'Office', uri: 'http://192.168.1.30:32400', machineIdentifier: 'machine-c', connections: [] };
 probeResult = serverC;
@@ -485,10 +616,51 @@ serverAccessCallback(null, {
 reachableConnectionCallback(null, serverB.uri);
 var resumedBeforeBootstrap = resumed.length;
 feature.bootstrap();
+assert.ok(applicationCalls.indexOf('ready') >= 0, 'completed onboarding must reveal the application without waiting for Plex');
 assert.deepStrictEqual(waitedActivities, ['metadata-1'], 'activity waiting must remain delegated');
 assert.strictEqual(verified.length, 1, 'remote route verification must remain delegated');
 assert.ok(resumed.length > resumedBeforeBootstrap, 'bootstrap must resume remote verification for the selected server');
 assert.ok(feature.snapshot().activities.length, 'read-only server/activity snapshots must be exposed');
+
+var sharedServer = {
+  name: 'Marco', uri: 'https://shared-direct.example', machineIdentifier: 'machine-shared', owned: false,
+  connections: ['https://shared-direct.example', 'https://relay-shared.example'],
+  connectionRoutes: [{ uri: 'https://relay-shared.example', local: false, relay: true }]
+};
+var queriedServers = null;
+assert.strictEqual(typeof feature.queryAccountServers, 'function', 'Server feature must expose non-destructive account PMS discovery for library sources');
+feature.queryAccountServers(function (error, servers) { assert.ifError(error); queriedServers = servers; });
+assert.strictEqual(accountServerQueries[accountServerQueries.length - 1].token, 'account-b', 'secondary PMS discovery must use the active Plex Home profile account token');
+accountServersCallback(null, [sharedServer]);
+assert.ok(queriedServers.some(function (server) { return server.machineIdentifier === 'machine-shared' && server.owned === false; }), 'account PMS discovery must retain shared owned=false resources');
+
+var resolvedSource = null;
+var primaryBeforeResolve = feature.activeServer();
+var primaryUriBeforeResolve = session.apiBaseUrl;
+assert.strictEqual(typeof feature.resolveContentSource, 'function', 'Server feature must resolve a source-specific PMS transport without switching the primary server');
+feature.resolveContentSource('machine-shared', function (error, source) { assert.ifError(error); resolvedSource = source; });
+serverAccessCallback(null, {
+  token: 'shared-token',
+  connections: ['https://shared-direct.example', 'https://relay-shared.example'],
+  connectionRoutes: [{ uri: 'https://relay-shared.example', local: false, relay: true }]
+});
+assert.strictEqual(reachableConnectionCalls[reachableConnectionCalls.length - 1].options.raceConnections, true,
+  'secondary PMS route resolution must race candidates so one slow route cannot consume the source timeout');
+assert.deepStrictEqual(reachableConnectionCalls[reachableConnectionCalls.length - 1].connections, [
+  { uri: 'https://shared-direct.example', local: false, relay: false },
+  { uri: 'https://relay-shared.example', local: false, relay: true }
+], 'secondary PMS racing must preserve Direct/Relay route metadata and priority');
+reachableConnectionCallback(null, 'https://relay-shared.example');
+assert.deepStrictEqual(resolvedSource, {
+  serverMachineIdentifier: 'machine-shared',
+  serverName: 'Marco',
+  owned: false,
+  apiBaseUrl: 'https://relay-shared.example',
+  token: 'shared-token',
+  requestTimeout: runtimeConfig.requestTimeout
+}, 'shared PMS resolution must return the verified Relay route and server-specific token');
+assert.strictEqual(feature.activeServer(), primaryBeforeResolve, 'resolving a shared content source must not change the primary server');
+assert.strictEqual(session.apiBaseUrl, primaryUriBeforeResolve, 'resolving a shared content source must not mutate the primary API URL');
 
 feature.closeEditor();
 assert.strictEqual(editorClosed > 0, true, 'closeEditor must close the owned editor view');

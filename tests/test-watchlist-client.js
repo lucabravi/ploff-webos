@@ -49,18 +49,18 @@ assert.deepStrictEqual(WatchlistClient.providerFromJson(JSON.stringify({ MediaPr
 }] } }), 'https://discover.provider.plex.tv'), discovered, 'nested provider features must expose the live Watchlist endpoints');
 
 var cloudSearch;
-WatchlistClient.search(root, { token: 'account-token', provider: discovered, timeout: 5000 }, 'attack', 12, function (error, items) {
+WatchlistClient.search(root, { token: 'account-token', provider: discovered, timeout: 5000 }, 'sample', 12, function (error, items) {
   assert.ifError(error); cloudSearch = items;
 });
-assert.ok(/\/library\/search\?/.test(requests[1].url) && /query=attack/.test(requests[1].url) && /limit=12/.test(requests[1].url), 'cloud alias search must use the discovered provider search endpoint');
+assert.ok(/\/library\/search\?/.test(requests[1].url) && /query=sample/.test(requests[1].url) && /limit=12/.test(requests[1].url), 'cloud alias search must use the discovered provider search endpoint');
 assert.ok(/searchProviders=discover/.test(requests[1].url) && /searchTypes=movies%2Ctv/.test(requests[1].url) && /includeMetadata=1/.test(requests[1].url), 'universal search must request movie and TV metadata from Plex Discover');
 requests[1].status = 200;
 requests[1].responseText = JSON.stringify({ MediaContainer: { SearchResults: [{ id: 'external', SearchResult: [
-  { score: 0.64, Metadata: { type: 'show', title: 'Attack on Titan', guid: 'plex://show/attack' } },
+  { score: 0.64, Metadata: { type: 'show', title: 'Sample Saga', guid: 'plex://show/sample-saga' } },
   { score: 0.31, Metadata: { type: 'episode', title: 'Ignored episode', guid: 'plex://episode/ignored' } }
 ] }] } });
 requests[1].readyState = 4; requests[1].onreadystatechange();
-assert.deepStrictEqual(cloudSearch, [{ ratingKey: '', type: 'show', title: 'Attack on Titan', guid: 'plex://show/attack', score: 0.64 }], 'cloud search must retain provider score with top-level media GUIDs');
+assert.deepStrictEqual(cloudSearch, [{ ratingKey: '', type: 'show', title: 'Sample Saga', guid: 'plex://show/sample-saga', score: 0.64 }], 'cloud search must retain provider score with top-level media GUIDs');
 
 var loaded;
 WatchlistClient.load(root, { token: 'account-token', provider: discovered, timeout: 5000 }, 20, 200, function (error, items) {
@@ -69,12 +69,12 @@ WatchlistClient.load(root, { token: 'account-token', provider: discovered, timeo
 assert.ok(/X-Plex-Container-Start=20/.test(requests[2].url) && /X-Plex-Container-Size=100/.test(requests[2].url), 'Watchlist requests must remain paged and respect the provider maximum');
 requests[2].status = 200;
 requests[2].responseText = JSON.stringify({ MediaContainer: { Metadata: [
-  { ratingKey: 'cloud-1', type: 'movie', title: 'Alien', guid: 'plex://movie/alien' },
-  { ratingKey: 'cloud-2', type: 'show', title: 'Anime', Guid: [{ id: 'plex://show/anime' }] }
+  { ratingKey: 'cloud-1', type: 'movie', title: 'Sample Film', guid: 'plex://movie/sample-film' },
+  { ratingKey: 'cloud-2', type: 'show', title: 'Synthetic Series B', Guid: [{ id: 'plex://show/synthetic-series-b' }] }
 ] } });
 requests[2].readyState = 4; requests[2].onreadystatechange();
 assert.deepStrictEqual(loaded.map(function (item) { return [item.ratingKey, item.guid]; }), [
-  ['cloud-1', 'plex://movie/alien'], ['cloud-2', 'plex://show/anime']
+  ['cloud-1', 'plex://movie/sample-film'], ['cloud-2', 'plex://show/synthetic-series-b']
 ], 'Watchlist responses must normalize Plex GUIDs');
 
 var mutationDone = false;

@@ -13,6 +13,7 @@ var required = [
   'subtitles-octopus-worker-legacy.mem',
   'subtitles-octopus-worker.wasm',
   'default.woff2',
+  'default.ttf',
   'LICENSE.default-font.txt',
   'THIRD_PARTY_NOTICES.txt',
   'subtitles-octopus.LICENSE.txt',
@@ -33,6 +34,10 @@ if (fontHash !== '886929903707c5bb28b07cd2eed69921b3d5ef5c49c73a0dd1e187ebf6546a
 }
 
 var fontLicense = fs.readFileSync(path.join(vendor, 'LICENSE.default-font.txt'), 'utf8');
+var ttfHash = crypto.createHash('sha256').update(fs.readFileSync(path.join(vendor, 'default.ttf'))).digest('hex');
+if (ttfHash !== '1907752f169eac97a38f11da1867d1a10d949658158ed010e56a3bba46b8e679') {
+  throw new Error('Unexpected decompressed fallback font hash: ' + ttfHash);
+}
 var notices = fs.readFileSync(path.join(vendor, 'THIRD_PARTY_NOTICES.txt'), 'utf8');
 if (fontLicense.indexOf('SIL OPEN FONT LICENSE Version 1.1') === -1 ||
     notices.indexOf('JavascriptSubtitlesOctopus 4.1.0') === -1 ||

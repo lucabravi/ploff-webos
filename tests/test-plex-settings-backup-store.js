@@ -182,6 +182,29 @@ livingStore.remove(function (error, status) {
   assert.strictEqual(serverPlaylists.length, 0, 'failed first save must not leave an orphan playlist that multiplies on retry');
 }());
 
+(function tokenlessLocalServerCanReadAndWriteSettingsBackups() {
+  var storage = createStorage({});
+  var settings = { value: Settings.validate({ uiLanguage: 'it', settingsBackupMode: 'on' }) };
+  var store = Store.create({
+    storage: storage,
+    settings: function () { return settings.value; },
+    config: function () { return { apiBaseUrl: 'http://plex', token: '' }; },
+    deviceInfo: function () { return { modelName: 'OLED55' }; },
+    appVersion: '1.0.7', now: function () { return 7000; }, random: function () { return 0.5; },
+    transport: transport
+  });
+  store.registerDevice('Offline TV', function (error, saved) {
+    assert.ifError(error);
+    assert.strictEqual(saved.currentProfile.name, 'Offline TV', 'tokenless Plex backup writes must remain usable');
+  });
+  assert.ok(playlists.some(function (item) { return item.title.indexOf('Offline TV') !== -1; }), 'tokenless backup must create its technical playlist');
+  store.status(function (error, status) {
+    assert.ifError(error);
+    assert.ok(status.profiles.some(function (profile) { return profile.name === 'Offline TV'; }), 'tokenless backup must list its technical playlist');
+  });
+  store.remove(function (error) { assert.ifError(error); });
+}());
+
 (function legacyV2SharedAndDeviceSavesAreRecomposedForRecovery() {
   var shared = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/settings-backup/v2-shared.json'), 'utf8'));
   var device = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/settings-backup/v2-device.json'), 'utf8'));
@@ -225,6 +248,55 @@ livingStore.remove(function (error, status) {
     assert.deepStrictEqual(JSON.parse(targetStorage.getItem('ploff.libraryOrder.v1')), ['4', '2'], 'legacy shared library order must survive recovery');
     assert.strictEqual(legacyStore.deviceProfile().id, 'legacy-living-room', 'same-device recovery must adopt the legacy device identity');
   });
+}());
+
+(function settingsBackupSaveKeepsOnePlexIdentityAcrossAsyncSteps() {
+  var storage = createStorage({});
+  var settings = { value: Settings.validate({ uiLanguage: 'it', settingsBackupMode: 'on' }) };
+  var activeConfig = { apiBaseUrl: 'http://plex-a', token: 'token-a' };
+  var pendingList = null;
+  var calls = [];
+  var completedError = null;
+  storage.setItem(Store.DEVICE_PROFILE_KEY, JSON.stringify({ id: 'device-identity', name: 'Identity TV' }));
+  Settings.save(storage, settings.value);
+  var store = Store.create({
+    storage: storage,
+    settings: function () { return settings.value; },
+    config: function () { return activeConfig; },
+    deviceInfo: function () { return { modelName: 'OLED55' }; },
+    appVersion: '1.0.8', now: function () { return 8000; }, random: function () { return 0.5; },
+    transport: {
+      list: function (config, _prefix, _marker, callback) {
+        calls.push(['list', config.apiBaseUrl, config.token]);
+        pendingList = callback;
+      },
+      create: function (config, title, callback) {
+        calls.push(['create', config.apiBaseUrl, config.token]);
+        callback(null, { ratingKey: 'identity-save', title: title, summary: '' });
+      },
+      update: function (config, _ratingKey, _summary, callback) {
+        calls.push(['update', config.apiBaseUrl, config.token]);
+        callback(null);
+      },
+      remove: function (config, _ratingKey, callback) {
+        calls.push(['remove', config.apiBaseUrl, config.token]);
+        callback(null);
+      }
+    }
+  });
+
+  store.save(function (error) { completedError = error || null; });
+  assert.deepStrictEqual(calls[0], ['list', 'http://plex-a', 'token-a'], 'backup save must start against the active Plex identity');
+  activeConfig.apiBaseUrl = 'http://plex-b';
+  activeConfig.token = 'token-b';
+  pendingList(null, []);
+
+  assert.ifError(completedError);
+  assert.deepStrictEqual(calls.slice(1), [
+    ['create', 'http://plex-a', 'token-a'],
+    ['update', 'http://plex-a', 'token-a']
+  ], 'an in-flight backup save must not cross into a newly selected Plex profile/server between list and write');
+  store.destroy();
 }());
 
 console.log('Plex settings save store tests passed');

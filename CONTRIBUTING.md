@@ -27,8 +27,8 @@ loading and do not put a theme-specific exception in `app/styles/core.css`.
 
 `app/theme-registry.js` is the single registry for theme IDs, body classes, locale
 keys, and CSS source files. The current shipped IDs are `classic`, `immersive`,
-`premiere`, `nova`, and `atelier`; controllers must never branch on those concrete
-IDs. Shared visual roles use the required semantic theme
+`premiere`, `aurora`, `mahogany`, `nova`, and `atelier`; controllers must never branch
+on those concrete IDs. Shared visual roles use the required semantic theme
 tokens; intentionally different geometry/layout remains as scoped selectors in the
 owning theme file. See [`docs/themes.md`](docs/themes.md) before adding or modifying a
 theme.

@@ -5,7 +5,7 @@ var PlexFeaturePorts = require('../app/coordinator/plex-feature-ports');
 
 var names = [
   'findByGuid', 'loadAccountProfile', 'loadActivities', 'loadHome',
-  'loadLibraryContainerPage', 'loadLibraryFilterOptions', 'loadLibraryPage',
+  'loadLibraryContainerPage', 'loadLibraryFilterOptions', 'loadLibraryPage', 'loadLibrarySections',
   'loadLibraryRecommendations', 'loadExtras', 'loadMediaProfile', 'loadMetadata',
   'loadNavigation', 'loadPlayback', 'loadSeasonEpisodes', 'loadSeriesContext',
   'loadServerIdentity', 'loadSubtitleText', 'pingTranscode', 'posterUrl',
@@ -40,9 +40,14 @@ function verify(factory, expected) {
 verify(PlexFeaturePorts.server, ['loadAccountProfile', 'loadActivities', 'loadNavigation', 'loadServerIdentity']);
 verify(PlexFeaturePorts.shell, ['loadHome', 'loadMetadata', 'posterUrl']);
 verify(PlexFeaturePorts.search, ['findByGuid', 'search']);
+verify(PlexFeaturePorts.globalMedia, [
+  'findByGuid', 'loadHome', 'loadLibraryContainerPage', 'loadLibraryFilterOptions',
+  'loadLibraryPage', 'loadLibraryRecommendations', 'loadMediaProfile', 'loadMetadata',
+  'loadSeasonEpisodes', 'loadSeriesContext', 'search'
+]);
 verify(PlexFeaturePorts.library, [
   'findByGuid', 'loadLibraryContainerPage', 'loadLibraryFilterOptions',
-  'loadLibraryPage', 'loadLibraryRecommendations', 'refreshLibrary',
+  'loadLibraryPage', 'loadLibraryRecommendations', 'loadLibrarySections', 'refreshLibrary',
   'refreshLibraryMetadata'
 ]);
 verify(PlexFeaturePorts.detail, [

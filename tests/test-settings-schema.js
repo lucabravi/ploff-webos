@@ -12,7 +12,7 @@ var expectedKeys = [
   'lanVideoQuality', 'remoteVideoQuality', 'playbackMode', 'adaptivePlaybackMemory',
   'videoVersionPriorities', 'wheelBehavior', 'cardScale', 'uiTextScale', 'artworkQuality', 'backdropQuality',
   'artworkDataSaver', 'accentColor', 'visualTheme', 'interfaceAnimations', 'searchT9Input', 'showWatchlist',
-  'showPlaylists', 'homeRows', 'settingsBackupMode', 'highContrast', 'strongFocus', 'subtitleBackground',
+  'showPlaylists', 'aggregateLibraries', 'aggregateHomeLibraries', 'homeRows', 'settingsBackupMode', 'highContrast', 'strongFocus', 'subtitleBackground',
   'subtitleEdge', 'subtitlePosition', 'subtitleSize', 'safeAreaTop', 'safeAreaRight', 'safeAreaBottom', 'safeAreaLeft'
 ];
 

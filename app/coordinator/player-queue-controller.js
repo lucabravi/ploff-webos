@@ -26,8 +26,12 @@
     var closedPrefetchToken = 0;
     var destroyed = false;
 
-    function call(callback, arg1, arg2, arg3, arg4, arg5, arg6) {
-      if (typeof callback === 'function') { return callback(arg1, arg2, arg3, arg4, arg5, arg6); }
+    function call(callback, arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+      if (typeof callback === 'function') {
+        return arguments.length > 7
+          ? callback(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+          : callback(arg1, arg2, arg3, arg4, arg5, arg6);
+      }
       return undefined;
     }
 
@@ -48,10 +52,24 @@
         : 0;
     }
     function posterLoader() { return call(options.posterLoader) || null; }
-
-    function label() {
-      return String(currentSettings().uiLanguage || 'en').toLowerCase().indexOf('it') === 0 ? 'Coda' : 'Queue';
+    function sourceContext() { return typeof options.sourceContext === 'function' ? options.sourceContext() : null; }
+    function presentationFor(item) {
+      var resolved;
+      if (typeof options.resolvePresentationItem !== 'function') {
+        return { item: item, sourceContext: sourceContext(), available: true };
+      }
+      resolved = options.resolvePresentationItem(item);
+      if (!resolved || !resolved.item) {
+        return { item: item, sourceContext: null, available: false };
+      }
+      return {
+        item: resolved.item,
+        sourceContext: resolved.sourceContext || null,
+        available: resolved.available !== false
+      };
     }
+
+    function label() { return t('player.queue'); }
 
     function ensureUi() {
       var row;
@@ -59,6 +77,7 @@
       var button;
       var drawer;
       var header;
+      var title;
       if (destroyed || !document || document.getElementById('player-playlist-queue-button')) { return false; }
       row = document.querySelector('.player-buttons');
       settings = document.getElementById('player-settings-button');
@@ -77,7 +96,9 @@
       drawer.id = 'player-playlist-queue';
       drawer.setAttribute('aria-hidden', 'true');
       header = element('div', 'player-playlist-queue-header');
-      header.appendChild(element('h3', 'player-playlist-queue-title'));
+      title = element('h3', 'player-playlist-queue-title');
+      title.appendChild(element('span', 'player-playlist-queue-title-text'));
+      header.appendChild(title);
       header.appendChild(element('span', 'player-playlist-queue-position'));
       drawer.appendChild(header);
       drawer.appendChild(element('div', 'player-playlist-queue-list'));
@@ -118,15 +139,42 @@
         (viewed ? ' is-viewed' : '');
     }
 
+    function updateQueueTitleOverflow(title) {
+      var textNode = title && title.childNodes && title.childNodes[0];
+      var style;
+      var distance;
+      var textValue;
+      var availableWidth;
+      if (!title || !textNode) { return; }
+      textValue = String(textNode.textContent || '');
+      availableWidth = Number(title.clientWidth || 0);
+      if (title.__playlistQueueTitleValue === textValue && title.__playlistQueueTitleWidth === availableWidth) { return; }
+      title.__playlistQueueTitleValue = textValue;
+      title.__playlistQueueTitleWidth = availableWidth;
+      textNode.className = String(textNode.className || '').replace(/\s+is-overflowing\b/g, '');
+      style = textNode.style;
+      if (style) {
+        if (style.removeProperty) { style.removeProperty('--text-marquee-distance'); }
+        else { style['--text-marquee-distance'] = ''; }
+      }
+      distance = Number(textNode.scrollWidth || 0) - availableWidth;
+      if (distance <= 1) { return; }
+      if (style) {
+        if (style.setProperty) { style.setProperty('--text-marquee-distance', '-' + distance + 'px'); }
+        else { style['--text-marquee-distance'] = '-' + distance + 'px'; }
+      }
+      textNode.className += ' is-overflowing';
+    }
+
     function viewportItems(list) {
       var height = Math.max(1, Number(list && list.clientHeight || 0));
-      return height > 1 ? Math.max(1, Math.ceil(height / 208)) : 5;
+      return height > 1 ? Math.max(1, Math.ceil(height / 214)) : 5;
     }
 
     function sdSize() {
       return ProgressiveImages && ProgressiveImages.previewSize
-        ? ProgressiveImages.previewSize(390, 148, 96)
-        : { width: 96, height: 36 };
+        ? ProgressiveImages.previewSize(390, 154, 96)
+        : { width: 96, height: 38 };
     }
 
     function spacer(name, count) {
@@ -138,7 +186,7 @@
         node.setAttribute('aria-hidden', 'true');
         spacers[name] = node;
       }
-      height = count * 208 + 'px';
+      height = count * 214 + 'px';
       if (node.style.height !== height) { node.style.height = height; }
       return node;
     }
@@ -157,7 +205,7 @@
       }
     }
 
-    function loadArtwork(image, source, tier, priority) {
+    function loadArtwork(image, source, tier, priority, requestContext) {
       var loader = posterLoader();
       var preview;
       var requestKey;
@@ -166,7 +214,7 @@
       if (image.__playlistQueueArtworkKey === requestKey) { return; }
       image.__playlistQueueArtworkKey = requestKey;
       if (tier === 'final') {
-        call(options.loadRenderedPoster, image, source, priority, 'playlist-queue', 390, 148);
+        call(options.loadRenderedPoster, image, source, priority, 'playlist-queue', 390, 154, requestContext);
         return;
       }
       if (!loader || !loader.load) { return; }
@@ -178,7 +226,8 @@
         width: preview.width,
         height: preview.height,
         priority: priority,
-        scope: 'playlist-queue'
+        scope: 'playlist-queue',
+        sourceContext: requestContext
       });
     }
 
@@ -255,6 +304,7 @@
       var index;
       var record;
       var item;
+      var presentation;
       var key;
       var image;
       var requestKey;
@@ -265,6 +315,10 @@
       for (index = 0; index < (records || []).length; index += 1) {
         record = records[index];
         item = record && record.item;
+        if (!item || !item.image) { continue; }
+        presentation = presentationFor(item);
+        if (!presentation.available) { continue; }
+        item = presentation.item;
         if (!item || !item.image) { continue; }
         key = cardKey(record, Number(record.absoluteIndex || 0));
         retained[key] = true;
@@ -284,6 +338,7 @@
           height: preview.height,
           priority: 2,
           scope: 'playlist-queue-prefetch',
+          sourceContext: presentation.sourceContext,
           previewOnly: true
         });
       }
@@ -326,7 +381,7 @@
     function updateCard(card, item, absoluteIndex, currentIndex, focused, total, paused) {
       var position = itemPosition(item, absoluteIndex, total);
       var title = PlaybackQueueModel.itemDisplayTitle(item);
-      var typeLabel = PlaybackQueueModel.itemTypeLabel(item, currentSettings().uiLanguage);
+      var typeLabel = PlaybackQueueModel.itemTypeLabel(item, currentSettings().uiLanguage, t);
       var viewedLabel;
       card.__playlistQueueIsViewed = !!item.viewed;
       viewedLabel = card.__playlistQueueIsViewed ? ', ' + t('library.watched') : '';
@@ -425,6 +480,7 @@
       var record;
       var absoluteIndex;
       var item;
+      var presentation;
       var key;
       var card;
       var image;
@@ -437,7 +493,8 @@
       var spacerNode;
       var offset;
       playbackPaused = paused;
-      setText(title, queueValue.title || label());
+      setText(title && title.childNodes && title.childNodes[0], queueValue.title || label());
+      updateQueueTitleOverflow(title);
       setText(position, (currentIndex + 1) + ' / ' + total);
       spacerNode = spacer('is-before', windowValue.retainedStart);
       if (spacerNode) { desiredNodes.push(spacerNode); }
@@ -446,6 +503,8 @@
         absoluteIndex = Number(record && record.absoluteIndex || 0);
         item = record && record.item;
         if (!item) { continue; }
+        presentation = presentationFor(item);
+        item = presentation.item;
         key = cardKey(record, absoluteIndex);
         retainedCards[key] = true;
         card = cards[key];
@@ -459,12 +518,13 @@
         desiredNodes.push(card);
         image = card.__playlistQueueImage;
         artworkTier = PlaybackQueueModel.windowTier(windowValue, absoluteIndex);
-        if (item.image) {
+        if (presentation.available && item.image) {
           artworkRequests.push({
             image: image,
             source: item.image,
             tier: artworkTier,
-            priority: absoluteIndex === drawerState.index ? 0 : 1
+            priority: absoluteIndex === drawerState.index ? 0 : 1,
+            sourceContext: presentation.sourceContext
           });
         } else if (loader && loader.load) { emptyArtworkImages.push(image); }
       }
@@ -480,7 +540,8 @@
           artworkRequests[offset].image,
           artworkRequests[offset].source,
           artworkRequests[offset].tier,
-          artworkRequests[offset].priority
+          artworkRequests[offset].priority,
+          artworkRequests[offset].sourceContext
         );
       }
       prefetchArtwork(windowResult && windowResult.prefetchItems || []);

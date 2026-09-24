@@ -173,6 +173,26 @@ assert.strictEqual((parallelResult.stdout.match(/\(\d+ ms\) ===/g) || []).length
   'each completed test file must report elapsed milliseconds');
 
 fs.writeFileSync(eventLog, '');
+var assProfileFiles = [
+  writeTest('test-ass-legacy-worker-profile', 200, 0, ''),
+  writeTest('test-ass-wasm-worker-profile', 200, 0, '')
+];
+var assProfileResult = run(assProfileFiles, 2, eventLog);
+assert.strictEqual(assProfileResult.status, 0, assProfileResult.stderr || assProfileResult.stdout);
+assert.strictEqual(maxConcurrency(fs.readFileSync(eventLog, 'utf8').trim().split(/\n+/)), 1,
+  'legacy and WASM ASS worker profile tests must not run concurrently');
+
+fs.writeFileSync(eventLog, '');
+var assExclusiveFiles = [
+  writeTest('test-ass-legacy-worker-profile', 200, 0, ''),
+  writeTest('ordinary-parallel-test', 200, 0, '')
+];
+var assExclusiveResult = run(assExclusiveFiles, 2, eventLog);
+assert.strictEqual(assExclusiveResult.status, 0, assExclusiveResult.stderr || assExclusiveResult.stdout);
+assert.strictEqual(maxConcurrency(fs.readFileSync(eventLog, 'utf8').trim().split(/\n+/)), 1,
+  'ASS worker profile tests must run without any concurrent test process');
+
+fs.writeFileSync(eventLog, '');
 var skippedMarker = path.join(temp, 'must-not-run.txt');
 var failureFiles = [
   writeTest('failure-first', 10, 7, ''),

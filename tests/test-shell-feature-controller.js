@@ -11,6 +11,8 @@ var HomeState = require('../app/home-state');
 var SettingsSchema = require('../app/settings-schema');
 var PresentationServices = require('../app/coordinator/presentation-services');
 var ProgressiveImages = require('../app/progressive-images');
+var PlexSourceRouter = require('../app/coordinator/plex-source-router');
+var I18n = require('../app/i18n');
 
 function TimerRoot() {
   this.next = 1;
@@ -126,14 +128,16 @@ function createHarness(overrides) {
   var focus = { area: 'nav', navIndex: 1, rowIndex: 0, column: 0 };
   var navigationItems = [
     { kind: 'home', title: 'Home' },
-    { kind: 'library', key: 'one', title: 'One' },
-    { kind: 'library', key: 'two', title: 'Two' },
+    { kind: 'library', key: 'one', sourceId: 'server-a|one', title: 'One' },
+    { kind: 'library', key: 'two', sourceId: 'server-b|two', title: 'Two' },
     { kind: 'settings', title: 'Settings' }
   ];
   var availableNavigationItems = navigationItems.slice();
   var rows = [];
   var posterLoader = {
     cancelScope: function (scope) { controllerCalls.push(['cancelScope', scope]); },
+    deferFullLoads: function (delay) { controllerCalls.push(['deferFullLoads', delay]); },
+    setHomePressure: function (active) { controllerCalls.push(['setHomePressure', active]); },
     destroy: function () { posterDestroyed += 1; },
     load: function (node, specification) { controllerCalls.push(['loadPoster', node, specification]); },
     prioritize: function (node) { controllerCalls.push(['prioritize', node]); }
@@ -149,6 +153,7 @@ function createHarness(overrides) {
     applyNavigationVisibility: function (items) { navigationItems = items.slice(); availableNavigationItems = items.slice(); return navigationItems; },
     availableNavigationItems: function () { return availableNavigationItems; },
     cardMetrics: function () { return { width: 170, height: 250 }; },
+    cancelBackdropPrefetch: function () { controllerCalls.push(['cancelBackdropPrefetch']); },
     clearBackdrop: function () { controllerCalls.push(['clearBackdrop']); },
     clearHome: function () { rows = []; controllerCalls.push(['clearHome']); },
     clearLogicalFocus: function () { controllerCalls.push(['clearLogicalFocus']); },
@@ -170,6 +175,7 @@ function createHarness(overrides) {
     resetHome: function () { controllerCalls.push(['resetHome']); },
     rows: function () { return rows; },
     scheduleDetailBackdrop: function (item) { controllerCalls.push(['detailBackdrop', item]); },
+    scheduleBackdropPrefetch: function (items, view) { controllerCalls.push(['backdropPrefetch', items, view]); return true; },
     scheduleHomePolling: function () { controllerCalls.push(['scheduleHomePolling']); },
     scheduleSearchBackdrop: function (item) { controllerCalls.push(['searchBackdrop', item]); },
     scheduleTheme: function (item) { controllerCalls.push(['controllerTheme', item]); },
@@ -216,6 +222,8 @@ function createHarness(overrides) {
       },
       SettingsSchema: SettingsSchema,
       HomeState: {
+        rowKey: HomeState.rowKey,
+        mediaKey: HomeState.mediaKey,
         restoreFocus: function (_rows, base) { return base; },
         selectionKey: function () { return 'selection'; }
       },
@@ -290,7 +298,8 @@ function createHarness(overrides) {
       focusNavigationForCurrentView: function () { calls.push(['focusNav']); },
       openProfileManager: function () { calls.push(['profileManager']); },
       focusActivity: function () { calls.push(['activityFocus']); },
-      scheduleAdjacentLibraryPrefetch: function (index, items) { calls.push(['prefetch', index, items.length]); }
+      scheduleAdjacentLibraryPrefetch: function (index, items) { calls.push(['prefetch', index, items.length]); },
+      persistLibraryOrder: function (sourceIds) { calls.push(['persistLibraryOrder', sourceIds.slice()]); }
     }
   };
   Object.keys(overrides || {}).forEach(function (group) {
@@ -309,6 +318,7 @@ function createHarness(overrides) {
     counts: function () { return { controller: controllerCreates, poster: posterCreates, audio: audioCreates, controllerDestroyed: controllerDestroyed, posterDestroyed: posterDestroyed, audioDestroyed: audioDestroyed }; },
     controllerOptions: function () { return controllerOptions; }, posterOptions: function () { return posterOptions; }, storageWrites: storageWrites, posterLoader: posterLoader,
     setControllerRows: function (nextRows) { return shellController.setRows(nextRows); },
+    setRawFocus: function (next) { return shellController.setFocus(next); },
     presentationServices: presentationServices
   };
 }
@@ -317,6 +327,8 @@ function createHarness(overrides) {
 (function ownsHomeTransportAndWatchedProjection() {
   var loadedHome = null;
   var loadedTheme = null;
+  var sharedThemeConfig = null;
+  var invalidThemeError = null;
   var config = { apiBaseUrl: 'http://server' };
   var harness = createHarness({
     data: {
@@ -329,8 +341,11 @@ function createHarness(overrides) {
           return 'home-request';
         },
         loadMetadata: function (received, ratingKey, callback) {
-          assert.strictEqual(received, config);
-          assert.strictEqual(ratingKey, 'theme-one');
+          if (ratingKey === 'theme-one') { assert.strictEqual(received, config); }
+          else {
+            sharedThemeConfig = received;
+            assert.strictEqual(ratingKey, 'theme-shared');
+          }
           callback(null, { ratingKey: ratingKey });
           return 'theme-request';
         }
@@ -342,8 +357,20 @@ function createHarness(overrides) {
   assert.strictEqual(harness.controllerOptions().services.loadHome(function (error, rows) { loadedHome = { error: error, rows: rows }; }), 'home-request');
   assert.strictEqual(loadedHome.error, null);
   assert.strictEqual(loadedHome.rows[0].title, 'it:home.recommended', 'Shell owns recommendation-title localization after loading Home');
-  assert.strictEqual(harness.controllerOptions().services.loadThemeMetadata('theme-one', function (error, detail) { loadedTheme = { error: error, detail: detail }; }), 'theme-request');
+  assert.strictEqual(harness.controllerOptions().services.loadThemeMetadata({ ratingKey: 'theme-one', serverMachineIdentifier: 'server-b' }, function (error, detail) { loadedTheme = { error: error, detail: detail }; }), 'theme-request');
   assert.strictEqual(loadedTheme.detail.ratingKey, 'theme-one', 'Shell owns theme metadata transport');
+  harness.controllerOptions().services.loadThemeMetadata('theme-shared', function () {}, {
+    apiBaseUrl: 'https://shared.example',
+    token: 'shared-token',
+    requestTimeout: 9000
+  });
+  assert.strictEqual(sharedThemeConfig.apiBaseUrl, 'https://shared.example', 'shared theme metadata must use the resolved source URL');
+  assert.strictEqual(sharedThemeConfig.token, 'shared-token', 'shared theme metadata must use the resolved source token');
+  assert.strictEqual(sharedThemeConfig.requestTimeout, 9000, 'shared theme metadata must use the source request timeout');
+  assert.strictEqual(harness.controllerOptions().services.loadThemeMetadata('theme-invalid', function (error) {
+    invalidThemeError = error;
+  }, { sourceId: 'server-without-route|4' }), null, 'an unresolved secondary theme source must not start a primary-server request');
+  assert.ok(invalidThemeError, 'an unresolved secondary theme source must fail closed');
   harness.feature.updateWatched('one', true);
   assert.strictEqual(harness.feature.rows()[0].items[0].viewed, true, 'Shell owns Home watched-state projection');
   assert.strictEqual(harness.feature.rows()[0].items[0].viewOffset, 0);
@@ -351,7 +378,7 @@ function createHarness(overrides) {
   harness.feature.destroy();
 
   var preferredHarness = createHarness({
-    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema, I18n: I18n },
     state: {
       settings: function () { return { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['recent', 'continue'] }; }
     },
@@ -360,18 +387,66 @@ function createHarness(overrides) {
         callback(null, [
           { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c' }] },
           { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'x' }] },
-          { title: 'Recent A', kind: 'recent', items: [{ ratingKey: 'a' }] },
-          { title: 'Recent B', kind: 'recent', items: [{ ratingKey: 'b' }] }
+          { title: 'Recent A', kind: 'recent', sourceId: 'server-a|1', sectionTitle: 'Film', items: [{ ratingKey: 'a' }] },
+          { title: 'Recent B', kind: 'recent', sourceId: 'server-b|9', items: [{ ratingKey: 'b' }] }
         ]);
         return 'preferred-home-request';
-      }
+      },
+      homeRecentEnabled: function (sourceId) { return sourceId !== 'server-b|9'; }
     }
   });
   assert.strictEqual(preferredHarness.controllerOptions().services.loadHome(function (error, rows) { loadedHome = { error: error, rows: rows }; }), 'preferred-home-request');
   assert.strictEqual(loadedHome.error, null);
-  assert.deepStrictEqual(loadedHome.rows.map(function (row) { return row.title; }), ['Recent A', 'Recent B', 'Continue'],
-    'Shell must apply Home row visibility and order only after the complete Home response is available');
+  assert.deepStrictEqual(loadedHome.rows.map(function (row) { return row.title; }), ['Aggiunti di recente in Film', 'Continua a guardare'],
+    'Shell must apply Home row visibility/order and per-library Recently Added visibility only after the complete Home response is available');
   preferredHarness.feature.destroy();
+}());
+
+
+(function sourceRouterOwnsArtworkIdentityAndPosterTransport() {
+  var posterCalls = [];
+  var primaryConfig = { apiBaseUrl: 'https://primary.example', token: 'primary-token', requestTimeout: 1500 };
+  var router = PlexSourceRouter.create({
+    config: primaryConfig,
+    sources: {
+      primaryContext: function () { return { serverMachineIdentifier: 'primary', apiBaseUrl: 'https://primary.example', token: 'primary-token' }; },
+      contextForMachine: function () { return null; }
+    }
+  });
+  var harness = createHarness({
+    data: {
+      config: primaryConfig,
+      sourceRouter: router,
+      PlexClient: {
+        posterUrl: function (requestConfig, source) { posterCalls.push(requestConfig); return source + '?token=' + String(requestConfig.token || ''); }
+      }
+    }
+  });
+  assert.strictEqual(typeof harness.posterOptions().sourceContextIdentity, 'function', 'Shell progressive artwork must receive the central source identity callback');
+  assert.strictEqual(harness.posterOptions().sourceContextIdentity({ serverMachineIdentifier: 'server-a', token: 'one', apiBaseUrl: 'https://relay-one.example' }), 'server:server-a');
+  assert.strictEqual(harness.posterOptions().sourceContextIdentity({ serverMachineIdentifier: 'server-a', token: 'two', apiBaseUrl: 'https://relay-two.example' }), 'server:server-a');
+  assert.strictEqual(harness.posterOptions().urlFor('/poster.jpg', 100, 100, 'library', { sourceContext: { sourceId: 'server-b|4' } }), '',
+    'an explicit artwork source without a validated route must fail closed instead of using primary credentials');
+  assert.strictEqual(harness.posterOptions().urlFor('/poster.jpg', 100, 100, 'library', { sourceOwnerMachineIdentifier: 'server-b' }), '',
+    'an explicitly owned artwork item whose context cannot be resolved must fail closed instead of becoming a primary request');
+  assert.strictEqual(posterCalls.length, 0, 'invalid external artwork must not call Plex posterUrl with primary credentials');
+  harness.feature.destroy();
+}());
+
+(function sourceAwareThemeMetadataPortReceivesTheWholeItem() {
+  var received = null;
+  var harness = createHarness({
+    data: {
+      loadThemeMetadata: function (item, callback) {
+        received = item;
+        callback(null, { ratingKey: item.ratingKey });
+        return 'source-aware-theme';
+      }
+    }
+  });
+  assert.strictEqual(harness.controllerOptions().services.loadThemeMetadata({ ratingKey: 'external-theme', serverMachineIdentifier: 'server-b' }, function () {}), 'source-aware-theme');
+  assert.strictEqual(received.serverMachineIdentifier, 'server-b', 'Shell must preserve source identity for external theme metadata routing');
+  harness.feature.destroy();
 }());
 
 
@@ -379,11 +454,12 @@ function createHarness(overrides) {
   var currentSettings = { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['continue'] };
   var fullRows = [
     { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c' }] },
-    { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r' }] }
+    { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r' }] },
+    { title: 'Recent Anime', kind: 'recent', sourceId: 'server-b|9', sectionTitle: 'Anime', titleParameters: { library: 'Anime \u00b7 Marco' }, items: [{ ratingKey: 'a' }] }
   ];
   var loaded = null;
   var harness = createHarness({
-    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema, I18n: I18n },
     state: { settings: function () { return currentSettings; } },
     data: {
       loadHome: function (callback) {
@@ -399,17 +475,82 @@ function createHarness(overrides) {
   harness.feature.updateWatched('c', true);
   assert.strictEqual(harness.feature.rows()[0].items[0].viewed, true, 'local watched projection updates the currently rendered Home card immediately');
 
-  currentSettings.homeRows = ['recommended', 'continue'];
+  currentSettings.homeRows = ['recommended', 'recent', 'continue'];
   currentSettings.uiLanguage = 'en';
   harness.feature.markHomeDirty();
   harness.feature.enterHome({ refresh: false, focus: 'nav' });
 
-  assert.deepStrictEqual(harness.feature.rows().map(function (row) { return row.kind; }), ['recommended', 'continue'],
+  assert.deepStrictEqual(harness.feature.rows().map(function (row) { return row.kind; }), ['recommended', 'recent', 'continue'],
     'returning from Settings must apply the new Home row preference from the already-loaded source without waiting for another Plex request');
-  assert.strictEqual(harness.feature.rows()[0].title, 'en:home.recommended',
+  assert.strictEqual(harness.feature.rows()[0].title, 'Recommended for You',
     'reusing the loaded Home source after a language change must localize recommendation labels with the current language');
-  assert.strictEqual(harness.feature.rows()[1].items[0].viewed, true,
+  assert.strictEqual(harness.feature.rows()[1].title, 'Recently Added in Anime \u00b7 Marco',
+    'cached external Recently Added rows must be relocalized without losing the library/server display name');
+  assert.strictEqual(harness.feature.rows()[2].title, 'Continue Watching',
+    'cached Continue Watching rows must be relocalized when Settings changes the interface language');
+  assert.strictEqual(harness.feature.rows()[2].items[0].viewed, true,
     'reapplying Home row preferences from cached source must preserve optimistic watched-state projections while the Plex refresh is pending');
+  harness.feature.destroy();
+}());
+
+(function testWatchedProjectionIsServerScopedWhenSourceContextIsProvided() {
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    data: {
+      loadHome: function (callback) {
+        callback(null, [
+          {
+            title: 'Continue',
+            kind: 'continue',
+            items: [
+              { ratingKey: 'same', serverMachineIdentifier: 'server-a', viewed: false, progress: 20 },
+              { ratingKey: 'same', serverMachineIdentifier: 'server-b', viewed: false, progress: 40 }
+            ]
+          }
+        ]);
+        return 'scoped-home-request';
+      }
+    }
+  });
+  harness.controllerOptions().services.loadHome(function (_error, rows) { harness.setControllerRows(HomeState.normalizeRows(rows)); });
+  harness.feature.updateWatched('same', true, { serverMachineIdentifier: 'server-b', sourceId: 'server-b|4' });
+  assert.strictEqual(harness.feature.rows()[0].items[0].viewed, false, 'secondary watched projection must not mutate an equal ratingKey owned by primary');
+  assert.strictEqual(harness.feature.rows()[0].items[1].viewed, true, 'secondary watched projection must update the matching server copy');
+  harness.feature.destroy();
+}());
+
+(function testIdentityResetClearsWatchedProjections() {
+  var loadCount = 0;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    data: {
+      loadHome: function (callback) {
+        loadCount += 1;
+        callback(null, [{
+          title: 'Continue',
+          kind: 'continue',
+          items: [{ ratingKey: 'same', serverMachineIdentifier: 'server-a', viewed: false, progress: 40 }]
+        }]);
+        return 'identity-home-request-' + loadCount;
+      }
+    }
+  });
+  var loaded = null;
+
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+  harness.feature.updateWatched('same', true, { serverMachineIdentifier: 'server-a', sourceId: 'server-a|4' });
+  assert.strictEqual(harness.feature.rows()[0].items[0].viewed, true,
+    'the active identity should retain its optimistic watched projection while refresh is pending');
+
+  harness.feature.resetHome();
+  loaded = null;
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+
+  assert.strictEqual(loaded[0].items[0].viewed, false,
+    'identity reset must not reapply a watched projection created by the previous Plex profile');
+  assert.strictEqual(loaded[0].items[0].progress, 40,
+    'identity reset must preserve the fresh profile playback state returned by Plex');
   harness.feature.destroy();
 }());
 
@@ -449,6 +590,8 @@ function createHarness(overrides) {
   useCalls = harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; });
   assert.strictEqual(useCalls[useCalls.length - 1][1].focus, 'first',
     'the first media arriving after an empty startup response must still receive initial focus when the user has not interacted');
+  assert.strictEqual(useCalls[useCalls.length - 1][1].normalized, true,
+    'Home refresh results delivered by the coordinator must stay on the normalized fast path');
   harness.feature.destroy();
 
   harness = createHarness({ modules: { HomeState: HomeState, SettingsSchema: SettingsSchema } });
@@ -666,6 +809,7 @@ function createHarness(overrides) {
   var feature = harness.feature;
   var image = new FakeNode('img');
   var card = new FakeNode('button');
+  card.className = 'home-card is-focused';
   card.appendChild(image);
   assert.deepStrictEqual(harness.counts(), { controller: 1, poster: 1, audio: 1, controllerDestroyed: 0, posterDestroyed: 0, audioDestroyed: 0 });
   assert.strictEqual(harness.controllerOptions().presentation.translate('nav.home'), 'it:nav.home');
@@ -681,7 +825,28 @@ function createHarness(overrides) {
     source: '/fractional.jpg', previewWidth: 77, previewHeight: 112, width: 154, height: 224, priority: 1, scope: 'test'
   }, 'rendered poster requests must not exceed fractional CSS dimensions');
   feature.loadRenderedPoster(image, '/one.jpg', 2, 'test');
+  harness.controllerOptions().presentation.deferHomeArtworkLoads();
+  assert.deepStrictEqual(harness.controllerCalls.slice(-1), [['setHomePressure', true]],
+    'the first Home render must enter startup artwork pressure before poster batching starts');
+  var homeImageLookups = 0;
+  card.__ploffHomeParts = { image: image };
+  card.getElementsByTagName = function () { homeImageLookups += 1; return [image]; };
   feature.prioritizePoster(card);
+  assert.strictEqual(homeImageLookups, 0, 'Home focus promotion must reuse the card-owned image reference instead of scanning descendants');
+  assert.strictEqual(harness.posterOptions().clock, harness.root, 'shell-owned artwork loader must retain the app clock for bounded non-Home deferrals');
+  assert.deepStrictEqual(harness.controllerCalls.slice(-2), [['setHomePressure', true], ['prioritize', image]],
+    'Home focus must promote the focused image without rearming a fixed navigation-wide throttle');
+  assert.strictEqual(typeof feature.setHomeArtworkPressure, 'function', 'shell must expose reason-based Home artwork pressure ownership');
+  feature.setHomeArtworkPressure('startup-render', false);
+  feature.setHomeArtworkPressure('player-warm', true);
+  feature.setHomeArtworkPressure('ass-warm', true);
+  var pressureCallCount = harness.controllerCalls.filter(function (entry) { return entry[0] === 'setHomePressure'; }).length;
+  feature.setHomeArtworkPressure('player-warm', false);
+  assert.strictEqual(harness.controllerCalls.filter(function (entry) { return entry[0] === 'setHomePressure'; }).length, pressureCallCount,
+    'clearing one pressure reason must not release or reapply the loader while another heavy task is active');
+  feature.setHomeArtworkPressure('ass-warm', false);
+  assert.deepStrictEqual(harness.controllerCalls.slice(-1), [['setHomePressure', false]],
+    'clearing the final pressure reason must restore aggressive Home artwork loading immediately');
   assert.strictEqual(feature.posterLoader(), harness.posterLoader, 'temporary consumers receive the single shell-owned loader');
   assert.strictEqual(typeof harness.controllerOptions().actions.startNavHold, 'function');
   assert.strictEqual(typeof harness.controllerOptions().actions.scheduleNavigationPreview, 'function');
@@ -702,6 +867,20 @@ function createHarness(overrides) {
   assert.strictEqual(harness.root.intervals[Object.keys(harness.root.intervals)[0]].delay, 30000);
 }());
 
+
+(function sourceWarningsRemainVisibleWithoutActivityAndClearOnRecovery() {
+  var warnings = ['Shared · Film'];
+  var harness = createHarness({ state: { sourceWarnings: function () { return warnings; } } });
+  harness.feature.renderServerActivities();
+  var button = harness.document.getElementById('server-activity');
+  assert.ok(/is-network-local-only/.test(button.className));
+  assert.ok(textOf(harness.document.getElementById('server-activity-panel').children[1].children[1]).indexOf('Shared · Film') !== -1);
+  assert.strictEqual(button.getAttribute('aria-busy'), 'false');
+  warnings = [];
+  harness.feature.renderServerActivities();
+  assert.ok(/is-network-online/.test(button.className));
+  harness.feature.destroy();
+}());
 
 (function testProfileActivityAndHomeSurfacePresentationAreShellOwned() {
   var profile = { id: 'profile-2', title: 'Bob', thumb: '/bob.jpg' };
@@ -818,8 +997,8 @@ function createHarness(overrides) {
   var harness = createHarness({
     data: {
       PlexClient: {
-        posterUrl: function (_config, source, width, height) {
-          requests.push([source, width, height]);
+        posterUrl: function (requestConfig, source, width, height) {
+          requests.push([source, width, height, requestConfig.apiBaseUrl || '']);
           return source + '@' + width + 'x' + height;
         }
       }
@@ -827,28 +1006,53 @@ function createHarness(overrides) {
   });
   assert.strictEqual(harness.posterOptions().urlFor('/poster.jpg', 200, 300, 'library'), '/poster.jpg@160x240');
   assert.strictEqual(harness.posterOptions().urlFor('/backdrop.jpg', 1920, 1080, 'backdrop'), '/backdrop.jpg@1344x756');
+  assert.strictEqual(harness.posterOptions().urlFor('/shared.jpg', 200, 300, 'library', {
+    sourceContext: { apiBaseUrl: 'https://shared.example', token: 'shared-token' }
+  }), '/shared.jpg@160x240');
   assert.deepStrictEqual(requests, [
-    ['/poster.jpg', 160, 240],
-    ['/backdrop.jpg', 1344, 756]
+    ['/poster.jpg', 160, 240, ''],
+    ['/backdrop.jpg', 1344, 756, ''],
+    ['/shared.jpg', 160, 240, 'https://shared.example']
   ], 'the shared loader must scale Plex requests by the quality assigned to each semantic scope');
 }());
 
 (function testViewStateFocusRetryAndBackAreFeatureOwned() {
   var retries = 0;
   var backs = 0;
+  var servers = 0;
   var harness = createHarness();
   var feature = harness.feature;
-  feature.showViewState('error', 'home', function () { retries += 1; }, function () { backs += 1; });
+  feature.showViewState('error', 'home', function () { retries += 1; }, function () { backs += 1; }, function () { servers += 1; });
   assert.strictEqual(feature.viewStateOpen(), true);
-  assert.strictEqual(harness.document.getElementById('view-state-actions').children.length, 2);
+  assert.strictEqual(harness.document.getElementById('view-state-actions').children.length, 3);
   feature.handleViewStateKey({ keyCode: 39 }, 'right');
   assert.strictEqual(harness.document.getElementById('view-state-actions').children[1].focused, true);
   feature.handleViewStateKey({ keyCode: 13 }, '');
-  assert.strictEqual(backs, 1);
+  assert.strictEqual(servers, 1);
   assert.strictEqual(feature.viewStateOpen(), false);
   feature.showViewState('error', 'home', function () { retries += 1; }, function () { backs += 1; });
   feature.handleViewStateKey({ keyCode: 13 }, '');
   assert.strictEqual(retries, 1);
+  feature.showViewState('error', 'home', null, function () { backs += 1; });
+  feature.handleViewStateKey({ keyCode: 461 }, '');
+  assert.strictEqual(backs, 1);
+  feature.showViewState('error', 'home', function () { retries += 1; }, null, function () { servers += 1; });
+  assert.deepStrictEqual(harness.document.getElementById('view-state-actions').children.map(function (button) { return button.getAttribute('data-view-state-action'); }), ['retry', 'server'],
+    'Home recovery must render only actions backed by real callbacks');
+  feature.handleViewStateKey({ keyCode: 461 }, '');
+  assert.strictEqual(feature.viewStateOpen(), true, 'Back without a callback must be consumed without dismissing the recovery state');
+  feature.showViewState('empty', 'home', null, null, function () { servers += 1; });
+  assert.deepStrictEqual(harness.document.getElementById('view-state-actions').children.map(function (button) { return button.getAttribute('data-view-state-action'); }), ['server'],
+    'an empty Home must label the available recovery route as Change server rather than Back');
+}());
+
+(function testUnreachablePrimaryAlwaysOffersRecoveryAfterServerSwitch() {
+  var harness = createHarness({ presentation: { openSetup: function () {} } });
+  harness.feature.setFocus({ area: 'nav', navIndex: 0, rowIndex: 0, column: 0 });
+  harness.controllerOptions().home.onResult(new Error('unreachable primary'), [], false, true);
+  assert.strictEqual(harness.feature.viewStateOpen(), true,
+    'an unreachable selected primary must show retry/server recovery even while navbar focus is active');
+  assert.strictEqual(harness.document.getElementById('view-state-actions').children.length, 2, 'unreachable Home must expose Retry and Change server, without a dead Back action');
 }());
 
 (function testLeavingNavigationCommitsTheFocusedPageBeforeEnteringContent() {
@@ -869,6 +1073,7 @@ function createHarness(overrides) {
   feature.scheduleNavigationPreview(2);
   harness.root.runNextTimeout();
   assert.deepStrictEqual(harness.calls.filter(function (entry) { return entry[0] === 'commitNav'; }), [['commitNav', 'library', 2, true]]);
+  feature.setFocus({ area: 'nav', navIndex: 1, rowIndex: 0, column: 0 });
   feature.startNavigationHold(1);
   assert.strictEqual(feature.navigationSnapshot().holdActive, true);
   harness.root.runNextTimeout();
@@ -880,7 +1085,29 @@ function createHarness(overrides) {
   assert.strictEqual(feature.navigationSnapshot().reorderReady, true);
   feature.finishReorder(true);
   assert.strictEqual(feature.navigationSnapshot().reorderMode, false);
-  assert.strictEqual(harness.storageWrites.length, 1, 'saved reorder persists library keys exactly once');
+  assert.deepStrictEqual(harness.calls.filter(function (entry) { return entry[0] === 'persistLibraryOrder'; }), [['persistLibraryOrder', ['server-b|two', 'server-a|one']]], 'saved reorder must persist stable source ids across PMS boundaries');
+  assert.strictEqual(harness.storageWrites.length, 0, 'Shell must no longer own the legacy library-order storage key');
+}());
+
+(function lateHomeItemsRetainPositionsAndUpdateAvailability() {
+  var initial = [{ title: 'Recommended', items: [
+    { guid: 'plex://movie/a', ratingKey: 'a', serverMachineIdentifier: 'a', title: 'A' },
+    { guid: 'plex://movie/b', ratingKey: 'b', serverMachineIdentifier: 'a', title: 'B' }
+  ] }];
+  var harness = createHarness({ data: { initialRows: initial } });
+  harness.root.Date = { now: function () { return 1000; } };
+  harness.feature.handleHomeKey({ keyCode: 39 }, 'right');
+  harness.controllerOptions().home.onResult(null, [{ title: 'Recommended', items: [
+    { guid: 'plex://movie/c', ratingKey: 'c', title: 'C' },
+    { guid: 'plex://movie/b', ratingKey: 'remote-b', serverMachineIdentifier: 'b', title: 'B', unavailable: true },
+    initial[0].items[0]
+  ] }], true, false);
+  harness.root.runNextTimeout();
+  var items = harness.feature.rows()[0].items;
+  assert.deepStrictEqual(items.map(function (item) { return item.title; }), ['A', 'B', 'C']);
+  assert.strictEqual(items[1].unavailable, true, 'availability still updates in the original position');
+  assert.strictEqual(HomeState.mediaKey(items[1]), HomeState.mediaKey(initial[0].items[1]), 'changing canonical PMS must not reset the card or scroll identity');
+  harness.feature.destroy();
 }());
 
 (function testChangedHomeRowsWaitForQuietNavigationBeforeApplying() {
@@ -902,8 +1129,10 @@ function createHarness(overrides) {
   assert.strictEqual(harness.root.timeouts[timeoutIds[0]].delay, 700, 'quiet period starts at 700 ms after the latest interaction');
 
   harness.root.runTimeout(timeoutIds[0]);
-  assert.strictEqual(feature.rows()[0].title, 'New', 'pending rows apply after the quiet period');
+  assert.deepStrictEqual(feature.rows().map(function (row) { return row.title; }), ['Old', 'New'], 'late rows append without displacing the visible row');
   assert.strictEqual(harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; }).length, 1, 'pending rows apply exactly once');
+  assert.strictEqual(harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; })[0][1].normalized, true,
+    'deferred Home refresh rows must remain normalized when they are finally applied');
 }());
 
 (function testWatchedProjectionAlsoUpdatesDeferredHomeRows() {
@@ -964,7 +1193,7 @@ function createHarness(overrides) {
   onResult(null, [{ title: 'Newest refresh', items: [] }], true, false);
   assert.strictEqual(Object.keys(harness.root.timeouts).length, 1, 'newer refresh rows reuse the single quiet-period timer');
   harness.root.runNextTimeout();
-  assert.strictEqual(feature.rows()[0].title, 'Newest refresh', 'only the newest pending Home rows are presented');
+  assert.deepStrictEqual(feature.rows().map(function (row) { return row.title; }), ['Old', 'Newest refresh'], 'only the newest pending rows append after the visible rows');
 }());
 
 (function testInitialHomeRowsApplyImmediatelyAndPointerFocusCountsAsInteraction() {
@@ -980,7 +1209,7 @@ function createHarness(overrides) {
   assert.strictEqual(Object.keys(harness.root.timeouts).length, 1);
 
   onResult(null, [{ title: 'Initial', items: [] }], true, true);
-  assert.strictEqual(feature.rows()[0].title, 'Initial', 'initial Home content is never delayed');
+  assert.deepStrictEqual(feature.rows().map(function (row) { return row.title; }), ['Old', 'Initial'], 'initial arrivals must not displace content after pointer interaction');
   assert.strictEqual(Object.keys(harness.root.timeouts).length, 0, 'immediate initial presentation cancels stale pending refresh work');
 }());
 
@@ -1137,6 +1366,30 @@ function createHarness(overrides) {
   assert.strictEqual(harness.controllerCalls.filter(function (entry) { return entry[0] === 'cancelScope'; }).length, 2, 'destroyed features ignore later scope cancellation');
 }());
 
+(function testBackdropPrefetchPortsRemainOwnedByShell() {
+  var harness = createHarness();
+  var feature = harness.feature;
+  var candidates = [{ ratingKey: 'next' }];
+  assert.strictEqual(feature.scheduleBackdropPrefetch(candidates, 'library'), true,
+    'shell feature must expose adjacent backdrop prefetch through the shell-owned controller');
+  feature.cancelBackdropPrefetch();
+  assert.deepStrictEqual(harness.controllerCalls.filter(function (entry) {
+    return entry[0] === 'backdropPrefetch' || entry[0] === 'cancelBackdropPrefetch';
+  }), [
+    ['backdropPrefetch', candidates, 'library'],
+    ['cancelBackdropPrefetch']
+  ], 'shell feature must delegate schedule/cancel without creating a second image-loader owner');
+}());
+
+(function testHiddenDocumentCancelsSpeculativeBackdropWork() {
+  var harness = createHarness();
+  var feature = harness.feature;
+  harness.document.hidden = true;
+  feature.onVisibilityChange();
+  assert.ok(harness.controllerCalls.some(function (entry) { return entry[0] === 'cancelBackdropPrefetch'; }),
+    'hiding the application must cancel speculative backdrop work before suspending Home polling');
+}());
+
 
 (function testLateHomeThemeAndBackdropWorkCannotEscapeDestroy() {
   var root = new TimerRoot();
@@ -1244,3 +1497,165 @@ function createHarness(overrides) {
 }());
 
 console.log('Shell feature controller tests passed');
+
+(function lazyExternalHomeEnrichmentUpdatesRenderedRowsAfterPrimaryHome() {
+  var initial = [{ title: 'Continue', kind: 'continue', items: [{ ratingKey: 'a', serverMachineIdentifier: 'server-a', title: 'Primary' }] }];
+  var merged = [{ title: 'Continue', kind: 'continue', items: [
+    { ratingKey: 'b', serverMachineIdentifier: 'server-b', title: 'Shared' },
+    { ratingKey: 'a', serverMachineIdentifier: 'server-a', title: 'Primary' }
+  ] }];
+  var loaded = null;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    data: {
+      loadHome: function (callback) { callback(null, initial); return 'primary-home'; }
+    }
+  });
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+  assert.strictEqual(harness.feature.rows()[0].items.length, 1, 'primary Home must be usable before external enrichment arrives');
+  assert.strictEqual(harness.feature.applyHomeEnrichment(merged), true, 'external Home enrichment must be accepted after the first render');
+  assert.deepStrictEqual(harness.feature.rows()[0].items.map(function (item) { return item.title; }), ['Shared', 'Primary'],
+    'lazy external enrichment must update the existing Home incrementally without another foreground load');
+  harness.feature.destroy();
+}());
+
+(function externalHomeEnrichmentCachesWhileSettingsOwnsSurface() {
+  var view = 'home';
+  var initial = [{ title: 'Continue', kind: 'continue', items: [{ ratingKey: 'a', serverMachineIdentifier: 'server-a', title: 'Primary' }] }];
+  var merged = [{ title: 'Continue', kind: 'continue', items: [
+    { ratingKey: 'b', serverMachineIdentifier: 'server-b', title: 'Shared' },
+    { ratingKey: 'a', serverMachineIdentifier: 'server-a', title: 'Primary' }
+  ] }];
+  var loaded = null;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: {
+      currentView: function () { return view; },
+      setView: function (nextView) { view = nextView; },
+      settings: function () {
+        return { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['continue'] };
+      }
+    },
+    data: {
+      loadHome: function (callback) { callback(null, initial); return 'primary-home'; }
+    }
+  });
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+  harness.setRawFocus({ area: 'nav', navIndex: 3, rowIndex: 0, column: 0 });
+  view = 'settings';
+  var beforeUse = harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; }).length;
+
+  assert.strictEqual(harness.feature.applyHomeEnrichment(merged), true,
+    'external enrichment must update the retained Home model while Settings owns the visible surface');
+  assert.deepStrictEqual(harness.feature.rows()[0].items.map(function (item) { return item.title; }), ['Shared', 'Primary'],
+    'Settings must not prevent secondary rows from being cached for the next Home entry');
+  assert.strictEqual(harness.controllerCalls.filter(function (entry) { return entry[0] === 'useHomeRows'; }).length, beforeUse,
+    'background enrichment must not mount Home DOM over Settings');
+  assert.ok(harness.controllerCalls.some(function (entry) { return entry[0] === 'markHomeDirty'; }),
+    'background enrichment must mark Home dirty for the next entry');
+  assert.strictEqual(harness.feature.focusState().area, 'nav', 'background enrichment must preserve logical focus ownership');
+  assert.strictEqual(harness.feature.focusState().navIndex, 3, 'background enrichment must preserve the exact navbar item');
+
+  harness.feature.enterHome({ focus: 'nav', refresh: false });
+  assert.deepStrictEqual(harness.feature.rows()[0].items.map(function (item) { return item.title; }), ['Shared', 'Primary'],
+    'returning Home must present the secondary rows that completed while Settings was active');
+  harness.feature.destroy();
+}());
+
+(function externalContinueWatchingAutofocusUsesThreeSecondOrNoMovementRule() {
+  function runScenario(elapsed, moved) {
+    var clockNow = 1000;
+    var initial = [{ title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r', title: 'Recommended item' }] }];
+    var merged = [
+      { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r', title: 'Recommended item' }] },
+      { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c', title: 'Continue item' }] }
+    ];
+    var loaded = null;
+    var harness = createHarness({
+      modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+      state: {
+        settings: function () {
+          return { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['recommended', 'continue'] };
+        }
+      },
+      data: {
+        loadHome: function (callback) { callback(null, initial); return 'initial-home'; }
+      }
+    });
+    harness.root.Date = { now: function () { return clockNow; } };
+    harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+    harness.setControllerRows(HomeState.normalizeRows(loaded));
+    harness.feature.enterHome({ focus: 'preserve', refresh: false });
+    harness.setRawFocus({ area: 'media', navIndex: 0, rowIndex: 0, column: 0 });
+    if (moved) {
+      clockNow = 1500;
+      harness.feature.handleHomeKey({ keyCode: 39 }, 'right');
+    }
+    clockNow = 1000 + elapsed;
+    harness.feature.applyHomeEnrichment(merged);
+    var focus = harness.feature.focusState();
+    harness.feature.destroy();
+    return focus.rowIndex;
+  }
+
+  assert.strictEqual(runScenario(4000, false), 1,
+    'Continue Watching appearing after three seconds must still receive focus when the user has not moved');
+  assert.strictEqual(runScenario(2000, true), 0,
+    'Continue Watching must not steal focus after user movement, even during startup');
+  assert.strictEqual(runScenario(4000, true), 0,
+    'Continue Watching appearing after three seconds must preserve the user selection once the user has moved');
+}());
+
+(function externalContinueWatchingNeverStealsNavbarFocus() {
+  var initial = [{ title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r', title: 'Recommended item' }] }];
+  var merged = [
+    { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r', title: 'Recommended item' }] },
+    { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c', title: 'Continue item' }] }
+  ];
+  var loaded = null;
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: {
+      settings: function () {
+        return { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['recommended', 'continue'] };
+      }
+    },
+    data: {
+      loadHome: function (callback) { callback(null, initial); return 'initial-home'; }
+    }
+  });
+  harness.controllerOptions().services.loadHome(function (_error, rows) { loaded = rows; });
+  harness.setControllerRows(HomeState.normalizeRows(loaded));
+  harness.feature.enterHome({ focus: 'preserve', refresh: false });
+  harness.setRawFocus({ area: 'nav', navIndex: 1, rowIndex: 0, column: 0 });
+  harness.feature.applyHomeEnrichment(merged);
+  assert.strictEqual(harness.feature.focusState().area, 'nav',
+    'late external Continue Watching must never steal focus while the navbar owns focus');
+  assert.strictEqual(harness.feature.focusState().navIndex, 1,
+    'late external Home enrichment must preserve the exact navbar item that owned focus');
+  harness.feature.destroy();
+}());
+
+(function existingVisibleContinueWatchingNeverRefocusesWhenExternalItemsArrive() {
+  var visible = [
+    { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r', title: 'Recommended item' }] },
+    { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c1', title: 'Already visible' }] }
+  ];
+  var merged = [
+    { title: 'Recommended', kind: 'recommended', recommendation: true, items: [{ ratingKey: 'r', title: 'Recommended item' }] },
+    { title: 'Continue', kind: 'continue', items: [{ ratingKey: 'c2', title: 'External item' }, { ratingKey: 'c1', title: 'Already visible' }] }
+  ];
+  var harness = createHarness({
+    modules: { HomeState: HomeState, SettingsSchema: SettingsSchema },
+    state: { settings: function () { return { uiLanguage: 'it', cardScale: 100, artworkQuality: 80, backdropQuality: 70, homeRows: ['recommended', 'continue'] }; } }
+  });
+  harness.setControllerRows(HomeState.normalizeRows(visible));
+  harness.feature.enterHome({ focus: 'preserve', refresh: false });
+  harness.setRawFocus({ area: 'media', navIndex: 0, rowIndex: 0, column: 0 });
+  harness.feature.applyHomeEnrichment(merged);
+  assert.strictEqual(harness.feature.focusState().rowIndex, 0,
+    'external Continue Watching items must not move focus when Continue Watching was already visible before enrichment');
+  harness.feature.destroy();
+}());

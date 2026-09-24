@@ -14,7 +14,8 @@
       kind: stateKind,
       titleKey: 'state.' + stateKind,
       messageKey: 'state.' + scope + (stateKind === 'loading' ? 'Loading' : (stateKind === 'empty' ? 'Empty' : 'Error')),
-      actions: stateKind === 'loading' ? [] : (stateKind === 'empty' ? ['back'] : ['retry', 'back'])
+      actions: stateKind === 'loading' ? [] : (stateKind === 'empty' ? (scope === 'home' ? ['server'] : ['back']) :
+        (scope === 'home' ? ['retry', 'server', 'back'] : ['retry', 'back']))
     };
   }
 

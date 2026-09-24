@@ -1,3 +1,5 @@
+> **Archived historical record.** This document describes a completed or superseded implementation phase. Do not use it as the current behavior reference; see `docs/README.md`.
+
 # Paginated Playback Queue Completion
 
 ## Status

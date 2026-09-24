@@ -38,8 +38,8 @@ function createFixture() {
     setScrollTop: function (value) { scrollTop = value; },
     defer: function (callback) { deferred.push(callback); },
     isActive: function () { return active; },
-    loadRecommendations: function (library, callback) {
-      return requestFor('recommendations', callback, { library: library });
+    loadRecommendations: function (library, callback, onProgress) {
+      return requestFor('recommendations', callback, { library: library }, onProgress);
     },
     loadContainerPage: function (container, start, limit, callback) {
       return requestFor('container', callback, { container: container, start: start, limit: limit });
@@ -61,8 +61,8 @@ function createFixture() {
       return items.length ? 0 : -1;
     },
     summarizeContainerItems: function (items) { return { count: items.length, keys: items.map(function (item) { return item.ratingKey; }) }; },
-    loadLibraryPage: function (library, viewKey, query, start, limit, callback) {
-      return requestFor('library', callback, { library: library, viewKey: viewKey, query: query, start: start, limit: limit });
+    loadLibraryPage: function (library, viewKey, query, start, limit, callback, onProgress) {
+      return requestFor('library', callback, { library: library, viewKey: viewKey, query: query, start: start, limit: limit }, onProgress);
     },
     onReset: function () { events.push('reset'); },
     onStatus: function (snapshot) { events.push('status:' + (snapshot.loading ? 'loading' : 'idle')); },
@@ -73,9 +73,9 @@ function createFixture() {
     onContainerSummary: function (snapshot) { events.push('summary:' + (snapshot.containerSummaryLoading ? 'loading' : (snapshot.containerSummary ? 'ready' : 'idle'))); }
   });
 
-  function requestFor(kind, callback, data) {
+  function requestFor(kind, callback, data, onProgress) {
     var request = {
-      kind: kind, callback: callback, data: data, aborted: false,
+      kind: kind, callback: callback, progress: onProgress, data: data, aborted: false,
       abort: function () { this.aborted = true; }
     };
     requests.push(request);
@@ -105,6 +105,21 @@ function createFixture() {
   };
 }
 
+var stagedTab = createFixture();
+stagedTab.grid.items = [{ ratingKey: 'resident' }];
+var stagedReplacements = 0;
+stagedTab.lifecycle.load(stagedTab.context({ beforeReplace: function () {
+  stagedReplacements += 1;
+  stagedTab.grid.items = [];
+} }), false, true);
+assert.strictEqual(stagedTab.grid.items[0].ratingKey, 'resident', 'staged tab load preserves resident cards until progress arrives');
+stagedTab.requests[0].progress(null, { libraryKey: 'anime', items: [{ ratingKey: 'partial' }], totalSize: 2 });
+assert.strictEqual(stagedReplacements, 1, 'replacement hook runs before the first progressive page');
+assert.strictEqual(stagedTab.grid.items[0].ratingKey, 'partial', 'the first progressive page becomes visible');
+stagedTab.requests[0].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'final' }], totalSize: 2, nextStart: 1 });
+assert.strictEqual(stagedReplacements, 1, 'the replacement hook only runs once for a progressive load');
+assert.strictEqual(stagedTab.grid.items[0].ratingKey, 'final', 'the final page replaces progress without restoring stale cards');
+
 var stale = createFixture();
 stale.lifecycle.load(stale.context(), true);
 assert.strictEqual(stale.requests[0].kind, 'library', 'catalog load must use the injected library page adapter');
@@ -118,6 +133,27 @@ assert.strictEqual(stale.lifecycle.snapshot().loading, true, 'an aborted stale r
 stale.requests[1].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'fresh' }], totalSize: 5 });
 assert.strictEqual(stale.grid.items[0].ratingKey, 'fresh', 'the active response must update the grid');
 assert.strictEqual(stale.lifecycle.snapshot().loading, false, 'a completed response must clear loading state');
+
+(function progressiveCatalogKeepsLoadingUntilTheFinalMember() {
+  var fixture = createFixture();
+  fixture.lifecycle.load(fixture.context(), true);
+  fixture.requests[0].progress(null, {
+    libraryKey: 'anime', items: [{ ratingKey: 'first' }], totalSize: 2, nextStart: 1, hasMore: true
+  });
+  assert.strictEqual(fixture.grid.items[0].ratingKey, 'first', 'the first member must populate the catalog immediately');
+  assert.strictEqual(fixture.lifecycle.snapshot().loading, true, 'progress must not release the outstanding load');
+  fixture.requests[0].callback(null, {
+    libraryKey: 'anime', items: [{ ratingKey: 'first' }, { ratingKey: 'second' }], totalSize: 2, nextStart: 2, hasMore: false
+  });
+  assert.deepStrictEqual(fixture.grid.items.map(function (item) { return item.ratingKey; }), ['first', 'second']);
+  assert.strictEqual(fixture.lifecycle.snapshot().loading, false, 'the final response must release the load');
+  fixture.lifecycle.load(fixture.context(), true);
+  fixture.lifecycle.load(fixture.context(), true);
+  fixture.requests[1].progress(null, {
+    libraryKey: 'anime', items: [{ ratingKey: 'stale' }], totalSize: 1, nextStart: 1, hasMore: false
+  });
+  assert.strictEqual(fixture.grid.items.length, 0, 'late progress from an aborted request must not repopulate the active grid');
+}());
 
 
 var locallyFilteredCatalog = createFixture();
@@ -223,6 +259,39 @@ assert.strictEqual(invalidatedContent.requests[2].data.start, 0,
 invalidatedContent.requests[2].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'fresh-after-mutation' }], totalSize: 1 });
 assert.strictEqual(invalidatedContent.grid.items[0].ratingKey, 'fresh-after-mutation',
   'the post-mutation replacement must become the authoritative resident grid');
+
+(function reloadKeepsResidentCardsUntilTheAuthoritativePageArrives() {
+  var fixture = createFixture();
+  var oldCard = { ratingKey: 'resident' };
+  fixture.lifecycle.load(fixture.context(), true);
+  fixture.requests[0].callback(null, { libraryKey: 'anime', items: [oldCard], totalSize: 2, nextStart: 1 });
+  fixture.lifecycle.load(fixture.context(), false);
+  fixture.lifecycle.reload(fixture.context());
+  assert.strictEqual(fixture.requests[1].aborted, true, 'reload must abort a stale incremental request');
+  assert.strictEqual(fixture.requests[2].data.start, 0, 'reload must replace from the first Plex offset');
+  assert.strictEqual(fixture.grid.items[0], oldCard, 'reload must leave resident cards mounted while loading');
+  fixture.requests[2].progress(null, { libraryKey: 'anime', items: [{ ratingKey: 'partial' }], totalSize: 2 });
+  assert.strictEqual(fixture.grid.items[0], oldCard, 'partial member data must not clear resident cards during reload');
+  fixture.requests[1].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'stale' }], totalSize: 1 });
+  assert.strictEqual(fixture.grid.items[0], oldCard, 'aborted pagination must not replace resident cards');
+  fixture.requests[2].callback(null, { libraryKey: 'anime', items: [{ ratingKey: 'fresh' }], totalSize: 1 });
+  assert.strictEqual(fixture.grid.items[0].ratingKey, 'fresh', 'final reload response must replace resident cards');
+  fixture.lifecycle.reload(fixture.context());
+  fixture.requests[3].callback(new Error('offline'));
+  assert.strictEqual(fixture.grid.items[0].ratingKey, 'fresh', 'failed reload must retain the last usable cards');
+}());
+
+(function reloadKeepsResidentRecommendationsOnError() {
+  var fixture = createFixture();
+  var rows = [{ title: 'Resident', items: [{ ratingKey: 'resident' }] }];
+  fixture.lifecycle.load(fixture.context({ viewKey: 'recommended' }), true);
+  fixture.requests[0].callback(null, rows);
+  fixture.lifecycle.reload(fixture.context({ viewKey: 'recommended' }));
+  fixture.requests[1].progress(null, [{ title: 'Partial', items: [{ ratingKey: 'partial' }] }]);
+  assert.strictEqual(fixture.grid.recommendations[0], rows[0], 'partial recommendations must not displace resident rows');
+  fixture.requests[1].callback(new Error('offline'));
+  assert.strictEqual(fixture.grid.recommendations[0], rows[0], 'failed recommendations reload must keep resident rows');
+}());
 
 var boundedCatalog = createFixture();
 boundedCatalog.grid.items = Array.apply(null, Array(180)).map(function (_, index) { return { ratingKey: 'item-' + index }; });
@@ -411,27 +480,36 @@ assert.strictEqual(incremental.gridCalls.setItems, 0, 'ordinary incremental page
 assert.strictEqual(incremental.gridCalls.snapshot, 0, 'ordinary incremental pages must not copy the complete catalog');
 
 var recent = createFixture();
+var recentSeasonTemplate = { ratingKey: 'season-1', type: 'season', title: 'Show', meta: 'Season 1' };
 recent.lifecycle.load(recent.context({ viewKey: 'recent' }), true);
 recent.requests[0].callback(null, {
   libraryKey: 'anime',
-  items: [{ ratingKey: 'season-1', type: 'season', detail: '2 episodes', detailKey: 'media.episodeCount', detailParameters: { count: 2 }, viewed: true }],
+  items: [{
+    ratingKey: 'season-1', type: 'season', title: 'Show', detail: '3 new episodes',
+    detailKey: 'media.newEpisodeCount', detailParameters: { count: 3 }, viewed: true,
+    recentGroup: { key: 'season-1', count: 3, viewedCount: 3, seasonItem: recentSeasonTemplate }
+  }],
   totalSize: 4,
-  nextStart: 2,
+  nextStart: 3,
   hasMore: true
 });
 assert.strictEqual(recent.grid.totalSize, 2, 'grouped recent pages must expose one sentinel item while more raw Plex entries remain');
 recent.lifecycle.load(recent.context({ viewKey: 'recent' }), false);
-assert.strictEqual(recent.requests[1].data.start, 2, 'grouped recent pagination must continue from the raw Plex offset');
+assert.strictEqual(recent.requests[1].data.start, 3, 'grouped recent pagination must continue from the raw Plex offset');
 recent.requests[1].callback(null, {
   libraryKey: 'anime',
-  items: [{ ratingKey: 'season-1', type: 'season', detail: '2 episodes', detailKey: 'media.episodeCount', detailParameters: { count: 2 } }],
+  items: [{
+    ratingKey: 'episode-4', type: 'episode', title: 'Show', detail: 'Episode 4',
+    recentGroup: { key: 'season-1', count: 1, viewedCount: 0, seasonItem: recentSeasonTemplate }
+  }],
   totalSize: 4,
   nextStart: 4,
   hasMore: false
 });
-assert.strictEqual(recent.grid.items.length, 1, 'a season split across recent pages must remain one card');
-assert.strictEqual(recent.grid.items[0].detailParameters.count, 4, 'split recent season groups must accumulate their episode counts');
-assert.strictEqual(recent.grid.items[0].viewed, undefined, 'a merged recent season is viewed only when every grouped page is viewed');
+assert.strictEqual(recent.grid.items.length, 1, 'an adjacent recent run may continue across Plex page boundaries');
+assert.strictEqual(recent.grid.items[0].detailParameters.count, 4, 'cross-page adjacent runs must accumulate their episode counts');
+assert.strictEqual(recent.grid.items[0].detailKey, 'media.newEpisodeCount', 'recent groups must be labeled as newly added episodes');
+assert.strictEqual(recent.grid.items[0].viewed, undefined, 'a merged recent group is viewed only when every grouped episode is viewed');
 assert.strictEqual(recent.grid.totalSize, 1, 'the grouped recent grid must stop requesting pages at the raw terminal boundary');
 assert.ok(recent.gridCalls.snapshot >= 2, 'recent grouping may read the complete resident catalog to merge page boundaries');
 recent.lifecycle.setNextStart(8);
@@ -445,29 +523,68 @@ recentBoundary.lifecycle.load(recentBoundary.context({ viewKey: 'recent' }), tru
 recentBoundary.requests[0].callback(null, {
   libraryKey: 'anime',
   items: [{
-    ratingKey: 'episode-1', type: 'episode', title: 'Show', detail: 'E01',
+    ratingKey: 'episode-1', type: 'episode', title: 'Show', detail: 'Episode 1',
     recentGroup: { key: 'season-boundary', count: 1, viewedCount: 1, seasonItem: seasonTemplate }
   }],
-  totalSize: 2,
+  totalSize: 3,
   nextStart: 1,
   hasMore: true
 });
-assert.strictEqual(recentBoundary.grid.items[0].type, 'episode', 'a recent singleton must remain an episode until another page confirms the group');
 recentBoundary.lifecycle.load(recentBoundary.context({ viewKey: 'recent' }), false);
 recentBoundary.requests[1].callback(null, {
   libraryKey: 'anime',
   items: [{
-    ratingKey: 'episode-2', type: 'episode', title: 'Show', detail: 'E02',
+    ratingKey: 'episode-2', type: 'episode', title: 'Show', detail: 'Episode 2',
     recentGroup: { key: 'season-boundary', count: 1, viewedCount: 0, seasonItem: seasonTemplate }
   }],
-  totalSize: 2,
+  totalSize: 3,
   nextStart: 2,
+  hasMore: true
+});
+assert.deepStrictEqual(recentBoundary.grid.items.map(function (item) { return item.type; }), ['episode', 'episode'],
+  'two adjacent recent episodes must remain separate cards even across Plex pages');
+recentBoundary.lifecycle.load(recentBoundary.context({ viewKey: 'recent' }), false);
+recentBoundary.requests[2].callback(null, {
+  libraryKey: 'anime',
+  items: [{
+    ratingKey: 'episode-3', type: 'episode', title: 'Show', detail: 'Episode 3',
+    recentGroup: { key: 'season-boundary', count: 1, viewedCount: 0, seasonItem: seasonTemplate }
+  }],
+  totalSize: 3,
+  nextStart: 3,
   hasMore: false
 });
-assert.strictEqual(recentBoundary.grid.items.length, 1, 'singleton episodes split across pages must merge into one season card');
-assert.strictEqual(recentBoundary.grid.items[0].type, 'season', 'a confirmed cross-page group must use season presentation');
-assert.strictEqual(recentBoundary.grid.items[0].detailParameters.count, 2, 'cross-page singleton groups must accumulate their raw episode counts');
-assert.strictEqual(recentBoundary.grid.items[0].viewed, undefined, 'cross-page grouped viewed state must require every episode to be viewed');
+assert.strictEqual(recentBoundary.grid.items.length, 1, 'the third adjacent episode must compact the complete run into one season card');
+assert.strictEqual(recentBoundary.grid.items[0].type, 'season');
+assert.strictEqual(recentBoundary.grid.items[0].detailKey, 'media.newEpisodeCount');
+assert.strictEqual(recentBoundary.grid.items[0].detailParameters.count, 3);
+
+var interruptedRecent = createFixture();
+var interruptedSeason = { ratingKey: 'season-interrupted', type: 'season', title: 'Show', meta: 'Season 1' };
+interruptedRecent.lifecycle.load(interruptedRecent.context({ viewKey: 'recent' }), true);
+interruptedRecent.requests[0].callback(null, {
+  libraryKey: 'anime',
+  items: [
+    { ratingKey: 'a1', type: 'episode', title: 'Show', detail: 'Episode 1', recentGroup: { key: 'season-interrupted', count: 1, viewedCount: 0, seasonItem: interruptedSeason } },
+    { ratingKey: 'a2', type: 'episode', title: 'Show', detail: 'Episode 2', recentGroup: { key: 'season-interrupted', count: 1, viewedCount: 0, seasonItem: interruptedSeason } }
+  ],
+  totalSize: 4,
+  nextStart: 2,
+  hasMore: true
+});
+interruptedRecent.lifecycle.load(interruptedRecent.context({ viewKey: 'recent' }), false);
+interruptedRecent.requests[1].callback(null, {
+  libraryKey: 'anime',
+  items: [
+    { ratingKey: 'movie-between', type: 'movie', title: 'Movie' },
+    { ratingKey: 'a3', type: 'episode', title: 'Show', detail: 'Episode 3', recentGroup: { key: 'season-interrupted', count: 1, viewedCount: 0, seasonItem: interruptedSeason } }
+  ],
+  totalSize: 4,
+  nextStart: 4,
+  hasMore: false
+});
+assert.deepStrictEqual(interruptedRecent.grid.items.map(function (item) { return item.ratingKey; }), ['a1', 'a2', 'movie-between', 'a3'],
+  'a different feed item must prevent same-season episodes on either side from being grouped');
 
 var refresh = createFixture();
 refresh.grid.items = [{ ratingKey: 'cached-one' }, { ratingKey: 'cached-two' }];

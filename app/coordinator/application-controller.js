@@ -4,7 +4,9 @@
   else { root.PloffApplicationController = factory(); }
 }(this, function () {
   'use strict';
-  var PLAYER_WARM_DELAY_MS = 1000;
+  var ASS_GLYPH_WARM_DELAY_MS = 200;
+  var ADJACENT_LIBRARY_PREFETCH_DELAY_MS = 2500;
+  var HOME_ARTWORK_PREVIEW_WATCHDOG_MS = 5000;
 
   function create(root, document, credentialStorage, startupMetrics) {
     'use strict';
@@ -13,12 +15,14 @@
       HomeState = root.PloffHomeState,
       ActivityState = root.PloffActivityState,
       NavbarWindow = root.PloffNavbarWindow,
+      NavigationIcon = root.PloffNavigationIcon,
       ViewState = root.PloffViewState,
       CardLayout = root.PloffCardLayout,
       MediaLabels = root.PloffMediaLabels,
       ProgressiveImages = root.PloffProgressiveImages,
       BackgroundAudio = root.PloffBackgroundAudio,
       I18n = root.PloffI18n,
+      LocaleBootstrap = root.PloffLocaleBootstrap,
       PresentationServices = root.PloffPresentationServices,
       ShellController = root.PloffShellController,
       ShellFeatureController = root.PloffShellFeatureController;
@@ -33,7 +37,16 @@
       LibraryLifecycle = root.PloffLibraryLifecycle,
       LibraryContainers = root.PloffLibraryContainers,
       LibraryController = root.PloffLibraryController,
+      LibraryTabPrefetch = root.PloffLibraryTabPrefetch,
       LibraryFeatureController = root.PloffLibraryFeatureController,
+      LibrarySource = root.PloffLibrarySource,
+      LibraryTabStore = root.PloffLibraryTabStore,
+      LibrarySourceCatalog = root.PloffLibrarySourceCatalog,
+      LibrarySourcesController = root.PloffLibrarySourcesController,
+      PlexSourceRouter = root.PloffPlexSourceRouter,
+      MediaSourceResolver = root.PloffMediaSourceResolver,
+      MultiServerMedia = root.PloffMultiServerMedia,
+      MultiServerContentController = root.PloffMultiServerContentController,
       WatchlistClient = root.PloffWatchlistClient,
       WatchlistState = root.PloffWatchlistState,
       WatchlistView = root.PloffWatchlistView;
@@ -42,6 +55,7 @@
       DetailNavigation = root.PloffDetailNavigation,
       DetailPresentationView = root.PloffDetailPresentationView,
       DetailPreferenceState = root.PloffDetailPreferenceState,
+      MediaSourcePreference = root.PloffMediaSourcePreference,
       DetailController = root.PloffDetailController,
       DetailFeatureController = root.PloffDetailFeatureController,
       MetadataRefresh = root.PloffMetadataRefresh,
@@ -65,8 +79,7 @@
     var DiagnosticsState = root.PloffDiagnosticsState,
       RuntimeErrorStore = root.PloffRuntimeErrorStore,
       DiagnosticsView = root.PloffDiagnosticsView,
-      SupportSnapshot = root.PloffSupportSnapshot,
-      SupportQr = root.PloffSupportQr,
+      DiagnosticsSupportRuntimeLoader = root.PloffDiagnosticsSupportRuntimeLoader,
       DiagnosticsController = root.PloffDiagnosticsController,
       DiagnosticsFeatureController = root.PloffDiagnosticsFeatureController;
     var Settings = root.PloffSettings,
@@ -79,6 +92,7 @@
       SafeAreaDialog = root.PloffSafeAreaDialog,
       SubtitleStyleDialog = root.PloffSubtitleStyleDialog,
       TextInputDialog = root.PloffTextInputDialog,
+      LibraryTabsEditor = root.PloffLibraryTabsEditor,
       SettingsController = root.PloffSettingsController,
       SettingsFeatureController = root.PloffSettingsFeatureController;
     var SetupView = root.PloffSetupView,
@@ -118,6 +132,7 @@
     var serverPlexClient = PlexFeaturePorts.server(PlexClient);
     var shellPlexClient = PlexFeaturePorts.shell(PlexClient);
     var searchPlexClient = PlexFeaturePorts.search(PlexClient);
+    var globalMediaPlexClient = PlexFeaturePorts.globalMedia(PlexClient);
     var libraryPlexClient = PlexFeaturePorts.library(PlexClient);
     var detailPlexClient = PlexFeaturePorts.detail(PlexClient);
     var mediaContextPlexClient = PlexFeaturePorts.mediaContext(PlexClient);
@@ -127,13 +142,38 @@
       var format = String(track && (track.format || track.codec || '') || '').toLowerCase();
       return format.indexOf('ass') !== -1 || format.indexOf('ssa') !== -1;
     }
+
+    function showPrimaryHomeUnavailableChoice() {
+      if (!choiceDialogController) { return false; }
+      return choiceDialogController.open({
+        title: t('home.primaryUnavailable'),
+        choices: [
+          { value: 'continue', label: t('home.continueSecondary') },
+          { value: 'change-server', label: t('home.changeServer') }
+        ],
+        selectedValue: 'continue',
+        variant: 'confirm',
+        apply: function (choice) {
+          if (!choice || choice.value !== 'change-server') { return; }
+          if (settingsFeature) { settingsFeature.enter({}); }
+          if (serverFeature) { serverFeature.openEditor(); }
+        },
+        returnFocus: function () {
+          if (currentView() === 'home' && shellFeature) { shellFeature.focusHomeStart(); }
+        }
+      });
+    }
     function assLocalRenderingEnabled() { return !!(appSettings && appSettings.subtitleRenderingAss === true); }
-    function assSubtitlePrefetchIdentity(source, track) {
+    function assSubtitlePrefetchIdentity(source, track, owner) {
       var value = source || {};
       var profile = value.mediaProfile || value.profile || value;
+      var ownerValue = owner || value._ploffSourceItem || profile._ploffSourceItem || value;
       var serverIdentity = serverFeature && serverFeature.mediaIdentity ? serverFeature.mediaIdentity() : {};
+      var ownerIdentity = plexSourceRouter && typeof plexSourceRouter.identityFor === 'function'
+        ? plexSourceRouter.identityFor(ownerValue, ownerValue.sourceContext || value.sourceContext || null)
+        : '';
       return [
-        [serverIdentity.server || config.apiBaseUrl || 'local', serverIdentity.profile || 'local'].join('|'),
+        [ownerIdentity || serverIdentity.server || config.apiBaseUrl || 'local', serverIdentity.profile || 'local'].join('|'),
         value.ratingKey || profile.ratingKey || '',
         value.partId || profile.partId || '',
         value.mediaIndex !== undefined ? value.mediaIndex : profile.mediaIndex || 0,
@@ -148,16 +188,13 @@
       if (!assSubtitlePrefetch || !profile || !track || !isAssSubtitleTrack(track) ||
           (!playback && !(track.external || track.key))) { return false; }
       target = {
-        identity: assSubtitlePrefetchIdentity(playback || profile || detail, track),
+        identity: assSubtitlePrefetchIdentity(playback || profile || detail, track, profile._ploffSourceItem || detail && detail._ploffSourceItem || detail),
         detail: detail || null,
         profile: profile,
         playback: playback || null,
         track: track
       };
-      assSubtitlePrefetch.request(target, { priority: priority === 'foreground' ? 'foreground' : 'speculative' }, function (error, content) {
-        if (error || playback || typeof content !== 'string' || !assRendererPool || typeof assRendererPool.prepare !== 'function') { return; }
-        assRendererPool.prepare(content, target.identity, function () {});
-      });
+      assSubtitlePrefetch.request(target, { priority: priority === 'foreground' ? 'foreground' : 'speculative' });
       return true;
     }
     var authOptions = {
@@ -190,7 +227,8 @@
       if (value && typeof value.destroy === 'function') { value.destroy(); }
     }
     function destroyOwned() {
-      cancelPlayerWarmup();
+      playerReadyCallbacks = [];
+      cancelAssGlyphWarmPressure();
       cancelPendingPlayback();
       var cleanupError = null;
       var value;
@@ -248,6 +286,7 @@
     ];
     var shellFeature = null;
     var releaseStatus = null;
+    var releaseStatusCheckedOnSettings = false;
     var applicationSession = constructOwner(function () {
       return ApplicationSession.create({ view: 'home', settings: appSettings, config: config });
     });
@@ -285,7 +324,11 @@
     }
     function setAppView(nextView) {
       var view = String(nextView || 'home');
-      if (view !== currentView()) { cancelPendingPlayback(); }
+      if (view !== currentView()) {
+        cancelPendingPlayback();
+        cancelPendingDirectPlay();
+        if (shellFeature && shellFeature.cancelBackdropPrefetch) { shellFeature.cancelBackdropPrefetch(); }
+      }
       applicationSession.update({ view: view });
       return view;
     }
@@ -305,7 +348,12 @@
     function shellNavigationIndex() { return shellFocusSnapshot().navIndex; }
     var searchFeature = null;
     var settingsFeature = null;
+    var librarySources = null;
+    var plexSourceRouter = null;
+    var mediaSourceResolver = null;
+    var multiServerContent = null;
     var diagnosticsFeature = null;
+    var diagnosticsSupportLoader = null;
     var libraryFeature = null;
     var detailFeature = null;
     var playerFeature = null;
@@ -313,8 +361,10 @@
     var playerReadinessPending = false;
     var playerFailure = null;
     var pendingPlay = null;
-    var playerWarmTimer = null;
-    var playerWarmScheduled = false;
+    var playerReadyCallbacks = [];
+    var startupBackgroundChainStarted = false;
+    var startupBackgroundChainFinished = false;
+    var startupBackgroundChainWatchdog = null;
     var inputController = null;
     var pointerController = null;
     var mediaContextController = null;
@@ -367,20 +417,21 @@
         renderNetwork: function () { if (shellFeature) { shellFeature.onNetworkPresentation(); } }
       },
       application: {
+        ready: function () { shellFeature.completeStartup(); },
         applyNavigation: function (items) {
-          shellFeature.applyNavigationVisibility(NavigationModel.applyLibraryOrder(items, NavigationModel.load(root.localStorage)));
-          shellFeature.renderNavigation();
+          if (librarySources) {
+            librarySources.applyPrimaryNavigation(items);
+            if (librarySources.refresh) { librarySources.refresh(function () {}); }
+          }
         },
         loadHome: function () { shellFeature.refreshHome(); },
         loaded: function () { markStartup('server-ready'); },
         seedAccountSettings: function (account) {
-          appSettings = Settings.seedFromPlex(appSettings, account);
-          assRenderingEnabledState = assLocalRenderingEnabled();
-          if (settingsFeature) { settingsFeature.save(); }
+          if (settingsFeature) { settingsFeature.seedAccount(account); }
           shellFeature.renderNavigation();
           if (settingsFeature && currentView() === 'settings') { settingsFeature.refresh(); }
         },
-        persistSettings: function () { if (settingsFeature) { settingsFeature.save(); } },
+        persistSettings: function () { if (settingsFeature) { settingsFeature.persist(); } },
         recoverAfterNetwork: function () { recoverActiveViewAfterNetwork(); },
         stopHomePolling: function () { if (shellFeature) { shellFeature.stopHomePolling(); } },
         scheduleHomePolling: function () { if (shellFeature) { shellFeature.scheduleHomePolling(); } }
@@ -388,7 +439,15 @@
       lifecycle: {
         resetContent: function () {
           cancelPendingPlayback();
+          cancelPendingDirectPlay();
+          if (mediaContextController && mediaContextController.reset) { mediaContextController.reset(); }
+          if (searchFeature && searchFeature.leave) { searchFeature.leave(); }
+          if (detailFeature && detailFeature.leave) { detailFeature.leave(); }
+          if (multiServerContent && multiServerContent.resetSources) { multiServerContent.resetSources(); }
+          if (librarySources && librarySources.applyPrimaryNavigation) { librarySources.applyPrimaryNavigation([]); }
           if (!shellFeature) { return; }
+          shellFeature.stopTheme();
+          shellFeature.clearBackdrop();
           shellFeature.resetHome();
           if (libraryFeature) { libraryFeature.resetContent(); }
           shellFeature.cancelImages('home');
@@ -407,10 +466,139 @@
           if (settingsFeature) { settingsFeature.suspend(); }
           if (shellFeature) { shellFeature.prepareServerSwitch(); }
           setAppView('home');
+          revealHome({ focus: 'first', refresh: false });
           serverFeature.loadApplication();
         }
       }
     });
+    });
+    librarySources = constructOwner(function () {
+      return LibrarySourcesController.create({
+        clock: root,
+        storage: root.localStorage,
+        settings: function () { return appSettings; },
+        modules: {
+          LibrarySource: LibrarySource,
+          LibraryTabStore: LibraryTabStore,
+          LibrarySourceCatalog: LibrarySourceCatalog
+        },
+        config: config,
+        server: {
+          activeServer: serverFeature.activeServer,
+          servers: serverFeature.servers,
+          queryAccountServers: serverFeature.queryAccountServers,
+          resolveContentSource: serverFeature.resolveContentSource,
+          attemptFailover: serverFeature.attemptFailover,
+          watchlistIdentity: serverFeature.watchlistIdentity
+        },
+        transport: { loadLibrarySections: libraryPlexClient.loadLibrarySections },
+        presentation: {
+          applyNavigation: function (items) {
+            var visibleItems = items;
+            if (shellFeature) { visibleItems = shellFeature.applyNavigationVisibility(items) || items; }
+            if (libraryFeature && libraryFeature.reconcileNavigation) { libraryFeature.reconcileNavigation(items); }
+            if (startupBackgroundChainStarted && libraryFeature && libraryFeature.scheduleAdjacentPrefetch) {
+              libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), visibleItems || navigationItems, { immediate: true });
+            }
+          },
+          renderNavigation: function () { if (shellFeature) { shellFeature.renderNavigation(); shellFeature.renderServerActivities(); } },
+          renderSourceWarnings: function () { if (shellFeature) { shellFeature.renderServerActivities(); } },
+          t: t
+        },
+        lifecycle: {
+          onAvailabilityRecovered: function (machineIdentifier, details) {
+            var reconcileOptions = { force: true, invalidateMachineIdentifier: machineIdentifier };
+            var navigation;
+            var detailContext;
+            if (multiServerContent && details && details.newlyDiscovered === true && multiServerContent.refreshHomeSource) {
+              multiServerContent.refreshHomeSource(machineIdentifier);
+            } else if (multiServerContent && multiServerContent.refreshHomeEnrichment) {
+              multiServerContent.refreshHomeEnrichment();
+            }
+            if (libraryFeature && libraryFeature.reconcileNavigation && librarySources && librarySources.navigationItems) {
+              navigation = librarySources.navigationItems();
+              libraryFeature.reconcileNavigation(navigation, reconcileOptions);
+              if (details && details.wasOffline === true && details.newlyDiscovered !== true &&
+                  startupBackgroundChainStarted && libraryFeature.scheduleAdjacentPrefetch) {
+                libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), navigation, { immediate: true });
+              }
+            }
+            if (currentView() === 'detail' && detailFeature && detailFeature.sourceContext && detailFeature.recoverAfterNetwork) {
+              detailContext = detailFeature.sourceContext();
+              if (String(detailContext && detailContext.serverMachineIdentifier || '') === String(machineIdentifier || '')) {
+                detailFeature.recoverAfterNetwork();
+              }
+            }
+            if (currentView() === 'search' && searchFeature && searchFeature.retryAfterNetwork) {
+              searchFeature.retryAfterNetwork();
+            }
+          },
+          onAvailabilityLost: function (machineIdentifier) {
+            var navigation;
+            var serverName;
+            if (currentView() !== 'player' && shellFeature && shellFeature.showMessage) {
+              serverName = librarySources && librarySources.displayServerNameForMachine
+                ? librarySources.displayServerNameForMachine(machineIdentifier) : '';
+              shellFeature.showMessage((serverName || t('settings.plexServer')) + ' · ' + t('common.offline'));
+            }
+            if (multiServerContent && multiServerContent.removeHomeSource) {
+              multiServerContent.removeHomeSource(machineIdentifier);
+            }
+            if (libraryFeature && libraryFeature.reconcileNavigation && librarySources && librarySources.navigationItems) {
+              navigation = librarySources.navigationItems();
+              libraryFeature.reconcileNavigation(navigation, {
+                force: true,
+                invalidateMachineIdentifier: machineIdentifier
+              });
+              if (startupBackgroundChainStarted && libraryFeature.scheduleAdjacentPrefetch) {
+                libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), navigation, { immediate: true });
+              }
+            }
+            if (currentView() === 'search' && searchFeature && searchFeature.retryAfterNetwork) {
+              searchFeature.retryAfterNetwork();
+            }
+          },
+          onServerEnabledChanged: function () {
+            if (multiServerContent && multiServerContent.resetSources) { multiServerContent.resetSources(); }
+            if (libraryFeature && libraryFeature.resetContent) { libraryFeature.resetContent(); }
+            if (shellFeature) { shellFeature.markHomeDirty(); shellFeature.refreshHome(); }
+          },
+          onServerAliasChanged: function () {
+            if (multiServerContent && multiServerContent.resetSources) { multiServerContent.resetSources(); }
+            if (libraryFeature && libraryFeature.resetContent) { libraryFeature.resetContent(); }
+            if (shellFeature) { shellFeature.markHomeDirty(); shellFeature.refreshHome(); }
+          }
+        }
+      });
+    });
+    plexSourceRouter = constructStep(function () {
+      if (!PlexSourceRouter || typeof PlexSourceRouter.create !== 'function') { throw new Error('ApplicationController requires PlexSourceRouter'); }
+      return PlexSourceRouter.create({ config: config, sources: librarySources });
+    });
+    mediaSourceResolver = constructStep(function () {
+      if (!MediaSourceResolver || typeof MediaSourceResolver.create !== 'function') { throw new Error('ApplicationController requires MediaSourceResolver'); }
+      return MediaSourceResolver.create({ sourceRouter: plexSourceRouter });
+    });
+    multiServerContent = constructOwner(function () {
+      if (!MultiServerContentController || !MultiServerMedia) { throw new Error('ApplicationController requires multi-server content modules'); }
+      return MultiServerContentController.create({
+        sources: librarySources,
+        sourceRouter: plexSourceRouter,
+        sourceResolver: mediaSourceResolver,
+        transport: globalMediaPlexClient,
+        MultiServerMedia: MultiServerMedia,
+        clock: root,
+        canEnrichHome: function () { return true; },
+        onLibraryStatus: librarySources.reportLibraryStatus,
+        onHomeEnriched: function (rows) {
+          if (shellFeature && shellFeature.applyHomeEnrichment) { shellFeature.applyHomeEnrichment(rows || []); }
+        },
+        onPrimaryHomeUnavailable: function () {
+          if (currentView() !== 'home') { return false; }
+          return showPrimaryHomeUnavailableChoice();
+        },
+        config: config
+      });
     });
     var settingsBackupStore = constructOwner(function () {
       if (!SettingsBackupFormat || !PlexSettingsBackupStore) { throw new Error('ApplicationController requires settings backup modules'); }
@@ -449,8 +637,13 @@
       return ReleaseStatus.create({
         root: root, storage: root.localStorage, installedVersion: BuildInfo.version,
         onChange: function () { if (settingsFeature && currentView() === 'settings') { settingsFeature.refresh(); } }
+      });
     });
-    });
+    function checkReleaseStatusOnFirstSettingsEntry() {
+      if (releaseStatusCheckedOnSettings) { return false; }
+      releaseStatusCheckedOnSettings = true;
+      return releaseStatus ? releaseStatus.check(false) : false;
+    }
     var assRendererPool = constructOwner(function () {
       if (!AssSubtitleRendererPool || typeof AssSubtitleRendererPool.create !== 'function') {
         throw new Error('ApplicationController requires AssSubtitleRendererPool');
@@ -464,18 +657,61 @@
     });
     if (assLocalRenderingEnabled()) { assRendererPool.prewarm(); }
     var assGlyphWarmScheduled = false;
+    var assGlyphWarmStartTimer = null;
+    var assGlyphWarmUnsubscribe = null;
+    function setAssGlyphWarmPressure(active) {
+      if (shellFeature && shellFeature.setHomeArtworkPressure) { shellFeature.setHomeArtworkPressure('ass-warm', active === true); }
+    }
+    function clearAssGlyphWarmObserver() {
+      if (typeof assGlyphWarmUnsubscribe === 'function') { assGlyphWarmUnsubscribe(); }
+      assGlyphWarmUnsubscribe = null;
+    }
+    function finishAssGlyphWarmPressure() {
+      clearAssGlyphWarmObserver();
+      setAssGlyphWarmPressure(false);
+    }
+    function assGlyphWarmFinished(preloader) {
+      var snapshot;
+      if (!preloader || typeof preloader.snapshot !== 'function') { return true; }
+      snapshot = preloader.snapshot() || {};
+      return snapshot.warmComplete === true || snapshot.failed === true || snapshot.available === false || snapshot.takenAt !== null && snapshot.takenAt !== undefined;
+    }
+    function observeAssGlyphWarm(preloader) {
+      if (destroyed || assGlyphWarmFinished(preloader)) { finishAssGlyphWarmPressure(); return; }
+      clearAssGlyphWarmObserver();
+      if (!preloader || typeof preloader.subscribe !== 'function') { finishAssGlyphWarmPressure(); return; }
+      assGlyphWarmUnsubscribe = preloader.subscribe(function () {
+        if (destroyed || assGlyphWarmFinished(preloader)) { finishAssGlyphWarmPressure(); }
+      });
+      if (assGlyphWarmFinished(preloader)) { finishAssGlyphWarmPressure(); }
+    }
+    function cancelAssGlyphWarmPressure() {
+      if (assGlyphWarmStartTimer !== null && root.clearTimeout) { root.clearTimeout(assGlyphWarmStartTimer); }
+      assGlyphWarmStartTimer = null;
+      finishAssGlyphWarmPressure();
+    }
     function scheduleAssGlyphWarmup() {
       var preloader = root && root.PloffAssSubtitleWorkerPreloader;
       var scheduler;
       if (!assLocalRenderingEnabled() || assGlyphWarmScheduled || !preloader || typeof preloader.warm !== 'function') { return false; }
-      if (typeof preloader.start === 'function') { preloader.start(); }
       assGlyphWarmScheduled = true;
+      setAssGlyphWarmPressure(true);
       scheduler = root && typeof root.setTimeout === 'function' ? root.setTimeout :
         (typeof setTimeout === 'function' ? setTimeout : null);
-      if (!scheduler) { return preloader.warm(); }
-      scheduler(function () {
-        if (!destroyed && assLocalRenderingEnabled()) { preloader.warm(); }
-      }, 0);
+      if (!scheduler) {
+        if (typeof preloader.start === 'function') { preloader.start(); }
+        if (preloader.warm() === false) { finishAssGlyphWarmPressure(); return false; }
+        observeAssGlyphWarm(preloader);
+        return true;
+      }
+      assGlyphWarmStartTimer = scheduler(function () {
+        assGlyphWarmStartTimer = null;
+        if (!destroyed && assLocalRenderingEnabled()) {
+          if (typeof preloader.start === 'function') { preloader.start(); }
+          if (preloader.warm() === false) { finishAssGlyphWarmPressure(); return; }
+          observeAssGlyphWarm(preloader);
+        } else { assGlyphWarmScheduled = false; finishAssGlyphWarmPressure(); }
+      }, ASS_GLYPH_WARM_DELAY_MS);
       return true;
     }
     var assSubtitlePrefetch = constructOwner(function () {
@@ -484,6 +720,7 @@
       }
       return AssSubtitlePrefetch.create({
         PlexClient: playerPlexClient,
+        sourceRouter: plexSourceRouter,
         config: config,
         metrics: assColdStartMetrics
       });
@@ -511,24 +748,27 @@
       }
       return null;
     }
-    function cancelAssPrefetch(reason, preserveIdentity) {
+    function cancelAssPrefetch(reason, preserveIdentity, includeForeground) {
       var snapshot;
       assNextPrefetchGeneration += 1;
       if (assNextPrefetchRequest && typeof assNextPrefetchRequest.abort === 'function') { assNextPrefetchRequest.abort(); }
       assNextPrefetchRequest = null;
       assNextPrefetchKey = '';
       snapshot = assSubtitlePrefetch && typeof assSubtitlePrefetch.snapshot === 'function' ? assSubtitlePrefetch.snapshot() : null;
-      if (assSubtitlePrefetch && typeof assSubtitlePrefetch.cancelSpeculative === 'function' &&
-          (!preserveIdentity || !snapshot || snapshot.activeIdentity !== preserveIdentity && snapshot.cachedIdentity !== preserveIdentity)) {
+      if (!assSubtitlePrefetch || preserveIdentity && snapshot &&
+          (snapshot.activeIdentity === preserveIdentity || snapshot.cachedIdentity === preserveIdentity)) { return; }
+      if (includeForeground === true && typeof assSubtitlePrefetch.cancel === 'function') {
+        assSubtitlePrefetch.cancel(reason || 'ASS subtitle prefetch cancelled');
+      } else if (typeof assSubtitlePrefetch.cancelSpeculative === 'function') {
         assSubtitlePrefetch.cancelSpeculative(reason || 'ASS subtitle prefetch cancelled');
       }
     }
     function prefetchCurrentAss(detail, profile, resolved) {
       var track = resolved && resolved.subtitleTrack;
-      if (!assLocalRenderingEnabled()) { return false; }
       var identity;
+      if (!assLocalRenderingEnabled()) { return false; }
       if (!track || !isAssSubtitleTrack(track)) { return false; }
-      identity = assSubtitlePrefetchIdentity(profile || detail, track);
+      identity = assSubtitlePrefetchIdentity(profile || detail, track, profile && profile._ploffSourceItem || detail && detail._ploffSourceItem || detail);
       cancelAssPrefetch('current ASS playback requested', identity);
       return prefetchAssCandidate(detail, profile, resolved, 'foreground');
     }
@@ -544,7 +784,7 @@
       assNextPrefetchKey = key;
       generation = assNextPrefetchGeneration + 1;
       assNextPrefetchGeneration = generation;
-      request = assSubtitlePrefetch.loadPlayback(item.ratingKey,
+      request = assSubtitlePrefetch.loadPlayback(item,
         'ploff-ass-prefetch-' + String(new Date().getTime()), preferences || {}, function (error, loaded) {
           var track;
           if (generation !== assNextPrefetchGeneration || error || !loaded) { return; }
@@ -566,6 +806,7 @@
         FocusModel: FocusModel,
         NavigationModel: NavigationModel,
         NavbarWindow: NavbarWindow,
+        NavigationIcon: NavigationIcon,
         CardLayout: CardLayout,
         MediaLabels: MediaLabels,
         ProgressiveImages: ProgressiveImages,
@@ -575,7 +816,14 @@
       },
       presentationServices: presentationServices,
       data: {
-        PlexClient: shellPlexClient, config: config, initialNavigationItems: availableNavigationItems, initialRows: [],
+        PlexClient: shellPlexClient, config: config, sourceRouter: plexSourceRouter, initialNavigationItems: availableNavigationItems, initialRows: [],
+        loadHome: function (callback) { return multiServerContent.loadHome(callback); },
+        loadThemeMetadata: function (item, callback, sourceContext) {
+          return multiServerContent.loadMetadata(item, callback, sourceContext);
+        },
+        sourceContextForItem: multiServerContent.contextForItem,
+        homeRecentEnabled: function (sourceId) { return librarySources.homeRecentEnabled(sourceId); },
+        homeRowOrder: function (kindOrder) { return librarySources.homeOrder(kindOrder); },
         initialFocus: { area: 'media', navIndex: 0, rowIndex: 0, column: 0 }
       },
       state: {
@@ -587,13 +835,16 @@
         setupComplete: function () { return serverFeature.setupComplete(); },
         publishActiveProfile: function (profile) { applicationSession.update({ activeProfile: profile }); },
         serverActivities: function () { return serverFeature ? serverFeature.snapshot().activities : []; },
+        sourceWarnings: librarySources.sourceWarnings,
         networkSnapshot: function () { return serverFeature.networkSnapshot(); },
         currentView: function () { return currentView(); },
         setView: setAppView,
         pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
         navigationHasFocus: navigationHasFocus,
         watchlistAvailable: serverFeature.watchlistAvailable,
-        themeIdentity: function () { return String(config.apiBaseUrl || '') + '|' + String(config.token || ''); },
+        themeIdentity: function (item, sourceContext) {
+          return plexSourceRouter.identityFor(item, sourceContext || null);
+        },
         homeCanRefresh: function () {
           return currentView() === 'home' && !document.hidden && !!config.apiBaseUrl && serverFeature.allowsLocal();
         }
@@ -625,7 +876,7 @@
       },
       transitions: {
         activateHome: activate,
-        playHomeItem: playHomeItem,
+        playHomeItem: function (item) { return playHomeItem(item, multiServerContent.contextForItem(item)); },
         requestExit: requestApplicationExit,
         navigationMatches: navigationViewMatches,
         commitNavigationView: commitNavigationView,
@@ -633,17 +884,24 @@
         focusNavigationForCurrentView: focusCurrentNavigation,
         openProfileManager: openProfileManager,
         focusActivity: focusCurrentNavigation,
-        scheduleAdjacentLibraryPrefetch: function () {
-          if (libraryFeature) { libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), navigationItems); }
+        scheduleAdjacentLibraryPrefetch: function (immediate) {
+          if (!immediate && !startupBackgroundChainStarted) { return; }
+          if (libraryFeature) {
+            libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), navigationItems, immediate === true
+              ? { immediate: true }
+              : { delay: ADJACENT_LIBRARY_PREFETCH_DELAY_MS });
+          }
+        },
+        persistLibraryOrder: function (sourceIds) {
+          if (librarySources) { librarySources.reorder(sourceIds || []); }
         },
         onHomeReady: function () {
           markStartup('first-home-content');
           markStartup('first-focusable-ui');
-          if (libraryFeature && libraryFeature.scheduleWatchlistWarm) { libraryFeature.scheduleWatchlistWarm(); }
-          if (releaseStatus) { releaseStatus.check(false); }
           scheduleAssGlyphWarmup();
-          schedulePlayerWarmup();
-        }
+          armStartupBackgroundChainWatchdog();
+        },
+        onHomeArtworkPreviewReady: startStartupBackgroundChain
       }
     });
     });
@@ -658,6 +916,8 @@
         LibraryGridView: PloffLibraryGridView,
         LibraryLifecycle: LibraryLifecycle,
         PlaybackQueueModel: PlaybackQueueModel,
+        LibraryTabPrefetch: LibraryTabPrefetch,
+        NavigationModel: NavigationModel,
         ProgressiveImages: ProgressiveImages,
         SearchModel: SearchModel,
         WatchlistState: WatchlistState, WatchlistView: WatchlistView,
@@ -665,11 +925,28 @@
       },
       data: {
         PlexClient: libraryPlexClient,
+        sourceRouter: plexSourceRouter,
         WatchlistClient: WatchlistClient,
         config: config,
+        resolveSource: function (sourceId, callback) {
+          if (librarySources) { return librarySources.resolveSource(sourceId, callback); }
+          if (callback) { callback(new Error('Library source resolver unavailable')); }
+          return null;
+        },
         accountToken: serverFeature.watchlistAccountToken,
         watchlistIdentity: serverFeature.watchlistIdentity,
-        watchlistAvailable: serverFeature.watchlistAvailable
+        watchlistAvailable: serverFeature.watchlistAvailable,
+        resolveGuid: multiServerContent.resolveGuid,
+        loadGlobalPlaylists: multiServerContent.loadPlaylists,
+        loadGlobalPlaylistItems: multiServerContent.loadPlaylistItems,
+        loadVirtualLibraryPage: multiServerContent.loadVirtualLibraryPage,
+        loadVirtualLibraryRecommendations: multiServerContent.loadVirtualLibraryRecommendations,
+        loadVirtualLibraryFilterOptions: multiServerContent.loadVirtualLibraryFilterOptions,
+        sourceContextForItem: multiServerContent.contextForItem,
+        reportAvailability: librarySources.reportAvailability,
+        reportLibraryStatus: librarySources.reportLibraryStatus,
+        verifyAvailability: librarySources.verifyAvailability,
+        recoverPrimary: librarySources.recoverPrimary
       },
       state: {
         currentView: function () { return currentView(); },
@@ -681,7 +958,9 @@
           return !!(pointerController && (pointerController.isSelectionActive() || pointerController.isWheelNavigationActive()));
         },
         cardScale: function () { return appSettings.cardScale; },
-        uiLanguage: function () { return appSettings.uiLanguage; }
+        artworkQuality: function () { return appSettings.artworkQuality; },
+        uiLanguage: function () { return appSettings.uiLanguage; },
+        watchlistVisible: function () { return appSettings.showWatchlist !== false; }
       },
       shell: {
         t: t,
@@ -698,6 +977,7 @@
         showViewState: shellFeature.showViewState,
         hideViewState: shellFeature.hideViewState,
         scheduleBackdrop: shellFeature.scheduleBackdrop,
+        scheduleBackdropPrefetch: shellFeature.scheduleBackdropPrefetch,
         scheduleTheme: shellFeature.scheduleTheme,
         stopTheme: function () { shellFeature.stopTheme(); },
         animateLibrarySurface: shellFeature.animateLibrarySurface,
@@ -712,6 +992,7 @@
         fixedPosterSpecification: shellFeature.fixedPosterSpecification,
         posterLoader: shellFeature.posterLoader(),
         prioritizePoster: shellFeature.prioritizePoster, suspendSettings: function () { if (settingsFeature) { settingsFeature.suspend(); } },
+        setHomeArtworkPressure: shellFeature.setHomeArtworkPressure,
         refreshHome: function () { shellFeature.refreshHome(); }
       },
       server: {
@@ -721,7 +1002,10 @@
         }
       },
       transitions: {
-        setView: setAppView, openDetail: openDetail, playItem: playHomeItem, returnHome: transitionToHome,
+        setView: setAppView,
+        openDetail: function (item, sourceContext) { return openDetail(item, sourceContext || multiServerContent.contextForItem(item)); },
+        playItem: function (item, sourceContext) { return playHomeItem(item, sourceContext || multiServerContent.contextForItem(item)); },
+        returnHome: transitionToHome,
         onWatchlistItemsChanged: function () {
           if (currentView() === 'detail') { detailFeature.onWatchlistChanged(); }
         }
@@ -743,14 +1027,18 @@
         MediaPreferences: MediaPreferences,
         SubtitleSeriesOffset: SubtitleSeriesOffset,
         MediaProfile: MediaProfile, MediaChoiceModel: MediaChoiceModel, VersionSelection: VersionSelection,
-        ProgressiveImages: ProgressiveImages
+        ProgressiveImages: ProgressiveImages,
+        MediaSourcePreference: MediaSourcePreference
       },
       data: {
         PlexClient: detailPlexClient,
         config: config,
-        mediaPreferenceIdentity: function () {
+        sourceRouter: plexSourceRouter,
+        sourceResolver: mediaSourceResolver,
+        mediaPreferenceIdentity: function (_detail, sourceContext) {
           var identity = serverFeature.mediaIdentity();
-          return MediaPreferences ? MediaPreferences.identity(identity.server, identity.profile) : '';
+          var serverIdentity = sourceContext && sourceContext.serverMachineIdentifier ? sourceContext.serverMachineIdentifier : identity.server;
+          return MediaPreferences ? MediaPreferences.identity(serverIdentity, identity.profile) : '';
         },
         playbackCapabilities: function () { return playbackCapabilities; },
         settings: function () { return appSettings; },
@@ -760,6 +1048,11 @@
             return mediaContextController && mediaContextController.removeFromContinueWatching(target, callback);
           }
         },
+        loadMergedSeriesContext: multiServerContent.loadMergedSeriesContext,
+        displayServerName: librarySources.displayServerNameForMachine,
+        loadMergedSeasonEpisodes: multiServerContent.loadMergedSeasonEpisodes,
+        resolveGuid: multiServerContent.resolveGuid,
+        recoverPrimary: librarySources.recoverPrimary,
         waitForActivity: function (activityId, callback) {
           if (serverFeature) { serverFeature.waitForActivity(activityId, callback); }
           else if (callback) { callback({ cancelled: true }); }
@@ -792,9 +1085,10 @@
         navigationCount: shellFeature.navigationFocusCount,
         moveNavigation: function (effect) {
           var currentNavigationIndex = shellNavigationIndex();
-          var nextNavigationIndex = effect === 'nav-left' ? Math.max(0,
-            currentNavigationIndex - 1) : Math.min(shellFeature.navigationFocusCount() - 1,
-            currentNavigationIndex + 1);
+          var navigationCount = Math.max(0, shellFeature.navigationFocusCount());
+          var nextNavigationIndex = effect === 'nav-left'
+            ? (currentNavigationIndex === 0 ? Math.max(0, navigationCount - 1) : currentNavigationIndex - 1)
+            : (currentNavigationIndex >= navigationCount - 1 ? 0 : currentNavigationIndex + 1);
           setShellFocus({ navIndex: nextNavigationIndex });
           shellFeature.scheduleNavigationPreview(nextNavigationIndex);
         },
@@ -808,7 +1102,7 @@
         available: serverFeature.watchlistAvailable,
         identity: serverFeature.watchlistIdentity,
         snapshot: function () { return libraryFeature.watchlistSnapshot(); },
-        findLocal: function (ratingKey) { return libraryFeature.findWatchlistLocal(ratingKey); },
+        findLocal: function (ratingKey, machineIdentifier) { return libraryFeature.findWatchlistLocal(ratingKey, machineIdentifier); },
         load: function (force, callback) { return libraryFeature.loadWatchlist(force, callback); },
         toggle: function (cloudKey, enabled, local, callback) { return libraryFeature.toggleWatchlist(cloudKey, enabled, local, callback); }
       },
@@ -862,6 +1156,8 @@
         prefetchNextAss: prefetchNextAss,
         cancelAssPrefetch: cancelAssPrefetch,
         config: config,
+        sourceRouter: plexSourceRouter,
+        sourceResolver: mediaSourceResolver,
         playbackCapabilities: function () { return playbackCapabilities; },
         compatibilityMemory: playbackCompatibilityMemory,
         compatibilityIdentity: function () {
@@ -871,8 +1167,10 @@
         compatibilityEnabled: function () { return appSettings.adaptivePlaybackMemory !== false; },
         activeServer: function () { return serverFeature.activeServer(); },
         mediaIdentity: function () { return serverFeature.mediaIdentity(); },
+        recoverPrimary: function (error, callback) { return librarySources.recoverPrimary(error, callback); },
         subscribeNetwork: function (listener) { return serverFeature.subscribeNetwork(listener); },
         networkAvailable: function (snapshot) { return snapshot && snapshot.lanAvailable !== false; }
+        ,loadMergedSeasonEpisodes: multiServerContent.loadMergedSeasonEpisodes
       },
       shell: {
         t: t,
@@ -887,6 +1185,7 @@
       },
       detail: {
         snapshot: detailSnapshot,
+        sourceContext: function () { return detailFeature ? detailFeature.sourceContext() : null; },
         queueSnapshot: function () { return detailFeature ? detailFeature.queueSnapshot() : {}; },
         playbackPreferences: function (versionAffinity) { return detailFeature ? detailFeature.playbackPreferences(versionAffinity) : {}; },
         playbackPreferencesFor: function (detail, versionAffinity) { return detailFeature ? detailFeature.playbackPreferencesFor(detail, versionAffinity) : {}; },
@@ -921,7 +1220,9 @@
         focusedItem: function () { return libraryFeature ? libraryFeature.focusedItem() : null; },
         pointerFocus: function (target, index, button) { return libraryFeature && libraryFeature.pointerFocus(target, index, button); },
         restoreContainerOrigin: function (options) { return libraryFeature && libraryFeature.restoreContainerOrigin(options); },
-        refreshAfterPlayback: function (ratingKey, seconds) { return libraryFeature && libraryFeature.reconcilePlaybackProgress(ratingKey, seconds); }
+        refreshAfterPlayback: function (ratingKey, seconds, sourceContext) {
+          return libraryFeature && libraryFeature.reconcilePlaybackProgress(ratingKey, seconds, sourceContext || null);
+        }
       },
       dialogs: {
         openChoice: function (options) { return choiceDialogController.open(options); },
@@ -960,19 +1261,95 @@
       };
     }
     function cancelPendingPlayback() { pendingPlay = null; }
-    function cancelPlayerWarmup() {
-      if (playerWarmTimer !== null) {
-        (root.clearTimeout || clearTimeout)(playerWarmTimer);
-        playerWarmTimer = null;
+    function cancelPendingDirectPlay() {
+      if (detailFeature && detailFeature.cancelPendingPlayIntent) { detailFeature.cancelPendingPlayIntent(); }
+    }
+    function handleVisibilityChange() {
+      if (document && document.hidden) {
+        cancelPendingPlayback();
+        cancelPendingDirectPlay();
+      }
+      if (shellFeature && shellFeature.onVisibilityChange) { shellFeature.onVisibilityChange(); }
+    }
+    function flushPlayerReadyCallbacks() {
+      var callbacks = playerReadyCallbacks.slice();
+      var index;
+      playerReadyCallbacks = [];
+      for (index = 0; index < callbacks.length; index += 1) {
+        try { callbacks[index](playerFailure || null, playerFeature || null); }
+        catch (_callbackError) {}
       }
     }
-    function schedulePlayerWarmup() {
-      if (destroyed || playerWarmScheduled || playerFeature || playerReadinessPending || playerFailure) { return; }
-      playerWarmScheduled = true;
-      playerWarmTimer = (root.setTimeout || setTimeout)(function () {
-        playerWarmTimer = null;
-        if (!destroyed) { ensurePlayerReady(); }
-      }, PLAYER_WARM_DELAY_MS);
+    function finishStartupBackgroundChain() {
+      if (destroyed || startupBackgroundChainFinished) { return false; }
+      startupBackgroundChainFinished = true;
+      return true;
+    }
+    function clearStartupBackgroundChainWatchdog() {
+      if (startupBackgroundChainWatchdog !== null && root && typeof root.clearTimeout === 'function') {
+        root.clearTimeout(startupBackgroundChainWatchdog);
+      }
+      startupBackgroundChainWatchdog = null;
+    }
+    function armStartupBackgroundChainWatchdog() {
+      var scheduler;
+      if (destroyed || startupBackgroundChainStarted || startupBackgroundChainWatchdog !== null) { return false; }
+      scheduler = root && typeof root.setTimeout === 'function' ? root.setTimeout :
+        (typeof setTimeout === 'function' ? setTimeout : null);
+      if (!scheduler) { return false; }
+      startupBackgroundChainWatchdog = scheduler(function () {
+        startupBackgroundChainWatchdog = null;
+        startStartupBackgroundChain();
+      }, HOME_ARTWORK_PREVIEW_WATCHDOG_MS);
+      return true;
+    }
+    function runStartupWatchlistWarm() {
+      var settled = false;
+      function finish() {
+        if (settled) { return; }
+        settled = true;
+        finishStartupBackgroundChain();
+      }
+      if (destroyed || !libraryFeature || typeof libraryFeature.warmWatchlist !== 'function') { finish(); return; }
+      if (libraryFeature.warmWatchlist(finish) === false) { finish(); }
+    }
+    function runStartupPlayerWarm() {
+      if (destroyed) { return; }
+      if (shellFeature && shellFeature.setHomeArtworkPressure) { shellFeature.setHomeArtworkPressure('player-warm', true); }
+      ensurePlayerReady(function () {
+        if (shellFeature && shellFeature.setHomeArtworkPressure) { shellFeature.setHomeArtworkPressure('player-warm', false); }
+        runStartupWatchlistWarm();
+      });
+    }
+    function runStartupHomeArtworkWarm() {
+      var settled = false;
+      function finish() {
+        if (settled) { return; }
+        settled = true;
+        runStartupAdjacentLibraryPrefetch();
+      }
+      if (destroyed || !shellFeature || typeof shellFeature.warmHomeArtworkPreviews !== 'function') { finish(); return; }
+      if (shellFeature.warmHomeArtworkPreviews(finish) === false) { finish(); }
+    }
+    function runStartupAdjacentLibraryPrefetch() {
+      var settled = false;
+      function finish() {
+        if (settled) { return; }
+        settled = true;
+        runStartupPlayerWarm();
+      }
+      if (destroyed || !libraryFeature || typeof libraryFeature.scheduleAdjacentPrefetch !== 'function') { finish(); return; }
+      if (libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), navigationItems, {
+        immediate: true,
+        onSettled: finish
+      }) === false) { finish(); }
+    }
+    function startStartupBackgroundChain() {
+      clearStartupBackgroundChainWatchdog();
+      if (destroyed || startupBackgroundChainStarted) { return false; }
+      startupBackgroundChainStarted = true;
+      runStartupHomeArtworkWarm();
+      return true;
     }
     function playContext() {
       var detail = detailSnapshot() || {};
@@ -982,6 +1359,7 @@
       var focus = library.grid && library.grid.focus || {};
       var focused = currentView() === 'library' ? libraryFeature.focusedItem() || {} : {};
       var container = currentView() === 'library' ? libraryFeature.activeContainer() || {} : {};
+      var owner = item.serverMachineIdentifier || focused.serverMachineIdentifier || container.serverMachineIdentifier || identity.server || '';
       return {
         libraryKey: String(focused.containerKey || focused.ratingKey || ''),
         libraryIndex: focus.index, libraryRow: focus.recommendationRow,
@@ -990,7 +1368,7 @@
         view: currentView(), key: String(item.ratingKey || ''), generation: detail.generation,
         detailKey: String(detail.currentDetail && detail.currentDetail.ratingKey || ''),
         season: detail.seasonIndex, episode: detail.episodeIndex,
-        server: String(identity.server || ''), profile: String(identity.profile || '')
+        server: String(owner), profile: String(identity.profile || '')
       };
     }
     function validPendingPlay(intent) {
@@ -1020,9 +1398,14 @@
       if (kind === 'queue-key') { return playerFeature.handleQueueCapture({ keyCode: request.keyCode }); }
       return kind === 'standalone' ? playerFeature.openStandalone(request) : playerFeature.open();
     }
-    function ensurePlayerReady() {
-      if (destroyed) { return false; }
-      if (playerFeature || playerFailure) { finishPlayerReadiness(); return !playerFailure; }
+    function ensurePlayerReady(callback) {
+      if (typeof callback === 'function') { playerReadyCallbacks.push(callback); }
+      if (destroyed) { flushPlayerReadyCallbacks(); return false; }
+      if (playerFeature || playerFailure) {
+        finishPlayerReadiness();
+        flushPlayerReadyCallbacks();
+        return !playerFailure;
+      }
       if (playerReadinessPending) { return true; }
       playerReadinessPending = true;
       playerLoader.ensure(function (error, composition) {
@@ -1046,15 +1429,20 @@
           }
         }
         playerFailure = error || null;
+        if (shellFeature && shellFeature.setHomeArtworkPressure) { shellFeature.setHomeArtworkPressure('player-warm', false); }
         if (error && diagnosticsFeature) { diagnosticsFeature.setError(new Error('Player is unavailable')); }
         finishPlayerReadiness();
+        flushPlayerReadyCallbacks();
       });
       return !playerFailure;
     }
     function requestPlayer(kind, request) {
       if (destroyed) { return false; }
-      cancelPlayerWarmup();
       if (playerFeature) { return dispatchPlayerIntent(kind, request); }
+      if (playerFailure) {
+        playerFailure = null;
+        if (playerLoader && typeof playerLoader.reset === 'function') { playerLoader.reset(); }
+      }
       pendingPlay = { kind: kind, request: request, context: playContext() };
       return ensurePlayerReady();
     }
@@ -1086,14 +1474,23 @@
       requestPlayer('queue-key', { keyCode: code });
       return true;
     }
-    function itemInContinueWatching(ratingKey) {
+    function itemInContinueWatching(item, sourceContext) {
       var currentRows = shellFeature ? shellFeature.rows() : [];
+      var primary = serverFeature && serverFeature.activeServer ? serverFeature.activeServer() : null;
+      var primaryIdentity = String(primary && (primary.machineIdentifier || primary.uri || primary.name) || '');
+      var expectedIdentity = String(item && item.serverMachineIdentifier || sourceContext && sourceContext.serverMachineIdentifier || '');
       var rowIndex;
       var itemIndex;
+      var candidate;
+      var candidateIdentity;
       for (rowIndex = 0; rowIndex < currentRows.length; rowIndex += 1) {
         if (currentRows[rowIndex].kind !== 'continue') { continue; }
         for (itemIndex = 0; itemIndex < (currentRows[rowIndex].items || []).length; itemIndex += 1) {
-          if (String(currentRows[rowIndex].items[itemIndex].ratingKey || '') === String(ratingKey || '')) { return true; }
+          candidate = currentRows[rowIndex].items[itemIndex];
+          if (!candidate || String(candidate.ratingKey || '') !== String(item && item.ratingKey || '')) { continue; }
+          candidateIdentity = String(candidate.serverMachineIdentifier || primaryIdentity || '');
+          if (!expectedIdentity) { return true; }
+          if (candidateIdentity && candidateIdentity === expectedIdentity) { return true; }
         }
       }
       return false;
@@ -1105,6 +1502,8 @@
       var item = null;
       var stateValue;
       var inContinue = false;
+      var sourceContext = null;
+      var target;
       if (view === 'home') {
         focus = shellFocusSnapshot();
         rowsValue = shellFeature.rows();
@@ -1117,13 +1516,31 @@
         if (view === 'watchlist' && (!stateValue.watchlist || stateValue.watchlist.zone !== 'grid')) { return null; }
         item = libraryFeature && libraryFeature.focusedItem ? libraryFeature.focusedItem() : null;
         inContinue = view === 'library' && stateValue.library && stateValue.library.viewKey === 'continue';
+        if (view === 'library' && libraryFeature && libraryFeature.sourceContext) { sourceContext = libraryFeature.sourceContext(); }
       } else if (view === 'search') {
         stateValue = searchFeature && searchFeature.snapshot ? searchFeature.snapshot() : {};
         focus = stateValue.focus || {};
         if (focus.zone === 'results') { item = stateValue.results && stateValue.results[focus.index] || null; }
       }
       if (!item || !item.ratingKey) { return null; }
-      return { item: item, view: view, inContinueWatching: inContinue || itemInContinueWatching(item.ratingKey) };
+      if (!sourceContext && multiServerContent && typeof multiServerContent.contextForItem === 'function') {
+        sourceContext = multiServerContent.contextForItem(item);
+      }
+      var resolved = mediaSourceResolver.resolve(item, { candidateContext: sourceContext });
+      if (!resolved) { return null; }
+      item = resolved.item;
+      var route = resolved.route;
+      sourceContext = route.context || null;
+      target = {
+        item: item,
+        view: view,
+        inContinueWatching: inContinue || itemInContinueWatching(item, sourceContext)
+      };
+      if (sourceContext && route) {
+        target.sourceContext = sourceContext;
+        target.config = route.config;
+      }
+      return target;
     }
     function restoreMediaContextFocus(target) {
       if (!target || currentView() !== target.view) { return false; }
@@ -1168,6 +1585,7 @@
         return {
           appView: activeView,
           textInputDialogOpen: activeView === 'settings' && settingsSnapshot.textInputOpen,
+          libraryTabsOpen: activeView === 'settings' && settingsSnapshot.libraryTabsOpen,
           choiceDialogOpen: choiceDialogController.snapshot().open,
           upNextLayoutOpen: activeView === 'settings' && settingsSnapshot.upNext && settingsSnapshot.upNext.open,
           privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen,
@@ -1234,6 +1652,7 @@
       },
       lifecycle: {
         cancelPendingPlayback: cancelPendingPlayback,
+        cancelPendingPlayIntent: cancelPendingDirectPlay,
         clearWheelNavigation: function () { if (pointerController) { pointerController.clearWheelNavigation(); } },
         syncPageScrollFocus: function () { if (pointerController) { pointerController.syncPageFocus(); } },
         clearPageScrollPendingFocus: function () { if (pointerController) { pointerController.clearPageScrollPendingFocus(); } }
@@ -1273,6 +1692,7 @@
           navReorderReady: shellNavigation.reorderReady,
           navHoldTriggered: shellNavigation.holdTriggered,
           textInputDialogOpen: activeView === 'settings' && settingsSnapshot.textInputOpen,
+          libraryTabsOpen: activeView === 'settings' && settingsSnapshot.libraryTabsOpen,
           choiceDialogOpen: choiceDialogController.snapshot().open,
           privacyDialogOpen: activeView === 'settings' && settingsSnapshot.privacyOpen,
           updateDialogOpen: activeView === 'settings' && settingsSnapshot.updateOpen,
@@ -1301,13 +1721,20 @@
           else if (view === 'search') { searchFeature.focusNavigation(index); }
           else if (view === 'library' || view === 'watchlist') { libraryFeature.focusNavigation(); }
           else if (view === 'settings') { settingsFeature.focusNavigation(); }
-          else if (view === 'home') { shellFeature.updateFocus(); }
+          else if (view === 'home') {
+            shellFeature.updateFocus();
+            if (libraryFeature) { libraryFeature.scheduleAdjacentPrefetch(shellNavigationIndex(), navigationItems, { immediate: true }); }
+          }
         },
-        home: function (row, column) { setShellFocus({ area: 'media', rowIndex: row, column: column }); shellFeature.updateFocus(); },
+        home: function (row, column) {
+          setShellFocus({ area: 'media', rowIndex: row, column: column });
+          shellFeature.updateFocus();
+        },
         detail: function (zone, index) {
           detailFeature.pointerFocus(zone, index);
         },
         settings: function (index) { settingsFeature.focusSetting(index); },
+        libraryTabs: function (index) { settingsFeature.focusLibraryTabs(index); },
         textInput: function (index) { settingsFeature.focusTextInput(index); },
         safeArea: function (index) { settingsFeature.focusSafeArea(index); },
         subtitleStyle: function (index) { settingsFeature.focusSubtitleStyle(index); },
@@ -1339,6 +1766,7 @@
         restoreSearch: function (index) { searchFeature.restoreResultFocus(index); },
         restoreServer: function (index) { if (serverFeature) { serverFeature.focusEditor(index); } },
         restoreLanguage: function (index) { settingsFeature.focusLanguage(index); },
+        restoreLibraryTabs: function (index) { settingsFeature.focusLibraryTabs(index); },
         restoreSettings: function (index) { settingsFeature.focusSetting(index); },
         scrollSummary: function (direction) { detailFeature.scrollSummary(direction); },
         beginLibraryWheel: function (duration) { libraryFeature.onWheelNavigation(duration); }
@@ -1393,10 +1821,16 @@
         if (navigationItems[index] && navigationItems[index].kind === 'library') { shellFeature.startNavigationHold(index); }
         else { shellFeature.enterActiveNavigation(); }
       },
-      onOpenResult: openDetail,
+      localSearch: multiServerContent.search,
+      sourceContextForItem: multiServerContent.contextForItem,
+      sourceContextIdentity: plexSourceRouter.contextIdentity,
+      sourceIdentityForItem: plexSourceRouter.identityFor,
+      resolveCloudItem: function (candidate, callback) { return multiServerContent.resolveGuid(candidate && candidate.guid, callback); },
+      onOpenResult: function (item) { return openDetail(item, multiServerContent.contextForItem(item)); },
       onBack: function () { transitionToHome('preserve'); },
       onBackdrop: shellFeature.scheduleSearchBackdrop,
-      onFocusItem: function (item) { shellFeature.scheduleTheme(item); },
+      onAdjacentBackdropPrefetch: function (items) { shellFeature.scheduleBackdropPrefetch(items, 'search'); },
+      onFocusItem: function (item) { shellFeature.scheduleTheme(item, multiServerContent.contextForItem(item)); },
       clearFocus: shellFeature.clearLogicalFocus,
       pointerSelectionActive: function () { return !!(pointerController && pointerController.isSelectionActive()); },
       prioritizePoster: shellFeature.prioritizePoster,
@@ -1408,14 +1842,18 @@
       renderedPosterSpecification: shellFeature.renderedPosterSpecification,
       fixedPosterSpecification: shellFeature.fixedPosterSpecification,
       posterLoader: shellFeature.posterLoader(),
-      playItem: playHomeItem,
+      playItem: function (item) { return playHomeItem(item, multiServerContent.contextForItem(item)); },
       stopBackgroundAudio: shellFeature.stopTheme,
       cancelImages: function () { shellFeature.cancelImages('search'); },
       isActive: function () { return currentView() === 'search'; }, element: presentationServices.element,
       t: t
     });
     });
-    function revealHome(options) { return shellFeature.enterHome(options); }
+    function revealHome(options) {
+      var result = shellFeature.enterHome(options);
+      if (multiServerContent && multiServerContent.resumeHomeEnrichment) { multiServerContent.resumeHomeEnrichment(); }
+      return result;
+    }
     function openSearch(keepNavigationFocus) {
       setAppView('search');
       shellFeature.hideHomeSurface();
@@ -1473,6 +1911,7 @@
       revealHome({ focus: focus || 'preserve' });
     }
     function commitNavigationView(item, targetIndex, keepNavigationFocus) {
+      if (libraryFeature && libraryFeature.cancelPendingEntry) { libraryFeature.cancelPendingEntry(); }
       if (currentView() === 'search') { searchFeature.leave(); }
       else if (currentView() === 'library' || currentView() === 'watchlist') { libraryFeature.leave(); }
       else if (currentView() === 'detail') { detailFeature.leave(); }
@@ -1494,7 +1933,7 @@
       if (item.kind === 'home') { shellFeature.focusHomeStart(); }
       else if (item.kind === 'library' || item.kind === 'watchlist' || item.kind === 'playlists') { libraryFeature.enterActiveContent(item.kind); }
       else if (item.kind === 'search') { searchFeature.focusKeyboard(0, 0); }
-      else if (item.kind === 'settings') { settingsFeature.focusSetting(0); }
+      else if (item.kind === 'settings') { settingsFeature.enter({ keepNavigationFocus:false }); }
     }
     // Shared application presentation helpers used by the modular settings controller.
     function openChoiceDialog(title, choices, selectedValue, apply, returnFocus, variant, previewOptions, onClose) {
@@ -1512,7 +1951,7 @@
       return choiceDialogController.open({
         title: t('app.exitConfirm'),
         choices: [{ value: 'exit', label: t('app.exit') }],
-        selectedValue: 'exit',
+        selectedValue: null,
         variant: 'full-screen',
         apply: function (choice) {
           if (!choice || choice.value !== 'exit') { return; }
@@ -1536,7 +1975,10 @@
         SafeAreaDialog: SafeAreaDialog,
         SubtitleStyleDialog: SubtitleStyleDialog,
         TextInputDialog: TextInputDialog,
+        LibraryTabsEditor: LibraryTabsEditor,
+        LibraryTabStore: LibraryTabStore,
         I18n: I18n,
+        LocaleBootstrap: LocaleBootstrap,
         CardLayout: CardLayout,
         VersionSelection: VersionSelection,
         ServerStore: ServerStore,
@@ -1548,13 +1990,32 @@
           var assWasEnabled = assRenderingEnabledState;
           appSettings = next;
           assRenderingEnabledState = assLocalRenderingEnabled();
-          if (assWasEnabled && !assRenderingEnabledState) { cancelAssPrefetch('global ASS rendering disabled'); }
+          if (assWasEnabled && !assRenderingEnabledState) { cancelAssPrefetch('global ASS rendering disabled', '', true); }
+          if (!assWasEnabled && assRenderingEnabledState) { assRendererPool.prewarm(); scheduleAssGlyphWarmup(); }
         },
         publishSettings: function (next) { applicationSession.update({ settings: next }); }
       },
       presentation: {
         t: t, element: presentationServices.element, setText: presentationServices.setText, clearFocus: shellFeature.clearLogicalFocus,
         pointerActive: function () { return !!(pointerController && pointerController.isSelectionActive()); }
+      },
+      librarySources: {
+        sources: librarySources.sources,
+        servers: function () { return serverFeature.servers(); },
+        preferenceState: librarySources.preferenceState,
+        homePreference: librarySources.homePreference,
+        displayTitle: librarySources.displayTitle,
+        canDisableServer: librarySources.canDisableServer,
+        serverEnabled: librarySources.serverEnabled,
+        homeOrder: librarySources.homeOrder,
+        updateDisplayMode: librarySources.updateDisplayMode,
+        updateHome: librarySources.updateHome,
+        updateServerAlias: librarySources.updateServerAlias,
+        updateServerEnabled: librarySources.updateServerEnabled,
+        updateTab: librarySources.updateTab,
+        reorder: librarySources.reorder,
+        reorderHome: librarySources.reorderHome,
+        reloadPreferences: librarySources.reloadPreferences
       },
       shell: {
         navigationIndex: shellNavigationIndex,
@@ -1576,6 +2037,9 @@
           else if (currentView() === 'library' || currentView() === 'watchlist') { libraryFeature.refreshPresentation(); }
         },
         applyNavigationVisibility: shellFeature.applyNavigationVisibility, markHomeDirty: function () { shellFeature.markHomeDirty(); },
+        recomposeHome: function () {
+          return multiServerContent && typeof multiServerContent.recomposeHome === 'function' ? multiServerContent.recomposeHome() : [];
+        },
         stopBackgroundAudio: function () { shellFeature.stopTheme(); },
         showMessage: shellFeature.showMessage
       },
@@ -1598,7 +2062,7 @@
       },
       dialogs: {
         openChoice: openChoiceDialog, openDiagnostics: function () { diagnosticsFeature.enter(); },
-        openProfileManager: openProfileManager
+        openProfileManager: openProfileManager, openPlexSetup: openSetup
       },
       environment: {
         networkSnapshot: function () { return serverFeature.networkSnapshot(); },
@@ -1616,6 +2080,7 @@
       },
       transitions: {
         enter: function () {
+          checkReleaseStatusOnFirstSettingsEntry();
           setAppView('settings');
           shellFeature.hideHomeSurface();
           searchFeature.leave({ keepImages: true });
@@ -1634,7 +2099,7 @@
       platform: { root: root, document: document },
       modules: {
         SetupController: SetupController, SetupView: SetupView, SetupFocus: SetupFocus, SetupScanIndicator: SetupScanIndicator,
-        SetupAuthSession: SetupAuthSession
+        SetupAuthSession: SetupAuthSession, LocaleBootstrap: LocaleBootstrap
       },
       presentation: {
         t: t, setText: presentationServices.setText, element: presentationServices.element,
@@ -1660,6 +2125,7 @@
         },
         normalizeManualAddress: function (value) { return serverFeature.normalizeManualAddress(value); },
         probeManualAddress: function (uri, callback) { return serverFeature.probeManualAddress(uri, callback); },
+        resolveConnection: function (server, callback) { return serverFeature.resolveServerConnection(server, callback); },
         shouldOfferConnection: function (localUri, enteredUri) {
           return serverFeature.shouldOfferConnection(localUri, enteredUri);
         }
@@ -1685,7 +2151,9 @@
         disconnect: function () { serverFeature.disconnect(); }
       },
       transitions: {
-        activate: function () { setAppView('setup'); }, completeStartup: shellFeature.completeStartup, finish: function (snapshot) { finishSetup(snapshot); },
+        activate: function () { setAppView('setup'); }, completeStartup: shellFeature.completeStartup,
+        localeReady: function () { shellFeature.translateStaticUi(); shellFeature.renderNavigation(); },
+        finish: function (snapshot) { finishSetup(snapshot); },
         cancel: function (snapshot) { cancelSetup(snapshot); }
       }
     });
@@ -1693,6 +2161,7 @@
     function completeSetupDestination(destination) {
       shellFeature.renderActiveProfile();
       if (destination === 'settings') {
+        checkReleaseStatusOnFirstSettingsEntry();
         setAppView('settings'); settingsFeature.refresh(); serverFeature.loadApplication();
       } else {
         revealHome({ focus: 'first', refresh: false });
@@ -1708,7 +2177,6 @@
         if (error || !status || !status.exists) { completeSetupDestination(destination); return; }
         settingsFeature.promptSettingsLoad(status, { confirmFirst: true }, function (loadError, loaded, skipped) {
           if (!skipped) { shellFeature.showMessage(t(loadError ? 'settings.backup.error' : 'settings.backup.loaded')); }
-          if (!loadError && loaded && loaded.settings) { appSettings = loaded.settings; assRenderingEnabledState = assLocalRenderingEnabled(); }
           completeSetupDestination(destination);
         });
       });
@@ -1721,7 +2189,7 @@
       setAppView(destination || 'home');
       if (currentView() === 'settings') { settingsFeature.refresh(); }
       else if (currentView() === 'search') { searchFeature.refreshFocus(); }
-      else if (currentView() === 'library') { libraryFeature.refreshPresentation(); }
+      else if (currentView() === 'library' || currentView() === 'watchlist') { libraryFeature.refreshPresentation(); }
       else if (currentView() === 'detail') { detailFeature.updateFocus(); }
       else {
         revealHome({ focus: 'preserve', refresh: false });
@@ -1731,12 +2199,19 @@
     function openProfileManager() { return setupFeature.openProfiles(currentView()); }
     function openManualSetup() { return setupFeature.openManual('settings'); }
 
+    diagnosticsSupportLoader = constructOwner(function () {
+      if (!DiagnosticsSupportRuntimeLoader || typeof DiagnosticsSupportRuntimeLoader.create !== 'function') {
+        throw new Error('ApplicationController requires DiagnosticsSupportRuntimeLoader');
+      }
+      return DiagnosticsSupportRuntimeLoader.create({ root: root, document: document });
+    });
+
     diagnosticsFeature = constructOwner(function () {
       return DiagnosticsFeatureController.create({
       platform: { root: root, document: document },
       modules: {
         DiagnosticsController: DiagnosticsController, DiagnosticsState: DiagnosticsState,
-        DiagnosticsView: DiagnosticsView, SupportSnapshot: SupportSnapshot, SupportQr: SupportQr
+        DiagnosticsView: DiagnosticsView
       },
       presentation: {
         t: t,
@@ -1765,7 +2240,8 @@
         startupSnapshot: startupSnapshot
       },
       transport: {
-        loadIdentity: function (callback) { return serverFeature.loadServerIdentity(callback); }
+        loadIdentity: function (callback) { return serverFeature.loadServerIdentity(callback); },
+        loadSupportRuntime: function (callback) { return diagnosticsSupportLoader.ensure(callback); }
       },
       transitions: {
         enter: function () {
@@ -1782,10 +2258,16 @@
     });
     // Media detail, seasons, episodes, preferences, and metadata refresh.
     function sameMediaItem(first, second) {
-      return !!(first && second && first.ratingKey && String(first.ratingKey) === String(second.ratingKey));
+      var firstMachine;
+      var secondMachine;
+      if (!first || !second || !first.ratingKey || String(first.ratingKey) !== String(second.ratingKey)) { return false; }
+      firstMachine = String(first.serverMachineIdentifier || '');
+      secondMachine = String(second.serverMachineIdentifier || '');
+      if (firstMachine && secondMachine && firstMachine !== secondMachine) { return false; }
+      return true;
     }
 
-    function detailOpenOptions(item) {
+    function detailOpenOptions(item, sourceContext) {
       var view = currentView();
       var focus;
       var rowsValue;
@@ -1804,20 +2286,34 @@
         focused = libraryFeature && libraryFeature.focusedItem ? libraryFeature.focusedItem() : null;
         fromContinueWatching = !!(libraryState.library && libraryState.library.viewKey === 'continue' && sameMediaItem(focused, item));
       }
-      return { returnView: view, fromContinueWatching: fromContinueWatching };
+      return { returnView: view, fromContinueWatching: fromContinueWatching, sourceContext: sourceContext || null };
     }
 
-    function openDetail(item) {
-      return detailFeature && detailFeature.open(item, detailOpenOptions(item));
+    function openDetail(item, sourceContext) {
+      var resolved = mediaSourceResolver.resolve(item, { candidateContext: sourceContext || null });
+      if (!resolved) { shellFeature.showMessage(t('status.libraryUnavailable')); return false; }
+      ensurePlayerReady();
+      // Keep the logical aggregate so Detail can rank a temporary fallback.
+      sourceContext = resolved.fallback ? null : resolved.route.context;
+      return detailFeature && detailFeature.open(item, detailOpenOptions(item, sourceContext));
     }
-    function playHomeItem(item) {
-      return detailFeature && detailFeature.playItem(item, detailOpenOptions(item));
+    function playHomeItem(item, sourceContext) {
+      var resolved = mediaSourceResolver.resolve(item, { candidateContext: sourceContext || null });
+      if (!resolved) { shellFeature.showMessage(t('status.libraryUnavailable')); return false; }
+      ensurePlayerReady();
+      sourceContext = resolved.fallback ? null : resolved.route.context;
+      return detailFeature && detailFeature.playItem(item, detailOpenOptions(item, sourceContext));
     }
     // Global input dispatch, view closure, event wiring, Home loading, bootstrap.
-    function updateWatchedAcrossFeatures(ratingKey, watched) {
-      shellFeature.updateWatched(ratingKey, watched);
-      libraryFeature.reconcileWatchedState(ratingKey, watched);
-      if (libraryFeature.activeLibrary()) { libraryFeature.probeContinue(); }
+    function updateWatchedAcrossFeatures(ratingKey, watched, sourceContext) {
+      var source = sourceContext || null;
+      var libraryState = libraryFeature && libraryFeature.snapshot ? libraryFeature.snapshot() : {};
+      var reconciled;
+      shellFeature.updateWatched(ratingKey, watched, source);
+      reconciled = libraryFeature.reconcileWatchedState(ratingKey, watched, source);
+      if (reconciled !== false && libraryState.mode === 'library' && libraryFeature.activeLibrary()) {
+        libraryFeature.probeContinue();
+      }
     }
     function restoreDetailOrigin(returnView) {
       var returnToSearch = returnView === 'search';
@@ -1829,20 +2325,30 @@
         searchFeature.resume();
       } else if (returnToLibrary || returnToWatchlist) {
         shellFeature.hideHomeSurface();
+        shellFeature.renderNavigation();
         libraryFeature.recoverPresentation();
       } else {
         revealHome({ focus: 'preserve' });
       }
     }
     function recoverActiveViewAfterNetwork() {
+      var detailContext;
+      var detailMachine;
+      if (librarySources && librarySources.refresh) { librarySources.refresh(function () {}, true); }
       if (currentView() === 'home') { shellFeature.refreshHome(); }
       else if (currentView() === 'library' || currentView() === 'watchlist') { libraryFeature.reloadCurrent(true); }
       else if (currentView() === 'search') { searchFeature.retryAfterNetwork(); }
-      else if (currentView() === 'detail') { detailFeature.recoverAfterNetwork(); }
+      else if (currentView() === 'detail') {
+        detailContext = detailFeature && detailFeature.sourceContext ? detailFeature.sourceContext() : null;
+        detailMachine = String(detailContext && detailContext.serverMachineIdentifier || '');
+        if (detailMachine && librarySources && librarySources.serverAvailable && librarySources.serverAvailable(detailMachine) === false) { return; }
+        detailFeature.recoverAfterNetwork();
+      }
     }
     function destroy() {
       if (destroyed) { return; }
       destroyed = true;
+      clearStartupBackgroundChainWatchdog();
       destroyOwned();
     }
     try {
@@ -1865,7 +2371,7 @@
         { target: document.getElementById('up-next-layout-cancel'), name: 'click', handler: settingsFeature.cancelUpNext },
         { target: document.getElementById('up-next-layout-apply'), name: 'click', handler: settingsFeature.applyUpNext },
         { target: document, name: 'keyup', handler: inputController.handleKeyUp },
-        { target: document, name: 'visibilitychange', handler: shellFeature.onVisibilityChange },
+        { target: document, name: 'visibilitychange', handler: handleVisibilityChange },
         { target: root, name: 'resize', handler: shellFeature.onResize }
       ]);
       });

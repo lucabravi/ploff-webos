@@ -86,12 +86,8 @@
     return state && state.plan[state.index] || null;
   }
 
-  function canRetry(state) {
-    return !!(state && state.plan && state.plan.length);
-  }
 
   return {
-    canRetry: canRetry,
     create: create,
     current: current,
     fail: failCurrent,

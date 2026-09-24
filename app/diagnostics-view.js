@@ -20,6 +20,7 @@
     var identityState = { error: '', identity: null, reachable: false };
     var supportQrOpen = false;
     var supportQrFocus = 'close';
+    var supportQrGeneration = 0;
 
     function text(key) {
       return values.t(key);
@@ -198,6 +199,7 @@
       if (!supportQrOpen) { return; }
       supportQrOpen = false;
       supportQrFocus = 'close';
+      supportQrGeneration += 1;
       if (dialog) {
         dialog.className = 'diagnostics-qr-dialog is-hidden';
         dialog.setAttribute('aria-hidden', 'true');
@@ -217,15 +219,15 @@
     }
 
     function openSupportQr() {
-      var report;
+      var generation;
       var dialog = documentRef.getElementById('diagnostics-qr-dialog');
       var canvas = documentRef.getElementById('diagnostics-qr-canvas');
       var fallback = documentRef.getElementById('diagnostics-qr-fallback');
       var reportText = documentRef.getElementById('diagnostics-report-text');
       var closeButton = documentRef.getElementById('diagnostics-qr-close');
-      var qr;
-      if (!dialog || !values.getSupportReport) { return; }
-      report = values.getSupportReport(identityState);
+      if (!dialog || !values.requestSupportReport) { return; }
+      supportQrGeneration += 1;
+      generation = supportQrGeneration;
       values.setText('diagnostics-qr-title', text('diagnostics.qrTitle'));
       values.setText('diagnostics-qr-notice', text('diagnostics.qrNotice'));
       values.setText('diagnostics-qr-close', text('diagnostics.qrClose'));
@@ -234,24 +236,34 @@
       dialog.setAttribute('aria-hidden', 'false');
       supportQrOpen = true;
       supportQrFocus = 'close';
+      if (canvas) { canvas.className = 'is-hidden'; }
       if (fallback) { fallback.className = 'diagnostics-qr-fallback is-hidden'; fallback.textContent = ''; }
-      if (reportText) { reportText.textContent = String(report.body || report.serialized || ''); }
-      try {
-        qr = values.SupportQr.create(report.mailto);
-        values.SupportQr.render(canvas, qr, { pixels: 420, margin: 4, label: text('diagnostics.qrTitle') });
-      } catch (error) {
-        if (fallback) {
-          fallback.className = 'diagnostics-qr-fallback';
-          fallback.textContent = text('diagnostics.qrUnavailable');
-        }
-      }
+      if (reportText) { reportText.textContent = ''; reportText.scrollTop = 0; }
       if (closeButton && closeButton.focus && !values.isPointerSelectionActive()) { focusSupportQr('close'); }
+      values.requestSupportReport(identityState, function (error, report, supportQr) {
+        var qr;
+        if (!active || !supportQrOpen || generation !== supportQrGeneration) { return; }
+        if (error || !report || !supportQr || typeof supportQr.create !== 'function' || typeof supportQr.render !== 'function') {
+          if (fallback) { fallback.className = 'diagnostics-qr-fallback'; fallback.textContent = text('diagnostics.qrUnavailable'); }
+          return;
+        }
+        if (reportText) { reportText.textContent = String(report.body || report.serialized || ''); }
+        try {
+          qr = supportQr.create(report.mailto);
+          supportQr.render(canvas, qr, { pixels: 420, margin: 4, label: text('diagnostics.qrTitle') });
+          if (canvas) { canvas.className = ''; }
+        } catch (_error) {
+          if (fallback) { fallback.className = 'diagnostics-qr-fallback'; fallback.textContent = text('diagnostics.qrUnavailable'); }
+        }
+      });
     }
 
     function clearRequest() {
       if (identityRequest && identityRequest.abort) { identityRequest.abort(); }
       identityRequest = null;
     }
+
+    function preloadSupportRuntime() { if (active && typeof values.preloadSupportRuntime === 'function') { values.preloadSupportRuntime(); } }
 
     function refresh() {
       var generation;
@@ -263,6 +275,7 @@
       if (!values.loadIdentity) {
         identityState.reachable = false;
         render();
+        preloadSupportRuntime();
         return;
       }
       request = values.loadIdentity(function (error, identity) {
@@ -273,12 +286,14 @@
         if (error) { identityState.error = values.sanitizeError ? values.sanitizeError(error) : String(error || ''); }
         else { identityState.identity = identity; identityState.error = ''; }
         render();
+        preloadSupportRuntime();
       });
       if (completed) { return; }
       identityRequest = request || null;
       if (!request) {
         identityState.reachable = false;
         render();
+        preloadSupportRuntime();
       }
     }
 
@@ -367,8 +382,6 @@
     return {
       activate: activate,
       close: close,
-      closeSupportQr: closeSupportQr,
-      focusSupportQr: focusSupportQr,
       destroy: close,
       handleKey: handleKey,
       isOpen: function () { return active; },

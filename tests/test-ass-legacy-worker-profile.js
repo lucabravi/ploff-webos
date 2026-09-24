@@ -9,15 +9,21 @@ var acorn = require('acorn');
 var zlib = require('zlib');
 
 var root = path.join(__dirname, '..');
+var wasm = process.argv.indexOf('--wasm') !== -1;
 var workerPath = path.join(root, 'app', 'vendor', 'subtitles-octopus-worker-legacy.js');
-var fallbackFontPath = path.join(root, 'app', 'vendor', 'default.woff2');
+var fallbackFontPath = path.join(root, 'app', 'vendor', 'default.ttf');
 var fullWorkerSourcePath = path.join(root, 'scripts', 'vendor-sources', 'subtitles-octopus-worker-legacy-4.1.0.full.js.gz');
+if (wasm) {
+  workerPath = path.join(root, 'app', 'vendor', 'subtitles-octopus-worker.js');
+  fullWorkerSourcePath = path.join(root, 'scripts', 'vendor-sources', 'subtitles-octopus-worker-wasm-4.1.0.full.js.gz');
+}
 var source = fs.readFileSync(workerPath, 'utf8');
 var fullSource = zlib.gunzipSync(fs.readFileSync(fullWorkerSourcePath)).toString('utf8');
 var xhrRequests = [];
 var forceInvalidSyncFont = false;
 var forceMissingFont = false;
 var forceAsyncFontSetupFailure = false;
+var wasmInstantiations = 0;
 
 function nativePayload(value) {
   var startMarker = '// EMSCRIPTEN_START_ASM';
@@ -66,7 +72,7 @@ function FakeXHR() {
   this.headers = {};
 }
 FakeXHR.prototype.open = function (method, url, async) {
-  if (forceAsyncFontSetupFailure && async !== false && String(url || '').indexOf('default.woff2') !== -1) {
+  if (forceAsyncFontSetupFailure && async !== false && String(url || '').indexOf('default.ttf') !== -1) {
     throw new Error('forced async fallback setup failure');
   }
   this.method = method;
@@ -86,11 +92,11 @@ FakeXHR.prototype.send = function () {
     var data;
     try {
       filePath = filePathFromUrl(self.url);
-      if (forceMissingFont && String(self.url || '').indexOf('default.woff2') !== -1) {
+      if (forceMissingFont && String(self.url || '').indexOf('default.ttf') !== -1) {
         throw new Error('forced missing fallback font');
       }
       data = fs.readFileSync(filePath);
-      if (forceInvalidSyncFont && !self.async && String(self.url || '').indexOf('default.woff2') !== -1) {
+      if (forceInvalidSyncFont && !self.async && String(self.url || '').indexOf('default.ttf') !== -1) {
         data = Buffer.from('not-a-woff2-font');
       }
       self.status = 200;
@@ -143,11 +149,21 @@ function runLegacyRenderContract(options) {
     var attempts = 0;
     var probeTimer;
     var timingMessages = [];
+    function workerSetTimeout(callback, delay) {
+      var timer = setTimeout(callback, delay);
+      if (timer && typeof timer.unref === 'function') { timer.unref(); }
+      return timer;
+    }
+    function workerSetInterval(callback, delay) {
+      var timer = setInterval(callback, delay);
+      if (timer && typeof timer.unref === 'function') { timer.unref(); }
+      return timer;
+    }
     var sandbox = {
       console: { log: function () {}, debug: function () {}, info: function () {}, warn: function () {}, error: function () {} },
-      setTimeout: setTimeout,
+      setTimeout: workerSetTimeout,
       clearTimeout: clearTimeout,
-      setInterval: setInterval,
+      setInterval: workerSetInterval,
       clearInterval: clearInterval,
       setImmediate: setImmediate,
       clearImmediate: clearImmediate,
@@ -181,6 +197,13 @@ function runLegacyRenderContract(options) {
       importScripts: function () {},
       dump: function () {}
     };
+    if (wasm) {
+      sandbox.WebAssembly = Object.create(WebAssembly);
+      sandbox.WebAssembly.instantiate = function (bytes, imports) {
+        wasmInstantiations += 1;
+        return WebAssembly.instantiate(bytes, imports);
+      };
+    }
     var ass = '[Script Info]\n' +
       'ScriptType: v4.00+\n' +
       'PlayResX: 1280\n' +
@@ -191,10 +214,12 @@ function runLegacyRenderContract(options) {
       '[Events]\n' +
       'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n' +
       'Dialogue: 0,0:00:00.00,0:00:10.00,Default,,0,0,0,,Ploff legacy render test\n';
-    var warmupAss = '[Script Info]\nScriptType: v4.00+\nPlayResX: 1280\nPlayResY: 720\n' +
-      '[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n' +
-      'Style: Default,Arial,18,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,10,10,20,1\n' +
-      '[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
+    var warmupAss;
+    var warmupFinished = false;
+    var warmRenderer;
+    var warmLibrary;
+    function WarmWorker() { this.postMessage = function (message) { warmupAss = message.subContent; }; }
+    require('../app/startup-metrics').createAssWorkerPreloader({ root: { Worker: WarmWorker } }).start();
     var replacementAss = settings.replacementAss || ('[Script Info]\n' +
       'ScriptType: v4.00+\n' +
       'PlayResX: 1280\n' +
@@ -320,7 +345,7 @@ function runLegacyRenderContract(options) {
           'worker rate change must still apply the requested new playback rate after re-anchoring');
         assert.notStrictEqual(canvasFingerprint(replacementCanvasMessage), canvasFingerprint(canvasMessage),
           'replacement ASS content must produce a new rendered subtitle bitmap');
-        ['static-memory-start', 'static-memory-end', 'runtime-init-start', 'libass-runtime-ready', 'warm-track-ready', 'runtime-init-end', 'worker-ready', 'set-track-start', 'set-track-end', 'first-render-message'].forEach(function (phase) {
+        (wasm ? [] : ['static-memory-start', 'static-memory-end']).concat(['runtime-init-start', 'libass-runtime-ready', 'warm-track-ready', 'runtime-init-end', 'worker-ready', 'set-track-start', 'set-track-end', 'first-render-message']).forEach(function (phase) {
           assert.notStrictEqual(timingMessages.indexOf(phase), -1, 'diagnostic worker must emit ' + phase);
         });
         assert.ok(timingMessages.indexOf('runtime-init-start') < timingMessages.indexOf('libass-runtime-ready'),
@@ -330,7 +355,7 @@ function runLegacyRenderContract(options) {
         assert.ok(timingMessages.indexOf('warm-track-ready') < timingMessages.indexOf('runtime-init-end'),
           'runtime initialization must end only after the warm track is installed');
         var fontRequests = xhrRequests.filter(function (request) {
-          return request.url.indexOf('default.woff2') !== -1;
+          return request.url.indexOf('default.ttf') !== -1;
         });
         assert.ok(fontRequests.length >= 1, 'packaged fallback font must be requested');
         assert.strictEqual(fontRequests[0].async, false,
@@ -375,11 +400,34 @@ function runLegacyRenderContract(options) {
           resolve();
           return;
         }
-      } else if (message.target === 'get-events') {
-        if (!trackReplaced) {
-          trackReplaced = true;
-          setImmediate(function () { send({ target: 'set-track', content: ass }); });
+      } else if (message.target === 'ploff-ass-warm-step') {
+        assert.ok(message.pixelCount > 0, 'each real synthetic event must produce rasterized glyphs');
+        assert.ok(message.canvases.length > 0, 'warmup must convert glyphs into transferable RGBA bitmaps');
+        assert.ok(message.canvases.some(function (bitmap) {
+          return new Uint8Array(bitmap.buffer).some(function (value, index) { return index % 4 === 3 && value > 0; });
+        }), 'warm bitmap must contain nontransparent pixels');
+        assert.ok(message.libassMs >= 0 && message.blendMs >= 0);
+        assert.strictEqual(sandbox.PloffAssClockReceived, false, 'synthetic warmup must not advance the real clock');
+        assert.strictEqual(sandbox.PloffAssRenderCount || 0, 0, 'warmup must not enter the real frame scheduler');
+        if (message.index < 7) {
+          setTimeout(function () { send({ target: 'ploff-warm-step', index: message.index + 1, time: message.index + 0.05, last: message.index === 6 }); }, 25);
         } else {
+          warmupFinished = true;
+          assert.strictEqual(message.warmComplete, true);
+          warmRenderer = sandbox.octObj;
+          warmRenderer.set_ass_renderer = function () { throw new Error('real track replaced warmed renderer'); };
+          warmLibrary = sandbox.octObj.get_ass_library().ptr;
+          setImmediate(function () { send({ target: 'set-track', content: ass }); });
+        }
+      } else if (message.target === 'get-events') {
+        if (settings.coldStart) {
+          eventsReady = true;
+        } else if (!trackReplaced) {
+          trackReplaced = true;
+          setImmediate(function () { send({ target: 'ploff-warm-step', index: 1, time: 0.05, last: false }); });
+        } else if (warmupFinished) {
+          assert.strictEqual(sandbox.octObj, warmRenderer, 'real track must retain the warmed Octopus instance');
+          assert.strictEqual(sandbox.octObj.get_ass_library().ptr, warmLibrary, 'real track must retain the warmed library');
           eventsReady = true;
         }
       } else if (message.target === 'ploff-frame-barrier') {
@@ -419,7 +467,7 @@ function runLegacyRenderContract(options) {
         currentScript: 'file://' + workerPath,
         preMain: true,
         renderMode: 'js-blend',
-        subContent: warmupAss,
+        subContent: settings.coldStart ? ass : warmupAss,
         fonts: [],
         availableFonts: [],
         fallbackFont: 'file://' + fallbackFontPath,
@@ -437,7 +485,7 @@ function runLegacyRenderContract(options) {
 
     probeTimer = setInterval(function () {
       attempts += 1;
-      if (attempts > 200) {
+      if (attempts > 600) {
         fail(new Error('legacy worker rendering contract timed out'));
         return;
       }
@@ -462,7 +510,9 @@ function runLegacyRenderContract(options) {
   });
 }
 
-runLegacyRenderContract().then(function () {
+runLegacyRenderContract({ coldStart: true }).then(function () {
+  return runLegacyRenderContract();
+}).then(function () {
   return runLegacyRenderContract({
     replacementClock: 901,
     stopAfterReplacementFrame: true,
@@ -485,8 +535,14 @@ runLegacyRenderContract().then(function () {
   return runLegacyRenderContract({ forceInvalidSyncFont: true, forceAsyncFontSetupFailure: true, expectFontFailure: true });
 }).then(function () {
   acorn.parse(source, { ecmaVersion: 2020, sourceType: 'script' });
-  assert.strictEqual(nativePayload(source), nativePayload(fullSource),
-    'Ploff slimming must not alter the generated libass/FreeType/fontconfig Emscripten payload');
+  if (wasm) {
+    assert.ok(wasmInstantiations > 0, 'WASM contract must instantiate the real native module');
+    assert.strictEqual(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, 'app/vendor/subtitles-octopus-worker.wasm'))).digest('hex'),
+      'ae818264aaf680eb2917d226938f6b48a087a3f2c37f9a1287f9295c2d31ba2c', 'native WASM payload must remain unchanged');
+  } else {
+    assert.strictEqual(nativePayload(source), nativePayload(fullSource),
+      'Ploff slimming must not alter the generated libass/FreeType/fontconfig Emscripten payload');
+  }
     assert.ok(source.indexOf('PloffAssPreparedBoundaryIndices') !== -1,
     'static legacy worker must track main-thread prepared boundary states separately from committed playback');
   assert.ok(source.indexOf('PloffAssScheduleLookahead') !== -1,
@@ -529,13 +585,13 @@ assert.ok(source.length < 3230000,
     'subtitle size style mutation must remain present');
   assert.notStrictEqual(source.indexOf('PloffAssTimingMark'), -1,
     'diagnostic legacy worker must expose its opt-in timing marker');
-  assert.notStrictEqual(source.indexOf('static-memory-start'), -1,
+  assert.notStrictEqual(source.indexOf(wasm ? 'worker-script' : 'static-memory-start'), -1,
     'diagnostic legacy worker must expose static memory timing');
   assert.notStrictEqual(source.indexOf('runtime-init-start'), -1,
     'diagnostic legacy worker must expose runtime initialization timing');
   assert.notStrictEqual(source.indexOf('worker-ready'), -1,
     'diagnostic legacy worker must expose worker readiness timing');
-  console.log('Ploff-specific ASS legacy worker profile checks passed');
+  console.log('Ploff-specific ASS ' + (wasm ? 'WASM' : 'legacy') + ' worker profile checks passed');
 }).catch(function (error) {
   console.error(error && error.stack || error);
   process.exitCode = 1;

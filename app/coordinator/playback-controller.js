@@ -17,6 +17,7 @@
     var PlaybackRecovery = values.PlaybackRecovery;
     var PlaybackReposition = values.PlaybackReposition;
     var PlaybackSession = values.PlaybackSession;
+    var PlaybackOperation = values.PlaybackOperation;
     var PlaybackTimeline = values.PlaybackTimeline;
     var PlaybackStrategy = values.PlaybackStrategy;
     var PlayerSeekController = values.PlayerSeekController;
@@ -28,7 +29,7 @@
     var SubtitleOffsetStore = values.SubtitleOffsetStore;
     var AssSubtitlePrefetch = values.AssSubtitlePrefetch;
     var compatibilityMemory = values.compatibilityMemory;
-    var config = values.config || {};
+    var config = copyObject(values.config);
     var storage = values.storage;
     var playback = null;
     var recovery = PlaybackRecovery.create([]);
@@ -58,16 +59,16 @@
     var pendingSeek = null;
     var seekTimer = null;
     var pendingRestore = null;
-    var localSubtitleRequest = null;
-    var localSubtitleGeneration = 0;
+    var operationOptions = { onAbortError: function (error) { call(values.onError, error); } };
+    var loadOperation = PlaybackOperation.create(operationOptions);
+    var sourceOperation = PlaybackOperation.create(operationOptions);
+    var selectionOperation = PlaybackOperation.create(operationOptions);
+    var localSubtitleOperation = PlaybackOperation.create(operationOptions);
+    var editorOperation = PlaybackOperation.create(operationOptions);
+    var restoreOperation = PlaybackOperation.create(operationOptions);
     var localSubtitleLoading = false;
     var subtitleEditorState = null;
-    var subtitleEditorRequest = null;
-    var subtitleEditorGeneration = 0;
     var subtitlePreviewTimer = null;
-    var playbackLoadRequest = null;
-    var playbackLoadGeneration = 0;
-    var playbackPrepareRequest = null;
     var recoveryTrace = '';
     var rebuildReason = '';
     var generation = 0;
@@ -79,6 +80,7 @@
     var visibilityTarget = values.document || null;
     var subtitleRuntime = SubtitleRuntime && SubtitleRuntime.create ? SubtitleRuntime.create({
       SubtitleSync: SubtitleSync,
+      PlaybackOperation: PlaybackOperation,
       SubtitleOffsetStore: SubtitleOffsetStore,
       AssSubtitleRenderer: values.AssSubtitleRenderer,
       root: timerRoot,
@@ -128,21 +130,8 @@
       finally { rebuildReason = previous; }
     }
 
-    function cancelPlaybackLoadRequest() {
-      var request = playbackLoadRequest;
-      playbackLoadGeneration += 1;
-      playbackLoadRequest = null;
-      if (request && request.abort) { request.abort(); }
-    }
-
-    function cancelPlaybackPrepareRequest() {
-      var request = playbackPrepareRequest;
-      playbackPrepareRequest = null;
-      if (request && request.abort) { request.abort(); }
-    }
-
     function active() {
-      return !playbackSession.destroyed() && (!values.isActive || values.isActive() !== false);
+      return !playbackSession.destroyed() && !playbackSession.closing() && (!values.isActive || values.isActive() !== false);
     }
 
     function copyObject(source) {
@@ -179,17 +168,18 @@
 
     function requestNativePlay() {
       var result;
+      var token;
       if (!videoDriver || !videoDriver.paused() || playbackSession.nativePlayPending()) { return false; }
-      playbackSession.beginNativePlay();
+      token = playbackSession.beginNativePlay();
       debugPlayback('native-play-request');
       try {
         result = videoDriver.play();
         if (result && typeof result.catch === 'function') {
-          result.catch(function () { playbackSession.finishNativePlay(); });
+          result.catch(function () { playbackSession.finishNativePlay(token); });
         }
         return true;
       } catch (error) {
-        playbackSession.finishNativePlay();
+        playbackSession.finishNativePlay(token);
         return false;
       }
     }
@@ -876,10 +866,8 @@
     }
 
     function cancelLocalSubtitleRequest() {
-      localSubtitleGeneration += 1;
-      if (localSubtitleRequest && localSubtitleRequest.abort) { localSubtitleRequest.abort(); }
-      localSubtitleRequest = null;
       localSubtitleLoading = false;
+      localSubtitleOperation.cancel();
     }
 
     function subtitleRenderMode(current) {
@@ -1036,8 +1024,9 @@
     }
 
     function stopSubtitlePreviewClock() {
-      if (subtitlePreviewTimer !== null && timerRoot.clearInterval) { timerRoot.clearInterval(subtitlePreviewTimer); }
+      var timer = subtitlePreviewTimer;
       subtitlePreviewTimer = null;
+      if (timer !== null && timerRoot.clearInterval) { timerRoot.clearInterval(timer); }
     }
 
     function startSubtitlePreviewClock() {
@@ -1053,74 +1042,53 @@
     function loadAssSubtitleText(current, track, callback) {
       var owner = AssSubtitlePrefetch;
       var identity = call(values.assSubtitlePrefetchIdentity, current, track);
-      var completed = false;
-      var directStarted = false;
-      var ownerStarted = false;
-      var request = null;
-
+      var requestConfig = config;
+      var classification = SubtitleSync ? SubtitleSync.classify(track) : null;
+      var slot = PlaybackOperation.create(operationOptions);
+      var operation = slot.begin();
+      function renderingStillEnabled() { return subtitleRuntime.renderingEnabled(classification); }
       function finish(error, text) {
-        if (completed) { return; }
-        completed = true;
+        slot.cancel();
         call(callback, error || null, text === undefined || text === null ? '' : text);
       }
-
+      function finishDisabled() { finish(null, ''); }
       function direct() {
-        if (directStarted || completed) { return request; }
-        directStarted = true;
-        try {
-          request = PlexClient.loadSubtitleText(config, current, track, function (error, text) {
-            finish(error || null, text);
-          });
-        } catch (error) {
-          finish(error);
-        }
-        return request;
+        if (!renderingStillEnabled()) { finishDisabled(); return; }
+        operation.run(function (complete) {
+          return PlexClient.loadSubtitleText(requestConfig, current, track, complete);
+        }, finish);
       }
-
       function ownerLoad() {
-        var result;
-        if (ownerStarted || completed) { return request; }
-        ownerStarted = true;
-        try {
-          result = owner.request({ identity: String(identity || ''), playback: current, track: track },
-            { priority: 'foreground' }, function (error, text) {
-              if (completed) { return; }
-              if (error || !text) { direct(); return; }
-              finish(null, text);
-            });
-        } catch (error) {
-          ownerStarted = false;
-          direct();
-          return request;
-        }
-        if (result === false && !completed) {
-          ownerStarted = false;
-          direct();
-        }
-        return result;
+        if (!renderingStillEnabled()) { finishDisabled(); return; }
+        operation.run(function (complete) {
+          var handle = owner.request({ identity: String(identity), playback: current, track: track },
+            { priority: 'foreground' }, complete);
+          if (handle === false) { complete(null, null); }
+          return handle;
+        }, function (error, text) {
+          if (!renderingStillEnabled()) { finishDisabled(); }
+          else if (error || !text) { direct(); }
+          else { finish(null, text); }
+        });
       }
-
-      function claimComplete(error, text) {
-        if (completed) { return; }
-        if (error) { direct(); return; }
-        if (!text) { ownerLoad(); return; }
-        finish(null, text);
-      }
-
       if (!owner || typeof owner.claim !== 'function' || typeof owner.request !== 'function' || !identity) {
-        return direct();
+        direct();
+      } else {
+        operation.run(function (complete) {
+          var handle = owner.claim(String(identity), complete);
+          if (handle && handle.content) { complete(null, handle.content); }
+          else if (handle === null) { complete(null, null); }
+          return handle;
+        }, function (error, text) {
+          if (!renderingStillEnabled()) { finishDisabled(); }
+          else if (error) { direct(); }
+          else if (!text) { ownerLoad(); }
+          else { finish(null, text); }
+        });
       }
-      try {
-        request = owner.claim(String(identity), claimComplete);
-      } catch (error) {
-        return direct();
-      }
-      if (request && request.content) {
-        finish(null, request.content);
-      } else if (request === null && !ownerStarted && !directStarted && !completed) {
-        request = ownerLoad();
-      }
-      return request;
+      // The caller owns the whole chain, not whichever transport happened to
+      // exist when claim() returned. Late fallback remains cancellable.
+      return { abort: slot.destroy };
     }
 
     function configureLocalSubtitles(current, callback, preserveAss) {
@@ -1129,8 +1097,9 @@
       var offset = subtitleRuntime.offset(current, track);
       var requestedMode = current.requestedPlaybackMode || current.options.playbackMode || 'auto';
       var localEnabled = subtitleRuntime.renderingEnabled(classification);
-      var requestGeneration;
+      var operation;
       cancelLocalSubtitleRequest();
+      operation = localSubtitleOperation.begin();
       if (!preserveAss || !track || !subtitleRuntime.isAssKind(classification) || !localEnabled || requestedMode === 'transcode' || subtitleRuntime.failed(track.id)) { subtitleRuntime.disposeAss(); }
       subtitleRuntime.clearLocal();
       current.options.localSubtitleOverlay = false;
@@ -1143,17 +1112,23 @@
       }
       localSubtitleLoading = true;
       notifyState();
-      requestGeneration = localSubtitleGeneration;
-      var requestCompleted = false;
       var requestLoader = classification.kind === 'external-ass' || classification.kind === 'embedded-ass' ?
         loadAssSubtitleText : function (source, subtitleTrack, complete) {
           return PlexClient.loadSubtitleText(config, source, subtitleTrack, complete);
         };
-      var request = requestLoader(current, track, function (error, text) {
+      operation.run(function (complete) {
+        return requestLoader(current, track, complete);
+      }, function (error, text) {
         var cues;
-        requestCompleted = true;
-        if (requestGeneration !== localSubtitleGeneration || current !== playback || playbackSession.destroyed()) { return; }
-        localSubtitleRequest = null;
+        if (!operation.current() || current !== playback || playbackSession.destroyed()) { return; }
+        if (!subtitleRuntime.renderingEnabled(classification)) {
+          localSubtitleLoading = false;
+          current.options.localSubtitleOverlay = false;
+          subtitleRuntime.disposeAss();
+          notifyState();
+          call(callback);
+          return;
+        }
         cues = error || !SubtitleSync ? [] : SubtitleSync.parse(text);
         if (error || (classification.kind !== 'external-ass' && classification.kind !== 'embedded-ass' && !cues.length)) {
           localSubtitleLoading = false;
@@ -1163,7 +1138,15 @@
           call(callback);
         } else if (classification.kind === 'external-ass' || classification.kind === 'embedded-ass') {
           subtitleRuntime.loadAss(track, text, function (rendererError) {
-            if (requestGeneration !== localSubtitleGeneration || current !== playback || playbackSession.destroyed()) { return; }
+            if (!operation.current() || current !== playback || playbackSession.destroyed()) { return; }
+            if (!subtitleRuntime.renderingEnabled(classification)) {
+              localSubtitleLoading = false;
+              current.options.localSubtitleOverlay = false;
+              subtitleRuntime.disposeAss();
+              notifyState();
+              call(callback);
+              return;
+            }
             localSubtitleLoading = false;
             if (rendererError) {
               subtitleRuntime.markFailed(track.id);
@@ -1187,7 +1170,6 @@
           call(callback);
         }
       });
-      if (!requestCompleted) { localSubtitleRequest = request; }
     }
 
     function beginSourceSwitch(target, phase) {
@@ -1210,11 +1192,9 @@
       var position = Math.max(0, Number(recovery.position || 0));
       var streamOffset;
       var current = playback;
-      var attemptGeneration = generation;
-      var attemptSession;
-      var prepareRequest;
-      var prepareCompleted = false;
+      var operation;
       if (!current || !step || !active()) { call(values.showError, false, retry); return; }
+      operation = sourceOperation.begin();
       if (recoveryTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(recoveryTimer); }
       recoveryTimer = null;
       compatibilityAttemptToken += 1;
@@ -1245,18 +1225,16 @@
       current.terminalNativeSeekTarget = current.terminalSeekTarget === null ? null : terminalNativeTarget(position, streamOffset);
       timeline.stopKeepalive();
       PlexClient.rotateTranscodeSession(current);
-      attemptSession = current.transcodeSession;
       beginSourceSwitch(position, recovery.index > 0 ? 'recovering' : 'starting');
       current.offsetBase = streamOffset;
       call(values.hideError);
       setStatus('preparing');
       setLoading(true, !!preserveFrame);
-      cancelPlaybackPrepareRequest();
       debugPlayback('source-prepare-start', { action: 'attempt', recoveryTarget: position, offsetBase: streamOffset });
-      prepareRequest = PlexClient.preparePlayback(config, current, current.options, function (error, sourceUrl) {
-        prepareCompleted = true;
-        if (playbackPrepareRequest === prepareRequest) { playbackPrepareRequest = null; }
-        if (!active() || playback !== current || attemptGeneration !== generation || current.transcodeSession !== attemptSession) { return; }
+      operation.run(function (complete) {
+        return PlexClient.preparePlayback(config, current, current.options, complete);
+      }, function (error, sourceUrl) {
+        if (!active() || playback !== current) { return; }
         if (error || !sourceUrl || directOnlyViolation(current)) {
           recover.apply(null, [error || (directOnlyViolation(current) ? new Error('unsupported direct playback') : new Error('playback source unavailable')), 'prepare']);
           return;
@@ -1274,11 +1252,6 @@
         videoDriver.load();
         notifyState();
       });
-      if (!prepareCompleted && active() && playback === current && attemptGeneration === generation && current.transcodeSession === attemptSession) {
-        playbackPrepareRequest = prepareRequest || null;
-      } else if (!prepareCompleted && prepareRequest && prepareRequest.abort) {
-        prepareRequest.abort();
-      }
     }
 
     function recover(error) {
@@ -1397,12 +1370,9 @@
       var recoveryStep;
       var reason = rebuildReason || (updateSelection === true ? 'selection' : 'rebuild');
       var streamOffset;
-      var transcodeSession;
-      var rebuildGeneration = generation;
-      var prepareRequest;
-      var prepareCompleted = false;
+      var operation;
       function bad() {
-        return !active() || playback !== current || current.transcodeSession !== transcodeSession || rebuildGeneration !== generation;
+        return !active() || playback !== current || !operation.current();
       }
       function failPrepare(error, status) {
         playbackSession.finishStreamSwitch();
@@ -1435,20 +1405,14 @@
         } catch (error) { failPrepare(error, 'stream-error'); }
       }
       function prepareSource() {
-        cancelPlaybackPrepareRequest();
         debugPlayback('source-prepare-start', { action: 'rebuild', recoveryTarget: target, offsetBase: streamOffset });
-        prepareRequest = PlexClient.preparePlayback(config, current, current.options, function (error, sourceUrl) {
-          prepareCompleted = true;
-          if (playbackPrepareRequest === prepareRequest) { playbackPrepareRequest = null; }
+        operation.run(function (complete) {
+          return PlexClient.preparePlayback(config, current, current.options, complete);
+        }, function (error, sourceUrl) {
           if (bad()) { return; }
           if (error || !sourceUrl) { failPrepare(error, 'stream-error'); recover.apply(null, [error, 'rebuild']); return; }
           applySource(sourceUrl);
         });
-        if (!prepareCompleted && active() && playback === current && current.transcodeSession === transcodeSession && rebuildGeneration === generation) {
-          playbackPrepareRequest = prepareRequest || null;
-        } else if (!prepareCompleted && prepareRequest && prepareRequest.abort) {
-          prepareRequest.abort();
-        }
       }
       if (!current) { return false; }
       target = Math.max(0, Math.min(Number(current.duration || 0) / 1000, Math.floor(Number(absolute || 0))));
@@ -1469,6 +1433,7 @@
         applyAttempt(false);
         return true;
       }
+      operation = sourceOperation.begin();
       recovery = PlaybackRecovery.rebuild(recovery, target);
       recoveryStep = PlaybackRecovery.current(recovery);
       playbackSession.markTerminalPlayback(false);
@@ -1484,11 +1449,12 @@
       beginSourceSwitch(target, 'recovering');
       timeline.stopKeepalive();
       PlexClient.rotateTranscodeSession(current);
-      transcodeSession = current.transcodeSession;
       setStatus('preparing');
       setLoading(true, false);
       if (!updateSelection) { prepareSource(); return true; }
-      PlexClient.setStreamSelection(config, current, current.options, function (selectionError) {
+      operation.run(function (complete) {
+        return PlexClient.setStreamSelection(config, current, current.options, complete);
+      }, function (selectionError) {
         if (bad()) { return; }
         if (selectionError) { failPrepare(selectionError, 'track-error'); return; }
         prepareSource();
@@ -1615,56 +1581,56 @@
       return true;
     }
 
-    function applyPendingSettings(callback) {
+    // A selection is one latest-wins transaction. Network completion does not
+    // authorize an older intent to reconfigure subtitles or replace the source.
+    function applySelection(mode, callback) {
       var current = playback;
-      var position;
+      var operation;
       if (!current) { call(callback, new Error('playback unavailable')); return false; }
-      position = absoluteTime();
-      PlexClient.setStreamSelection(config, current, current.options, function (error) {
-        if (error || playback !== current) { call(callback, error || new Error('playback changed')); return; }
-        configureLocalSubtitles(current, function () {
-          if (playback !== current) { call(callback, new Error('playback changed')); return; }
-          recovery = selectRecovery(current);
-          recovery.position = position;
-          applyAttempt(false);
-          call(values.onSettingsApplied, current, snapshot());
-          call(callback, null, snapshot());
-        });
+      operation = selectionOperation.begin();
+      cancelLocalSubtitleRequest();
+      function commit() {
+        var position;
+        if (!operation.current() || playback !== current || !active()) { return; }
+        position = pendingSeek !== null ? pendingSeek : absoluteTime();
+        recovery = selectRecovery(current);
+        recovery.position = position;
+        if (mode === 'track') { rebuild(position, false); }
+        else { applyAttempt(false); }
+        if (mode === 'settings') { call(values.onSettingsApplied, current, snapshot()); }
+        call(callback, null, snapshot());
+      }
+      operation.run(function (complete) {
+        return PlexClient.setStreamSelection(config, current, copyObject(current.options), complete);
+      }, function (error) {
+        if (playback !== current || !active()) { return; }
+        if (error) { call(callback, error); return; }
+        if (mode === 'version') { commit(); return; }
+        operation.run(function (complete) { configureLocalSubtitles(current, complete); }, commit);
       });
       return true;
     }
 
     function changeTrack(kind, stream, callback) {
       var current = playback;
-      var position;
       var descriptor = typeof stream === 'object' && stream ? stream : { id: stream };
       var id;
       if (!current || (kind !== 'audio' && kind !== 'subtitles')) { call(callback, new Error('track unavailable')); return false; }
-      position = absoluteTime();
+      selectionOperation.cancel();
       id = String(descriptor.id || '');
       if (kind === 'audio') { current.options.audioStreamID = id; }
       else { current.options.subtitleStreamID = id; }
       call(values.onTrackChanged, kind, id, current);
       if (descriptor.apply === false) { call(callback, null, snapshot()); return true; }
-      PlexClient.setStreamSelection(config, current, current.options, function (error) {
-        if (error || playback !== current) { call(callback, error || new Error('playback changed')); return; }
-        configureLocalSubtitles(current, function () {
-          if (playback !== current) { call(callback, new Error('playback changed')); return; }
-          recovery = selectRecovery(current);
-          recovery.position = position;
-          rebuild(position, false);
-          call(callback, null, snapshot());
-        });
-      });
-      return true;
+      return applySelection('track', callback);
     }
 
     function changeVersion(version, callback) {
       var current = playback;
-      var position;
       var resolved;
       if (!current || !version) { call(callback, new Error('version unavailable')); return false; }
-      if (version.kind === 'apply-settings') { return applyPendingSettings(callback); }
+      if (version.kind === 'apply-settings') { return applySelection('settings', callback); }
+      selectionOperation.cancel();
       if (version.kind === 'settings') {
         if (version.subtitleSize !== undefined) {
           current.options.subtitleSize = Number(version.subtitleSize);
@@ -1678,7 +1644,6 @@
         call(callback, null, snapshot());
         return true;
       }
-      position = absoluteTime();
       applyVersion(current, version);
       current.options.mediaIndex = version.mediaIndex;
       current.options.partIndex = version.partIndex;
@@ -1687,14 +1652,7 @@
       if (resolved.subtitleStreamID !== undefined) { current.options.subtitleStreamID = String(resolved.subtitleStreamID || ''); }
       call(values.onVersionChanged, version, current);
       if (version.apply === false) { call(callback, null, snapshot()); return true; }
-      PlexClient.setStreamSelection(config, current, current.options, function (error) {
-        if (error || playback !== current) { call(callback, error || new Error('playback changed')); return; }
-        recovery = selectRecovery(current);
-        recovery.position = position;
-        applyAttempt(false);
-        call(callback, null, snapshot());
-      });
-      return true;
+      return applySelection('version', callback);
     }
 
     function translate(key) {
@@ -1822,7 +1780,7 @@
       pending = stateValue.previewPendingOffset;
       stateValue.previewPendingOffset = null;
       stateValue.previewWriteInFlight = true;
-      PlexClient.setSubtitleOffset(config, pending.streamId, pending.offsetMs, function (error) {
+      PlexClient.setSubtitleOffset(stateValue.requestConfig, pending.streamId, pending.offsetMs, function (error) {
         var currentStream = subtitleEditorState === stateValue && !playbackSession.destroyed() &&
           String(stateValue.selectedStreamID || '') === String(pending.streamId || '');
         stateValue.previewWriteInFlight = false;
@@ -1890,7 +1848,7 @@
           if (index >= ids.length) { call(callback, firstError); return; }
           id = ids[index];
           index += 1;
-          PlexClient.setSubtitleOffset(config, id, stateValue.previewOriginalOffsets[id], function (error) {
+          PlexClient.setSubtitleOffset(stateValue.requestConfig, id, stateValue.previewOriginalOffsets[id], function (error) {
             if (error && !firstError) { firstError = error; }
             if (!error) {
               track = trackForId(current && current.subtitleTracks, id);
@@ -1910,7 +1868,7 @@
       var requestedMode = playback && (playback.requestedPlaybackMode || playback.options && playback.options.playbackMode) || 'auto';
       var localRenderingEnabled = subtitleRuntime.renderingEnabled(classification) &&
         !(requestedMode === 'transcode' && (classification.kind === 'external-text' || subtitleRuntime.isAssKind(classification)));
-      var editorGeneration;
+      var operation;
       var fallbackRebuilt = false;
       function fallbackExternalAss() {
         if (!fallbackAssPreview(stateValue, track)) { return false; }
@@ -1928,10 +1886,7 @@
         }
         rebuild(target, updateSelection === true);
       }
-      if (subtitleEditorRequest && subtitleEditorRequest.abort) { subtitleEditorRequest.abort(); }
-      subtitleEditorRequest = null;
-      subtitleEditorGeneration += 1;
-      editorGeneration = subtitleEditorGeneration;
+      operation = editorOperation.begin();
       if (stateValue.previewSizeTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(stateValue.previewSizeTimer); }
       stateValue.previewSizeTimer = null;
       if (stateValue.previewPendingOffset &&
@@ -2027,13 +1982,12 @@
       SubtitleEditorSession.update(stateValue, { previewLoading: true, status: translate('player.subtitlePreviewLoading') });
       renderSubtitleOverlay();
       call(values.onSubtitleEditorState, subtitleEditorSnapshot());
-      var editorRequestCompleted = false;
-      var editorRequest = PlexClient.loadSubtitleText(config, playback, track, function (error, text) {
+      operation.run(function (complete) {
+        return PlexClient.loadSubtitleText(config, playback, track, complete);
+      }, function (error, text) {
         var cues;
-        editorRequestCompleted = true;
-        if (playbackSession.destroyed() || !subtitleEditorState || subtitleEditorState !== stateValue || editorGeneration !== subtitleEditorGeneration ||
+        if (playbackSession.destroyed() || !subtitleEditorState || subtitleEditorState !== stateValue || !operation.current() ||
             playback !== stateValue.playbackRef || String(stateValue.selectedStreamID || '') !== String(track.id || '')) { return; }
-        subtitleEditorRequest = null;
         if (subtitleRuntime.isAssKind(classification)) {
           if (error) {
             if (fallbackExternalAss()) { return; }
@@ -2053,7 +2007,7 @@
           }
           SubtitleEditorSession.update(stateValue, { content: text });
           subtitleRuntime.loadAss(track, text, function (rendererError) {
-            if (playbackSession.destroyed() || !subtitleEditorState || subtitleEditorState !== stateValue || editorGeneration !== subtitleEditorGeneration ||
+            if (playbackSession.destroyed() || !subtitleEditorState || subtitleEditorState !== stateValue || !operation.current() ||
                 playback !== stateValue.playbackRef || String(stateValue.selectedStreamID || '') !== String(track.id || '')) { return; }
             SubtitleEditorSession.update(stateValue, { previewLoading: false });
             if (rendererError) {
@@ -2093,7 +2047,6 @@
         call(values.onSubtitleEditorState, subtitleEditorSnapshot());
         call(callback, error || null, stateValue);
       });
-      if (!editorRequestCompleted) { subtitleEditorRequest = editorRequest; }
       if (!preserveStream && !fallbackRebuilt) { refreshPreviewPlan(false); }
     }
 
@@ -2148,6 +2101,9 @@
       if (!current || !SubtitleSync || subtitleEditorState && subtitleEditorState.open) { return false; }
       availability = subtitleRuntime.editorAvailability(current);
       if (!availability.enabled) { call(values.onSubtitleUnavailable, availability); return false; }
+      selectionOperation.cancel();
+      cancelLocalSubtitleRequest();
+      restoreOperation.cancel();
       captured = absoluteTime();
       timeline.setSuppressed(true);
       timeline.stopReporting();
@@ -2166,6 +2122,7 @@
         originalLocalSubtitleState: originalLocal,
         keepActiveStream: keepActiveStream
       });
+      subtitleEditorState.requestConfig = config;
       current.options = copyObject(subtitleEditorState.originalOptions);
       current.options.localSubtitleOverlay = keepActiveStream;
       loadEditorTrack(subtitleEditorState, true, function () { call(values.onSubtitleEditorState, subtitleEditorSnapshot()); });
@@ -2182,17 +2139,20 @@
 
     function finishSubtitleRestore(stateValue, options, localState, callback, preserveStream, restartPlan) {
       var keepStream;
+      var current = playback;
+      var operation;
       if (!playback || !stateValue) { call(callback, new Error('playback unavailable')); return; }
       stopSubtitlePreviewClock();
       if (stateValue.previewSizeTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(stateValue.previewSizeTimer); }
-      if (subtitleEditorRequest && subtitleEditorRequest.abort) { subtitleEditorRequest.abort(); }
-      subtitleEditorRequest = null;
+      editorOperation.cancel();
+      operation = restoreOperation.begin();
       subtitleEditorState = null;
       playback.options = options;
       subtitleRuntime.setLocal(localState);
       function completeRestore(rendererError) {
         var restoreDecision;
         var restoredLocal;
+        if (!operation.current() || !active() || playback !== current) { return; }
         if (rendererError) {
           call(values.onError, rendererError);
           subtitleRuntime.clearLocal();
@@ -2235,12 +2195,14 @@
         call(values.onSubtitleEditorState, { open: false });
         call(callback, rendererError || null, snapshot());
       }
-      if (localState && localState.rendererType === 'ass' && localState.content) {
-        subtitleRuntime.loadAss({ id: localState.streamId }, localState.content, completeRestore);
-      } else {
-        subtitleRuntime.disposeAss();
-        completeRestore(null);
-      }
+      operation.run(function (complete) {
+        if (localState && localState.rendererType === 'ass' && localState.content) {
+          subtitleRuntime.loadAss({ id: localState.streamId }, localState.content, complete);
+        } else {
+          subtitleRuntime.disposeAss();
+          complete(null);
+        }
+      }, completeRestore);
     }
 
     function restoreCancelledSubtitleApply(stateValue, callback) {
@@ -2320,13 +2282,13 @@
         call(callback, new Error('subtitle preview unavailable'));
         return false;
       }
-      if (track && stateValue.previewMode === 'overlay' && (!stateValue.cues.length || subtitleEditorRequest)) {
+      if (track && stateValue.previewMode === 'overlay' && (!stateValue.cues.length || editorOperation.pending())) {
         SubtitleEditorSession.update(stateValue, { status: translate('player.subtitlePreviewLoading') });
         call(values.onSubtitleEditorState, subtitleEditorSnapshot());
         call(callback, new Error('subtitle preview loading'));
         return false;
       }
-      if (track && stateValue.previewMode === 'ass' && (stateValue.previewLoading || subtitleEditorRequest || stateValue.rendererType !== 'ass')) {
+      if (track && stateValue.previewMode === 'ass' && (stateValue.previewLoading || editorOperation.pending() || stateValue.rendererType !== 'ass')) {
         SubtitleEditorSession.update(stateValue, { status: translate('player.subtitlePreviewLoading') });
         call(values.onSubtitleEditorState, subtitleEditorSnapshot());
         call(callback, new Error('subtitle preview loading'));
@@ -2418,23 +2380,24 @@
 
     function open(request, callback) {
       var detail;
+      var nextConfig;
       var ratingKey;
       var session;
       var startOffset;
       var openGeneration;
-      var loadGeneration;
-      var loadRequest;
-      var loadCompleted = false;
+      var operation;
       var ir;
       var prior;
       var e;
+      var startupRouteRecoveryAttempted = false;
       request = request || {};
       ir = request.internalReopen === true;
+      nextConfig = copyObject(ir ? config : (request.config || values.config));
       prior = ir ? PlaybackRecovery.current(recovery) : null;
       if (!ir) { recoveryTrace = ''; }
       detail = request.detail || request.item || null;
       ratingKey = detail && detail.ratingKey;
-      if (playbackSession.destroyed() || !ratingKey) { call(callback, new Error('playback item unavailable')); return false; }
+      if (playbackSession.destroyed() || playbackSession.closing() || !ratingKey) { call(callback, new Error('playback item unavailable')); return false; }
       playbackSession.markTerminalPlayback(false);
       if (playback) { report('stopped'); }
       generation += 1;
@@ -2443,26 +2406,46 @@
       openGeneration = generation;
       debugPlayback('open-request', { playbackGeneration: generation, action: ir ? 'internal-reopen' : 'open', reason: ir ? String(request.reopenReason || '') : '' });
       closeInternal(true, ir);
-      loadGeneration = playbackLoadGeneration;
+      config = nextConfig;
+      timeline.reset(config);
+      operation = loadOperation.begin();
       subtitleRuntime.resetFailures();
       if (!ir) { call(values.onOpening, request); }
+      if (!operation.current() || openGeneration !== generation || playbackSession.destroyed()) { return false; }
       playbackSession.prepare();
       setStatus('preparing');
       playbackSession.beginStreamSwitch('starting');
       setLoading(true);
       session = request.session || 'ploff-' + new Date().getTime();
       startOffset = request.startOffset;
-      loadRequest = PlexClient.loadPlayback(config, ratingKey, session, request.preferences || call(values.playbackPreferences, request) || {}, function (error, loaded) {
+
+      function failStartup(error) {
+        var failure = error || new Error('playback unavailable');
+        playbackSession.finishStreamSwitch();
+        setStatus('stream-error');
+        call(values.onError, failure);
+        call(values.showError, false, retry);
+        call(callback, failure);
+      }
+
+      function finishPlaybackLoad(error, loaded) {
         var resolvedStart;
-        loadCompleted = true;
-        if (playbackLoadRequest === loadRequest) { playbackLoadRequest = null; }
-        if (playbackSession.destroyed() || openGeneration !== generation || loadGeneration !== playbackLoadGeneration || !active()) { return; }
+        if (playbackSession.destroyed() || openGeneration !== generation || !active()) { return; }
         if (error || !loaded) {
-          playbackSession.finishStreamSwitch();
-          setStatus('stream-error');
-          call(values.onError, error || new Error('playback unavailable'));
-          call(values.showError, false, retry);
-          call(callback, error || new Error('playback unavailable'));
+          if (error && !ir && !startupRouteRecoveryAttempted && error.transportFailure === true && typeof values.recoverStartupRoute === 'function') {
+            startupRouteRecoveryAttempted = true;
+            operation.run(function (complete) {
+              return values.recoverStartupRoute(error, request, complete);
+            }, function (recoveryError, recoveredConfig) {
+              if (playbackSession.destroyed() || openGeneration !== generation || !active()) { return; }
+              if (recoveryError || !recoveredConfig) { failStartup(recoveryError || error); return; }
+              config = copyObject(recoveredConfig);
+              timeline.reset(config);
+              loadPlaybackMetadata();
+            });
+            return;
+          }
+          failStartup(error || new Error('playback unavailable'));
           return;
         }
         playback = loaded;
@@ -2493,58 +2476,37 @@
           applyAttempt(false);
           call(callback, null, snapshot());
         }, ir);
-      });
-      if (!loadCompleted && !playbackSession.destroyed() && openGeneration === generation && loadGeneration === playbackLoadGeneration) { playbackLoadRequest = loadRequest || null; }
-      else if (!loadCompleted && loadRequest && loadRequest.abort) { loadRequest.abort(); }
+      }
+
+      function loadPlaybackMetadata() {
+        return operation.run(function (complete) {
+          return PlexClient.loadPlayback(config, ratingKey, session, request.preferences || call(values.playbackPreferences, request) || {}, complete);
+        }, finishPlaybackLoad);
+      }
+
+      loadPlaybackMetadata();
       return true;
     }
 
     function startItem(item, options, callback) {
       var requestGeneration = generation;
-      var loadGeneration;
-      var loadRequest;
-      var loadCompleted = false;
-      options = options || {};
-      if (!item) { call(callback, new Error('playback item unavailable')); return false; }
+      var operation;
+      options = copyObject(options);
+      options.config = copyObject(options.config || values.config);
+      if (!item || playbackSession.destroyed() || playbackSession.closing()) { call(callback, new Error('playback item unavailable')); return false; }
       if (options.detail) {
         options.item = item;
         return open(options, callback);
       }
-      cancelPlaybackLoadRequest();
-      loadGeneration = playbackLoadGeneration;
-      loadRequest = PlexClient.loadMetadata(config, item.ratingKey, function (error, detail) {
-        loadCompleted = true;
-        if (playbackLoadRequest === loadRequest) { playbackLoadRequest = null; }
-        if (playbackSession.destroyed() || requestGeneration !== generation || loadGeneration !== playbackLoadGeneration) { return; }
+      operation = loadOperation.begin();
+      operation.run(function (complete) {
+        return PlexClient.loadMetadata(options.config, item.ratingKey, complete);
+      }, function (error, detail) {
+        if (playbackSession.destroyed() || requestGeneration !== generation) { return; }
         if (error || !detail) { call(callback, error || new Error('metadata unavailable')); return; }
         options.item = item;
         options.detail = detail;
         open(options, callback);
-      });
-      if (!loadCompleted && !playbackSession.destroyed() && requestGeneration === generation && loadGeneration === playbackLoadGeneration) {
-        playbackLoadRequest = loadRequest || null;
-      } else if (!loadCompleted && loadRequest && loadRequest.abort) {
-        loadRequest.abort();
-      }
-      return true;
-    }
-
-    function startAdjacent(direction, callback) {
-      var requestGeneration = generation;
-      if (typeof values.resolveAdjacent !== 'function') { call(callback, new Error('adjacent item unavailable')); return false; }
-      values.resolveAdjacent(direction, function (error, target) {
-        if (playbackSession.destroyed() || requestGeneration !== generation) { return; }
-        if (error || !target) { call(callback, error || new Error('adjacent item unavailable')); return; }
-        startItem(target.item || target.episode || target, {
-          detail: target.detail,
-          startOffset: target.startOffset,
-          preferences: target.preferences,
-          versionAffinity: target.versionAffinity,
-          adjacentTarget: target
-        }, function (startError, result) {
-          if (!startError) { call(values.onAdjacentStarted, target, result); }
-          call(callback, startError || null, result);
-        });
       });
       return true;
     }
@@ -2552,73 +2514,90 @@
     function closeInternal(clearSource, preserveAss) {
       var closingEditor = subtitleEditorState;
       var hadPlayback = !!playback;
-      if (hadPlayback) { playbackSession.armReopenStartupGuard(); }
-      cancelPlaybackLoadRequest();
-      cancelPlaybackPrepareRequest();
-      stopBuffering();
-      timeline.stopKeepalive();
-      timeline.stopReporting();
-      stopSubtitlePreviewClock();
-      cancelLocalSubtitleRequest();
-      if (preserveAss) { subtitleRuntime.hide(); }
-      else { subtitleRuntime.disposeAss(); }
-      if (recoveryTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(recoveryTimer); }
-      if (resumeTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(resumeTimer); }
-      if (seekTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(seekTimer); }
-      if (nativeSeekVerificationTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(nativeSeekVerificationTimer); }
-      if (clockRepairTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(clockRepairTimer); }
-      if (clockRepairFallbackTimer !== null && timerRoot.clearTimeout) { timerRoot.clearTimeout(clockRepairFallbackTimer); }
+      var cleanupError = null;
+      var timeouts;
+      if (playbackSession.closing()) { return; }
+      // Detach before invoking anything external: abort(), native events and
+      // disposal callbacks may run synchronously while teardown is in progress.
+      playback = null;
+      playbackSession.beginClose(hadPlayback);
+      if (!preserveAss) { subtitleEditorState = null; }
+      timeouts = [recoveryTimer, resumeTimer, seekTimer, nativeSeekVerificationTimer,
+        clockRepairTimer, clockRepairFallbackTimer, bufferResumeTimer];
       recoveryTimer = null;
       resumeTimer = null;
       seekTimer = null;
       nativeSeekVerificationTimer = null;
       clockRepairTimer = null;
       clockRepairFallbackTimer = null;
+      bufferResumeTimer = null;
+      clockRepairGeneration += 1;
+      bufferResumeGeneration += 1;
       pendingSeek = null;
-      playbackSession.setPendingTerminalPause(false);
-      playbackSession.markTerminalPlayback(false);
       pendingRestore = null;
-      if (!preserveAss) { subtitleRuntime.resetSeekPresentation(); }
-      subtitleRuntime.clearLocal();
+      reposition.clear();
+      recovery = PlaybackRecovery.create([]);
+      clockRepairCount = 0;
+      function release(cleanup) {
+        try { cleanup(); }
+        catch (error) { if (!cleanupError) { cleanupError = error; } }
+      }
+      loadOperation.cancel();
+      sourceOperation.cancel();
+      selectionOperation.cancel();
+      restoreOperation.cancel();
+      editorOperation.cancel();
+      cancelLocalSubtitleRequest();
+      timeouts.forEach(function (timer) {
+        if (timer !== null && timerRoot.clearTimeout) { release(function () { timerRoot.clearTimeout(timer); }); }
+      });
+      if (bufferingIndicator) { release(function () { bufferingIndicator.stop(); }); }
+      release(function () { timeline.reset(); });
+      release(function () { stopSubtitlePreviewClock(); });
+      release(function () {
+        if (preserveAss) { subtitleRuntime.hide(); }
+        else { subtitleRuntime.disposeAss(); }
+      });
+      if (!preserveAss) { release(function () { subtitleRuntime.resetSeekPresentation(); }); }
+      release(function () { subtitleRuntime.clearLocal(); });
       if (closingEditor && !preserveAss) {
         closingEditor.open = false;
         closingEditor.finalizing = true;
-        restorePreviewOffsets(closingEditor, '', function () { resetSubtitlePreviewWrites(closingEditor); });
-        subtitleEditorState = null;
+        release(function () {
+          restorePreviewOffsets(closingEditor, '', function () { resetSubtitlePreviewWrites(closingEditor); });
+        });
       } else if (closingEditor && closingEditor.previewSizeTimer !== null && timerRoot.clearTimeout) {
-        timerRoot.clearTimeout(closingEditor.previewSizeTimer);
+        var previewTimer = closingEditor.previewSizeTimer;
         closingEditor.previewSizeTimer = null;
+        release(function () { timerRoot.clearTimeout(previewTimer); });
       }
-      subtitleEditorGeneration += 1;
-      if (subtitleEditorRequest && subtitleEditorRequest.abort) { subtitleEditorRequest.abort(); }
-      subtitleEditorRequest = null;
-      playbackSession.resetForClose(hadPlayback);
-      reposition.clear();
-      recovery = PlaybackRecovery.create([]);
-      timeline.reset();
-      clockRepairCount = 0;
-      if (clearSource && videoDriver) {
-        videoDriver.clearSource();
-      }
-      playback = null;
-      call(values.hideSubtitleOverlay);
-      setLoading(false);
+      if (clearSource && videoDriver) { release(function () { videoDriver.clearSource(); }); }
+      release(function () { call(values.hideSubtitleOverlay); });
+      release(function () { setLoading(false); });
+      playbackSession.finishClose();
+      if (cleanupError) { throw cleanupError; }
     }
 
     function close(callback) {
       var current = playback;
       var ratingKey = current && current.ratingKey;
-      var position;
-      var reported;
+      var position = current ? publicTime() : 0;
+      var reported = false;
+      var closeError = null;
+      if (playbackSession.closing()) { return false; }
       generation += 1;
-      if (!current) { closeInternal(true); call(callback, 0, false, ratingKey); return false; }
-      position = publicTime();
-      reported = timeline.report(current, 'stopped', position, durationSeconds(), playbackSession.terminalPlayback(), function (reportPosition, didReport) {
-        if (!playbackSession.destroyed()) { call(values.onClosed, reportPosition, didReport, ratingKey); }
-      });
-      closeInternal(true);
+      try {
+        if (current) {
+          reported = timeline.report(current, 'stopped', position, durationSeconds(), playbackSession.terminalPlayback(), function (reportPosition, didReport) {
+            if (!playbackSession.destroyed()) { call(values.onClosed, reportPosition, didReport, ratingKey); }
+          });
+        }
+      } catch (error) { closeError = error; }
+      try { closeInternal(true); }
+      catch (error) { if (!closeError) { closeError = error; } }
       call(callback, position, reported, ratingKey);
-      return true;
+      if (closeError) { throw closeError; }
+      return !!current;
     }
 
     function publishPlayingState() {
@@ -2838,7 +2817,7 @@
     }
 
     function onError() {
-      if (!active() || recoveryTimer !== null || playbackPrepareRequest) { return; }
+      if (!active() || recoveryTimer !== null || sourceOperation.pending()) { return; }
       debugPlayback('native-error');
       retireBufferingIncident('native-error', false);
       setStatus('playback-error');
@@ -2978,11 +2957,17 @@
     }
 
     function destroy() {
+      var cleanupError = null;
       if (playbackSession.destroyed()) { return; }
       generation += 1;
-      closeInternal(true);
       playbackSession.destroy();
-      unbindEvents();
+      [loadOperation, sourceOperation, selectionOperation, localSubtitleOperation,
+        editorOperation, restoreOperation].forEach(function (operation) { operation.destroy(); });
+      try { closeInternal(true); }
+      catch (error) { cleanupError = error; }
+      try { unbindEvents(); }
+      catch (error) { if (!cleanupError) { cleanupError = error; } }
+      if (cleanupError) { throw cleanupError; }
     }
 
     if (!videoDriver || !reposition || !playbackSession || !timeline || !subtitleRuntime) { throw new Error('PlaybackController requires native video, reposition, session, timeline, and subtitle runtime capabilities'); }
@@ -3002,7 +2987,6 @@
       seekAbsolute: seekAbsolute,
       changeTrack: changeTrack,
       changeVersion: changeVersion,
-      startAdjacent: startAdjacent,
       startItem: startItem,
       openSubtitleEditor: openSubtitleEditor,
       applySubtitleEditor: applySubtitleEditor,

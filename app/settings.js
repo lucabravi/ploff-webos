@@ -15,12 +15,8 @@
     { key: 'ploff.settings.v1', version: 1 }
   ];
   var SUPPORTED_UI_LANGUAGES = SettingsSchema.allowed('uiLanguage');
-  var ARTWORK_QUALITIES = SettingsSchema.allowed('artworkQuality');
-  var BACKDROP_QUALITIES = SettingsSchema.allowed('backdropQuality');
   var VIDEO_QUALITIES = SettingsSchema.allowed('lanVideoQuality');
   var ACCENT_COLORS = SettingsSchema.allowed('accentColor');
-  var VISUAL_THEMES = SettingsSchema.allowed('visualTheme');
-  var SETTINGS_BACKUP_MODES = SettingsSchema.allowed('settingsBackupMode');
   var HOME_ROWS = SettingsSchema.allowed('homeRows');
   var SUBTITLE_BACKGROUNDS = SettingsSchema.allowed('subtitleBackground');
   var SUBTITLE_EDGES = SettingsSchema.allowed('subtitleEdge');
@@ -262,24 +258,17 @@
   return {
     CURRENT_VERSION: CURRENT_VERSION,
     ACCENT_COLORS: ACCENT_COLORS.slice(),
-    VISUAL_THEMES: VISUAL_THEMES.slice(),
     SAFE_AREA_INSETS: SAFE_AREA_INSETS.slice(),
     SUBTITLE_BACKGROUNDS: SUBTITLE_BACKGROUNDS.slice(),
     SUBTITLE_EDGES: SUBTITLE_EDGES.slice(),
     SUBTITLE_POSITIONS: SUBTITLE_POSITIONS.slice(),
     SUBTITLE_SIZES: SUBTITLE_SIZES.slice(),
-    ARTWORK_QUALITIES: ARTWORK_QUALITIES.slice(),
-    BACKDROP_QUALITIES: BACKDROP_QUALITIES.slice(),
-    VIDEO_QUALITIES: VIDEO_QUALITIES.slice(),
-    SETTINGS_BACKUP_MODES: SETTINGS_BACKUP_MODES.slice(),
     HOME_ROWS: HOME_ROWS.slice(),
     STORAGE_KEY: STORAGE_KEY,
     defaults: defaults,
-    languageList: languageList,
     lightweightImageQualityCap: lightweightImageQualityCap,
     load: load,
     migrate: migrate,
-    primaryLanguage: primaryLanguage,
     supportedUiLanguages: function () { return SUPPORTED_UI_LANGUAGES.slice(); },
     save: save,
     seedFromPlex: seedFromPlex,

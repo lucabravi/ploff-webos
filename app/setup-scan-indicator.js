@@ -23,7 +23,7 @@
       tick();
       timer = values.root.setInterval(tick, 500);
     }
-    return { dots: function () { return count; }, start: start, stop: stop };
+    return { start: start, stop: stop };
   }
   return { create: create };
 }));

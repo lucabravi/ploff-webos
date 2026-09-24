@@ -1,0 +1,424 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MediaContainer composite='/playlists/fixture-id-257/composite/1785576929' duration='49104' leafCount='27' playlistType='video' ratingKey='fixture-id-257' size='27' smart='0' title='Sample Playlist'>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.2' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-028' index='1' key='/library/metadata/fixture-id-258' lastViewedAt='1784996727' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-01-11' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2638' ratingKey='fixture-id-258' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-258/thumb/1784506452' title='Episode 1' titleSort='Episode 1' type='episode' updatedAt='1784506452' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3415' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-261' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/fixture-media-1.mkv' id='fixture-id-262' key='/library/parts/fixture-id-262/1784488342/file.mkv' size='617295678' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23811/thumb/1784506452'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='a02e46' bottomRight='904339' topLeft='4c1c21' topRight='924042'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 1'/>
+<Role tag='Performer 2'/>
+<Role tag='Performer 3'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.8' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446030' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-029' index='2' key='/library/metadata/fixture-id-263' lastViewedAt='1785002574' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-01-18' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2639' ratingKey='fixture-id-263' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-263/thumb/1784506455' title='Episode 2' type='episode' updatedAt='1784506455' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3898' container='mkv' duration='1446030' hasVoiceActivity='0' height='1080' id='fixture-id-264' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446030' file='/fixtures/media/fixture-media-2.mkv' id='fixture-id-265' key='/library/parts/fixture-id-265/1784488350/file.mkv' size='704612321' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23812/thumb/1784506455'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='6f5751' bottomRight='5e2331' topLeft='0d3244' topRight='924040'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 4'/>
+<Role tag='Performer 5'/>
+<Role tag='Performer 6'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.0' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-030' index='3' key='/library/metadata/fixture-id-266' lastViewedAt='1785006877' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-01-25' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2640' ratingKey='fixture-id-266' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-266/thumb/1784506431' title='Episode 3' type='episode' updatedAt='1784506431' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3159' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-267' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/fixture-media-3.mkv' id='fixture-id-268' key='/library/parts/fixture-id-268/1784488356/file.mkv' size='570972623' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23813/thumb/1784506431'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='903a6a' bottomRight='953a4c' topLeft='26245e' topRight='933c51'/>
+<Director tag='Sample Crew'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 7'/>
+<Role tag='Performer 8'/>
+<Role tag='Performer 9'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.6' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-031' index='4' key='/library/metadata/fixture-id-269' lastViewedAt='1785015939' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-01-31' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2641' ratingKey='fixture-id-269' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-269/thumb/1785008191' title='Episode 4' type='episode' updatedAt='1785008191' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='4196' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-270' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/fixture-media-4.mkv' id='fixture-id-271' key='/library/parts/fixture-id-271/1784488366/file.mkv' size='758499573' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23814/thumb/1785008191'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='863d7e' bottomRight='9c3825' topLeft='4c1c1a' topRight='83501b'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 10'/>
+<Role tag='Performer 11'/>
+<Role tag='Performer 12'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.8' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446112' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-032' index='5' key='/library/metadata/fixture-id-272' lastViewedAt='1785069735' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-02-07' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2642' ratingKey='fixture-id-272' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-272/thumb/1786263922' title='Episode 5' type='episode' updatedAt='1786263922' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='4115' container='mkv' duration='1446112' hasVoiceActivity='0' height='1080' id='fixture-id-273' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446112' file='/fixtures/media/fixture-media-5.mkv' id='fixture-id-274' key='/library/parts/fixture-id-274/1784488374/file.mkv' size='743809556' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23815/thumb/1786263922'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='376a4a' bottomRight='30618e' topLeft='0e1c37' topRight='303a7c'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 13'/>
+<Role tag='Performer 14'/>
+<Role tag='Performer 15'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.6' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-033' index='6' key='/library/metadata/fixture-id-275' lastViewedAt='1785071668' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-02-14' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2643' ratingKey='fixture-id-275' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-275/thumb/1786263922' title='Episode 6' titleSort='Episode 6' type='episode' updatedAt='1786263922' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3273' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-276' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/fixture-media-6.mkv' id='fixture-id-277' key='/library/parts/fixture-id-277/1784488380/file.mkv' size='591511506' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23816/thumb/1786263922'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='8b3d3b' bottomRight='953e36' topLeft='47230a' topRight='9d3532'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 16'/>
+<Role tag='Performer 17'/>
+<Role tag='Performer 18'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.3' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-034' index='7' key='/library/metadata/fixture-id-278' lastViewedAt='1785078203' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-02-21' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2644' ratingKey='fixture-id-278' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-278/thumb/1786263922' title='Episode 7' type='episode' updatedAt='1786263922' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3116' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-279' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/fixture-media-7.mkv' id='fixture-id-280' key='/library/parts/fixture-id-280/1784488387/file.mkv' size='563269011' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23817/thumb/1786263922'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='993840' bottomRight='923c57' topLeft='4c1b22' topRight='923c57'/>
+<Director tag='Sample Crew'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 19'/>
+<Role tag='Performer 20'/>
+<Role tag='Performer 21'/>
+</Video>
+<Video addedAt='1784488582' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445945' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-035' index='8' key='/library/metadata/fixture-id-281' lastViewedAt='1785095861' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-02-28' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2645' ratingKey='fixture-id-281' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-281/thumb/1785008191' title='Episode 8' titleSort='Episode 8' type='episode' updatedAt='1785008191' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3224' container='mkv' duration='1445945' hasVoiceActivity='0' height='1080' id='fixture-id-282' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445945' file='/fixtures/media/fixture-media-8.mkv' id='fixture-id-283' key='/library/parts/fixture-id-283/1784488393/file.mkv' size='582774788' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23818/thumb/1785008191'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='8a3847' bottomRight='953f2c' topLeft='1f2956' topRight='92432f'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 22'/>
+<Role tag='Performer 23'/>
+<Role tag='Performer 24'/>
+</Video>
+<Video addedAt='1784488583' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1445986' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-036' index='9' key='/library/metadata/fixture-id-284' lastViewedAt='1785254578' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-03-07' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2646' ratingKey='fixture-id-284' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-284/thumb/1785008191' title='Episode 9' titleSort='Episode 9' type='episode' updatedAt='1785008191' viewCount='12' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3330' container='mkv' duration='1445986' hasVoiceActivity='0' height='1080' id='fixture-id-285' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1445986' file='/fixtures/media/fixture-media-9.mkv' id='fixture-id-286' key='/library/parts/fixture-id-286/1784488400/file.mkv' size='601857950' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23819/thumb/1785008191'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='834f2b' bottomRight='943f39' topLeft='4b1d1b' topRight='973c35'/>
+<Director tag='Sample Crew'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 25'/>
+<Role tag='Performer 26'/>
+<Role tag='Performer 27'/>
+</Video>
+<Video addedAt='1784488583' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446030' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-037' index='10' key='/library/metadata/fixture-id-287' lastViewedAt='1785268317' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-03-13' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2647' ratingKey='fixture-id-287' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-287/thumb/1785008191' title='Episode 10' titleSort='Episode 10' type='episode' updatedAt='1785008191' viewCount='5' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3579' container='mkv' duration='1446030' hasVoiceActivity='0' height='1080' id='fixture-id-288' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446030' file='/fixtures/media/fixture-media-10.mkv' id='fixture-id-289' key='/library/parts/fixture-id-289/1784488407/file.mkv' size='646978246' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23820/thumb/1785008191'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='141b3e' bottomRight='383b4b' topLeft='0e2c2a' topRight='1a1c43'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 28'/>
+<Role tag='Performer 29'/>
+<Role tag='Performer 30'/>
+</Video>
+<Video addedAt='1784488583' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446028' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-038' index='11' key='/library/metadata/fixture-id-290' lastViewedAt='1785270296' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-03-20' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2648' ratingKey='fixture-id-290' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-290/thumb/1786263922' title='Episode 11' titleSort='Episode 11' type='episode' updatedAt='1786263922' viewCount='1' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3534' container='mkv' duration='1446028' hasVoiceActivity='0' height='1080' id='fixture-id-291' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446028' file='/fixtures/media/fixture-media-11.mkv' id='fixture-id-292' key='/library/parts/fixture-id-292/1784488415/file.mkv' size='638869225' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23821/thumb/1786263922'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='382458' bottomRight='395aa2' topLeft='192c52' topRight='3f589f'/>
+<Director tag='Sample Crew'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 31'/>
+<Role tag='Performer 32'/>
+<Role tag='Performer 33'/>
+</Video>
+<Video addedAt='1784488583' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.2' audienceRatingImage='themoviedb://image.rating' chapterSource='media' contentRating='TV-14' duration='1446030' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-039' index='12' key='/library/metadata/fixture-id-293' lastViewedAt='1785602484' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2019-03-27' parentGuid='plex://season/602e75bbb2c087002d0dbf09' parentIndex='1' parentKey='/library/metadata/fixture-id-259' parentRatingKey='fixture-id-259' parentThumb='/library/metadata/23810/thumb/1784488585' parentTitle='Season 1' playlistItemID='2649' ratingKey='fixture-id-293' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-293/thumb/1786263922' title='Episode 12' titleSort='Episode 12' type='episode' updatedAt='1786263922' viewCount='5' year='2019'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='flac' bitrate='3495' container='mkv' duration='1446030' hasVoiceActivity='0' height='1080' id='fixture-id-294' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1446030' file='/fixtures/media/fixture-media-12.mkv' id='fixture-id-295' key='/library/parts/fixture-id-295/1784488422/file.mkv' size='631687056' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23822/thumb/1786263922'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='40434d' bottomRight='843734' topLeft='4c1c1d' topRight='5b4ea3'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 34'/>
+<Role tag='Performer 35'/>
+<Role tag='Performer 36'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1445220' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-040' index='1' key='/library/metadata/fixture-id-296' lastViewedAt='1785579059' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-01-08' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2650' ratingKey='fixture-id-296' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-296/thumb/1784561121' title='Episode 1' type='episode' updatedAt='1784561121' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1374' container='mkv' duration='1445220' hasVoiceActivity='0' height='1080' id='fixture-id-298' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1445220' file='/fixtures/media/fixture-media-13.mkv' id='fixture-id-299' key='/library/parts/fixture-id-299/1784487092/file.mkv' size='248302873' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23798/thumb/1784561121'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='340f1b' bottomRight='211105' topLeft='4c1c1d' topRight='9e323a'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 37'/>
+<Role tag='Performer 38'/>
+<Role tag='Performer 39'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1445200' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-041' index='2' key='/library/metadata/fixture-id-300' lastViewedAt='1785596737' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-01-15' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2651' ratingKey='fixture-id-300' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-300/thumb/1784561122' title='Episode 2' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1280' container='mkv' duration='1445200' hasVoiceActivity='0' height='1080' id='fixture-id-301' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1445200' file='/fixtures/media/fixture-media-14.mkv' id='fixture-id-302' key='/library/parts/fixture-id-302/1784487085/file.mkv' size='231227017' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23799/thumb/1784561122'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='822527' bottomRight='933d50' topLeft='4f191c' topRight='9c3729'/>
+<Director tag='Sample Crew'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 40'/>
+<Role tag='Performer 41'/>
+<Role tag='Performer 42'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1535050' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-042' index='3' key='/library/metadata/fixture-id-303' lastViewedAt='1785598510' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-01-22' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2652' ratingKey='fixture-id-303' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-303/thumb/1784561122' title='Episode 3' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1288' container='mkv' duration='1535050' hasVoiceActivity='0' height='1080' id='fixture-id-304' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1535050' file='/fixtures/media/fixture-media-15.mkv' id='fixture-id-305' key='/library/parts/fixture-id-305/1784487088/file.mkv' size='247101015' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23800/thumb/1784561122'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='933c50' bottomRight='78273f' topLeft='4f1824' topRight='96394a'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 43'/>
+<Role tag='Performer 44'/>
+<Role tag='Performer 45'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1535010' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-043' index='4' key='/library/metadata/fixture-id-306' lastViewedAt='1785613982' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-01-29' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2653' ratingKey='fixture-id-306' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-306/thumb/1784561122' title='Episode 4' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1316' container='mkv' duration='1535010' hasVoiceActivity='0' height='1080' id='fixture-id-307' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1535010' file='/fixtures/media/fixture-media-16.mkv' id='fixture-id-308' key='/library/parts/fixture-id-308/1784487082/file.mkv' size='252589402' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23801/thumb/1784561122'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='913b5c' bottomRight='685f20' topLeft='382c0a' topRight='874c29'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 46'/>
+<Role tag='Performer 47'/>
+<Role tag='Performer 48'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1590350' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-044' index='5' key='/library/metadata/fixture-id-309' lastViewedAt='1785652961' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-02-05' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2654' ratingKey='fixture-id-309' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-309/thumb/1784561122' title='Episode 5' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1139' container='mkv' duration='1590350' hasVoiceActivity='0' height='1080' id='fixture-id-310' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1590350' file='/fixtures/media/fixture-media-17.mkv' id='fixture-id-311' key='/library/parts/fixture-id-311/1784487094/file.mkv' size='226472863' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23802/thumb/1784561122'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='721959' bottomRight='932853' topLeft='1a0a23' topRight='13061b'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 49'/>
+<Role tag='Performer 50'/>
+<Role tag='Performer 51'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='6.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1447390' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-045' index='6' key='/library/metadata/fixture-id-312' lastViewedAt='1785654399' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-02-12' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2655' ratingKey='fixture-id-312' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-312/thumb/1784561122' title='Episode 6' type='episode' updatedAt='1784561122' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1079' container='mkv' duration='1447390' hasVoiceActivity='0' height='1080' id='fixture-id-313' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1447390' file='/fixtures/media/fixture-media-18.mkv' id='fixture-id-314' key='/library/parts/fixture-id-314/1784487097/file.mkv' size='195135793' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23803/thumb/1784561122'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='803735' bottomRight='682831' topLeft='4a1e19' topRight='973b3e'/>
+<Director tag='Sample Crew'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 52'/>
+<Role tag='Performer 53'/>
+<Role tag='Performer 54'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1447000' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-046' index='7' key='/library/metadata/fixture-id-315' lastViewedAt='1785655899' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-02-19' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2656' ratingKey='fixture-id-315' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-315/thumb/1785357452' title='Episode 7' type='episode' updatedAt='1785357452' viewCount='2' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1184' container='mkv' duration='1447000' hasVoiceActivity='0' height='1080' id='fixture-id-316' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1447000' file='/fixtures/media/fixture-media-19.mkv' id='fixture-id-317' key='/library/parts/fixture-id-317/1784487099/file.mkv' size='214191747' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23804/thumb/1785357452'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='933e4a' bottomRight='834c1d' topLeft='482209' topRight='76421b'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 55'/>
+<Role tag='Performer 56'/>
+<Role tag='Performer 57'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1446540' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-047' index='8' key='/library/metadata/fixture-id-318' lastViewedAt='1785657570' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-02-26' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2657' ratingKey='fixture-id-318' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-318/thumb/1784561123' title='Episode 8' type='episode' updatedAt='1784561123' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1041' container='mkv' duration='1446540' hasVoiceActivity='0' height='1080' id='fixture-id-319' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1446540' file='/fixtures/media/fixture-media-20.mkv' id='fixture-id-320' key='/library/parts/fixture-id-320/1784487102/file.mkv' size='188186973' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23805/thumb/1784561123'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='682f1e' bottomRight='2f1304' topLeft='4c1e07' topRight='7b3a1a'/>
+<Director tag='Sample Crew'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 58'/>
+<Role tag='Performer 59'/>
+<Role tag='Performer 60'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1447670' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-048' index='9' key='/library/metadata/fixture-id-321' lastViewedAt='1785659001' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-03-05' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2658' ratingKey='fixture-id-321' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-321/thumb/1784561123' title='Episode 9' type='episode' updatedAt='1784561123' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1337' container='mkv' duration='1447670' hasVoiceActivity='0' height='1080' id='fixture-id-322' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1447670' file='/fixtures/media/fixture-media-21.mkv' id='fixture-id-323' key='/library/parts/fixture-id-323/1784487105/file.mkv' size='241906671' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23806/thumb/1784561123'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='342a63' bottomRight='392a29' topLeft='4e1335' topRight='2c6969'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 61'/>
+<Role tag='Performer 62'/>
+<Role tag='Performer 63'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.3' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1684940' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-049' index='10' key='/library/metadata/fixture-id-324' lastViewedAt='1785660330' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-03-12' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2659' ratingKey='fixture-id-324' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-324/thumb/1784561124' title='Episode 10' type='episode' updatedAt='1784561124' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1011' container='mkv' duration='1684940' hasVoiceActivity='0' height='1080' id='fixture-id-325' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1684940' file='/fixtures/media/fixture-media-22.mkv' id='fixture-id-326' key='/library/parts/fixture-id-326/1784487107/file.mkv' size='212847191' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23807/thumb/1784561124'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='4d53a4' bottomRight='3f599f' topLeft='501911' topRight='7d541a'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 64'/>
+<Role tag='Performer 65'/>
+<Role tag='Performer 66'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1445200' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-050' index='11' key='/library/metadata/fixture-id-327' lastViewedAt='1785663406' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-03-19' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2660' ratingKey='fixture-id-327' skipCount='1' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-327/thumb/1784561124' title='Episode 11' type='episode' updatedAt='1784561124' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1204' container='mkv' duration='1445200' hasVoiceActivity='0' height='1080' id='fixture-id-328' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1445200' file='/fixtures/media/fixture-media-23.mkv' id='fixture-id-329' key='/library/parts/fixture-id-329/1784487110/file.mkv' size='217460443' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23808/thumb/1784561124'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='963d3c' bottomRight='441623' topLeft='1c3516' topRight='406a30'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 67'/>
+<Role tag='Performer 68'/>
+<Role tag='Performer 69'/>
+</Video>
+<Video addedAt='1784487169' art='/library/metadata/fixture-id-260/art/1785506260' audienceRating='7.7' audienceRatingImage='themoviedb://image.rating' contentRating='TV-14' duration='1429976' grandparentArt='/library/metadata/10887/art/1785506260' grandparentGuid='plex://show/5d9c09147b5c2e001e66656f' grandparentKey='/library/metadata/fixture-id-260' grandparentRatingKey='fixture-id-260' grandparentSlug='sample-series' grandparentTheme='/library/metadata/10887/theme/1785506260' grandparentThumb='/library/metadata/10887/thumb/1785506260' grandparentTitle='Sample Series' guid='fixture-guid-051' index='12' key='/library/metadata/fixture-id-330' lastViewedAt='1785664766' librarySectionID='fixture-id-001' librarySectionKey='/library/sections/fixture-library-001' librarySectionTitle='Anime' originalTitle='Synthetic original title' originallyAvailableAt='2021-03-26' parentGuid='plex://season/602e75bbb2c087002d0dbf0a' parentIndex='2' parentKey='/library/metadata/fixture-id-297' parentRatingKey='fixture-id-297' parentThumb='/library/metadata/23797/thumb/1784487171' parentTitle='Season 2' playlistItemID='2661' ratingKey='fixture-id-330' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-330/thumb/1784561124' title='Episode 12' type='episode' updatedAt='1784561124' viewCount='1' year='2021'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='1240' container='mkv' duration='1429976' hasVoiceActivity='0' height='1080' id='fixture-id-331' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='1429976' file='/fixtures/media/fixture-media-24.mkv' id='fixture-id-332' key='/library/parts/fixture-id-332/1784487113/file.mkv' size='221678233' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10887/thumb/1785506260'/>
+<Image alt='Synthetic media artwork' type='snapshot' url='/library/metadata/23809/thumb/1784561124'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10887/art/1785506260'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/10887/squareArt/1785506260'/>
+<UltraBlurColors bottomLeft='672823' bottomRight='792d32' topLeft='501911' topRight='7c312d'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 70'/>
+<Role tag='Performer 71'/>
+<Role tag='Performer 72'/>
+</Video>
+<Video addedAt='1784562613' art='/library/metadata/fixture-id-333/art/1786263957' audienceRating='6.4' audienceRatingImage='themoviedb://image.rating' chapterSource='media' duration='2908000' guid='fixture-guid-052' key='/library/metadata/fixture-id-333' lastViewedAt='1785860949' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2023-07-14' playlistItemID='2670' ratingKey='fixture-id-333' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-333/thumb/1786263957' title='Sample Film 1' titleSort='Sample Film 1' type='movie' updatedAt='1786263957' viewCount='1' year='2023'>
+<Media aspectRatio='1.78' audioChannels='6' audioCodec='flac' bitrate='10864' container='mkv' duration='2908000' hasVoiceActivity='0' height='1080' id='fixture-id-334' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='1451040' file='/fixtures/media/fixture-media-25.mkv' id='fixture-id-335' key='/library/parts/fixture-id-335/1760091871/file.mkv' size='1865715539' videoProfile='main 10'/>
+<Part container='mkv' duration='1456960' file='/fixtures/media/fixture-media-26.mkv' id='fixture-id-336' key='/library/parts/fixture-id-336/1760091689/file.mkv' size='1983799051' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/23831/thumb/1786263957'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/23831/art/1786263957'/>
+<UltraBlurColors bottomLeft='1f0406' bottomRight='923c5a' topLeft='4f1b0f' topRight='9c3050'/>
+<Genre tag='Animazione'/>
+<Genre tag='Romance'/>
+<Country tag='Japan'/>
+<Director tag='Sample Crew'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 73'/>
+<Role tag='Performer 74'/>
+<Role tag='Performer 75'/>
+</Video>
+<Video addedAt='1784562026' art='/library/metadata/fixture-id-337/art/1786263957' audienceRating='9.6' audienceRatingImage='rottentomatoes://image.rating.upright' contentRating='TV-14' duration='8162812' guid='fixture-guid-053' key='/library/metadata/fixture-id-337' lastViewedAt='1785860953' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2022-05-20' playlistItemID='2662' rating='9.2' ratingImage='rottentomatoes://image.rating.ripe' ratingKey='fixture-id-337' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-337/thumb/1786263957' title='Sample Film 2' titleSort='Sample Film 2' type='movie' updatedAt='1786263957' viewCount='1' year='2022'>
+<Media aspectRatio='1.78' audioChannels='2' audioCodec='aac' audioProfile='lc' bitrate='2122' container='mkv' duration='8162812' hasVoiceActivity='0' height='1080' id='fixture-id-338' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part audioProfile='lc' container='mkv' duration='8162812' file='/fixtures/media/fixture-media-27.mkv' id='fixture-id-339' key='/library/parts/fixture-id-339/1784505385/file.mkv' size='2198751924' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/23830/thumb/1786263957'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/23830/art/1786263957'/>
+<Image alt='Synthetic media artwork' type='backgroundSquare' url='/library/metadata/23830/squareArt/1786263957'/>
+<UltraBlurColors bottomLeft='80353d' bottomRight='4358a1' topLeft='4b1e19' topRight='86393a'/>
+<Genre tag='Commedia'/>
+<Genre tag='Romance'/>
+<Country tag='Japan'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 76'/>
+<Role tag='Performer 77'/>
+<Role tag='Performer 78'/>
+</Video>
+<Video addedAt='1760620826' art='/library/metadata/fixture-id-340/art/1779324377' audienceRating='8.0' audienceRatingImage='themoviedb://image.rating' chapterSource='media' duration='2794048' guid='fixture-guid-054' key='/library/metadata/fixture-id-340' librarySectionID='fixture-id-245' librarySectionKey='/library/sections/fixture-library-002' librarySectionTitle='Film' originalTitle='Synthetic original title' originallyAvailableAt='2024-09-20' playlistItemID='2666' ratingKey='fixture-id-340' slug='sample-media' studio='Sample Studio' summary='Synthetic fixture description.' thumb='/library/metadata/fixture-id-340/thumb/1779324377' title='Sample Film 3' titleSort='Sample Film 3' type='movie' updatedAt='1779324377' year='2024'>
+<Media aspectRatio='1.78' audioChannels='6' audioCodec='flac' bitrate='13214' container='mkv' duration='2794048' hasVoiceActivity='1' height='1080' id='fixture-id-341' videoCodec='hevc' videoFrameRate='24p' videoProfile='main 10' videoResolution='1080' width='1920'>
+<Part container='mkv' duration='2794048' file='/fixtures/media/fixture-media-28.mkv' id='fixture-id-342' key='/library/parts/fixture-id-342/1760043864/file.mkv' size='4625060112' videoProfile='main 10'/>
+</Media>
+<Image alt='Synthetic media artwork' type='coverPoster' url='/library/metadata/10886/thumb/1779324377'/>
+<Image alt='Synthetic media artwork' type='background' url='/library/metadata/10886/art/1779324377'/>
+<UltraBlurColors bottomLeft='81353c' bottomRight='933239' topLeft='142e4d' topRight='204769'/>
+<Genre tag='Animazione'/>
+<Genre tag='Commedia'/>
+<Country tag='Japan'/>
+<Director tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Writer tag='Sample Crew'/>
+<Role tag='Performer 79'/>
+<Role tag='Performer 80'/>
+<Role tag='Performer 81'/>
+</Video>
+</MediaContainer>

@@ -25,11 +25,22 @@
     var destroyed = false;
     var operationId = 0;
 
+    function ownerItem(target) {
+      var profile = target && target.profile || null;
+      return profile && profile._ploffSourceItem || target && target.detail || target && target.playback || null;
+    }
+
+    function routeConfig(item) {
+      var router = values.sourceRouter;
+      var route = router && typeof router.routeFor === 'function' ? router.routeFor(item || null, null) : null;
+      return route && route.config || values.config || {};
+    }
+
     function transportLoad(target, callback) {
       var client = values.PlexClient;
       if (typeof values.load === 'function') { return values.load(target, callback); }
       if (client && typeof client.loadSubtitleText === 'function') {
-        return client.loadSubtitleText(values.config || {}, target && (target.playback || target.detail) || {}, target && target.track, callback);
+        return client.loadSubtitleText(routeConfig(ownerItem(target)), target && (target.playback || target.detail) || {}, target && target.track, callback);
       }
       call(callback, new Error('ASS subtitle prefetch transport unavailable'));
       return null;
@@ -192,14 +203,17 @@
       cancelSpeculative: cancelSpeculative,
       claim: claim,
       destroy: destroy,
-      peek: function (identity) { return !!cached && cached.identity === String(identity || ''); },
       request: request,
-      loadPlayback: function (ratingKey, session, preferences, callback) {
+      loadPlayback: function (itemOrRatingKey, session, preferences, callback) {
+        var ratingKey = itemOrRatingKey && typeof itemOrRatingKey === 'object' ? itemOrRatingKey.ratingKey : itemOrRatingKey;
+        if (typeof values.loadPlayback === 'function') {
+          return values.loadPlayback(itemOrRatingKey, session, preferences || {}, callback);
+        }
         if (!values.PlexClient || typeof values.PlexClient.loadPlayback !== 'function') {
           call(callback, new Error('ASS subtitle playback transport unavailable'));
           return null;
         }
-        return values.PlexClient.loadPlayback(values.config || {}, ratingKey, session, preferences || {}, callback);
+        return values.PlexClient.loadPlayback(routeConfig(itemOrRatingKey && typeof itemOrRatingKey === 'object' ? itemOrRatingKey : null), ratingKey, session, preferences || {}, callback);
       },
       snapshot: snapshot
     };

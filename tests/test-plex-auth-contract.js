@@ -5,10 +5,10 @@ var Auth = require('../app/plex-auth');
 var Xhr = require('./helpers/controlled-xhr');
 
 var supportedSurface = [
-  'CLIENT_ID_KEY', 'accountServersFromJson', 'clientIdentifier', 'createPin',
+  'accountServersFromJson', 'clientIdentifier', 'createPin',
   'findReachableConnection', 'homeUsersFromXml', 'loadAccountServers', 'loadHomeUsers',
   'loadServerAccess', 'pinFromXml', 'pollPin', 'profileTokenFromXml',
-  'serverAccessFromJson', 'serverIdentityFromXml', 'switchHomeUser'
+  'serverAccessFromJson', 'switchHomeUser'
 ];
 assert.deepStrictEqual(Object.keys(Auth).sort(), supportedSurface.sort(),
   'Auth must not publish the obsolete local-token fallback; supported routes require Plex resource access');

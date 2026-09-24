@@ -7,6 +7,22 @@ var Controller = require('../app/coordinator/detail-controller');
 var DetailNavigation = require('../app/detail-navigation');
 var MetadataRefresh = require('../app/metadata-refresh');
 
+(function sameRatingKeyOnDifferentPmsMustReplaceInlineProfile() {
+  var applied = [];
+  var controller = Controller.create({
+    preparePreferences: function () {},
+    setMediaProfile: function (profile) { applied.push(profile); }
+  });
+  var first = { ratingKey: '42', serverMachineIdentifier: 'a', mediaProfile: { ratingKey: '42', summary: 'A' } };
+  var second = { ratingKey: '42', serverMachineIdentifier: 'b', mediaProfile: { ratingKey: '42', summary: 'B' } };
+  controller.open(first);
+  controller.setCurrentDetail(first);
+  controller.queueMediaProfile(first, 'a:42');
+  controller.setCurrentDetail(second);
+  controller.queueMediaProfile(second, 'b:42');
+  assert.deepStrictEqual(applied, [first.mediaProfile, second.mediaProfile], 'equal Plex ratingKeys on different servers must not retain the previous profile');
+}());
+
 function clock() {
   var next = 1;
   var timers = {};
@@ -219,6 +235,8 @@ function harness(extra) {
   assert.deepStrictEqual(h.actions.pop(), ['version-details'], 'OK on Version must open the technical version browser rather than the generic choice dialog');
   h.controller.setFocus({ zone: 'play', actionIndex: 3 }); h.controller.handleKey({ keyCode: 13 }, null);
   assert.deepStrictEqual(h.actions.pop(), ['options']);
+  h.controller.setFocus({ zone: 'back' }); h.controller.handleKey({ keyCode: 13 }, null);
+  assert.deepStrictEqual(h.actions.pop(), ['close-detail'], 'OK on the title-row Back control must use the normal detail close path');
   assert.strictEqual(h.controller.handleKey({ keyCode: 461 }, null).handled, true);
   assert.strictEqual(h.actions.some(function (entry) { return entry[0] === 'close-detail'; }), false, 'Back must respect the opening grace period');
   h.setNow(1600); h.controller.handleKey({ keyCode: 461 }, null);
@@ -319,13 +337,12 @@ function harness(extra) {
   h.controller.setSelectedItem(selected);
   h.controller.setCurrentDetail(detail);
   h.controller.setSeriesContext({ seasons: seasons, episodes: episodes });
-  h.controller.setReturnView('library');
   h.controller.selectSeason(1);
   h.controller.selectEpisode(1);
   h.controller.setFocus({ zone: 'episodes', actionIndex: 2 });
   h.controller.setPlayPending(true);
   h.controller.setBackLockedUntil(900);
-  assert.strictEqual(h.controller.snapshot().returnView, 'library');
+  assert.strictEqual(h.controller.snapshot().returnView, 'home');
   assert.strictEqual(h.controller.snapshot().zone, 'episodes');
   assert.strictEqual(h.controller.snapshot().playPending, true);
   h.controller.patchCurrentDetail({ viewOffset: 12000 });

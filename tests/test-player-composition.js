@@ -20,8 +20,8 @@ var createHarness = require('./helpers/player-feature-controller-harness').creat
     'PlexContainerQueueProvider', 'QueueGapController', 'QueueGapView', 'PlayerControlsController',
     'PlaybackQueueModel', 'PlayerControlsState', 'PlayerControlsView', 'PlayerChaptersView', 'PlayerBufferingIndicator',
     'ChapterState', 'SkipMarkerState', 'PlaybackClock', 'PlaybackRecovery', 'NativeVideoDriver',
-    'PlaybackReposition', 'PlaybackSession', 'PlaybackTimeline', 'SubtitleRuntime', 'PlaybackStrategy',
-    'PlayerSeekController', 'PlayerTimelinePolicy', 'EpisodeNavigation', 'ResumeChoice', 'SubtitleSync',
+    'PlaybackReposition', 'PlaybackSession', 'PlaybackOperation', 'PlaybackTimeline', 'SubtitleRuntime', 'PlaybackStrategy',
+    'PlayerSeekController', 'PlayerTimelinePolicy', 'ResumeChoice', 'SubtitleSync',
     'SubtitleEditorSession', 'SubtitleEditorView', 'SubtitleOffsetStore', 'SubtitleSeriesOffset',
     'SubtitleStyleDialog', 'Settings', 'VersionSelection', 'MediaInfo', 'MediaProfile', 'MediaChoiceModel',
     'ProgressiveImages', 'UpNextState', 'UpNextTiming', 'UpNextView'

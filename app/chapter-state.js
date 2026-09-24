@@ -9,7 +9,7 @@
   'use strict';
 
   function create() {
-    return { open: false, index: -1 };
+    return { open: false, index: -1, currentIndex: -1 };
   }
 
   function indexAt(chapters, timeOffset) {
@@ -26,20 +26,24 @@
 
   function open(state, chapters, timeOffset) {
     var index = indexAt(chapters, timeOffset);
-    return { open: index !== -1, index: index };
+    return { open: index !== -1, index: index, currentIndex: index };
   }
 
   function move(state, count, direction) {
     var maximum = Math.max(0, Number(count || 0) - 1);
     var current = Math.max(0, Number(state && state.index || 0));
+    var currentIndex = state && state.currentIndex !== undefined ? Number(state.currentIndex) : current;
     return {
       open: !!(state && state.open),
-      index: Math.max(0, Math.min(maximum, current + (direction < 0 ? -1 : 1)))
+      index: Math.max(0, Math.min(maximum, current + (direction < 0 ? -1 : 1))),
+      currentIndex: Math.max(0, Math.min(maximum, currentIndex))
     };
   }
 
   function close(state) {
-    return { open: false, index: Number(state && state.index === -1 ? -1 : state && state.index || 0) };
+    var index = Number(state && state.index === -1 ? -1 : state && state.index || 0);
+    var currentIndex = state && state.currentIndex !== undefined ? Number(state.currentIndex) : index;
+    return { open: false, index: index, currentIndex: currentIndex };
   }
 
   function select(state, chapters) {

@@ -16,6 +16,7 @@
     var buffering = false;
     var nativeSeekPending = false;
     var nativePlayPending = false;
+    var nativePlayGeneration = 0;
     var nativeSourceReady = false;
     var nativeSourceAssigned = false;
     var reopenStartupGuard = false;
@@ -32,6 +33,7 @@
 
     function refreshLifecycle() {
       if (destroyed) { lifecycle = 'closed'; }
+      else if (closing()) { lifecycle = 'closing'; }
       else if (nativeSeekPending) { lifecycle = 'repositioning'; }
       else if (streamSwitching) { lifecycle = switchPhase || 'starting'; }
       else if (terminalPlayback) { lifecycle = 'ending'; }
@@ -71,7 +73,7 @@
       streamSwitching = false;
       buffering = false;
       nativeSeekPending = false;
-      nativePlayPending = false;
+      finishNativePlay();
       nativeSourceReady = false;
       nativeSourceAssigned = false;
       reopenStartupGuard = reopenGuard === true;
@@ -88,7 +90,7 @@
     }
 
     function prepare() {
-      if (destroyed) { return false; }
+      if (destroyed || closing()) { return false; }
       stableLifecycle = 'preparing';
       nativeSourceReady = false;
       refreshLifecycle();
@@ -151,8 +153,18 @@
       refreshLifecycle();
     }
 
-    function beginNativePlay() { nativePlayPending = true; }
-    function finishNativePlay() { nativePlayPending = false; }
+    function beginNativePlay() {
+      if (destroyed) { return null; }
+      nativePlayGeneration += 1;
+      nativePlayPending = true;
+      return nativePlayGeneration;
+    }
+    function finishNativePlay(token) {
+      if (arguments.length && token !== nativePlayGeneration) { return false; }
+      nativePlayGeneration += 1;
+      nativePlayPending = false;
+      return true;
+    }
 
     function markSourceAssigned() { nativeSourceAssigned = true; }
 
@@ -171,11 +183,6 @@
       return true;
     }
 
-    function armReopenStartupGuard() {
-      reopenStartupGuard = true;
-      nativeSourceReady = false;
-    }
-
     function shouldRejectPlaying() {
       return !!((reopenStartupGuard && streamSwitching && !nativeSourceReady) ||
         (nativeSeekPending && streamSwitching));
@@ -190,10 +197,20 @@
 
     function setDecoderReportPending(value) { decoderReportPending = value === true; }
 
-    function resetRuntime() { clearRuntime(false); }
     function resetForClose(hadPlayback) {
       var preserveReopenGuard = reopenStartupGuard || hadPlayback === true;
       clearRuntime(preserveReopenGuard);
+    }
+
+    function closing() { return stableLifecycle === 'closing'; }
+    function beginClose(hadPlayback) {
+      resetForClose(hadPlayback);
+      stableLifecycle = 'closing';
+      refreshLifecycle();
+    }
+    function finishClose() {
+      stableLifecycle = 'idle';
+      refreshLifecycle();
     }
 
     function destroy() {
@@ -248,8 +265,6 @@
       markSourceReady: markSourceReady,
       nativeSourceReady: function () { return nativeSourceReady; },
       markPlaying: markPlaying,
-      armReopenStartupGuard: armReopenStartupGuard,
-      reopenStartupGuard: function () { return reopenStartupGuard; },
       shouldRejectPlaying: shouldRejectPlaying,
       setPendingTerminalPause: setPendingTerminalPause,
       pendingTerminalPause: function () { return pendingTerminalPause; },
@@ -257,8 +272,9 @@
       terminalPlayback: function () { return terminalPlayback; },
       setDecoderReportPending: setDecoderReportPending,
       decoderReportPending: function () { return decoderReportPending; },
-      resetRuntime: resetRuntime,
-      resetForClose: resetForClose,
+      beginClose: beginClose,
+      finishClose: finishClose,
+      closing: closing,
       destroy: destroy,
       destroyed: function () { return destroyed; },
       snapshot: snapshot

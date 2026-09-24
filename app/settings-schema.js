@@ -47,6 +47,8 @@
     { key: 'searchT9Input', defaultValue: true, kind: 'boolean-strict-default-true' },
     { key: 'showWatchlist', defaultValue: true, kind: 'boolean-false-only' },
     { key: 'showPlaylists', defaultValue: true, kind: 'boolean-false-only' },
+    { key: 'aggregateLibraries', defaultValue: false, kind: 'boolean-true' },
+    { key: 'aggregateHomeLibraries', defaultValue: false, kind: 'boolean-true' },
     { key: 'homeRows', defaultValue: ['continue', 'recommended', 'recent'], kind: 'ordered-subset', allowed: ['continue', 'recommended', 'recent'] },
     { key: 'settingsBackupMode', defaultValue: 'off', kind: 'enum', allowed: ['off', 'on'] },
     { key: 'highContrast', defaultValue: false, kind: 'boolean-true' },

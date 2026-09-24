@@ -49,16 +49,17 @@ The driver does not decide *when* to seek, recover, report, or render subtitles.
 imperative capability surface to Playback orchestration and can be replaced by a deterministic fake
 in focused tests.
 
-### PlaybackSession owns lifecycle state
+### PlaybackSession owns semantic transient state
 
-`PlaybackSession` owns lifecycle/transient state that is currently represented by loosely related
-booleans and timers. Its explicit states are:
+`PlaybackSession` owns native readiness, play issuance, seek/startup and transient
+playback state. Its lifecycle label is derived from those facets, not a second
+independent state machine. Buffering, readiness and seek evidence are not collapsed
+into one combinatorial enum.
 
-`idle -> preparing -> starting -> playing <-> buffering <-> repositioning -> recovering -> ending -> closed`
-
-The first extraction is deliberately conservative: state transitions replace booleans only when a
-focused test proves equivalent behavior. Timers and external side effects remain in the orchestrator
-until their owner is unambiguous.
+The September 15 lifecycle review adds an issuance token for native `play()` and a
+synchronous `closing` barrier. Timers and external effects remain with their owners.
+Replaceable requests use `PlaybackOperation`; per-playback configuration and resource
+release are documented in [playback lifecycle ownership](player-lifecycle-ownership.md).
 
 ### Reposition and recovery are separate capabilities
 

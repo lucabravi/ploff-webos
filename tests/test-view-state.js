@@ -9,6 +9,8 @@ assert.deepStrictEqual(ViewState.model('loading', 'home'), {
 assert.deepStrictEqual(ViewState.model('error', 'detail'), {
   kind: 'error', titleKey: 'state.error', messageKey: 'state.detailError', actions: ['retry', 'back']
 }, 'errors must consistently expose Retry and Back');
+assert.deepStrictEqual(ViewState.model('error', 'home').actions, ['retry', 'server', 'back'],
+  'Home connection errors must expose server selection without replacing Retry or Back');
 assert.deepStrictEqual(ViewState.model('empty', 'collections').actions, ['back'], 'empty container views must retain a Back action');
 assert.strictEqual(ViewState.focusIndex(0, 2, -1), 0, 'state actions must remain left-bounded');
 assert.strictEqual(ViewState.focusIndex(0, 2, 1), 1, 'state action focus must move horizontally');

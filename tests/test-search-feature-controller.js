@@ -122,6 +122,7 @@ var feature = SearchFeatureController.create({
   onOpenResult: function (item) { opened.push(item.ratingKey); },
   onBack: function () { calls.push('back'); },
   onBackdrop: function (item) { calls.push('backdrop:' + (item && item.ratingKey || '')); },
+  onAdjacentBackdropPrefetch: function (items) { calls.push('backdrop-prefetch:' + (items || []).map(function (item) { return item.ratingKey; }).join(',')); },
   onFocusItem: function (item) { calls.push('focus-item:' + (item && item.ratingKey || '')); },
   clearFocus: function () { calls.push('clear-focus'); },
   pointerSelectionActive: function () { return false; },
@@ -145,6 +146,9 @@ assert.strictEqual(controllerOptions.modules.SearchModel, fakeModel, 'SearchMode
 assert.strictEqual(controllerOptions.modules.SearchView.create instanceof Function, true, 'SearchView is injected explicitly');
 assert.strictEqual(controllerOptions.viewOptions.SearchSession.create instanceof Function, true, 'SearchSession is injected explicitly');
 assert.strictEqual(controllerOptions.viewOptions.T9Input.create instanceof Function, true, 'T9Input is injected explicitly');
+controllerOptions.viewOptions.onAdjacentBackdropPrefetch([{ ratingKey: 'next' }, { ratingKey: 'up' }]);
+assert.ok(calls.indexOf('backdrop-prefetch:next,up') !== -1,
+  'Search view adjacent candidates must cross the Search feature boundary unchanged');
 
 feature.enter({ keepNavigationFocus: false, navigationIndex: 1 });
 assert.strictEqual(calls[calls.length - 1], 'open:0:1', 'enter delegates to the Search controller');

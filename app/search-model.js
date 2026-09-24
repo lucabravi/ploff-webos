@@ -67,7 +67,9 @@
     var seen = Object.create(null);
     var result = [];
     (localItems || []).concat(resolvedItems || []).forEach(function (item) {
-      var key = String(item && item.ratingKey || '');
+      var local = String(item && item.ratingKey || '');
+      var owner = String(item && item.serverMachineIdentifier || '');
+      var key = owner && local ? owner + '|' + local : local;
       if (!key || seen[key]) { return; }
       seen[key] = true;
       result.push(item);

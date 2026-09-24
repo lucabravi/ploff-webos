@@ -169,9 +169,7 @@
       platform: { root: platformRoot, document: platform.document },
       modules: {
         DiagnosticsState: modules.DiagnosticsState,
-        DiagnosticsView: modules.DiagnosticsView,
-        SupportSnapshot: modules.SupportSnapshot,
-        SupportQr: modules.SupportQr
+        DiagnosticsView: modules.DiagnosticsView
       },
       presentation: {
         t: presentation.t,
@@ -180,6 +178,9 @@
         formatFileSize: presentation.formatFileSize,
         formatLongTime: presentation.formatLongTime,
         pointerActive: presentation.pointerActive
+      },
+      transport: {
+        loadSupportRuntime: transport.loadSupportRuntime
       },
       providers: {
         appVersion: state.appVersion,

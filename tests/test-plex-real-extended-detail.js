@@ -37,13 +37,13 @@ fixture.withDomParser(function () {
     respond(0);
     assert.ok(detail, 'the real detail response must map successfully');
     assert.deepStrictEqual(detail.genres, ['Fantasy', 'Animazione', 'Action', 'Adventure', 'Thriller', 'Anime', 'Dramma', 'Horror'], 'all direct Plex Genre tags must be retained in Plex order');
-    assert.deepStrictEqual(detail.directors, ['Haruo Sotozaki'], 'director tags must map without another request');
+    assert.deepStrictEqual(detail.directors, ['Sample Crew'], 'director tags must map without another request');
     assert.strictEqual(detail.cast.length, 48, 'the real movie cast must remain available without rendering all cards');
     assert.deepStrictEqual(detail.cast.slice(0, 2).map(function (person) {
       return [person.name, person.role, person.thumb];
     }), [
-      ['Performer 11159047', 'Character 12733509', 'https://plex.example.test/1/people/fixture-person-2624455'],
-      ['Performer 5883870', 'Character 9224011', 'https://plex.example.test/0/people/fixture-person-12254966']
+      ['Performer 1', 'Character 1', 'https://plex.example.test/people/fixture-person-2.jpg'],
+      ['Performer 2', 'Character 2', 'https://plex.example.test/people/fixture-person-3.jpg']
     ], 'cast identity, role, image and Plex ordering must be preserved');
   });
 });

@@ -48,11 +48,6 @@
       return (items || []).map(function (key) { return values.t('settings.versionPriority.' + key); }).join(' > ');
     }
 
-    function homeRowList(items) {
-      if (!(items || []).length) { return values.t('settings.homeRowsHidden'); }
-      return items.map(function (key) { return values.t('settings.homeRow.' + key); }).join(' > ');
-    }
-
     function booleanChoices() {
       return [
         { value: true, label: values.t('settings.enabled') },
@@ -79,6 +74,11 @@
         { key: 'plexServer', section: 'plex', label: values.t('settings.plexServer'), value: values.activeServerLabel(), serverEditor: true },
         { key: 'plexProfile', section: 'plex', label: values.t('settings.plexProfile'), value: values.activeProfileTitle(), profileEditor: true },
         { key: 'networkStatus', section: 'plex', label: values.t('settings.networkStatus'), value: values.networkStatusLabel(), readOnly: true },
+        { key: 'libraryDisplayMode', section: 'homeLibraries', label: values.t('settings.libraryDisplayMode'), value: values.t('settings.libraryTabs.display.' + (values.libraryDisplayMode ? values.libraryDisplayMode() : 'text')), action: true, libraryDisplayMode: true },
+        { key: 'homeRows', section: 'homeLibraries', label: values.t('settings.homeRowsAction'), value: '', orderedEditor: true, homeRowsEditor: true },
+        { key: 'libraryTabs', section: 'homeLibraries', label: values.t('settings.libraryTabs.manage'), value: '', action: true, libraryTabsEditor: true },
+        { key: 'aggregateLibraries', section: 'homeLibraries', label: values.t('settings.aggregateLibraries'), description: values.t('settings.aggregateLibrariesDescription'), subsectionTitle: values.t('settings.sectionMultiServer'), subsectionSpacer: true, value: values.t(settings.aggregateLibraries ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
+        { key: 'aggregateHomeLibraries', section: 'homeLibraries', label: values.t('settings.aggregateHomeLibraries'), description: values.t('settings.aggregateHomeLibrariesDescription'), value: values.t(settings.aggregateHomeLibraries ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'uiLanguage', section: 'interface', label: values.t('settings.interfaceLanguage'), value: values.nativeLanguageName(settings.uiLanguage), languageCode: settings.uiLanguage, choices: languageChoices(values.supportedUiLanguages(), values.nativeLanguageName) },
         { key: 'visualTheme', section: 'interface', label: values.t('settings.visualTheme'), value: values.visualThemeLabel(settings.visualTheme), choices: choices(domainValues('visualTheme'), values.visualThemeLabel) },
         { key: 'accentColor', section: 'interface', label: values.t('settings.accentColor'), value: values.accentColorLabel(settings.accentColor), palette: true, choices: domainValues('accentColor').map(function (value) { return { value: value, label: values.accentColorLabel(value), color: values.accentValues[value] }; }) },
@@ -91,17 +91,16 @@
         { key: 'searchT9Input', section: 'interface', label: values.t('settings.searchT9Input'), value: values.t(settings.searchT9Input ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'showWatchlist', section: 'interface', label: values.t('settings.showWatchlist'), value: values.t(settings.showWatchlist ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'showPlaylists', section: 'interface', label: values.t('settings.showPlaylists'), value: values.t(settings.showPlaylists ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
-        { key: 'homeRows', section: 'interface', label: values.t('settings.homeRows'), value: homeRowList(settings.homeRows), orderedEditor: true },
         { key: 'uiTextScale', section: 'accessibility', label: values.t('settings.uiTextScale'), value: settings.uiTextScale + '%', currentValue: settings.uiTextScale, choices: choices(domainValues('uiTextScale'), function (value) { return value + '%'; }), stepper: true },
         { key: 'highContrast', section: 'accessibility', label: values.t('settings.highContrast'), value: values.t(settings.highContrast ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'strongFocus', section: 'accessibility', label: values.t('settings.strongFocus'), value: values.t(settings.strongFocus ? 'settings.enabled' : 'settings.disabled'), choices: booleanChoices() },
         { key: 'safeAreaCalibration', section: 'accessibility', label: values.t('settings.safeAreaCalibration'), value: safeAreaLabel(settings), action: true, safeAreaCalibration: true },
-        { key: 'subtitleAppearance', section: 'accessibility', label: values.t('settings.subtitleAppearance'), value: values.t('settings.manage'), action: true, subtitleStyleEditor: true },
+        { key: 'subtitleAppearance', section: 'accessibility', label: values.t('settings.subtitleAppearance'), value: '', action: true, subtitleStyleEditor: true },
         { key: 'lanVideoQuality', section: 'playback', label: values.t('settings.lanVideoQuality'), value: values.videoQualityLabel(settings.lanVideoQuality), currentValue: settings.lanVideoQuality, choices: choices(domainValues('lanVideoQuality'), values.videoQualityLabel), stepper: true },
         { key: 'remoteVideoQuality', section: 'playback', label: values.t('settings.remoteVideoQuality'), value: values.videoQualityLabel(settings.remoteVideoQuality), currentValue: settings.remoteVideoQuality, choices: choices(domainValues('lanVideoQuality'), values.videoQualityLabel), stepper: true },
         { key: 'playbackMode', section: 'playback', label: values.t('settings.playbackMode'), value: values.playbackPreferenceLabel(settings.playbackMode), choices: choices(domainValues('playbackMode'), values.playbackPreferenceLabel) },
         { key: 'videoVersionPriorities', section: 'playback', label: values.t('settings.videoVersionPriorities'), value: versionPriorityList(settings.videoVersionPriorities), priorityEditor: true },
-        { key: 'playbackCompatibility', section: 'playback', label: values.t('settings.playbackCompatibility'), value: values.t('settings.manage'), action: true, compatibilityEditor: true },
+        { key: 'playbackCompatibility', section: 'playback', label: values.t('settings.playbackCompatibility'), value: '', action: true, compatibilityEditor: true },
         { key: 'autoplayDelay', section: 'playback', label: values.t('settings.autoplayNext'), value: settings.autoplayDelay === 0 ? values.t('settings.disabled').toUpperCase() : settings.autoplayDelay + ' s', currentValue: settings.autoplayDelay, choices: choices(domainValues('autoplayDelay'), function (value) { return value === 0 ? values.t('settings.disabled').toUpperCase() : value + ' s'; }), stepper: true },
         { key: 'upNextLayout', section: 'playback', label: values.t('settings.upNextLayout'), value: upNextLayoutLabel(settings.upNextLayout), upNextLayoutEditor: true, choices: choices(domainValues('upNextLayout'), upNextLayoutLabel) },
         { key: 'skipPromptDuration', section: 'playback', label: values.t('settings.skipPromptDuration'), value: settings.skipPromptDuration + ' s', currentValue: settings.skipPromptDuration, choices: choices(domainValues('skipPromptDuration'), function (value) { return value + ' s'; }), stepper: true },
@@ -118,8 +117,12 @@
         { key: 'settingsBackup', section: 'support', label: values.t('settings.backup.title'), value: values.t('settings.backup.mode.' + settings.settingsBackupMode), action: true },
         { key: 'diagnostics', section: 'support', label: values.t('settings.diagnostics'), value: '', action: true },
         { key: 'privacy', section: 'support', label: values.t('settings.privacyPolicy'), value: '', action: true },
-        { key: 'disconnectPlex', section: 'support', label: values.t('setup.disconnectPlex'), value: values.plexConnected() ? values.t('settings.connected') : values.t('settings.notConnected'), action: true },
-        { key: 'deleteLocalData', section: 'support', label: values.t('settings.deleteLocalData'), value: '', action: true },
+        {
+          key: 'plexAccountAction', section: 'support',
+          label: values.t(values.plexConnected() ? 'setup.disconnectPlex' : 'setup.connectPlex'),
+          value: '', action: true, standaloneAction: true, accountConnected: values.plexConnected()
+        },
+        { key: 'deleteLocalData', section: 'support', label: values.t('settings.deleteLocalData'), value: '', action: true, spacerBefore: true },
         { key: 'appVersion', section: 'support', label: 'Ploff ' + String(values.appVersion || ''), value: values.updateStatusLabel ? values.updateStatusLabel() : '', action: true, versionRow: true }
       ];
       if (!supportsAccentColor(settings.visualTheme)) {
@@ -130,7 +133,7 @@
 
     function sectionLabel(section) {
       var keys = {
-        plex: 'settings.sectionPlex', navigation: 'settings.sectionNavigation', appearance: 'settings.sectionAppearance',
+        plex: 'settings.sectionPlex', homeLibraries: 'settings.sectionHomeLibraries', multiServer: 'settings.sectionMultiServer', navigation: 'settings.sectionNavigation', appearance: 'settings.sectionAppearance',
         accessibility: 'settings.sectionAccessibility', playback: 'settings.sectionPlayback', languages: 'settings.sectionLanguages',
         data: 'settings.sectionDataSupport', interface: 'settings.sectionInterface', audioAppearance: 'settings.sectionAudioAppearance', support: 'settings.sectionSupport'
       };
@@ -139,8 +142,9 @@
 
     function categoryDefinitions() {
       return [
-        { id: 'plex', keys: ['plexServer', 'plexProfile', 'networkStatus', 'disconnectPlex'] },
-        { id: 'navigation', keys: ['uiLanguage', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists', 'homeRows'] },
+        { id: 'plex', keys: ['plexServer', 'plexProfile', 'networkStatus', 'plexAccountAction'] },
+        { id: 'homeLibraries', keys: ['libraryDisplayMode', 'homeRows', 'libraryTabs', 'aggregateLibraries', 'aggregateHomeLibraries'] },
+        { id: 'navigation', keys: ['uiLanguage', 'wheelBehavior', 'searchT9Input', 'showWatchlist', 'showPlaylists'] },
         { id: 'appearance', keys: ['visualTheme', 'accentColor', 'cardScale', 'artworkDataSaver', 'artworkQuality', 'backdropQuality', 'interfaceAnimations', 'backgroundMusic', 'backgroundVolume', 'backgroundDelay'] },
         { id: 'accessibility', keys: ['uiTextScale', 'highContrast', 'strongFocus', 'safeAreaCalibration'] },
         { id: 'playback', keys: ['lanVideoQuality', 'remoteVideoQuality', 'playbackMode', 'videoVersionPriorities', 'playbackCompatibility', 'autoplayDelay', 'upNextLayout', 'skipPromptDuration'] },

@@ -25,6 +25,15 @@ assert.strictEqual(MediaLabels.cardMeta(episode, translate('it')), 'S04 - E02 \u
 assert.strictEqual(MediaLabels.cardDetail(episode, translate('it')), 'A New Day', 'episode cards must place the episode title on its own line');
 assert.strictEqual(MediaLabels.cardMeta({ meta: 'Speciali', detail: 'E01 - OVA' }, translate('it')), 'Speciali - E01', 'special episodes must retain their localized season label');
 assert.strictEqual(MediaLabels.cardDetail({ meta: 'Speciali', detail: 'E01 - OVA' }, translate('it')), 'OVA', 'special episode titles must remain on their own line');
+
+var recentEpisode = {
+  type: 'episode', title: 'Example Show', metaKey: 'media.season', metaParameters: { number: 1 },
+  detail: 'Episode 7', detailKey: 'media.episodeNumber', detailParameters: { number: 7 }
+};
+assert.strictEqual(MediaLabels.cardMeta(recentEpisode, translate('it')), 'Stagione 1',
+  'recent episode cards must keep the full season label instead of compacting into Sxx/Exx metadata');
+assert.strictEqual(MediaLabels.cardDetail(recentEpisode, translate('it')), 'Episodio 7',
+  'recent episode cards must expose only the episode number and never the episode title');
 assert.strictEqual(
   MediaLabels.description(episode, translate('en')),
   'Example Show, Season 4, E02 - A New Day',

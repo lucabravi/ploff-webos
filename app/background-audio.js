@@ -24,8 +24,10 @@
     function stop() {
       requestToken += 1;
       cancelTimer();
-      audio.pause();
-      try { audio.currentTime = 0; } catch (error) { /* Old webOS can reject seeks before metadata. */ }
+      if (currentKey || !audio.paused) {
+        if (!audio.paused) { audio.pause(); }
+        try { audio.currentTime = 0; } catch (error) { /* Old webOS can reject seeks before metadata. */ }
+      }
       currentKey = '';
     }
 

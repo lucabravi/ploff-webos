@@ -279,7 +279,6 @@
     if (!writeScope(storage, identityValue, scope, ratingKey, current)) { return null; }
     return loadScopes(storage, identityValue, detail);
   }
-  function saveSelection(storage, identityValue, detail, patch) { return updateSelection(storage, identityValue, detail, patch); }
   function preferredSource(tracks, preference) {
     var external = preference !== 'internal';
     var matches = tracks.filter(function (track) { return trackPreference(track).external === external; });
@@ -404,7 +403,6 @@
 
   return {
     LEGACY_STORAGE_PREFIX: LEGACY_STORAGE_PREFIX,
-    STORAGE_PREFIX: STORAGE_PREFIX,
     clear: clear,
     effectiveSelection: effectiveSelection,
     findTrack: findTrack,
@@ -416,7 +414,6 @@
     resolve: resolve,
     resolvePlaybackOptions: resolvePlaybackOptions,
     save: save,
-    saveSelection: saveSelection,
     scopeForDetail: scopeForDetail,
     scopeKey: scopedStorageKey,
     selectionSource: selectionSource,

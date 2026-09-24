@@ -21,6 +21,18 @@ the Chrome 53 WebView on legacy LG webOS TVs.
 
 ## Subtitles
 
+- [ ] Investigate local PGS/SUP subtitle rendering as a future feature (**feasibility not yet confirmed**).
+      Before implementation, prove that Plex Media Server can expose the selected PGS payload to
+      the client without forcing video burn-in, especially for PGS tracks embedded in MKV files;
+      sidecar `.sup` files and embedded tracks must be tested separately. Verify the actual PMS
+      endpoint/response bytes, planner/profile behavior when subtitles are rendered locally, and
+      that disabling server-side subtitles still preserves Direct Play/Direct Stream semantics.
+      If PMS can provide the raw PGS stream, evaluate `libpgs-js` (or an equivalent Canvas-based
+      renderer) on the real Chrome 53/webOS target, including main-thread parsing constraints,
+      seek/sync behavior, 1080p/4K bitmap density, long-playback memory use, teardown, and fallback
+      to existing Plex burn-in when local PGS is unavailable or unsafe. Do not add this to the 1.0.8
+      release candidate; treat it as exploratory work for a later release.
+
 - [ ] Evaluate optional external ASS/SSA font resolution so local rendering can use fonts requested
       by ASS styles when those font files are actually available, while keeping `default.woff2` as
       the fallback. Preserve `ASS_FONTPROVIDER_NONE` unless physical-TV measurements justify

@@ -65,44 +65,64 @@
     };
   }
 
-  function mergeRecentPage(existingItems, pageItems, replaceExisting) {
-    var result = replaceExisting ? [] : copyArray(existingItems);
-    var indexes = {};
-    result.forEach(function (item, index) {
+  function groupedRecentCard(group, count, viewedCount) {
+    var template = group && group.seasonItem || {};
+    var merged = cloneCard(template);
+    merged.detailParameters = { count: count };
+    merged.detailKey = 'media.newEpisodeCount';
+    merged.detail = count + (count === 1 ? ' new episode' : ' new episodes');
+    if (count > 0 && viewedCount >= count) { merged.viewed = true; }
+    else { delete merged.viewed; }
+    merged.recentGroup = {
+      key: String(group && group.key || ''),
+      count: count,
+      viewedCount: viewedCount,
+      seasonItem: cloneCard(template)
+    };
+    return merged;
+  }
+
+  function compactRecentRuns(items) {
+    var result = [];
+    var runItems = [];
+    var runGroup = null;
+    var runCount = 0;
+    var runViewedCount = 0;
+
+    function flushRun() {
+      if (!runItems.length) { return; }
+      if (runGroup && runCount >= 3) {
+        result.push(groupedRecentCard(runGroup, runCount, runViewedCount));
+      } else {
+        runItems.forEach(function (item) { result.push(cloneItem(item)); });
+      }
+      runItems = [];
+      runGroup = null;
+      runCount = 0;
+      runViewedCount = 0;
+    }
+
+    copyArray(items).forEach(function (item) {
       var group = recentGroup(item);
-      if (group) { indexes[group.key] = index; }
-    });
-    copyArray(pageItems).forEach(function (item) {
-      var incomingGroup = recentGroup(item);
-      var index = incomingGroup && indexes[incomingGroup.key] !== undefined ? indexes[incomingGroup.key] : -1;
-      var existingGroup;
-      var merged;
-      var count;
-      var viewedCount;
-      if (index < 0) {
-        merged = cloneItem(item);
-        result.push(merged);
-        if (incomingGroup) { indexes[incomingGroup.key] = result.length - 1; }
+      if (!group) {
+        flushRun();
+        result.push(cloneItem(item));
         return;
       }
-      existingGroup = recentGroup(result[index]);
-      count = existingGroup.count + incomingGroup.count;
-      viewedCount = existingGroup.viewedCount + incomingGroup.viewedCount;
-      merged = cloneCard(existingGroup.seasonItem || incomingGroup.seasonItem || result[index]);
-      merged.detailParameters = { count: count };
-      merged.detailKey = merged.detailKey || item.detailKey || 'media.episodeCount';
-      merged.detail = count + (count === 1 ? ' episode' : ' episodes');
-      if (count > 0 && viewedCount >= count) { merged.viewed = true; }
-      else { delete merged.viewed; }
-      merged.recentGroup = {
-        key: incomingGroup.key,
-        count: count,
-        viewedCount: viewedCount,
-        seasonItem: cloneCard(existingGroup.seasonItem || incomingGroup.seasonItem || merged)
-      };
-      result[index] = merged;
+      if (runGroup && group.key !== runGroup.key) { flushRun(); }
+      if (!runGroup) { runGroup = group; }
+      runItems.push(item);
+      runCount += group.count;
+      runViewedCount += group.viewedCount;
     });
+    flushRun();
     return result;
+  }
+
+  function mergeRecentPage(existingItems, pageItems, replaceExisting) {
+    var combined = replaceExisting ? [] : copyArray(existingItems);
+    Array.prototype.push.apply(combined, copyArray(pageItems));
+    return compactRecentRuns(combined);
   }
 
   function recentTotalSize(items, page) {
@@ -376,6 +396,13 @@
       if (values.onRender) { values.onRender(result); }
     }
 
+    function prepareReplacement(context) {
+      var callback = context.beforeReplace;
+      if (!callback) { return; }
+      context.beforeReplace = null;
+      callback();
+    }
+
     function reset() {
       state.generation += 1;
       abort(state.request);
@@ -460,7 +487,7 @@
       return true;
     }
 
-    function finishPage(error, page, context, generation, start) {
+    function finishPage(error, page, context, generation, start, progressApplied) {
       var snapshotBefore;
       var nextItems;
       var pageItems;
@@ -473,21 +500,22 @@
       if (values.isActive && !values.isActive(context)) { return; }
       state.error = error || null;
       if (!error && page && context.library && (context.container || String(page.libraryKey || '') === keyFor(context.library))) {
+        prepareReplacement(context);
         pageItems = copyArray(page.items);
         pageNextStart = Number(page.nextStart);
         state.nextStart = isFinite(pageNextStart) && pageNextStart >= start ? pageNextStart : start + pageItems.length;
         totalSize = Number(page.totalSize || 0);
         if (locallyCorrectedUnwatched(context)) {
           snapshotBefore = grid().snapshot();
-          nextItems = context.replace ? pageItems : copyArray(snapshotBefore.items).concat(pageItems);
+          nextItems = context.replace || progressApplied || start === 0 ? pageItems : copyArray(snapshotBefore.items).concat(pageItems);
           totalSize = catalogVisibleTotalSize(nextItems, page, context, state.nextStart);
         }
         if (context.viewKey === 'recent' && !context.container) {
           snapshotBefore = grid().snapshot();
-          nextItems = mergeRecentPage(snapshotBefore.items, pageItems, context.replace);
+          nextItems = mergeRecentPage(snapshotBefore.items, pageItems, context.replace || progressApplied || start === 0);
           grid().setItems(nextItems, recentTotalSize(nextItems, page));
-        } else if (context.replace || context.initialContainerFocus === true || !grid().appendItems) {
-          if (context.replace) { nextItems = pageItems; }
+        } else if (context.replace || progressApplied || start === 0 || context.initialContainerFocus === true || !grid().appendItems) {
+          if (context.replace || progressApplied || start === 0) { nextItems = pageItems; }
           else {
             snapshotBefore = grid().snapshot();
             nextItems = copyArray(snapshotBefore.items).concat(pageItems);
@@ -525,14 +553,54 @@
       }
     }
 
-    function finishRecommendations(error, rows, context, generation) {
+    function applyPageProgress(page, context, generation) {
+      var pageItems;
+      var visibleItems;
+      var totalSize;
+      if (generation !== state.generation || !page || !context || !context.library ||
+          String(page.libraryKey || '') !== keyFor(context.library) ||
+          values.isActive && !values.isActive(context)) { return false; }
+      pageItems = copyArray(page.items);
+      if (!pageItems.length) { return false; }
+      visibleItems = context.viewKey === 'recent' && !context.container
+        ? mergeRecentPage([], pageItems, true) : pageItems;
+      totalSize = Number(page.totalSize);
+      if (!isFinite(totalSize) || totalSize < visibleItems.length) { totalSize = visibleItems.length; }
+      if (context.viewKey === 'recent' && !context.container) {
+        totalSize = recentTotalSize(visibleItems, page);
+      } else if (locallyCorrectedUnwatched(context)) {
+        totalSize = catalogVisibleTotalSize(visibleItems, page, context, Number(page.nextStart));
+      }
+      state.error = null;
+      state.nextStart = 0;
+      prepareReplacement(context);
+      grid().setItems(visibleItems, totalSize);
+      notifyStatus();
+      notifyRender('page', context, null);
+      return true;
+    }
+
+    function applyRecommendationsProgress(rows, context, generation) {
+      if (generation !== state.generation || values.isActive && !values.isActive(context) || !copyArray(rows).length) { return false; }
+      state.error = null;
+      prepareReplacement(context);
+      grid().setRecommendations(copyArray(rows));
+      notifyStatus();
+      notifyRender('recommendations', context, null);
+      return true;
+    }
+
+    function finishRecommendations(error, rows, context, generation, progressApplied) {
       if (generation !== state.generation) { return; }
       state.loading = false;
       state.request = null;
       if (values.isActive && !values.isActive(context)) { return; }
       state.error = error || null;
       state.nextStart = null;
-      grid().setRecommendations(error ? [] : copyArray(rows));
+      if (!error || !context.retainVisibleUntilComplete) {
+        prepareReplacement(context);
+        grid().setRecommendations(error ? [] : copyArray(rows), progressApplied === true);
+      }
       notifyStatus();
       notifyRender('recommendations', context, error);
     }
@@ -541,6 +609,8 @@
       var generation;
       var start;
       var limit;
+      var progressApplied = false;
+      var recommendationsProgressApplied = false;
       if (!context || !context.library) { return snapshot(); }
       if (shouldReset) { reset(); }
       if (state.loading) { return snapshot(); }
@@ -553,7 +623,11 @@
       notifyStatus();
       if (context.viewKey === 'recommended' && !context.container) {
         state.request = values.loadRecommendations(context.library, function (error, rows) {
-          finishRecommendations(error, rows, context, generation);
+          finishRecommendations(error, rows, context, generation, recommendationsProgressApplied);
+        }, function (_error, rows) {
+          if (!context.retainVisibleUntilComplete) {
+            recommendationsProgressApplied = applyRecommendationsProgress(rows, context, generation) || recommendationsProgressApplied;
+          }
         });
       } else if (context.container) {
         state.request = values.loadContainerPage(context.container, start, 60, function (error, page) {
@@ -561,10 +635,21 @@
         });
       } else {
         state.request = values.loadLibraryPage(context.library, context.viewKey, context.query || {}, start, limit, function (error, page) {
-          finishPage(error, page, context, generation, start);
+          finishPage(error, page, context, generation, start, progressApplied);
+        }, function (error, page) {
+          if (!context.retainVisibleUntilComplete && !error && start === 0) {
+            progressApplied = applyPageProgress(page, context, generation) || progressApplied;
+          }
         });
       }
       return snapshot();
+    }
+
+    function reload(context) {
+      if (!context || !context.library) { return snapshot(); }
+      invalidateContentRequest();
+      context.retainVisibleUntilComplete = true;
+      return load(context, false, true);
     }
 
     function probeContinue(library) {
@@ -720,6 +805,7 @@
 
     return {
       load: load,
+      reload: reload,
       probeContinue: probeContinue,
       probeCollections: probeCollections,
       prepareLibrary: prepareLibrary,

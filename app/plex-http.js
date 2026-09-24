@@ -8,9 +8,18 @@
 }(this, function () {
   'use strict';
 
-  function errorFrom(value, status) {
-    if (typeof value === 'function') { return value(status); }
-    return new Error(String(value || 'Plex request failed'));
+  function errorFrom(value, status, transportFailure) {
+    var error = typeof value === 'function' ? value(status) : new Error(String(value || 'Plex request failed'));
+    if (!error || typeof error !== 'object') { error = new Error(String(error || 'Plex request failed')); }
+    if (status !== undefined && status !== null) { error.status = Number(status); }
+    error.transportFailure = transportFailure === true;
+    return error;
+  }
+
+  function transportError(error) {
+    var value = error && typeof error === 'object' ? error : new Error(String(error || 'Plex request failed'));
+    value.transportFailure = true;
+    return value;
   }
 
   function request(rootObject, options, callback) {
@@ -57,13 +66,13 @@
       xhr.onreadystatechange = function () {
         if (!xhr || xhr.readyState !== 4) { return; }
         if (xhr.status >= 200 && xhr.status < 300) { finish(null, xhr.responseText); }
-        else { finish(errorFrom(values.statusError, xhr.status)); }
+        else { finish(errorFrom(values.statusError, xhr.status, xhr.status === 0)); }
       };
-      xhr.onerror = function () { finish(errorFrom(values.networkError)); };
-      xhr.ontimeout = function () { finish(errorFrom(values.timeoutError)); };
+      xhr.onerror = function () { finish(errorFrom(values.networkError, null, true)); };
+      xhr.ontimeout = function () { finish(errorFrom(values.timeoutError, null, true)); };
       xhr.send(values.body === undefined ? null : values.body);
     } catch (error) {
-      defer(function () { finish(error); }, 0);
+      defer(function () { finish(transportError(error)); }, 0);
     }
 
     return {

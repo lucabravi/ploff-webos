@@ -47,17 +47,6 @@
     return !!first && !!second && externalText(first) && externalText(second) &&
       first.language === second.language && first.format === second.format && first.forced === second.forced;
   }
-  function matchTracks(reference, candidates) {
-    var source = candidates || [];
-    var exact = source.filter(function (track) { return sameTrack(reference, track); });
-    var wanted = signature(reference);
-    if (exact.length || !wanted || !supported(wanted) || !wanted.external) { return exact; }
-    return source.filter(function (track) {
-      var candidate = signature(track);
-      return candidate && supported(candidate) && candidate.language === wanted.language && candidate.format === wanted.format &&
-        candidate.external === wanted.external && candidate.forced === wanted.forced;
-    });
-  }
   function copy(source) {
     var result = {};
     var key;
@@ -245,13 +234,6 @@
     var layers = resolveLayers(storage, serverId, detail, track);
     return merge(merge(globalValues || {}, layers.season), layers.media);
   }
-  function sourceFor(layers, keys) {
-    var requested = Array.isArray(keys) ? keys : [keys];
-    function hasAny(layer) { return !!layer && requested.some(function (key) { return owns(layer, key); }); }
-    if (hasAny(layers && layers.media)) { return 'media'; }
-    if (hasAny(layers && layers.season)) { return 'season'; }
-    return 'global';
-  }
   function mutateProfile(store, serverId, detail, kind, track, values, deleteProfile) {
     var key = identity(serverId, kind, kind === 'season' ? seasonRatingKey(detail) : mediaRatingKey(detail));
     var record = key && store[key] ? store[key] : { profiles: {} };
@@ -275,13 +257,6 @@
   }
   function saveProfile(storage, serverId, detail, kind, track, values) { return updateProfile(storage, serverId, detail, kind, track, values, false); }
   function clearProfile(storage, serverId, detail, kind, track) { return updateProfile(storage, serverId, detail, kind, track, {}, true); }
-  function clearLayer(storage, serverId, detail, kind) {
-    var store = loadStore(storage, serverId);
-    var key = identity(serverId, kind, kind === 'season' ? seasonRatingKey(detail) : mediaRatingKey(detail));
-    if (!key) { return false; }
-    delete store[key];
-    return saveStore(storage, store);
-  }
   function updateProfileLayers(storage, serverId, detail, track, seasonValues, removeMedia, mediaValues) {
     var store = loadStore(storage, serverId);
     var seasonKey = identity(serverId, 'season', seasonRatingKey(detail));
@@ -322,14 +297,6 @@
     }
     return saveStore(storage, store);
   }
-  function updateLayers(storage, serverId, detail, changes) {
-    var patch = changes || {};
-    var track = patch.track || patch.media && patch.media.track || patch.season && patch.season.track || null;
-    var store = loadStore(storage, serverId);
-    if (patch.season !== undefined) { mutateProfile(store, serverId, detail, 'season', track, patch.season, patch.season === null); }
-    if (patch.media !== undefined) { mutateProfile(store, serverId, detail, 'media', track, patch.media, patch.media === null); }
-    return saveStore(storage, store);
-  }
   function writeLegacyCompatible(storage, serverId, detail, value, kind) {
     var track = value && (value.track || value.subtitleTrack) || null;
     var style = normalizeStyle(value);
@@ -344,33 +311,21 @@
     if (values && values.track) { result.track = signature(values.track); }
     return result;
   }
-  function resolveSelectedTrack(value, tracks) {
-    var target = value && (value.track || value.subtitleTrack);
-    var matches = target ? matchTracks(target, tracks || []) : [];
-    return matches[0] || null;
-  }
 
   return {
     LEGACY_STORAGE_KEY: LEGACY_STORAGE_KEY,
     STORAGE_KEY: STORAGE_KEY,
-    clearMedia: function (storage, serverId, detail, track) { return track ? clearProfile(storage, serverId, detail, 'media', track) : clearLayer(storage, serverId, detail, 'media'); },
-    clearSeason: function (storage, serverId, detail, track) { return track ? clearProfile(storage, serverId, detail, 'season', track) : clearLayer(storage, serverId, detail, 'season'); },
     clearProfile: clearProfile,
     diff: diff,
     effective: effective,
-    matchTracks: matchTracks,
     parent: parent,
     resolve: resolve,
     resolveLayers: resolveLayers,
-    resolveSelectedTrack: resolveSelectedTrack,
     save: save,
-    saveMedia: function (storage, serverId, detail, value) { return writeLegacyCompatible(storage, serverId, detail, value, 'media'); },
     saveProfile: saveProfile,
     saveSeason: function (storage, serverId, detail, value) { return writeLegacyCompatible(storage, serverId, detail, value, 'season'); },
     seasonRatingKey: seasonRatingKey,
     signature: signature,
-    sourceFor: sourceFor,
-    updateLayers: updateLayers,
     updateProfileLayers: updateProfileLayers
   };
 }));

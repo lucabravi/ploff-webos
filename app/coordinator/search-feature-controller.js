@@ -256,6 +256,7 @@
       onOpenResult: function (item, index) { call(values.onOpenResult, item, index); },
       onBack: function () { call(values.onBack); },
       onBackdrop: function (item) { call(values.onBackdrop, item); },
+      onAdjacentBackdropPrefetch: function (items) { call(values.onAdjacentBackdropPrefetch, items || []); },
       onFocus: function (focus) {
         var stateValue = snapshot();
         var item = focus && focus.zone === 'results' && stateValue.results ? stateValue.results[focus.index] : null;
@@ -269,6 +270,9 @@
       mediaCardDetail: values.mediaCardDetail,
       cardMetrics: values.cardMetrics,
       cardProfile: values.cardProfile,
+      sourceContextForItem: values.sourceContextForItem,
+      sourceContextIdentity: values.sourceContextIdentity,
+      sourceIdentityForItem: values.sourceIdentityForItem,
       measureLayout: measureResults,
       renderedPosterSpecification: values.renderedPosterSpecification,
       fixedPosterSpecification: values.fixedPosterSpecification,
@@ -280,10 +284,16 @@
       modules: { SearchModel: SearchModel, SearchView: SearchView },
       viewOptions: viewOptions,
       services: {
-        localSearch: function (query, callback) { return PlexClient.search(config, query, currentNavigationItems(), callback); },
+        localSearch: function (query, callback) {
+          if (typeof values.localSearch === 'function') { return values.localSearch(query, callback); }
+          return PlexClient.search(config, query, currentNavigationItems(), callback);
+        },
         cloudEligible: function () { return call(values.allowsCloud) === true && !!currentAccountToken(); },
         cloudSearch: loadCloudItems,
-        resolveCloudItem: function (candidate, callback) { return PlexClient.findByGuid(config, candidate.guid, callback); }
+        resolveCloudItem: function (candidate, callback) {
+          if (typeof values.resolveCloudItem === 'function') { return values.resolveCloudItem(candidate, callback); }
+          return PlexClient.findByGuid(config, candidate.guid, callback);
+        }
       },
       actions: {
         playItem: values.playItem,

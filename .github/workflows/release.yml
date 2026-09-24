@@ -30,8 +30,8 @@ jobs:
         run: npm ci
       - name: Audit high and critical dependency vulnerabilities
         run: npm run check:deps
-      - name: Run lint, type checks, tests, and repository checks
-        run: npm run verify
+      - name: Run verification and pre-release memory checks
+        run: npm run test:pre-release
 
   package-ipk:
     needs: verify

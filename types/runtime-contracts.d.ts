@@ -67,6 +67,8 @@ interface PloffSettingsRecord {
   searchT9Input: boolean;
   showWatchlist: boolean;
   showPlaylists: boolean;
+  aggregateLibraries: boolean;
+  aggregateHomeLibraries: boolean;
   homeRows: string[];
   settingsBackupMode: 'off' | 'on';
   highContrast: boolean;
@@ -140,6 +142,7 @@ interface PloffDetailFeatureSnapshot extends PloffFeatureSnapshot {
 
 interface PloffLibraryFeatureSnapshot extends PloffFeatureSnapshot {
   mode: string;
+  sourceId: string;
   library: object;
   grid: object;
   lifecycle: object;

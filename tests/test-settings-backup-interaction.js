@@ -66,6 +66,7 @@ function fixture(model) {
       TextInputDialog: require('../app/text-input-dialog'),
       I18n: { languageName: function (_language, code) { return code; }, nativeLanguageName: function (code) { return code; } }
     },
+    librarySources: { reloadPreferences: function () { effects.push('library-tabs-reload'); } },
     shell: {
       getSettings: function () { return current; },
       setSettings: function (value) { current = value; effects.push('publish'); },
@@ -132,7 +133,7 @@ test('current identity loads directly and applies live settings before completio
     assert.strictEqual(f.document.documentElement.lang, 'it');
     assert.ok(f.document.body.className.indexOf('visual-theme-immersive') >= 0);
     assert.strictEqual(f.styles['--ui-text-scale'], '18.4px');
-    assert.deepStrictEqual(f.effects, ['publish', 'cards', 'translate', 'home', 'visibility', 'navigation', 'autosave']);
+    assert.deepStrictEqual(f.effects, ['publish', 'cards', 'translate', 'home', 'library-tabs-reload', 'visibility', 'navigation', 'autosave']);
     calls += 1;
   });
   assert.strictEqual(f.choice.snapshot().open, false);

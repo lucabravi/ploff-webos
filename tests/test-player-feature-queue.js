@@ -160,6 +160,43 @@ var createHarness = Fixture.createHarness;
   ], 'a final playback report must reconcile the active library occurrence after Player closes');
 }());
 
+(function closedPlaybackPreservesOwningPmsForLibraryReconciliation() {
+  var view = 'detail';
+  var sourceContext = {
+    sourceId: 'server-b|1',
+    serverMachineIdentifier: 'server-b',
+    apiBaseUrl: 'https://b.example',
+    token: 'b-token'
+  };
+  var item = { ratingKey: '42', type: 'movie', title: 'Shared', serverMachineIdentifier: 'server-b' };
+  var h = createHarness({
+    detail: {
+      setPlayPending: function () {},
+      playbackPreferences: function () { return {}; },
+      preferenceSnapshot: function () { return {}; },
+      snapshot: function () { return {}; },
+      queueSnapshot: function () { return {}; },
+      hideSurface: function () {},
+      showSurface: function () {}
+    },
+    state: {
+      currentView: function () { return view; },
+      setView: function (next) { view = next; }
+    },
+    library: {
+      refreshAfterPlayback: function (ratingKey, seconds, source) {
+        h.calls.push(['library-playback-refresh-source', ratingKey, seconds, source || null]);
+      }
+    }
+  });
+  assert.strictEqual(h.controller.openStandalone({ item: item, detail: item, sourceContext: sourceContext, resume: false }), true);
+  h.captured.playbackOptions.onClosed(37, true, '42');
+  var refresh = h.calls.filter(function (entry) { return entry[0] === 'library-playback-refresh-source'; })[0];
+  assert.ok(refresh, 'a reported playback close must reconcile Library state');
+  assert.strictEqual(refresh[3] && refresh[3].serverMachineIdentifier, 'server-b',
+    'Player must retain the PMS owning the playback when Library progress is reconciled');
+}());
+
 
 
 (function closingPlayerInvalidatesPendingQueueGapConfirmation() {
@@ -260,32 +297,6 @@ var createHarness = Fixture.createHarness;
   assert.strictEqual(clock.pending(), 1, 'only the current playlist load owns transition cleanup');
 }());
 
-(function newerPlaybackInvalidatesPendingAdjacentMetadata() {
-  var metadataCallback = null;
-  var delivered = false;
-  var h = createHarness({
-    resolveAdjacent: function (direction, callback) {
-      callback({ item: { ratingKey: '99' }, index: 1, queue: { kind: 'series' } });
-    },
-    data: {
-      PlexClient: {
-        loadMetadata: function (config, ratingKey, callback) {
-          assert.strictEqual(ratingKey, '99');
-          metadataCallback = callback;
-          return { abort: function () {} };
-        }
-      }
-    }
-  });
-  h.captured.playbackOptions.resolveAdjacent(1, function () { delivered = true; });
-  assert.strictEqual(typeof metadataCallback, 'function', 'adjacent playback must request metadata for the selected queue item');
-  h.captured.playbackOptions.onOpening();
-  metadataCallback(null, { ratingKey: '99' });
-  assert.strictEqual(delivered, false, 'a newer playback opening must invalidate older adjacent metadata callbacks');
-}());
-
-
-
 (function paginatedContainerPlaybackPreservesTheExactOccurrence() {
   var current = { ratingKey: 'current', type: 'movie', title: 'Current' };
   var target = { ratingKey: 'target', type: 'movie', title: 'Target' };
@@ -352,11 +363,14 @@ var createHarness = Fixture.createHarness;
       renderEpisodeContext: function () {}
     }
   });
-  h.captured.playbackOptions.onAdjacentStarted({
+  assert.strictEqual(h.captured.queueOptions.requestPlayback({
+    origin: 'up-next',
     detail: { ratingKey: 's1e2', type: 'episode' },
     item: second,
-    queueTarget: { queue: queue, item: second, index: 1 }
-  });
+    queue: queue,
+    index: 1,
+    occurrenceId: 'series:1:2'
+  }), true);
   assert.strictEqual(applied.length, 1);
   assert.strictEqual(applied[0].context.playlistQueue, false,
     'series Previous/Next must not turn the active detail context into a playlist queue');
@@ -443,8 +457,6 @@ var createHarness = Fixture.createHarness;
   });
   h.captured.controlsOptions.startAdjacent(1);
   assert.strictEqual(h.controller.snapshot().queueGapOpen, true, 'manual Next must open the queue-gap confirmation');
-  assert.strictEqual(h.calls.some(function (entry) { return entry[0] === 'legacy-start-adjacent'; }), false,
-    'manual gap resolution must not invoke PlaybackController.startAdjacent');
   assert.strictEqual(h.calls.some(function (entry) { return entry[0] === 'request-resolved'; }), false,
     'resolving a gap must not start playback before confirmation');
   h.controller.handleQueueGapKey({ keyCode: 39, preventDefault: function () {} }, 'right');

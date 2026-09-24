@@ -63,6 +63,15 @@ var accountConnections = ServerStore.merge([
 ]);
 assert.strictEqual(accountConnections.length, 1, 'connections returned by Plex may merge by server identity');
 assert.deepStrictEqual(accountConnections[0].connections, ['https://plex.example', 'https://relay.plex.tv'], 'trusted Plex resource routes must remain available for failover');
+var probedAccountConnection = ServerStore.merge([
+  { name: 'Remote Plex', uri: 'https://working.example', machineIdentifier: 'remote-machine', source: 'probe', connections: ['https://working.example'] },
+  { name: 'Remote Plex', uri: 'http://172.19.0.1:32400', machineIdentifier: 'remote-machine', source: 'plex', connections: ['http://172.19.0.1:32400'] }
+]);
+assert.strictEqual(probedAccountConnection.length, 1, 'an identity-verified probe and Plex account record for the same PMS must merge');
+assert.deepStrictEqual(probedAccountConnection[0].connections, [
+  'https://working.example',
+  'http://172.19.0.1:32400'
+], 'merging verified identities must retain the working route and every account fallback');
 assert.deepStrictEqual(ServerStore.connectionUris({
   uri: 'http://192.0.2.10:32400',
   connections: ['http://192.0.2.10:32400/', 'https://plex.example', 'https://plex.example/']

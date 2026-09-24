@@ -29,10 +29,6 @@
     return String(originId) + ':s' + String(Number(seasonNumber)) + ':e' + String(Number(episodeNumber)) + ':' + String(ratingKey);
   }
 
-  function sameOccurrence(left, right) {
-    return !!(left && right && left.occurrenceId && right.occurrenceId &&
-      String(left.occurrenceId) === String(right.occurrenceId));
-  }
 
   function isPlayable(item) {
     return !!(item && item.ratingKey && (item.type === 'episode' || item.type === 'movie'));
@@ -77,7 +73,6 @@
   return {
     occurrenceIdentity: occurrenceIdentity,
     seriesOccurrenceIdentity: seriesOccurrenceIdentity,
-    sameOccurrence: sameOccurrence,
     isPlayable: isPlayable,
     adjacentState: adjacentState,
     seriesScope: seriesScope,

@@ -10,23 +10,33 @@ function node(tagName, className, text) {
     appendChild: function (child) { this.children.push(child); if (!this.firstChild) { this.firstChild = child; } return child; },
     insertBefore: function (child) { this.children.unshift(child); this.firstChild = child; },
     setAttribute: function (key, value) { this.attributes[key] = String(value); },
+    removeAttribute: function (key) { delete this.attributes[key]; },
     focus: function () { this.focused = true; }
   };
-  Object.defineProperty(value, 'innerHTML', { set: function () { this.children = []; this.firstChild = null; } });
+  Object.defineProperty(value, 'innerHTML', {
+    get: function () { return this._innerHTML || ''; },
+    set: function (html) { this._innerHTML = String(html || ''); this.children = []; this.firstChild = null; }
+  });
   return value;
 }
 
 var nodes = {
   'app-settings-list': node('div'),
+  'app-settings-view': node('section'),
   'app-settings-title': node('h1'),
   'app-settings-notice': node('p'),
+  'app-settings-back': node('button'),
   'language-editor-list': node('div'),
   'language-editor-title': node('h2'),
   'language-editor-hint': node('p'),
-  'language-editor-back': node('button')
+  'language-editor-back': node('button'),
+  'settings-nav-target': node('button')
 };
 var serverRenders = 0;
+var markExpandedServerParentFocused = false;
 var keptVisible = [];
+var settingsClearFocusCalls = 0;
+var pointerSelectionActive = false;
 var view = SettingsView.create({
   document: {
     createElement: function (tagName) { return node(tagName); },
@@ -41,11 +51,16 @@ var view = SettingsView.create({
   t: function (key) { return key; },
   accentColors: ['cyan', 'white'],
   accentValues: { cyan: '#00ffff', white: '#ffffff' },
-  renderServerEditor: function () { serverRenders += 1; },
-  clearFocus: function () {},
-  navTarget: function () { return null; },
+  renderServerEditor: function () {
+    serverRenders += 1;
+    if (markExpandedServerParentFocused && nodes['app-settings-list'].children[0]) {
+      nodes['app-settings-list'].children[0].className += ' is-focused';
+    }
+  },
+  clearFocus: function () { settingsClearFocusCalls += 1; },
+  navTarget: function () { return nodes['settings-nav-target']; },
   keepFocusVisible: function (container, target) { keptVisible.push({ container: container, target: target }); },
-  isPointerSelectionActive: function () { return false; }
+  isPointerSelectionActive: function () { return pointerSelectionActive; }
 });
 
 view.open(true);
@@ -53,6 +68,7 @@ assert.deepStrictEqual(view.snapshot(), { open: true, zone: 'nav', level: 'categ
 view.openCategory('playback', 4);
 assert.strictEqual(view.snapshot().level, 'category', 'opening a category must switch the settings list level');
 assert.strictEqual(view.snapshot().categoryId, 'playback', 'the active category identity must remain explicit');
+assert.strictEqual(view.snapshot().index, 1, 'opening a category must focus its first setting while reserving index zero for Back');
 view.closeCategory();
 assert.strictEqual(view.snapshot().categoryIndex, 4, 'returning to categories must preserve the originating category focus');
 view.focusList(3, 2);
@@ -68,7 +84,7 @@ view.closeLanguages();
 assert.strictEqual(view.snapshot().languageKind, '', 'closing the language editor must clear its private state');
 
 view.render({
-  title: 'Settings', notice: 'Global', zone: 'list', index: 2, serverEditorOpen: false,
+  title: 'Settings', notice: 'Global', level: 'categories', zone: 'list', index: 2, serverEditorOpen: false,
   credit: 'Made by Rhapsodos93', accentColor: 'cyan',
   rows: [
     { key: 'plexServer', section: 'plex', label: 'Server', value: 'Plex', serverEditor: true },
@@ -79,15 +95,42 @@ view.render({
 });
 
 assert.strictEqual(nodes['app-settings-title'].textContent, 'Settings', 'settings renderer must update its title');
-assert.strictEqual(nodes['app-settings-list'].children.length, 6, 'settings renderer must include section labels, rows, and credit');
-assert.strictEqual(nodes['app-settings-list'].children[3].className, 'app-settings-section', 'a new settings section must render before its first row');
-assert.strictEqual(nodes['app-settings-list'].children[4].className, 'app-setting-row is-focused', 'settings focus must be derived from the supplied snapshot');
-assert.strictEqual(nodes['app-settings-list'].children[2].tagName, 'div', 'read-only settings rows must not render as buttons');
-assert.strictEqual(nodes['app-settings-list'].children[2].attributes['data-setting-index'], undefined, 'read-only settings rows must not enter pointer focus navigation');
-assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0].children.length, 1, 'accent settings must render only the selected color swatch in the main list');
-assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0].children[0].attributes['aria-hidden'], 'true', 'the main-list swatch must remain informational rather than a separate control');
-assert.strictEqual(nodes['app-settings-list'].children[4].children[1].children[0].children[0].style.backgroundColor, '#00ffff', 'the main-list swatch must show the selected accent color');
+assert.strictEqual(nodes['app-settings-list'].children.length, 4, 'main settings must include category rows and credit without redundant section headings');
+assert.strictEqual(nodes['app-settings-list'].children[2].className, 'app-setting-row is-focused', 'settings focus must be derived from the supplied snapshot');
+assert.strictEqual(nodes['app-settings-list'].children[1].tagName, 'div', 'read-only settings rows must not render as buttons');
+assert.strictEqual(nodes['app-settings-list'].children[1].attributes['data-setting-index'], undefined, 'read-only settings rows must not enter pointer focus navigation');
+assert.strictEqual(nodes['app-settings-list'].children[2].children[1].children[0].children.length, 1, 'accent settings must render only the selected color swatch in the main list');
+assert.strictEqual(nodes['app-settings-list'].children[2].children[1].children[0].children[0].attributes['aria-hidden'], 'true', 'the main-list swatch must remain informational rather than a separate control');
+assert.strictEqual(nodes['app-settings-list'].children[2].children[1].children[0].children[0].style.backgroundColor, '#00ffff', 'the main-list swatch must show the selected accent color');
 assert.strictEqual(keptVisible.length, 1, 'remote focus must keep the selected setting visible');
+
+(function settingsFocusOwnershipCoversRemoteAndPointerMovement() {
+  var before = settingsClearFocusCalls;
+  var first = nodes['app-settings-list'].children[0];
+  var third = nodes['app-settings-list'].children[2];
+  view.focus({ zone: 'list', index: 0 });
+  before = settingsClearFocusCalls;
+  view.focus({ zone: 'list', index: 2 });
+  assert.strictEqual(settingsClearFocusCalls, before, 'moving between mounted Settings rows must not globally scan focus classes');
+  assert.ok(String(third.className || '').indexOf('is-focused') !== -1, 'Settings D-pad focus must move to the requested row');
+  assert.ok(String(first.className || '').indexOf('is-focused') === -1, 'Settings D-pad focus must clear the previous row locally');
+
+  pointerSelectionActive = true;
+  before = settingsClearFocusCalls;
+  view.focus({ zone: 'list', index: 0 });
+  assert.strictEqual(settingsClearFocusCalls, before, 'Magic Remote Settings focus must use the same local ownership path');
+  assert.ok(String(first.className || '').indexOf('is-focused') !== -1, 'pointer Settings focus must move the logical focus ring');
+  pointerSelectionActive = false;
+
+  first.className = String(first.className || '').replace(/\s*is-focused/g, '');
+  before = settingsClearFocusCalls;
+  view.focus({ zone: 'list', index: 2 });
+  assert.strictEqual(settingsClearFocusCalls, before + 1, 'Settings must fall back to the global clear when local ownership was lost');
+
+  before = settingsClearFocusCalls;
+  view.focus({ zone: 'nav', navIndex: 0 });
+  assert.strictEqual(settingsClearFocusCalls, before + 1, 'Settings list-to-navbar transitions must retain the global clear as a cross-surface recovery boundary');
+}());
 
 view.render({
   title: 'Languages', notice: '', level: 'category', zone: 'list', index: 0, serverEditorOpen: false,
@@ -106,6 +149,81 @@ view.render({
   sectionLabel: function () { return 'PLAYBACK'; }
 });
 assert.strictEqual(nodes['app-settings-list'].children[0].className, 'app-setting-row is-focused', 'category pages must not repeat their title as an inner section heading');
+
+view.render({
+  title: 'Playback', notice: '', level: 'category', zone: 'list', index: 0, serverEditorOpen: false,
+  credit: 'Made by Rhapsodos93', accentColor: 'cyan', rows: [
+    { key: 'backCategory', label: 'Back', value: '', action: true, categoryBack: true },
+    { key: 'playbackMode', section: 'playback', label: 'Mode', value: 'Automatic' }
+  ],
+  sectionLabel: function () { return 'PLAYBACK'; }
+});
+assert.strictEqual(nodes['app-settings-back'].className, 'app-settings-back detail-arrow-button is-focused',
+  'category Back must use the header navigation treatment');
+assert.strictEqual(nodes['app-settings-back'].children.length, 0, 'category Back must remain an icon-only control');
+assert.strictEqual(nodes['app-settings-back'].attributes['aria-label'], 'Back', 'icon-only Back must retain an accessible label');
+assert.strictEqual(nodes['app-settings-list'].children.length, 1,
+  'category pages must not repeat the project credit');
+assert.ok(/nav-icon-back/.test(nodes['app-settings-back'].innerHTML),
+  'category Back must use the shared SVG icon set');
+assert.strictEqual(nodes['app-settings-notice'].textContent, '', 'the renderer must accept category-specific explanatory copy without retaining a global notice');
+
+view.render({
+  title: 'Home & libraries', notice: '', level: 'category', zone: 'list', index: 1, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan', rows: [
+    { key: 'libraryTabs', section: 'homeLibraries', label: 'Libraries', value: 'Manage' },
+    {
+      key: 'aggregateLibraries', section: 'homeLibraries', label: 'Merge matching library tabs', value: 'Disabled',
+      description: 'Show matching libraries from different Plex servers as one tab.', subsectionTitle: 'Multi-Server', subsectionSpacer: true
+    },
+    {
+      key: 'aggregateHomeLibraries', section: 'homeLibraries', label: 'Merge matching Recently Added rows', value: 'Disabled',
+      description: 'Combine matching Recently Added rows from different Plex servers.'
+    }
+  ],
+  sectionLabel: function () { return 'HOME & LIBRARIES'; }
+});
+assert.strictEqual(nodes['app-settings-list'].children.length, 5, 'Multi-Server subsection must add only a spacer and subtitle around the existing settings rows');
+assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-settings-subsection-spacer', 'Multi-Server must be separated from the preceding Home & libraries settings by one blank row');
+assert.strictEqual(nodes['app-settings-list'].children[2].className, 'app-settings-subsection', 'Multi-Server must render as an in-page subsection title');
+assert.strictEqual(nodes['app-settings-list'].children[2].textContent, 'Multi-Server', 'the subsection title must use the localized Multi-Server label');
+assert.strictEqual(nodes['app-settings-list'].children[3].attributes['data-setting-index'], '1', 'subsection decoration must not change setting focus indices');
+assert.strictEqual(nodes['app-settings-list'].children[3].children[0].className, 'app-setting-copy', 'described settings must group their label and explanation');
+assert.strictEqual(nodes['app-settings-list'].children[3].children[0].children[1].className, 'app-setting-description', 'described settings must render explanatory copy below the label');
+assert.strictEqual(nodes['app-settings-list'].children[3].children[0].children[1].textContent, 'Show matching libraries from different Plex servers as one tab.', 'setting descriptions must remain visible below the Multi-Server subtitle');
+
+view.render({
+  title: 'Settings', notice: '', level: 'categories', zone: 'list', index: 0, serverEditorOpen: false,
+  credit: 'Made by Rhapsodos93', accentColor: 'cyan',
+  rows: [{ key: 'plex', label: 'Plex', value: '', category: true }],
+  sectionLabel: function () { return ''; }
+});
+assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-settings-credit',
+  'the main settings page must retain the project credit');
+
+view.render({
+  title: 'Plex', notice: 'Manage Plex.', level: 'category', zone: 'list', index: 1, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan', rows: [
+    { key: 'networkStatus', label: 'Network', value: 'Online', readOnly: true },
+    { key: 'plexAccountAction', label: 'Disconnect Plex', value: '', action: true, standaloneAction: true }
+  ],
+  sectionLabel: function () { return 'PLEX'; }
+});
+assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-setting-row is-standalone-action is-focused',
+  'Plex account action must be visually separated from informational rows');
+
+
+view.render({
+  title: 'Data & support', notice: '', level: 'category', zone: 'list', index: 2, serverEditorOpen: false,
+  credit: '', accentColor: 'cyan', rows: [
+    { key: 'privacy', section: 'support', label: 'Privacy', value: '', action: true },
+    { key: 'deleteLocalData', section: 'support', label: 'Delete all local data', value: '', action: true, spacerBefore: true }
+  ],
+  sectionLabel: function () { return 'DATA & SUPPORT'; }
+});
+assert.strictEqual(nodes['app-settings-list'].children.length, 3, 'local-data deletion spacing must add only one non-focusable blank row');
+assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-settings-row-spacer', 'Delete all local data must be separated from the previous control by one blank row');
+assert.strictEqual(nodes['app-settings-list'].children[2].attributes['data-setting-index'], '1', 'blank-row decoration must not change Settings focus indices');
 
 view.render({
   title: 'Settings', notice: '', zone: 'list', index: 0, serverEditorOpen: false,
@@ -176,6 +294,31 @@ view.render({
 assert.strictEqual(serverRenders, 1, 'an open inline server editor must delegate its body rendering');
 assert.strictEqual(nodes['app-settings-list'].children[1].className, 'app-setting-row has-inline-editor', 'the server setting must expose its expanded state');
 
+view.render({
+  title: 'Plex', notice: 'Manage Plex.', level: 'category', zone: 'list', index: 1, serverEditorOpen: true,
+  serverDiscoveryActive: false, credit: '', accentColor: 'cyan', rows: [
+    { key: 'backCategory', label: 'Back', value: '', action: true, categoryBack: true },
+    { key: 'plexServer', section: 'plex', label: 'Server', value: 'Plex', serverEditor: true }
+  ],
+  sectionLabel: function () { return 'PLEX'; }
+});
+assert.ok(/has-inline-editor/.test(nodes['app-settings-list'].children[0].className),
+  'the server setting must expand even when category Back occupies index zero');
+markExpandedServerParentFocused = true;
+view.render({
+  title: 'Plex', notice: 'Manage Plex.', level: 'category', zone: 'list', index: 1, serverEditorOpen: true,
+  serverDiscoveryActive: false, credit: '', accentColor: 'cyan', rows: [
+    { key: 'backCategory', label: 'Back', value: '', action: true, categoryBack: true },
+    { key: 'plexServer', section: 'plex', label: 'Server', value: 'Plex', serverEditor: true }
+  ],
+  sectionLabel: function () { return 'PLEX'; }
+});
+assert.ok(!/is-focused/.test(nodes['app-settings-list'].children[0].className),
+  'a server refresh must not restore focus to the expanded parent setting');
+markExpandedServerParentFocused = false;
+assert.strictEqual(nodes['app-settings-list'].children[1].className, 'server-editor-inline',
+  'the inline server editor must be inserted after the server row');
+
 view.renderLanguages({
   title: 'Audio priority', hint: 'Choose', backLabel: 'Back', index: 1,
   languages: [{ code: 'ja', languageCode: 'ja', label: 'Japanese', rank: 1 }, { code: 'it', languageCode: 'it', label: 'Italian', rank: 2 }]
@@ -186,6 +329,22 @@ assert.strictEqual(nodes['language-editor-list'].children[1].children[0].childre
 assert.strictEqual(nodes['language-editor-list'].children[1].children[1].textContent, '2', 'language priority rank must remain visible');
 assert.strictEqual(nodes['language-editor-back'].textContent, 'Back', 'language editor must expose a visible Back action');
 assert.strictEqual(nodes['language-editor-back'].attributes['data-language-index'], '2', 'Back must participate in the same focus model as language rows');
+
+view.renderLanguages({
+  title: 'Home', hint: 'Reorder', backLabel: 'Back', index: 1,
+  motion: { movedCode: 'recent', displacedCode: 'recommended', direction: 1 },
+  languages: [{ code: 'recommended', label: 'Recommended', rank: 1 }, { code: 'recent', label: 'Recent', rank: 2 }]
+});
+assert.ok(/is-reorder-from-below/.test(nodes['language-editor-list'].children[0].className), 'the displaced Home row must animate upward from its previous lower position');
+assert.ok(/is-reorder-from-above/.test(nodes['language-editor-list'].children[1].className), 'the moved Home row must animate downward from its previous upper position');
+assert.ok(/is-reorder-primary/.test(nodes['language-editor-list'].children[1].className), 'the focused Home row must be visually emphasized while it moves');
+assert.strictEqual(nodes['language-editor-list'].children[0].children[1].textContent, '1', 'Home numbering must update immediately on reorder');
+assert.strictEqual(nodes['language-editor-list'].children[1].children[1].textContent, '2', 'the moved Home row must immediately expose its new number');
+
+view.renderLanguages({
+  title: 'Audio priority', hint: 'Choose', backLabel: 'Back', index: 1,
+  languages: [{ code: 'ja', languageCode: 'ja', label: 'Japanese', rank: 1 }, { code: 'it', languageCode: 'it', label: 'Italian', rank: 2 }]
+});
 var firstLanguageNode = nodes['language-editor-list'].children[0];
 view.focusLanguage(0, 3);
 view.updateLanguageFocus();

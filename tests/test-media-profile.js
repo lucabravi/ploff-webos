@@ -51,6 +51,10 @@ assert.strictEqual(MediaProfile.trackDisplayLabel(fullHd.audioTracks[0], 'Extern
 assert.strictEqual(MediaProfile.trackDisplayLabel(fullHd.subtitleTracks[0], 'External'), 'Italiano (SRT External)', 'Plex display titles must be preferred for subtitle choices');
 assert.strictEqual(MediaProfile.trackDisplayLabel({ language: 'Italiano', codec: 'ASS', external: true }, 'External'), 'Italiano (ASS External)', 'external subtitle labels must have a readable fallback');
 assert.strictEqual(MediaProfile.trackDisplayLabel({ language: 'English', codec: 'TRUEHD', channels: 8 }, 'External'), 'English (TRUEHD 7.1)', 'audio labels must derive a readable channel layout when Plex omits its title');
+var unknownTrack = MediaProfile.trackFromAttributes({ id: 'unknown', codec: 'aac' });
+assert.strictEqual(unknownTrack.language, '', 'transport mapping must not bake an Italian fallback into tracks with no language metadata');
+assert.strictEqual(MediaProfile.trackDisplayLabel(unknownTrack, 'External', 'Unknown'), 'Unknown (AAC)',
+  'track presentation must accept the active locale fallback when Plex omits the language');
 
 
 assert.strictEqual(MediaProfile.detailedSize(2576980377, 'Unavailable'), '2.40 GB', 'technical surfaces must share precise file-size formatting');

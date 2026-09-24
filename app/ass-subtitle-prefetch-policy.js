@@ -50,9 +50,7 @@
   }
 
   return {
-    creditsTrigger: creditsTrigger,
     due: due,
-    durationLead: durationLead,
     triggerSeconds: triggerSeconds
   };
 }));

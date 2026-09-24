@@ -23,7 +23,6 @@
     var state = {
       playlistPlaybackQueue: null,
       playlistPlaybackAutoToken: 0,
-      playbackMetadataRequestToken: 0,
       adjacentTokens:[0,0],
       seriesPlaybackQueue: null,
       playlistQueueDrawerOpen: false,
@@ -48,7 +47,7 @@
       adjacentNextState: 'unavailable',
       destroyed: false
     };
-    var requests = { metadata: null };
+    var metadataOperation = values.PlaybackOperation.create({ onAbortError: values.onAbortError });
     var timers = { drawer: null, directPlay: null, upNext: null };
     var drawerWindowRequest = null;
 
@@ -85,10 +84,6 @@
       return undefined;
     }
 
-    function abort(request) {
-      if (request && typeof request.abort === 'function') { request.abort(); }
-    }
-
     function clearTimer(name) {
       if (timers[name] !== null && root.clearTimeout) { root.clearTimeout(timers[name]); }
       timers[name] = null;
@@ -110,34 +105,22 @@
       return timers[name];
     }
 
-    function cancelRequest(name) {
-      abort(requests[name]);
-      requests[name] = null;
-    }
+    function invalidateMetadataRequest() { metadataOperation.cancel(); }
 
-    function invalidateMetadataRequest() {
-      state.playbackMetadataRequestToken += 1;
-      cancelRequest('metadata');
-      return state.playbackMetadataRequestToken;
-    }
-
-    function loadCurrentMetadata(ratingKey, callback) {
-      var token = invalidateMetadataRequest();
-      var completed = false;
-      var request = call(values.loadMetadata, ratingKey, function (error, detail) {
-        completed = true;
-        if (state.destroyed || token !== state.playbackMetadataRequestToken) { return; }
-        requests.metadata = null;
-        call(callback, error || null, detail || null);
+    function loadCurrentMetadata(itemOrRatingKey, callback) {
+      var operation = metadataOperation.begin();
+      var request = null;
+      operation.run(function (done) {
+        request = call(values.loadMetadata, itemOrRatingKey, done);
+        return request;
+      }, function (error, detail) {
+        if (!state.destroyed) { call(callback, error || null, detail || null); }
       });
-      if (!completed && token === state.playbackMetadataRequestToken) { requests.metadata = request || null; }
       return request || null;
     }
 
-    function playable(items) { return model.playableItems(items || []); }
     function createQueue(items, ratingKey, title, preferredIndex) { return model.createQueue(items || [], ratingKey, title, preferredIndex); }
     function currentIndex(items, ratingKey, preferredIndex) { return model.currentIndex(items || [], ratingKey, preferredIndex); }
-    function firstUnfinished(items) { return model.firstUnfinishedIndex(items || []); }
     function queueContext(queue) { return model.seriesContext(queue); }
 
     function updateContainerQueueCurrent(queue, index, item, occurrenceId) {
@@ -173,7 +156,8 @@
     function containerIdentity(container) {
       var kind = model.containerKind(container);
       var id = container && (container.containerKey || container.ratingKey || container.key || container.id || container.title) || '';
-      return kind && id ? kind + '|' + String(id) : '';
+      var owner = String(container && container.serverMachineIdentifier || '');
+      return kind && id ? (owner ? owner + '|' : '') + kind + '|' + String(id) : '';
     }
 
     function seriesSeasonNumber(detail) {
@@ -189,7 +173,8 @@
       var current = detail && detail.currentDetail || {};
       var id = current.showRatingKey || current.grandparentRatingKey || current.grandparentTitle || current.title || seriesIdentity(detail);
       var scope = contract ? contract.seriesScope({ seasonNumber: seriesSeasonNumber(detail) }) : 'regular';
-      return String(id || '') + '|' + scope;
+      var owner = String(current.serverMachineIdentifier || '');
+      return (owner ? owner + '|' : '') + String(id || '') + '|' + scope;
     }
 
     function closeSequenceProviders() {
@@ -218,7 +203,8 @@
         seasonNumber = seriesSeasonNumber(detail);
         seriesProvider.open({
           kind: 'series',
-          id: String(current.showRatingKey || current.grandparentRatingKey || current.grandparentTitle || current.title || identity),
+          id: (current.serverMachineIdentifier ? String(current.serverMachineIdentifier) + '|' : '') +
+            String(current.showRatingKey || current.grandparentRatingKey || current.grandparentTitle || current.title || identity),
           title: String(current.grandparentTitle || current.title || call(values.queueLabel) || 'Queue'),
           seasons: context.seasons || [],
           currentItem: current,
@@ -254,7 +240,8 @@
         sequenceContainer = container;
         origin = {
           kind: model.containerKind(container),
-          id: String(container.containerKey || container.ratingKey || container.key || container.id || container.title || ''),
+          id: (container.serverMachineIdentifier ? String(container.serverMachineIdentifier) + '|' : '') +
+            String(container.containerKey || container.ratingKey || container.key || container.id || container.title || ''),
           title: String(container.title || '')
         };
         total = Number(container.totalSize);
@@ -375,7 +362,8 @@
       var current = detail.currentDetail || {};
       var context = detail.seriesContext || {};
       var seasonKeys = (context.seasons || []).map(function (season) { return String(season && season.ratingKey || ''); }).join(',');
-      return String(current.showRatingKey || current.title || '') + '|' + seasonKeys;
+      var owner = String(current.serverMachineIdentifier || '');
+      return (owner ? owner + '|' : '') + String(current.showRatingKey || current.title || '') + '|' + seasonKeys;
     }
 
     function seriesCurrentIndex(queue, snapshot) {
@@ -461,12 +449,22 @@
       return Math.max(0, Number(queue.index || 0));
     }
 
-    function clear() {
-      state.adjacentTokens[0]+=1;state.adjacentTokens[1]+=1;
+    // Commands belong to the current playback; the queue origin and bounded
+    // provider cache remain reusable after leaving the Player.
+    function cancelPendingPlayback() {
+      state.adjacentTokens[0] += 1;
+      state.adjacentTokens[1] += 1;
+      state.adjacentPreviousState = 'unavailable';
+      state.adjacentNextState = 'unavailable';
       state.playlistPlaybackAutoToken += 1;
       state.playlistDirectPlayToken += 1;
+      state.playlistDirectPlayPending = false;
       invalidateMetadataRequest();
       clearTimer('directPlay');
+      cancelUpNext(false);
+    }
+
+    function clear() {
       resetPlaybackSession();
       state.playlistPlaybackQueue = null;
       state.containerOrigin = null;
@@ -519,12 +517,6 @@
       result = containerActivationResult(queue, currentItem, localIndex, absoluteIndex, queue.currentOccurrenceId);
       call(values.onQueueChanged, snapshot());
       return result;
-    }
-
-    function resolveAdjacent(direction, callback, snapshotValue) {
-      return resolveAdjacentState(direction, function (error, result) {
-        call(callback, !error && result && result.state === 'available' ? result : null);
-      }, snapshotValue);
     }
 
     function resolveAdjacentState(direction, callback, snapshotValue) {
@@ -601,7 +593,7 @@
     }
 
     function requestQueueOccurrence(queue, current, index, target, occurrenceId, requestOptions, token) {
-      loadCurrentMetadata(target.ratingKey, function (error, metadata) {
+      loadCurrentMetadata(target, function (error, metadata) {
         if (state.destroyed || token !== state.playlistPlaybackAutoToken) { return; }
         if (error || !metadata) { call(values.onPlaybackError, error || new Error('metadata unavailable'), target, index); return; }
         updateContainerQueueCurrent(queue, index, target, occurrenceId);
@@ -703,7 +695,7 @@
         updateContainerQueueCurrent(queue, target.absoluteIndex, target.item, target.occurrenceId);
         state.playlistPlaybackQueue = queue;
         call(values.onQueueChanged, snapshot());
-        loadCurrentMetadata(target.item.ratingKey, function (error, metadata) {
+        loadCurrentMetadata(target.item, function (error, metadata) {
           if (state.destroyed || token !== state.playlistDirectPlayToken) { return; }
           if (error || !metadata) { finish(error || new Error('metadata unavailable')); return; }
           state.playlistDirectPlayPending = false;
@@ -772,8 +764,8 @@
       return true;
     }
 
-    function waitForDetail(ratingKey, callback) {
-      return loadCurrentMetadata(ratingKey, callback);
+    function waitForDetail(itemOrRatingKey, callback) {
+      return loadCurrentMetadata(itemOrRatingKey, callback);
     }
 
     function restoreContainerOrigin() {
@@ -1166,7 +1158,7 @@
 
     function resetPlaybackSession() {
       state.autoplayDismissed = false;
-      cancelUpNext(false);
+      cancelPendingPlayback();
       state.autoplayDismissed = false;
     }
 
@@ -1274,7 +1266,7 @@
       cancelUpNext(false);
       clearTimer('drawer');
       clearTimer('directPlay');
-      cancelRequest('metadata');
+      metadataOperation.destroy();
       if (seriesProvider) { seriesProvider.destroy(); }
       if (containerProvider) { containerProvider.destroy(); }
       state.destroyed = true;
@@ -1282,13 +1274,13 @@
 
     return {
       activatePlaylist: activatePlaylist,
-      activateUpNext: activateUpNext,
       activeIndex: activeIndex,
       activeQueue: activeQueue,
       beginBackdropLoad: beginBackdropLoad,
       capturePlaylistGeneration: capturePlaylistGeneration,
       claimBackdropPrefetch: claimBackdropPrefetch,
       cancelUpNext: cancelUpNext,
+      cancelPendingPlayback: cancelPendingPlayback,
       clear: clear,
       closeDrawer: closeDrawer,
       completeDirect: completeDirect,
@@ -1297,7 +1289,6 @@
       destroy: destroy,
       drawerSnapshot: drawerSnapshot,
       ensureSeries: ensureSeries,
-      firstUnfinished: firstUnfinished,
       handleKey: handleKey,
       invalidateBackdropLoad: invalidateBackdropLoad,
       isBackdropLoadCurrent: isBackdropLoadCurrent,
@@ -1305,23 +1296,17 @@
       isConfirmationCurrent: isConfirmationCurrent,
       loadDrawerWindow: loadDrawerWindow,
       moveDrawer: moveDrawer,
-      moveUpNext: moveUpNext,
       observePlayback: observePlayback,
       openDrawer: openDrawer,
-      playable: playable,
       playbackEnded: playbackEnded,
       pointDrawer: pointDrawer,
       prepareContainer: prepareContainer,
       preparePlaylist: preparePlaylist,
-      queueContext: queueContext,
       requestIndex: requestIndex,
       resetPlaybackSession: resetPlaybackSession,
-      resetSeries: resetSeries,
-      resolveAdjacent: resolveAdjacent,
       resolveAdjacentState: resolveAdjacentState,
       requestResolved: requestResolved,
       restoreContainerOrigin: restoreContainerOrigin,
-      seriesCurrentIndex: seriesCurrentIndex,
       showUpNext: showUpNext,
       snapshot: snapshot,
       startContainer: startContainer,

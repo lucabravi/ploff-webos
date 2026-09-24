@@ -96,6 +96,7 @@
   var parseXmlDocument = PlexMediaDocument.parseXmlDocument;
   var mediaDocumentFromXml = PlexMediaDocument.parse;
   var mediaDocumentFromDocument = PlexMediaDocument.fromDocument;
+  var mediaDocumentFromVideoNode = PlexMediaDocument.fromVideoNode;
   var homeDefinitions = PlexHomeModel.homeDefinitions;
   var mergeRecommendedItems = PlexHomeModel.mergeRecommendedItems;
   var recommendationItemsFromXml = PlexHomeModel.recommendationItemsFromXml;
@@ -291,13 +292,19 @@
     });
   }
 
+  function librarySectionsFromAttributes(sections) {
+    return (sections || []).filter(function (section) {
+      return !!(section && section.key && section.title && (section.type === 'movie' || section.type === 'show'));
+    }).map(function (section) {
+      return { key: String(section.key), title: String(section.title), type: String(section.type) };
+    });
+  }
+
   function navigationDefinitions(sections) {
     /** @type {Array<Object>} */
     var items = [{ title: 'Home', kind: 'home', labelKey: 'nav.home' }];
-    sections.forEach(function (section) {
-      if (section.key && section.title && (section.type === 'movie' || section.type === 'show')) {
-        items.push({ title: section.title, kind: 'library', key: section.key, type: section.type });
-      }
+    librarySectionsFromAttributes(sections).forEach(function (section) {
+      items.push({ title: section.title, kind: 'library', key: section.key, type: section.type });
     });
     items.push({ title: 'Watchlist', kind: 'watchlist', labelKey: 'nav.watchlist' });
     items.push({ title: 'Playlists', kind: 'playlists', labelKey: 'nav.playlists' });
@@ -323,14 +330,21 @@
     });
   }
 
-  function loadNavigation(config, callback) {
+  function loadLibrarySections(config, callback) {
     var url = buildUrl(config.apiBaseUrl, config.sectionsPath || '/library/sections', {}, config.token || '');
     return request(url, config.requestTimeout || 8000, function (error, xmlText) {
-      var navigation;
+      var sections;
       if (error) { callback(error); return; }
-      try { navigation = navigationDefinitions(parseAttributes(xmlText)); }
+      try { sections = librarySectionsFromAttributes(parseAttributes(xmlText)); }
       catch (parseError) { callback(parseError); return; }
-      callback(null, navigation);
+      callback(null, sections);
+    });
+  }
+
+  function loadNavigation(config, callback) {
+    return loadLibrarySections(config, function (error, sections) {
+      if (error) { callback(error); return; }
+      callback(null, navigationDefinitions(sections));
     });
   }
 
@@ -686,8 +700,12 @@
             if (definition.groupRecent) { attributes = groupRecentAttributes(attributes); }
             rows[index] = {
               title: definition.title,
+              titleKey: definition.titleKey || '',
+              titleParameters: definition.titleParameters || null,
               kind: definition.kind || '',
               shape: 'poster',
+              sectionKey: definition.sectionKey || '',
+              sectionTitle: definition.sectionTitle || '',
               showLibraryBadge: definition.showLibraryBadge === true,
               items: attributes.slice(0, config.itemLimit || 12).map(function (item) {
                 return mediaFromAttributes(item, config.apiBaseUrl, config.token || '');
@@ -740,7 +758,7 @@
       recommendationDeadline = null;
       requests = [];
       if (recommendedItems.length) {
-        baseRows.splice(1, 0, { title: 'Recommended for You', kind: 'recommended', recommendation: true, showLibraryBadge: true, shape: 'poster', items: recommendedItems });
+        baseRows.splice(1, 0, { title: 'home.recommended', titleKey: 'home.recommended', kind: 'recommended', recommendation: true, showLibraryBadge: true, shape: 'poster', items: recommendedItems });
       }
       callback(baseRows.length ? null : baseError, baseRows);
     }
@@ -855,16 +873,29 @@
   function loadSeasonEpisodes(config, seasonKey, selectedKey, callback, seasonYear) {
     var url = buildUrl(config.apiBaseUrl, '/library/metadata/' + seasonKey + '/children', {}, config.token || '');
     return request(url, config.requestTimeout || 8000, function (error, xmlText) {
-      var episodes;
+      var episodes = [];
       var selectedFound = false;
+      var documentNode;
+      var candidates;
+      var index;
+      var node;
       if (error) {
         callback(error);
         return;
       }
       try {
-        episodes = parseAttributes(xmlText).map(function (attributes) {
-          return episodeFromAttributes(attributes, config.apiBaseUrl, config.token || '', selectedKey || '', seasonYear);
-        });
+        documentNode = parseXmlDocument(xmlText);
+        candidates = documentNode.documentElement.childNodes;
+        for (index = 0; index < candidates.length; index += 1) {
+          node = candidates[index];
+          if (node.nodeType !== 1 || node.nodeName !== 'Video') { continue; }
+          var attributes = attributesFromNode(node);
+          var episode = episodeFromAttributes(attributes, config.apiBaseUrl, config.token || '', selectedKey || '', seasonYear);
+          var parsed = mediaDocumentFromVideoNode ? mediaDocumentFromVideoNode(node, documentNode) : null;
+          var mediaProfile = parsed ? mediaProfileFromParsedDocument(parsed) : null;
+          if (mediaProfile) { episode.mediaProfile = mediaProfile; }
+          episodes.push(episode);
+        }
         episodes.forEach(function (episode) {
           selectedFound = selectedFound || episode.selected;
         });
@@ -1326,6 +1357,7 @@
     loadNavigation: loadNavigation,
     findByGuid: findByGuid,
     loadLibraryFilterOptions: loadLibraryFilterOptions,
+    loadLibrarySections: loadLibrarySections,
     loadLibraryContainerPage: loadLibraryContainerPage,
     loadLibraryPage: loadLibraryPage,
     loadSettingsBackupPlaylists: loadSettingsBackupPlaylists,
