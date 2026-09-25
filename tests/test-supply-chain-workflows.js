@@ -19,18 +19,25 @@ var usesLines = (ci + '\n' + release).split('\n').filter(function (line) {
     'every external GitHub Action reference must use an immutable 40-character commit SHA');
 }());
 
-(function buildJobsUseTheRegisteredPrivateRunner() {
+(function ordinaryCiUsesAnIsolatedRunnerAndReleaseKeepsItsTrustedRunner() {
   var runner = 'runs-on: [self-hosted, Linux, X64, plex-local-build]';
-  assert.ok(ci.indexOf(runner) !== -1,
-    'the CI workflow must use the registered private build runner');
+  assert.ok(/^ {4}runs-on: ubuntu-latest$/m.test(ci),
+    'ordinary CI must use an ephemeral GitHub-hosted runner for public pull requests');
+  assert.ok(ci.indexOf(runner) === -1,
+    'ordinary CI must not run untrusted pull requests on the private runner');
   assert.ok(/^ {2}verify:\n[\s\S]*?^ {4}runs-on: \[self-hosted, Linux, X64, plex-local-build\]$/m.test(release),
     'the release verification job must use the registered private build runner');
   assert.ok(/^ {2}package-ipk:\n[\s\S]*?^ {4}runs-on: \[self-hosted, Linux, X64, plex-local-build\]$/m.test(release),
     'the IPK packaging job must use the registered private build runner');
   assert.ok(/^ {2}publish-image:\n[\s\S]*?^ {4}runs-on: \[self-hosted, Linux, X64, plex-local-build\]$/m.test(release),
     'the container publishing job must use the registered private build runner');
-  assert.ok(!/runs-on:\s*ubuntu-latest/.test(ci + '\n' + release),
-    'the private build workflows must not silently fall back to GitHub-hosted runners');
+  assert.ok(!/runs-on:\s*ubuntu-latest/.test(release),
+    'trusted release jobs must not silently switch runners');
+}());
+
+(function ordinaryCiRunsTheMemoryGate() {
+  assert.ok(/^ {8}run: npm run test:memory$/m.test(ci),
+    'ordinary CI must run the memory gate as well as the verification suite');
 }());
 
 (function releaseVerificationRunsThePreReleaseMemoryGate() {
