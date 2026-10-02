@@ -9,6 +9,10 @@ RUN apt-get update \
 ENV HOME=/data
 WORKDIR /opt/ploff
 
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --ignore-scripts \
+    && npm cache clean --force
+
 COPY app ./app
 COPY webos-service ./webos-service
 COPY webos-shell-app ./webos-shell-app

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: [self-hosted, Linux, X64, plex-local-build]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,3 +39,5 @@ jobs:
         run: npm run check:deps
       - name: Run runtime compatibility, lint, type checks, tests, and repository checks
         run: npm run verify
+      - name: Run memory regression gate
+        run: npm run test:memory
