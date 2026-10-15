@@ -48,6 +48,8 @@ var MODULE_FILES = [
   'media-context-controller.js',
   'input-controller.js',
   'pointer-controller.js',
+  'launch-command-controller.js',
+  'launch-command-transport.js',
   'application-controller.js',
   'application-bootstrap.js'
 ];

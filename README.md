@@ -277,6 +277,13 @@ local playback remain available offline.
 Ploff currently focuses on films and TV libraries. Live TV/DVR, music libraries,
 photo libraries, casting, and Watch Together are not supported.
 
+## Automation
+
+Paired webOS automation controllers can launch a specific video, playlist, or
+collection using optional versioned launch parameters. See
+[launch commands](docs/launch-commands.md) for CLI/Home Assistant examples,
+deadlines, retry semantics, and playback-confirmation limits.
+
 ## Security
 
 - Plex tokens and cached Home profiles are stored in private app-owned webOS

@@ -233,7 +233,7 @@ function createHarness(overrides) {
       return true;
     },
     open: function (request, callback) { calls.push(['open-playback', request]); if (callback) { callback(null); } return true; },
-    close: function (callback) { calls.push(['close']); if (callback) { callback(12, true, '42'); } return true; },
+    close: function (callback) { calls.push(['close']); if (values.closePlayback) { return values.closePlayback(callback); } if (callback) { callback(12, true, '42'); } return true; },
     startItem: function (item, options, callback) { calls.push(['start-item', item, options]); if (callback) { callback(null); } return true; },
     destroy: function () { destroyed.push('playback'); }
   };

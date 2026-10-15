@@ -97,6 +97,10 @@
     var playerErrorRetryAction = null;
     var playerErrorFallbackAction = null;
     var resumeChoiceState = null;
+    var commandEpoch = 0;
+    var commandResume = null;
+    var commandClosing = false;
+    var commandCloseCallbacks = [];
     var playerControlsView = null;
     var playerChaptersView = null;
     var playerSubtitleEditorController = null;
@@ -1399,6 +1403,7 @@
       var source = playbackSnapshot();
       var result = copyRecord(source) || {};
       result.playback = copyPlaybackRecord(source.playback);
+      result.serverMachineIdentifier = String(sessionSourceContext && sessionSourceContext.serverMachineIdentifier || "");
       result.localSubtitle = copyRecord(source.localSubtitle);
       result.subtitleEditor = copyRecord(source.subtitleEditor) || { open: false };
       return result;
@@ -1716,7 +1721,10 @@
         seasonIndex: 0,
         episodeIndex: 0
       };
-      if (request && request.resume === false) {
+      if (request && request.autoplay === true) {
+        detailPorts.setPlayPending(false);
+        beginPlayer(request.resume === false ? 0 : Math.max(0, Number(detail.viewOffset || 0) / 1000));
+      } else if (request && request.resume === false) {
         detailPorts.setPlayPending(false);
         beginPlayer(0);
       } else {
@@ -1852,13 +1860,13 @@
       enterDetailView(); detailPorts.resumeAfterPlayer(new Date().getTime() + 700);
     }
 
-    function closePlayer(destination) {
+    function closePlayer(destination, onClosed) {
       generation += 1;
       playbackQueueController.cancelPendingPlayback();
       diagnosticsPorts.capturePlayback();
       playerControlsController.cancelControlsTimeout();
-      if (!playbackController) { restorePlayerSurfaceAfterClose(destination); return; }
-      playbackController.close(function () { restorePlayerSurfaceAfterClose(destination); });
+      if (!playbackController) { restorePlayerSurfaceAfterClose(destination); call(onClosed); return; }
+      playbackController.close(function () { restorePlayerSurfaceAfterClose(destination); call(onClosed); });
     }
 
     function closePlayerToHome() {
@@ -1976,7 +1984,7 @@
         previewEffectiveSubtitleStyle(null);
         playbackController.startItem(target, {
           detail: request.detail,
-          startOffset: request.resumeOffset || null,
+          startOffset: request.resume === false ? 0 : request.resumeOffset || null,
           preferences: detailPlaybackPreferencesFor(request.detail, null),
           versionAffinity: null
         }, function (error) { if (error) { handlePlaybackQueueError(error); } });
@@ -1992,7 +2000,11 @@
       detailPorts.setPlaybackContext(request.detail, target, context, seasonIndex, episodeIndex);
       detailPorts.setPlayPending(false);
       detailPorts.setFocus({ zone: 'play', actionIndex: 0 });
-      openPlayer();
+      if (commandResume !== null) {
+        var autoResume = commandResume;
+        commandResume = null;
+        beginPlayer(autoResume ? Math.max(0, Number(request.detail.viewOffset || 0) / 1000) : 0);
+      } else { openPlayer(); }
       finishContainerDirectPlayTransition();
       playbackQueueController.completeDirect();
       return true;
@@ -2127,15 +2139,59 @@
       showMessage(message || t('status.metadataUnavailable'));
     }
 
-    function startContainerPlayback(container) {
+    function startContainerPlayback(container, onStarted) {
       var started;
       if (!container || !playbackQueueContainerKind(container) || playbackQueueSnapshot().directPlayPending) { return false; }
       document.body.className = document.body.className.replace(/\s*is-container-direct-start/g, '') + ' is-container-direct-start';
-      started = playbackQueueController.startContainer(container, function (error) {
+      started = playbackQueueController.startContainer(container, function (error, item) {
+        call(onStarted, error, item);
         if (error) { failContainerDirectPlayStart(t('status.libraryUnavailable')); }
       });
       if (!started) { finishContainerDirectPlayTransition(); }
       return started;
+    }
+
+    function closeForCommand(callback) {
+      if (callback) { commandCloseCallbacks.push(callback); }
+      if (commandClosing) { return; }
+      commandClosing = true;
+      closePlayer('home', function () {
+        var callbacks = commandCloseCallbacks.slice();
+        commandCloseCallbacks = [];
+        commandClosing = false;
+        callbacks.forEach(function (done) { done(); });
+      });
+    }
+    // External launch uses the same decoder, stream preferences and bounded queue as the UI.
+    function playCommand(target, sourceContextValue, resume, callback) {
+      var epoch = commandEpoch += 1;
+      if (destroyed || !target) { return false; }
+      function begin() {
+        if (destroyed || epoch !== commandEpoch) { return; }
+        if (!applySessionSourceContext(sourceContextValue, target)) { call(callback, new Error('source unavailable')); return; }
+        playbackQueueController.clear();
+        if (playbackQueueContainerKind(target)) {
+          commandResume = resume !== false;
+          if (!startContainerPlayback(target, function (error, item) {
+            if (epoch === commandEpoch) { call(callback, error, item && item.ratingKey); }
+          })) { call(callback, new Error('queue unavailable')); }
+        } else {
+          if (!openStandalone({detail: target, item: target, sourceContext: sourceContextValue, autoplay: true, resume: resume})) {
+            call(callback, new Error('playback unavailable')); return;
+          }
+          call(callback, null, target.ratingKey);
+        }
+      }
+      if (currentView() === 'player' || commandClosing) { closeForCommand(begin); }
+      else { begin(); }
+      return true;
+    }
+    function cancelCommand() {
+      commandEpoch += 1;
+      commandResume = null;
+      playbackQueueController.cancelPendingPlayback();
+      if (currentView() === 'player' || commandClosing) { closeForCommand(null); }
+      else { finishContainerDirectPlayTransition(); }
     }
 
     function consumePlaylistEvent(event) {
@@ -3026,6 +3082,8 @@
     return {
       open: openPlayer,
       openStandalone: openStandalone,
+      playCommand: playCommand,
+      cancelCommand: cancelCommand,
       handleQueueCapture: handleQueueCapture,
       handleQueueGapKey: handleQueueGapKey,
       handleQueueKey: handleQueueKey,

@@ -551,4 +551,45 @@ var createHarness = Fixture.createHarness;
 }());
 
 
+(function upNextRestartsAPartiallyWatchedItem() {
+  ['series', 'playlist', 'collection'].forEach(function (kind) {
+    var target = { ratingKey: 'next', type: 'episode', viewOffset: 65000 };
+    var queue = { kind: kind === 'series' ? 'series' : 'container', items: [target], index: 0 };
+    var h = createHarness({
+      modules: { PlaybackQueueModel: PlaybackQueueModel },
+      activatePlaylist: function () { return { context: { playlistQueue: true }, index: 0 }; },
+      detail: {
+        setPlaybackContext: function () {},
+        queueMediaProfile: function () {},
+        renderEpisodeContext: function () {},
+        playbackPreferences: function () { return {}; }
+      }
+    });
+    assert.strictEqual(h.captured.queueOptions.requestPlayback({
+      origin: 'up-next', item: target, detail: target, queue: queue, index: 0, resume: false
+    }), true);
+    var started = h.calls.filter(function (entry) { return entry[0] === 'start-item'; });
+    assert.strictEqual(started.length, 1);
+    assert.strictEqual(started[0][2].startOffset, 0,
+      'Up Next must pass explicit zero instead of falling back to the saved Plex position for ' + kind);
+    h.controller.destroy();
+  });
+}());
+
+(function queueResumeKeepsTheRequestedPosition() {
+  var target = { ratingKey: 'next', type: 'episode', viewOffset: 65000 };
+  var h = createHarness({
+    detail: {
+      setPlaybackContext: function () {},
+      queueMediaProfile: function () {},
+      renderEpisodeContext: function () {},
+      playbackPreferences: function () { return {}; }
+    }
+  });
+  h.captured.queueOptions.requestPlayback({ item: target, detail: target, resume: true, resumeOffset: 65 });
+  var started = h.calls.filter(function (entry) { return entry[0] === 'start-item'; });
+  assert.strictEqual(started[0][2].startOffset, 65, 'explicit queue resume must retain its position');
+  h.controller.destroy();
+}());
+
 console.log('Player feature queue checks passed');

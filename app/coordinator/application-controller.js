@@ -2345,6 +2345,36 @@
         detailFeature.recoverAfterNetwork();
       }
     }
+    var launchCommands = root.PloffLaunchCommandController && typeof root.PloffLaunchCommandController.create === 'function' ? constructOwner(function () {
+      return root.PloffLaunchCommandController.create({
+        root: root, document: document, Events: ApplicationEvents,
+        hidden: function () { return document.hidden === true; },
+        context: function (machine) {
+          if (currentView() === 'setup') { return null; }
+          return librarySources.contextForMachine(machine);
+        },
+        load: root.PloffLaunchCommandTransport.create(detailPlexClient, plexSourceRouter).load,
+        ready: ensurePlayerReady,
+        start: function (target, context, resume, callback) {
+          cancelPendingPlayback(); cancelPendingDirectPlay();
+          settingsFeature.suspend(); searchFeature.leave({keepImages: false}); libraryFeature.hidePresentation();
+          return playerFeature.playCommand(target, context, resume, callback);
+        },
+        cancelStart: function () { if (playerFeature) { playerFeature.cancelCommand(); } },
+        observe: function () {
+          var status = playerFeature ? playerFeature.playbackSnapshot() : {};
+          var feature = playerFeature ? playerFeature.snapshot() : {};
+          return {playing: currentView() === 'player' && status.active && status.paused === false,
+            ratingKey: String(status.ratingKey || ''),
+            serverMachineIdentifier: String(status.serverMachineIdentifier || ''),
+            error: feature.errorOpen === true};
+        },
+        publish: function (status) { root.PloffCommandStatus = status; },
+        showError: function (reason) {
+          shellFeature.showMessage(t(reason === 'media_unavailable' ? 'status.mediaUnavailable' : 'status.playbackError'));
+        }
+      });
+    }) : null;
     function destroy() {
       if (destroyed) { return; }
       destroyed = true;
@@ -2385,6 +2415,8 @@
       throw error;
     }
     return {
+      launchCommand: function (params) { return launchCommands ? launchCommands.submit(params) : false; },
+      commandStatus: function () { return launchCommands ? launchCommands.snapshot() : {state: 'unavailable'}; },
       destroy: destroy, session: function () { return applicationSession.snapshot(); },
       view: function () { return currentView(); }
     };

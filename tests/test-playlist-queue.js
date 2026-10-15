@@ -223,7 +223,7 @@ assert.ok(/function updateDrawerFocus\(queueValue, drawerValue, currentIndexValu
   'applying a drawer window must reuse resolved queue and focus state instead of reading snapshots again');
 assert.ok(playerQueueSource.indexOf('windowResult && windowResult.items') !== -1, 'the drawer must render provider occurrences rather than assuming the complete queue is resident');
 assert.ok(playerQueueSource.indexOf('PlaybackQueueModel.itemDisplayTitle(item)') !== -1, 'queue cards must render SxxExx episode titles');
-assert.ok(source.indexOf('function startContainerPlayback(container)') !== -1, 'the Play key must support every queue container');
+assert.ok(source.indexOf('function startContainerPlayback(container, onStarted)') !== -1, 'the Play key must support every queue container');
 assert.ok(/function startContainer\([\s\S]*function firstUnfinishedOccurrence\([\s\S]*scanProvider/.test(controllerSource),
   'playlist containers must select the first unfinished paginated occurrence');
 assert.ok(/function startContainer\([\s\S]*provider\.window\(start, start \+ 40[\s\S]*scanProvider\(nextStart/.test(controllerSource) &&

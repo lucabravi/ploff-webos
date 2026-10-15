@@ -47,7 +47,7 @@ assert.deepStrictEqual(Builder.MODULE_FILES, [
   'settings-controller.js', 'settings-feature-controller.js', 'diagnostics-controller.js', 'diagnostics-feature-controller.js', 'setup-feature-controller.js', 'server-controller.js', 'server-feature-controller.js', 'plex-source-router.js', 'media-source-resolver.js', 'library-sources-controller.js', 'multi-server-content-controller.js',
   'search-controller.js', 'search-feature-controller.js', 'shell-controller.js', 'shell-feature-controller.js', 'library-controller.js', 'library-tab-prefetch.js', '../library-grid-view.js', 'library-feature-controller.js', 'detail-controller.js', 'detail-feature-controller.js',
   'media-context-controller.js',
-  'input-controller.js', 'pointer-controller.js', 'application-controller.js', 'application-bootstrap.js'
+  'input-controller.js', 'pointer-controller.js', 'launch-command-controller.js', 'launch-command-transport.js', 'application-controller.js', 'application-bootstrap.js'
 ], 'coordinator modules must stay explicit and application-bootstrap.js must remain last');
 assert.deepStrictEqual(Builder.PRELUDE_FILES, ['player-runtime-loader.js', 'diagnostics-support-runtime-loader.js'],
   'Core includes only the explicit deferred-runtime loaders; optional debug capture stays excluded');

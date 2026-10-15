@@ -18,6 +18,19 @@
     var application = null;
     var destroyed = false;
     var events = null;
+    var queuedParams = null;
+    function receiveLaunch(event) {
+      var params = event && event.detail;
+      if (destroyed) { return; }
+      if (event && root.PalmSystem && typeof root.PalmSystem.activate === 'function') { root.PalmSystem.activate(); }
+      if (params && params.params) { params = params.params; }
+      if (typeof params !== 'string' && (!params || !Object.prototype.hasOwnProperty.call(params, 'ploff'))) {
+        params = root && root.PalmSystem && root.PalmSystem.launchParams;
+      }
+      if (!params) { return; }
+      if (application && application.launchCommand) { application.launchCommand(params); }
+      else { queuedParams = params; }
+    }
     var create = values.createApplication || (root && root.PloffApplicationController && root.PloffApplicationController.create);
     var startupMetrics = values.startupMetrics || (root && root.PloffStartupMetrics && root.PloffStartupMetrics.create
       ? root.PloffStartupMetrics.create({ now: values.now }) : null);
@@ -27,6 +40,7 @@
     function destroy() {
       if (destroyed) { return; }
       destroyed = true;
+      queuedParams = null;
       if (application && typeof application.destroy === 'function') { application.destroy(); }
       application = null;
       if (events) { events.destroy(); events = null; }
@@ -34,7 +48,12 @@
 
     if (startupMetrics && typeof startupMetrics.mark === 'function') { startupMetrics.mark('bootstrap'); }
     if (root && root.PloffApplicationEvents && root.PloffApplicationEvents.bind) {
-      events = root.PloffApplicationEvents.bind([{ target: root, name: 'unload', handler: destroy }]);
+      events = root.PloffApplicationEvents.bind([
+        { target: root, name: 'unload', handler: destroy },
+        { target: document, name: 'webOSLaunch', handler: receiveLaunch },
+        { target: document, name: 'webOSRelaunch', handler: receiveLaunch }
+      ]);
+      receiveLaunch(null);
     }
     if (!root || !document || !root.PloffCredentialVault || typeof root.PloffCredentialVault.prepare !== 'function') {
       call(values.onError, new Error('Application dependencies are unavailable'));
@@ -48,6 +67,7 @@
       if (destroyed || application) { return; }
       try { application = create(root, document, credentialStorage, startupMetrics); }
       catch (error) { call(values.onError, error); return; }
+      if (application.launchCommand && queuedParams) { application.launchCommand(queuedParams); queuedParams = null; }
       call(values.onReady, application);
     });
     return { destroy: destroy, instance: instance };

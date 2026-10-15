@@ -45,6 +45,7 @@ Active acceptance work and implemented architecture references are distinguished
 
 ## Product behavior
 
+- [`launch-commands.md`](launch-commands.md) — versioned webOS launch/relaunch playback commands for paired automation controllers.
 - [`features.md`](features.md) — viewer-facing functionality.
 - [`settings.md`](settings.md) — persisted Settings schema, migrations, and UI/schema boundary.
 - [`themes.md`](themes.md) — seven shipped visual themes, Chrome 53-safe styling rules, and extension workflow.
