@@ -43,11 +43,11 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@xmldom/xmldom": "0.8.15",
-    "acorn": "8.17.0",
-    "eslint": "10.8.0",
-    "globals": "17.8.0",
+    "@playwright/test": "^1.64.1",
+    "@xmldom/xmldom": "0.9.12",
+    "acorn": "8.19.0",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
     "typescript": "7.0.2"
   }
 }
